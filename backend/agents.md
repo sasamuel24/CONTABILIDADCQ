@@ -193,48 +193,134 @@ class TimestampMixin:
     updated_at: Mapped[datetime] = mapped_column(DateTime, onupdate=datetime.utcnow)
 ```
 
+### Tablas del Sistema
+
+#### 1. **areas** - Catálogo de Áreas
+```python
+id: uuid (PK)
+nombre: text (unique, not null, indexed)
+```
+
+#### 2. **users** - Usuarios del Sistema
+```python
+id: uuid (PK)
+nombre: text (not null)
+email: text (unique, not null, indexed)
+area_id: uuid (FK → areas.id, SET NULL)
+password_hash: text (not null)
+role: text (not null, CHECK: 'admin'|'area_manager'|'user')
+is_active: boolean (default true)
+created_at, updated_at: timestamptz
+```
+
+#### 3. **estados** - Catálogo de Estados
+```python
+id: smallint (PK, autoincrement)
+code: text (unique, not null, indexed)
+label: text (not null)
+order: smallint (not null)
+is_final: boolean (default false)
+is_active: boolean (default true)
+```
+
+#### 4. **facturas** - Registro de Facturas
+```python
+id: uuid (PK)
+proveedor: text (not null)
+numero_factura: text (not null)
+fecha_emision: date (nullable)
+area_id: uuid (FK → areas.id, RESTRICT, indexed)
+total: numeric(12,2) (not null, CHECK > 0)
+estado_id: smallint (FK → estados.id, RESTRICT, indexed)
+assigned_to_user_id: uuid (FK → users.id, SET NULL, indexed)
+assigned_at: timestamptz (nullable)
+created_at, updated_at: timestamptz
+
+UNIQUE CONSTRAINT: (proveedor, numero_factura)
+COMPOSITE INDEX: (estado_id, area_id)
+```
+
+#### 5. **files** - Archivos Adjuntos
+```python
+id: uuid (PK)
+factura_id: uuid (FK → facturas.id, CASCADE, indexed)
+storage_provider: text (not null, CHECK: 'local'|'s3'|'drive')
+storage_path: text (not null)
+filename: text (not null)
+content_type: text (not null)
+size_bytes: bigint (not null, CHECK > 0)
+created_at, updated_at: timestamptz
+```
+
+### ⚠️ Consideraciones Importantes de BD
+
+#### Integridad Referencial (ON DELETE behaviors)
+- `users.area_id` → **SET NULL** (si se borra área, user queda sin área)
+- `facturas.area_id` → **RESTRICT** (no permitir borrar área con facturas)
+- `facturas.estado_id` → **RESTRICT** (no permitir borrar estado en uso)
+- `facturas.assigned_to_user_id` → **SET NULL** (si se borra user, factura queda sin asignar)
+- `files.factura_id` → **CASCADE** (borrar factura borra sus archivos)
+
+#### Constraints de Negocio
+- **Unicidad de facturas:** No puede existir misma factura del mismo proveedor
+- **Total positivo:** Las facturas deben tener monto > 0
+- **Roles válidos:** Solo 'admin', 'area_manager', 'user'
+- **Storage providers válidos:** Solo 'local', 's3', 'drive'
+- **Tamaño de archivo positivo:** Files debe tener size_bytes > 0
+
+#### Índices de Performance
+```sql
+-- Búsquedas frecuentes
+facturas(estado_id)              -- Filtrar por estado
+facturas(area_id)                -- Filtrar por área
+facturas(assigned_to_user_id)    -- Buscar asignaciones
+facturas(estado_id, area_id)     -- Reportes compuestos
+files(factura_id)                -- Archivos de factura
+
+-- Búsquedas únicas
+areas(nombre)                    -- Búsqueda de área por nombre
+users(email)                     -- Login por email
+estados(code)                    -- Búsqueda de estado por código
+```
+
+#### Datos Iniciales (Seed)
+```bash
+# Ejecutar después de migraciones
+python -m db.seed
+```
+
+**Áreas creadas:**
+- Mantenimiento
+- Arquitectura
+- Administración
+- Operaciones
+
+**Estados creados:**
+- recibida (order: 1)
+- asignada (order: 2)
+- en_curso (order: 3)
+- pendiente (order: 4)
+- cerrada (order: 5, is_final: true)
+
 ### Migraciones con Alembic
 ```bash
-# Inicializar Alembic
-alembic init backend/alembic
+# Ver estado actual
+python -m alembic current
 
-# Crear migración
-alembic revision --autogenerate -m "descripción"
+# Crear migración automática
+python -m alembic revision --autogenerate -m "descripción"
 
 # Aplicar migraciones
-alembic upgrade head
+python -m alembic upgrade head
+
+# Revertir última migración
+python -m alembic downgrade -1
+
+# Seed de datos iniciales
+python -m db.seed
 ```
 
 ---
-
-## 🧪 Testing
-
-### Estructura
-- Tests en `backend/tests/`
-- Naming: `test_*.py`
-- Usar `TestClient` de FastAPI
-```python
-from fastapi.testclient import TestClient
-from main import app
-
-client = TestClient(app)
-
-def test_health_check():
-    response = client.get("/health")
-    assert response.status_code == 200
-```
-
-### Comandos
-```bash
-# Ejecutar todos los tests
-pytest tests/ -v
-
-# Con coverage
-pytest tests/ --cov=. --cov-report=html
-```
-
----
-
 ## 🚀 Ejecución y Deployment
 
 ### Desarrollo Local
@@ -321,35 +407,103 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 ---
 
-## 🔮 Roadmap Futuro
-
-### Próximas Funcionalidades
-1. **Extracción de datos PDF:** Integración con biblioteca de OCR/parsing
-2. **Autenticación:** JWT, OAuth2
-3. **Autorización:** RBAC por roles
-4. **Auditoría:** Registro de cambios
-5. **Notificaciones:** Email/webhook al cambiar estados
-6. **Reportes:** Generación de reportes en PDF/Excel
-7. **File upload:** Almacenamiento de facturas PDF
-
-### Consideraciones Técnicas
-- Mantener arquitectura modular
-- Nuevos módulos siguen mismo patrón (router/service/repository)
-- Agregar índices en BD según uso
-- Implementar rate limiting
-- Cache con Redis para catálogos
-
----
-
-## 📚 Referencias
-
-- **FastAPI:** https://fastapi.tiangolo.com/
-- **SQLAlchemy 2.0:** https://docs.sqlalchemy.org/en/20/
-- **Pydantic:** https://docs.pydantic.dev/
-- **Alembic:** https://alembic.sqlalchemy.org/
-- **pytest:** https://docs.pytest.org/
-
----
-
 **Última actualización:** 22 de diciembre de 2025
 **Versión del proyecto:** 1.0.0
+
+----
+
+# Guía de Migraciones de Base de Datos - CONTABILIDADCQ
+
+## 📋 Estructura de Base de Datos
+
+### Tablas
+1. **areas** - Catálogo de áreas organizacionales
+2. **users** - Usuarios del sistema con roles
+3. **estados** - Catálogo de estados de facturas
+4. **facturas** - Registro principal de facturas
+5. **files** - Archivos adjuntos a facturas
+
+### Relaciones
+- `users.area_id` → `areas.id` (ON DELETE SET NULL)
+- `facturas.area_id` → `areas.id` (ON DELETE RESTRICT)
+- `facturas.estado_id` → `estados.id` (ON DELETE RESTRICT)
+- `facturas.assigned_to_user_id` → `users.id` (ON DELETE SET NULL)
+- `files.factura_id` → `facturas.id` (ON DELETE CASCADE)
+
+---
+
+## ⚠️ Consideraciones Importantes
+
+### Constraints Únicos
+- **areas:** `nombre` (unique)
+- **users:** `email` (unique)
+- **estados:** `code` (unique)
+- **facturas:** `(proveedor, numero_factura)` (composite unique)
+
+### Índices Creados
+- `facturas(estado_id)` - Para filtrar por estado
+- `facturas(area_id)` - Para filtrar por área
+- `facturas(assigned_to_user_id)` - Para buscar asignaciones
+- `facturas(estado_id, area_id)` - Índice compuesto para reportes
+- `files(factura_id)` - Para búsqueda de archivos por factura
+
+### Check Constraints
+- `users.role` IN ('admin', 'area_manager', 'user')
+- `facturas.total` > 0
+- `files.storage_provider` IN ('local', 's3', 'drive')
+- `files.size_bytes` > 0
+
+---
+
+## 📊 Esquema Visual
+
+```
+areas
+├── id (uuid, PK)
+└── nombre (text, unique)
+
+users
+├── id (uuid, PK)
+├── nombre (text)
+├── email (text, unique)
+├── area_id (uuid, FK → areas.id) [SET NULL]
+├── password_hash (text)
+├── role (text) [CHECK: admin|area_manager|user]
+├── is_active (boolean)
+├── created_at (timestamptz)
+└── updated_at (timestamptz)
+
+estados
+├── id (smallint, PK)
+├── code (text, unique)
+├── label (text)
+├── order (smallint)
+├── is_final (boolean)
+└── is_active (boolean)
+
+facturas
+├── id (uuid, PK)
+├── proveedor (text) ─┐
+├── numero_factura (text) ─┤ UNIQUE constraint
+├── fecha_emision (date)
+├── area_id (uuid, FK → areas.id) [RESTRICT]
+├── total (numeric(12,2)) [CHECK > 0]
+├── estado_id (smallint, FK → estados.id) [RESTRICT]
+├── assigned_to_user_id (uuid, FK → users.id) [SET NULL]
+├── assigned_at (timestamptz)
+├── created_at (timestamptz)
+└── updated_at (timestamptz)
+
+files
+├── id (uuid, PK)
+├── factura_id (uuid, FK → facturas.id) [CASCADE]
+├── storage_provider (text) [CHECK: local|s3|drive]
+├── storage_path (text)
+├── filename (text)
+├── content_type (text)
+├── size_bytes (bigint) [CHECK > 0]
+├── created_at (timestamptz)
+└── updated_at (timestamptz)
+```
+
+---

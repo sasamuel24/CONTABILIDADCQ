@@ -15,14 +15,15 @@ class TimestampMixin:
     """Mixin para agregar campos de timestamp a los modelos."""
     
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=datetime.utcnow,
         nullable=False
     )
     
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
         nullable=False
     )
+

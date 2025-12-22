@@ -1,6 +1,9 @@
 """
 Configuración de la aplicación basada en variables de entorno.
 Utiliza pydantic-settings para validación y gestión de configuración.
+
+Las variables se pueden configurar en el archivo .env en la raíz de backend/
+Ejemplo: DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/contabilidadcq
 """
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -13,8 +16,8 @@ class Settings(BaseSettings):
     app_version: str = "1.0.0"
     debug: bool = False
     
-    # Base de datos
-    database_url: str = "postgresql+asyncpg://user:password@localhost:5432/contabilidadcq"
+    # Base de datos (lee DATABASE_URL desde .env)
+    database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/contabilidadcq"
     
     # CORS
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]

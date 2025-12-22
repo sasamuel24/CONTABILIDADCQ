@@ -1,11 +1,14 @@
 """
 Punto de entrada principal de la aplicación FastAPI.
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 
 from core.config import settings
 from core.logging import logger
+from db.session import get_db
 from modules.facturas.router import router as facturas_router
 from modules.catalogos.areas import router as areas_router
 from modules.catalogos.estados import router as estados_router
@@ -34,14 +37,41 @@ app.include_router(estados_router, prefix="/api/v1")
 
 
 @app.get("/health")
-async def health_check():
-    """Endpoint de healthcheck para verificar que la API está funcionando."""
+async def health_check(db: AsyncSession = Depends(get_db)):
+    """Endpoint de healthcheck que verifica API y conexión a base de datos."""
     logger.info("Health check solicitado")
-    return {
+    
+    # Info básica de la API
+    health_status = {
         "status": "healthy",
         "app": settings.app_name,
-        "version": settings.app_version
+        "version": settings.app_version,
+        "database": {}
     }
+    
+    # Verificar conexión a BD
+    try:
+        result = await db.execute(text("SELECT 1"))
+        result.scalar()
+        
+        version_result = await db.execute(text("SELECT version()"))
+        db_version = version_result.scalar()
+        
+        health_status["database"] = {
+            "status": "connected",
+            "type": "PostgreSQL",
+            "version": db_version.split(",")[0] if db_version else "unknown"
+        }
+        logger.info("Conexión a base de datos verificada exitosamente")
+    except Exception as e:
+        health_status["status"] = "degraded"
+        health_status["database"] = {
+            "status": "disconnected",
+            "error": str(e)
+        }
+        logger.error(f"Error al conectar con la base de datos: {str(e)}")
+    
+    return health_status
 
 
 @app.on_event("startup")

@@ -9,16 +9,22 @@ from sqlalchemy import text
 from core.config import settings
 from core.logging import logger
 from db.session import get_db
+
+# Importar routers de todos los módulos
+from modules.auth.router import router as auth_router
+from modules.dashboard.router import router as dashboard_router
+from modules.areas.router import router as areas_router
+from modules.estados.router import router as estados_router
 from modules.facturas.router import router as facturas_router
-from modules.catalogos.areas import router as areas_router
-from modules.catalogos.estados import router as estados_router
+from modules.files.router import router as files_router
 
 
 # Crear instancia de FastAPI
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    debug=settings.debug
+    debug=settings.debug,
+    description="API para gestión de facturas - Sistema CONTABILIDADCQ"
 )
 
 # Configurar CORS
@@ -30,10 +36,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Registrar routers
-app.include_router(facturas_router, prefix="/api/v1")
+# Registrar routers bajo /api/v1
+app.include_router(auth_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(areas_router, prefix="/api/v1")
 app.include_router(estados_router, prefix="/api/v1")
+app.include_router(facturas_router, prefix="/api/v1")
+app.include_router(files_router, prefix="/api/v1")
 
 
 @app.get("/health")

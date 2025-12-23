@@ -2,8 +2,11 @@
 Repositorio para operaciones de base de datos del módulo facturas.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from typing import Optional, List
+from sqlalchemy import select, func
+from typing import Optional, List, Tuple
+from uuid import UUID
+from db.models import Factura, Area, Estado
+from datetime import datetime
 
 
 class FacturaRepository:
@@ -12,31 +15,51 @@ class FacturaRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, skip: int = 0, limit: int = 100) -> List:
+    async def get_all(self, skip: int = 0, limit: int = 100) -> Tuple[List[Factura], int]:
         """Obtiene todas las facturas con paginación."""
-        # TODO: Implementar cuando el modelo ORM esté definido
-        # result = await self.db.execute(select(FacturaModel).offset(skip).limit(limit))
-        # return result.scalars().all()
-        return []
+        # Contar total
+        count_result = await self.db.execute(select(func.count(Factura.id)))
+        total = count_result.scalar()
+        
+        # Obtener facturas
+        result = await self.db.execute(
+            select(Factura)
+            .order_by(Factura.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        facturas = result.scalars().all()
+        
+        return facturas, total
     
-    async def get_by_id(self, factura_id: int) -> Optional:
+    async def get_by_id(self, factura_id: UUID) -> Optional[Factura]:
         """Obtiene una factura por ID."""
-        # TODO: Implementar cuando el modelo ORM esté definido
-        # result = await self.db.execute(select(FacturaModel).where(FacturaModel.id == factura_id))
-        # return result.scalar_one_or_none()
-        return None
+        result = await self.db.execute(
+            select(Factura).where(Factura.id == factura_id)
+        )
+        return result.scalar_one_or_none()
     
-    async def create(self, factura_data: dict):
+    async def get_by_numero(self, numero_factura: str) -> Optional[Factura]:
+        """Obtiene una factura por número."""
+        result = await self.db.execute(
+            select(Factura).where(Factura.numero_factura == numero_factura)
+        )
+        return result.scalar_one_or_none()
+    
+    async def create(self, factura_data: dict) -> Factura:
         """Crea una nueva factura."""
-        # TODO: Implementar cuando el modelo ORM esté definido
-        # factura = FacturaModel(**factura_data)
-        # self.db.add(factura)
-        # await self.db.flush()
-        # await self.db.refresh(factura)
-        # return factura
-        pass
+        factura = Factura(**factura_data)
+        self.db.add(factura)
+        await self.db.flush()
+        await self.db.refresh(factura)
+        return factura
     
-    async def update(self, factura_id: int, factura_data: dict):
-        """Actualiza una factura existente."""
-        # TODO: Implementar cuando el modelo ORM esté definido
-        pass
+    async def update_estado(self, factura_id: UUID, estado_id: int) -> Optional[Factura]:
+        """Actualiza el estado de una factura."""
+        factura = await self.get_by_id(factura_id)
+        if factura:
+            factura.estado_id = estado_id
+            factura.updated_at = datetime.utcnow()
+            await self.db.flush()
+            await self.db.refresh(factura)
+        return factura

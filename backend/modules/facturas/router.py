@@ -4,11 +4,18 @@ Router de FastAPI para el módulo de facturas.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
+from uuid import UUID
 
 from db.session import get_db
 from modules.facturas.repository import FacturaRepository
 from modules.facturas.service import FacturaService
-from modules.facturas.schemas import FacturaCreate, FacturaUpdate, FacturaResponse
+from modules.facturas.schemas import (
+    FacturaCreate,
+    FacturaResponse,
+    FacturasPaginatedResponse,
+    EstadoUpdateRequest,
+    EstadoUpdateResponse
+)
 
 
 router = APIRouter(prefix="/facturas", tags=["Facturas"])
@@ -20,7 +27,7 @@ def get_factura_service(db: AsyncSession = Depends(get_db)) -> FacturaService:
     return FacturaService(repository)
 
 
-@router.get("/", response_model=List[FacturaResponse])
+@router.get("/", response_model=FacturasPaginatedResponse)
 async def list_facturas(
     skip: int = 0,
     limit: int = 100,
@@ -32,14 +39,20 @@ async def list_facturas(
 
 @router.get("/{factura_id}", response_model=FacturaResponse)
 async def get_factura(
-    factura_id: int,
+    factura_id: UUID,
     service: FacturaService = Depends(get_factura_service)
 ):
     """Obtiene una factura por ID."""
-    try:
-        return await service.get_factura(factura_id)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    return await service.get_factura(factura_id)
+
+
+@router.get("/by-number/{numero_factura}", response_model=FacturaResponse)
+async def get_factura_by_numero(
+    numero_factura: str,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """Obtiene una factura por número de factura."""
+    return await service.get_factura_by_numero(numero_factura)
 
 
 @router.post("/", response_model=FacturaResponse, status_code=status.HTTP_201_CREATED)
@@ -51,14 +64,11 @@ async def create_factura(
     return await service.create_factura(factura)
 
 
-@router.patch("/{factura_id}", response_model=FacturaResponse)
-async def update_factura(
-    factura_id: int,
-    factura: FacturaUpdate,
+@router.patch("/{factura_id}/estado", response_model=EstadoUpdateResponse)
+async def update_factura_estado(
+    factura_id: UUID,
+    request: EstadoUpdateRequest,
     service: FacturaService = Depends(get_factura_service)
 ):
-    """Actualiza una factura existente (estado, área asignada)."""
-    try:
-        return await service.update_factura(factura_id, factura)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    """Actualiza el estado de una factura."""
+    return await service.update_estado(factura_id, request.estado_id)

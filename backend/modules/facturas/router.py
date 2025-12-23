@@ -16,6 +16,7 @@ from modules.facturas.schemas import (
     EstadoUpdateRequest,
     EstadoUpdateResponse
 )
+from core.auth import require_api_key
 
 
 router = APIRouter(prefix="/facturas", tags=["Facturas"])
@@ -55,12 +56,21 @@ async def get_factura_by_numero(
     return await service.get_factura_by_numero(numero_factura)
 
 
-@router.post("/", response_model=FacturaResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=FacturaResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_api_key)]
+)
 async def create_factura(
     factura: FacturaCreate,
     service: FacturaService = Depends(get_factura_service)
 ):
-    """Crea una nueva factura."""
+    """
+    Crea una nueva factura.
+    
+    **Requiere API Key:** Header `x-api-key` con la clave válida.
+    """
     return await service.create_factura(factura)
 
 

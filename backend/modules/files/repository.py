@@ -14,6 +14,22 @@ class FileRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
+    async def create(self, file_data: dict) -> File:
+        """
+        Crea un nuevo archivo en la base de datos.
+        
+        Args:
+            file_data: Diccionario con los datos del archivo
+            
+        Returns:
+            File: El archivo creado
+        """
+        file = File(**file_data)
+        self.db.add(file)
+        await self.db.flush()
+        await self.db.refresh(file)
+        return file
+    
     async def get_by_id(self, file_id: UUID) -> Optional[File]:
         """Obtiene un archivo por ID."""
         result = await self.db.execute(

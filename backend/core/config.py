@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # Base de datos (lee DATABASE_URL desde .env)
     database_url: str = "postgresql+asyncpg://postgres:password@localhost:5432/contabilidadcq"
     
+    # API Key para endpoints de ingesta (n8n)
+    api_key: str = "change-this-in-production"
+    
     # CORS
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
     

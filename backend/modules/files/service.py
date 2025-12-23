@@ -2,7 +2,7 @@
 Servicio para lógica de negocio de files.
 """
 from modules.files.repository import FileRepository
-from modules.files.schemas import FileResponse
+from modules.files.schemas import FileResponse, FileCreateRequest
 from typing import List
 from core.logging import logger
 from fastapi import HTTPException, status
@@ -15,6 +15,54 @@ class FileService:
     
     def __init__(self, repository: FileRepository):
         self.repository = repository
+    
+    async def register_file_metadata(
+        self, 
+        factura_id: UUID, 
+        file_data: FileCreateRequest
+    ) -> FileResponse:
+        """
+        Registra metadata de un archivo sin realizar upload físico.
+        
+        Propósito: Crear registro en tabla files asociado a una factura existente.
+        Datos necesarios: factura_id (validado previamente), file_data con los 5 campos.
+        """
+        logger.info(f"Registrando metadata de archivo para factura {factura_id}: {file_data.filename}")
+        
+        try:
+            # Operación: Crear registro en BD con metadata del archivo
+            db_file_data = {
+                "factura_id": factura_id,
+                "storage_provider": file_data.storage_provider,
+                "storage_path": file_data.storage_path,
+                "filename": file_data.filename,
+                "content_type": file_data.content_type,
+                "size_bytes": file_data.size_bytes
+            }
+            
+            db_file = await self.repository.create(db_file_data)
+            
+            # ✅ Validación: Registro creado exitosamente con ID generado
+            logger.info(f"Metadata de archivo registrada exitosamente: {db_file.id}")
+            
+            # Retornar con uploaded_at mapeado desde created_at
+            return FileResponse(
+                id=db_file.id,
+                factura_id=db_file.factura_id,
+                storage_provider=db_file.storage_provider,
+                storage_path=db_file.storage_path,
+                filename=db_file.filename,
+                content_type=db_file.content_type,
+                size_bytes=db_file.size_bytes,
+                uploaded_at=db_file.created_at
+            )
+            
+        except Exception as e:
+            logger.error(f"Error registrando metadata de archivo: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al registrar el archivo"
+            )
     
     async def get_file_by_id(self, file_id: UUID) -> FileResponse:
         """Obtiene información de un archivo por ID."""

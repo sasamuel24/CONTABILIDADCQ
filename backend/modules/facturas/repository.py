@@ -15,19 +15,24 @@ class FacturaRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, skip: int = 0, limit: int = 100) -> Tuple[List[Factura], int]:
-        """Obtiene todas las facturas con paginación."""
+    async def get_all(self, skip: int = 0, limit: int = 100, area_id: Optional[UUID] = None) -> Tuple[List[Factura], int]:
+        """Obtiene todas las facturas con paginación y filtros opcionales."""
+        # Construir query base
+        query = select(Factura)
+        count_query = select(func.count(Factura.id))
+        
+        # Aplicar filtro por area_id si se proporciona
+        if area_id:
+            query = query.where(Factura.area_id == area_id)
+            count_query = count_query.where(Factura.area_id == area_id)
+        
         # Contar total
-        count_result = await self.db.execute(select(func.count(Factura.id)))
+        count_result = await self.db.execute(count_query)
         total = count_result.scalar()
         
         # Obtener facturas
-        result = await self.db.execute(
-            select(Factura)
-            .order_by(Factura.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-        )
+        query = query.order_by(Factura.created_at.desc()).offset(skip).limit(limit)
+        result = await self.db.execute(query)
         facturas = result.scalars().all()
         
         return facturas, total

@@ -1,9 +1,9 @@
 """
 Router de FastAPI para el módulo de facturas.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from db.session import get_db
@@ -32,10 +32,11 @@ def get_factura_service(db: AsyncSession = Depends(get_db)) -> FacturaService:
 async def list_facturas(
     skip: int = 0,
     limit: int = 100,
+    area_id: Optional[UUID] = Query(None, description="Filtrar por ID de área"),
     service: FacturaService = Depends(get_factura_service)
 ):
-    """Lista todas las facturas con paginación."""
-    return await service.list_facturas(skip=skip, limit=limit)
+    """Lista todas las facturas con paginación y filtros opcionales."""
+    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id)
 
 
 @router.get("/{factura_id}", response_model=FacturaResponse)

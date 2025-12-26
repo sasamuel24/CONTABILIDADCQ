@@ -9,7 +9,7 @@ from modules.facturas.schemas import (
     FacturaListItem,
     EstadoUpdateResponse
 )
-from typing import List
+from typing import List, Optional
 from core.logging import logger
 from fastapi import HTTPException, status
 from uuid import UUID
@@ -24,11 +24,12 @@ class FacturaService:
     async def list_facturas(
         self,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        area_id: Optional[UUID] = None
     ) -> FacturasPaginatedResponse:
-        """Lista todas las facturas con paginación."""
-        logger.info(f"Listando facturas: skip={skip}, limit={limit}")
-        facturas, total = await self.repository.get_all(skip=skip, limit=limit)
+        """Lista todas las facturas con paginación y filtros."""
+        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}")
+        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id)
         
         items = []
         for f in facturas:

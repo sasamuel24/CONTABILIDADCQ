@@ -194,6 +194,12 @@ class Factura(Base, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin"
     )
+    asignaciones: Mapped[List["FacturaAsignacion"]] = relationship(
+        "FacturaAsignacion",
+        back_populates="factura",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
     
     # Constraints e índices
     __table_args__ = (
@@ -253,3 +259,55 @@ class File(Base, TimestampMixin):
     
     def __repr__(self):
         return f"<File(id={self.id}, filename={self.filename}, factura_id={self.factura_id})>"
+
+
+class FacturaAsignacion(Base):
+    """Modelo de asignaciones de facturas a responsables."""
+    __tablename__ = "factura_asignaciones"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    factura_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facturas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    area_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("areas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    responsable_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP,
+        default=datetime.utcnow,
+        nullable=False
+    )
+    
+    # Relaciones
+    factura: Mapped["Factura"] = relationship(
+        "Factura",
+        back_populates="asignaciones",
+        lazy="selectin"
+    )
+    area: Mapped["Area"] = relationship(
+        "Area",
+        lazy="selectin"
+    )
+    responsable: Mapped["User"] = relationship(
+        "User",
+        lazy="selectin"
+    )
+    
+    def __repr__(self):
+        return f"<FacturaAsignacion(id={self.id}, factura_id={self.factura_id}, responsable_user_id={self.responsable_user_id})>"

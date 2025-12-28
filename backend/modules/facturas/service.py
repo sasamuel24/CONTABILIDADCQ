@@ -11,7 +11,9 @@ from modules.facturas.schemas import (
     EstadoUpdateResponse,
     InventariosPatchIn,
     InventariosOut,
-    InventarioCodigoOut
+    InventarioCodigoOut,
+    AnticipoUpdateIn,
+    AnticipoOut
 )
 from typing import List, Optional, Set, Dict
 from core.logging import logger
@@ -398,4 +400,107 @@ class FacturaService:
                 )
                 for c in codigos_finales
             ]
+        )
+    
+    async def update_anticipo(
+        self,
+        factura_id: UUID,
+        anticipo_data: AnticipoUpdateIn
+    ) -> AnticipoOut:
+        """
+        Actualiza los campos de anticipo de una factura.
+        
+        Validaciones (constraints):
+        1. check_anticipo_porcentaje_required:
+           tiene_anticipo = (porcentaje_anticipo IS NOT NULL)
+           - Si tiene_anticipo=true  → porcentaje_anticipo NO puede ser null
+           - Si tiene_anticipo=false → porcentaje_anticipo DEBE ser null
+        
+        2. check_porcentaje_anticipo_range:
+           porcentaje_anticipo IS NULL OR (0 <= porcentaje_anticipo <= 100)
+           - Si porcentaje_anticipo no es null → debe estar entre 0 y 100
+        
+        3. intervalo_entrega_contabilidad:
+           - Siempre obligatorio
+           - Debe ser uno de: 1_SEMANA, 2_SEMANAS, 3_SEMANAS, 1_MES
+        """
+        logger.info(f"Actualizando anticipo de factura ID: {factura_id}")
+        
+        # Verificar que la factura existe
+        from sqlalchemy import select
+        from db.models import Factura
+        
+        result = await self.db.execute(
+            select(Factura).where(Factura.id == factura_id)
+        )
+        factura = result.scalar_one_or_none()
+        
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        
+        # Validaciones de negocio (los schemas ya validaron la estructura básica)
+        errors = []
+        
+        # Validación 1: check_anticipo_porcentaje_required
+        # tiene_anticipo = (porcentaje_anticipo IS NOT NULL)
+        tiene = anticipo_data.tiene_anticipo
+        porcentaje = anticipo_data.porcentaje_anticipo
+        
+        if tiene and porcentaje is None:
+            errors.append({
+                "field": "porcentaje_anticipo",
+                "code": "check_anticipo_porcentaje_required",
+                "reason": "Si tiene_anticipo es true, porcentaje_anticipo no puede ser null"
+            })
+        
+        if not tiene and porcentaje is not None:
+            errors.append({
+                "field": "porcentaje_anticipo",
+                "code": "check_anticipo_porcentaje_required",
+                "reason": "Si tiene_anticipo es false, porcentaje_anticipo debe ser null"
+            })
+        
+        # Validación 2: check_porcentaje_anticipo_range
+        # Ya validado por Pydantic (ge=0, le=100), pero doble check
+        if porcentaje is not None and (porcentaje < 0 or porcentaje > 100):
+            errors.append({
+                "field": "porcentaje_anticipo",
+                "code": "check_porcentaje_anticipo_range",
+                "reason": f"porcentaje_anticipo debe estar entre 0 y 100, recibido: {porcentaje}"
+            })
+        
+        # Si hay errores, retornar 400
+        if errors:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Anticipo inválido",
+                    "errors": errors
+                }
+            )
+        
+        # Actualizar factura
+        factura.tiene_anticipo = anticipo_data.tiene_anticipo
+        factura.porcentaje_anticipo = anticipo_data.porcentaje_anticipo
+        factura.intervalo_entrega_contabilidad = anticipo_data.intervalo_entrega_contabilidad.value
+        
+        # Commit
+        await self.db.commit()
+        await self.db.refresh(factura)
+        
+        logger.info(
+            f"Anticipo actualizado para factura {factura_id}: "
+            f"tiene_anticipo={factura.tiene_anticipo}, "
+            f"porcentaje={factura.porcentaje_anticipo}, "
+            f"intervalo={factura.intervalo_entrega_contabilidad}"
+        )
+        
+        return AnticipoOut(
+            factura_id=factura.id,
+            tiene_anticipo=factura.tiene_anticipo,
+            porcentaje_anticipo=float(factura.porcentaje_anticipo) if factura.porcentaje_anticipo is not None else None,
+            intervalo_entrega_contabilidad=factura.intervalo_entrega_contabilidad
         )

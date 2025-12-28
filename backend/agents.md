@@ -2474,4 +2474,479 @@ Response.codigos[0].valor = "NEW-XXX" (valores actualizados)
 
 ---
 
+## 🎯 Módulo: Anticipo de Facturas
+
+### Descripción General
+Sistema para gestionar anticipos en facturas, con validación estricta de consistencia entre campos y control de porcentajes.
+
+### Campos Relacionados
+
+#### `tiene_anticipo`
+- **Tipo**: `BOOLEAN NOT NULL`
+- **Default**: `false`
+- **Descripción**: Indica si la factura tiene un anticipo asociado
+
+#### `porcentaje_anticipo`
+- **Tipo**: `NUMERIC(5,2) NULL`
+- **Descripción**: Porcentaje del monto que corresponde al anticipo
+- **Rango válido**: 0.00 - 100.00 (cuando no es NULL)
+
+#### `intervalo_entrega_contabilidad`
+- **Tipo**: `ENUM NOT NULL`
+- **Valores permitidos**: `1_SEMANA`, `2_SEMANAS`, `3_SEMANAS`, `1_MES`
+- **Default**: `1_SEMANA`
+- **Descripción**: Frecuencia de entrega de documentación a contabilidad
+
+### CHECK Constraints (Base de Datos)
+
+#### Constraint 1: `check_anticipo_porcentaje_required`
+**Regla**: `tiene_anticipo = (porcentaje_anticipo IS NOT NULL)`
+
+**Tabla de Verdad**:
+| tiene_anticipo | porcentaje_anticipo | Resultado |
+|----------------|---------------------|-----------|
+| `false`        | `NULL`              | ✅ VÁLIDO |
+| `false`        | `30.00`             | ❌ INVÁLIDO |
+| `true`         | `NULL`              | ❌ INVÁLIDO |
+| `true`         | `50.00`             | ✅ VÁLIDO |
+
+**Lógica**:
+- Si `tiene_anticipo = false` → `porcentaje_anticipo` DEBE ser NULL
+- Si `tiene_anticipo = true` → `porcentaje_anticipo` NO puede ser NULL
+
+#### Constraint 2: `check_porcentaje_anticipo_range`
+**Regla**: `porcentaje_anticipo IS NULL OR (porcentaje_anticipo >= 0 AND porcentaje_anticipo <= 100)`
+
+**Casos de Prueba**:
+| Valor | Resultado |
+|-------|-----------|
+| `NULL` | ✅ VÁLIDO |
+| `0.00` | ✅ VÁLIDO |
+| `50.00` | ✅ VÁLIDO |
+| `100.00` | ✅ VÁLIDO |
+| `-10.00` | ❌ INVÁLIDO |
+| `150.00` | ❌ INVÁLIDO |
+
+### Endpoint: PATCH /facturas/{factura_id}/anticipo
+
+#### Descripción
+Actualiza los campos de anticipo de una factura existente. Valida la consistencia entre `tiene_anticipo` y `porcentaje_anticipo` a múltiples niveles.
+
+#### Request Schema: `AnticipoUpdateIn`
+```json
+{
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": 50.0,
+  "intervalo_entrega_contabilidad": "2_SEMANAS"
+}
+```
+
+**Campos**:
+- `tiene_anticipo` (bool, required): Indica si hay anticipo
+- `porcentaje_anticipo` (float, optional): Porcentaje del anticipo (0-100)
+- `intervalo_entrega_contabilidad` (enum, required): Intervalo de entrega
+
+**Validaciones Pydantic**:
+- `porcentaje_anticipo`: Debe estar entre 0 y 100 (cuando no es None)
+- `model_validator`: Valida que `tiene_anticipo` sea consistente con `porcentaje_anticipo`:
+  - Si `tiene_anticipo=false`, entonces `porcentaje_anticipo` debe ser None
+  - Si `tiene_anticipo=true`, entonces `porcentaje_anticipo` NO puede ser None
+- `extra="forbid"`: Rechaza campos adicionales
+
+#### Response Schema: `AnticipoOut`
+```json
+{
+  "id": "uuid",
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": 50.0,
+  "intervalo_entrega_contabilidad": "2_SEMANAS"
+}
+```
+
+#### Capas de Validación
+
+##### 1. Schema Layer (Pydantic)
+- **Código de Error**: `422 Unprocessable Entity`
+- **Validaciones**:
+  - Rango de `porcentaje_anticipo` (0-100)
+  - Consistencia `tiene_anticipo` ↔ `porcentaje_anticipo`
+  - Valores ENUM válidos para `intervalo_entrega_contabilidad`
+  - Rechazo de campos extra
+- **Ejemplo de Error**:
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": ["body"],
+      "msg": "Si tiene_anticipo es true, porcentaje_anticipo no puede ser null",
+      "input": {...}
+    }
+  ]
+}
+```
+
+##### 2. Service Layer (Lógica de Negocio)
+- **Código de Error**: `400 Bad Request`
+- **Validaciones**:
+  - Doble-check del constraint `check_anticipo_porcentaje_required`
+  - Doble-check del constraint `check_porcentaje_anticipo_range`
+- **Formato de Error**:
+```json
+{
+  "detail": {
+    "message": "Anticipo inválido",
+    "errors": [
+      "Si tiene_anticipo es true, porcentaje_anticipo debe tener un valor",
+      "Si tiene_anticipo es false, porcentaje_anticipo debe ser null"
+    ]
+  }
+}
+```
+
+##### 3. Database Layer (PostgreSQL)
+- **Código de Error**: `500 Internal Server Error` (si llega aquí, es un bug)
+- **Constraints**: Los CHECK constraints de PostgreSQL como última línea de defensa
+
+#### Casos de Uso
+
+##### Caso 1: Factura sin anticipo
+```http
+PATCH /facturas/{factura_id}/anticipo
+Content-Type: application/json
+
+{
+  "tiene_anticipo": false,
+  "porcentaje_anticipo": null,
+  "intervalo_entrega_contabilidad": "1_SEMANA"
+}
+```
+
+**Response: 200 OK**
+```json
+{
+  "id": "factura-uuid",
+  "tiene_anticipo": false,
+  "porcentaje_anticipo": null,
+  "intervalo_entrega_contabilidad": "1_SEMANA"
+}
+```
+
+##### Caso 2: Factura con anticipo del 50%
+```http
+PATCH /facturas/{factura_id}/anticipo
+Content-Type: application/json
+
+{
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": 50.0,
+  "intervalo_entrega_contabilidad": "2_SEMANAS"
+}
+```
+
+**Response: 200 OK**
+```json
+{
+  "id": "factura-uuid",
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": 50.0,
+  "intervalo_entrega_contabilidad": "2_SEMANAS"
+}
+```
+
+##### Caso 3: Actualización de anticipo existente
+```http
+# Primera llamada: Crear anticipo
+PATCH /facturas/{factura_id}/anticipo
+{
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": 30.0,
+  "intervalo_entrega_contabilidad": "1_SEMANA"
+}
+# Response: 200 OK
+
+# Segunda llamada: Actualizar porcentaje e intervalo
+PATCH /facturas/{factura_id}/anticipo
+{
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": 75.0,
+  "intervalo_entrega_contabilidad": "1_MES"
+}
+# Response: 200 OK (valores actualizados)
+```
+
+##### Caso 4: Eliminar anticipo existente
+```http
+# Primera llamada: Tiene anticipo
+PATCH /facturas/{factura_id}/anticipo
+{
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": 50.0,
+  "intervalo_entrega_contabilidad": "2_SEMANAS"
+}
+# Response: 200 OK
+
+# Segunda llamada: Quitar anticipo
+PATCH /facturas/{factura_id}/anticipo
+{
+  "tiene_anticipo": false,
+  "porcentaje_anticipo": null,
+  "intervalo_entrega_contabilidad": "1_SEMANA"
+}
+# Response: 200 OK (anticipo eliminado)
+```
+
+#### Errores Comunes
+
+##### Error 1: tiene_anticipo=false pero con porcentaje
+```http
+PATCH /facturas/{factura_id}/anticipo
+{
+  "tiene_anticipo": false,
+  "porcentaje_anticipo": 30.0,
+  "intervalo_entrega_contabilidad": "1_SEMANA"
+}
+```
+
+**Response: 422 Unprocessable Entity**
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": ["body"],
+      "msg": "Si tiene_anticipo es false, porcentaje_anticipo debe ser null",
+      "input": {...}
+    }
+  ]
+}
+```
+
+##### Error 2: tiene_anticipo=true sin porcentaje
+```http
+PATCH /facturas/{factura_id}/anticipo
+{
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": null,
+  "intervalo_entrega_contabilidad": "1_SEMANA"
+}
+```
+
+**Response: 422 Unprocessable Entity**
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": ["body"],
+      "msg": "Si tiene_anticipo es true, porcentaje_anticipo no puede ser null",
+      "input": {...}
+    }
+  ]
+}
+```
+
+##### Error 3: Porcentaje fuera de rango
+```http
+PATCH /facturas/{factura_id}/anticipo
+{
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": 150.0,
+  "intervalo_entrega_contabilidad": "1_SEMANA"
+}
+```
+
+**Response: 422 Unprocessable Entity**
+```json
+{
+  "detail": [
+    {
+      "type": "less_than_equal",
+      "loc": ["body", "porcentaje_anticipo"],
+      "msg": "Input should be less than or equal to 100",
+      "input": 150.0
+    }
+  ]
+}
+```
+
+##### Error 4: Intervalo inválido
+```http
+PATCH /facturas/{factura_id}/anticipo
+{
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": 50.0,
+  "intervalo_entrega_contabilidad": "INVALIDO"
+}
+```
+
+**Response: 422 Unprocessable Entity**
+```json
+{
+  "detail": [
+    {
+      "type": "enum",
+      "loc": ["body", "intervalo_entrega_contabilidad"],
+      "msg": "Input should be '1_SEMANA', '2_SEMANAS', '3_SEMANAS' or '1_MES'",
+      "input": "INVALIDO"
+    }
+  ]
+}
+```
+
+##### Error 5: Factura no existe
+```http
+PATCH /facturas/00000000-0000-0000-0000-000000000000/anticipo
+{...}
+```
+
+**Response: 404 Not Found**
+```json
+{
+  "detail": "Factura not found"
+}
+```
+
+##### Error 6: Campos extra no permitidos
+```http
+PATCH /facturas/{factura_id}/anticipo
+{
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": 50.0,
+  "intervalo_entrega_contabilidad": "1_SEMANA",
+  "campo_extra": "no permitido"
+}
+```
+
+**Response: 422 Unprocessable Entity**
+```json
+{
+  "detail": [
+    {
+      "type": "extra_forbidden",
+      "loc": ["body", "campo_extra"],
+      "msg": "Extra inputs are not permitted",
+      "input": "no permitido"
+    }
+  ]
+}
+```
+
+### Casos de Test (Automatizados)
+
+El archivo `test_anticipo_endpoint.py` incluye 14 tests completos:
+
+#### Tests de Validación (Errores Esperados)
+1. **Test 3**: `tiene_anticipo=false` con `porcentaje=30` → 422
+2. **Test 4**: `tiene_anticipo=true` con `porcentaje=null` → 422
+3. **Test 5**: `porcentaje=150` (mayor que 100) → 422
+4. **Test 6**: `porcentaje=-10` (negativo) → 422
+5. **Test 10**: `intervalo_entrega_contabilidad='INVALIDO'` → 422
+6. **Test 11**: Factura no existe → 404
+7. **Test 12**: Campos extra rechazados → 422
+
+#### Tests Exitosos (200 OK)
+8. **Test 1**: Sin anticipo (`false`, `null`) → 200
+9. **Test 2**: Con anticipo 50% → 200
+10. **Test 7**: Límite inferior (`porcentaje=0`) → 200
+11. **Test 8**: Límite superior (`porcentaje=100`) → 200
+12. **Test 9**: Todos los valores ENUM de intervalo → 200
+13. **Test 13**: Porcentaje con decimales (33.33%) → 200
+14. **Test 14**: Actualizar de con anticipo a sin anticipo → 200
+
+**Ejecutar tests**:
+```bash
+cd backend
+python test_anticipo_endpoint.py
+```
+
+### Archivos Relacionados
+
+#### Migración
+- **Archivo**: `alembic/versions/425549563ece_add_anticipo_and_intervalo_entrega_.py`
+- **Contenido**:
+  - Creación de ENUM `intervalo_entrega_enum`
+  - Agregado de 3 columnas nuevas
+  - Agregado de 2 CHECK constraints
+  - Downgrade completo
+
+#### Modelo SQLAlchemy
+- **Archivo**: `db/models.py` (clase `Factura`)
+- **Campos**:
+```python
+tiene_anticipo: Mapped[bool] = mapped_column(
+    Boolean, nullable=False, server_default="false"
+)
+porcentaje_anticipo: Mapped[Optional[float]] = mapped_column(
+    Numeric(5, 2), nullable=True
+)
+intervalo_entrega_contabilidad: Mapped[str] = mapped_column(
+    Enum('1_SEMANA', '2_SEMANAS', '3_SEMANAS', '1_MES', 
+         name='intervalo_entrega_enum'),
+    nullable=False, server_default="'1_SEMANA'"
+)
+```
+
+#### Schemas Pydantic
+- **Archivo**: `modules/facturas/schemas.py`
+- **Clases**:
+  - `IntervaloEntregaEnum`: Enum de Python con 4 valores
+  - `AnticipoUpdateIn`: Schema de entrada con validaciones
+  - `AnticipoOut`: Schema de respuesta
+
+#### Service Layer
+- **Archivo**: `modules/facturas/service.py`
+- **Método**: `update_anticipo()`
+  - Valida existencia de factura
+  - Doble-check de constraints
+  - Actualiza campos
+  - Retorna `AnticipoOut`
+
+#### Router
+- **Archivo**: `modules/facturas/router.py`
+- **Endpoint**: `@router.patch("/{factura_id}/anticipo")`
+  - Documentación OpenAPI completa
+  - Ejemplos de requests válidos/inválidos
+  - Documentación de todos los códigos de error
+
+### Notas Técnicas
+
+#### Validación Multi-Capa
+El sistema implementa validación en tres capas para máxima robustez:
+
+1. **Capa Pydantic (422)**: Validación inmediata en el request
+   - Más amigable para el usuario
+   - Mensajes claros y específicos
+   - Previene requests inválidos
+
+2. **Capa Service (400)**: Validación de lógica de negocio
+   - Double-check de reglas críticas
+   - Formato estructurado de errores
+   - Logging detallado
+
+3. **Capa Database (500)**: Constraints SQL como última defensa
+   - Si se llega aquí, hay un bug en el código
+   - Previene corrupción de datos
+   - Integridad referencial garantizada
+
+#### ENUM Type Handling
+- **Creación segura**: DO block con EXCEPTION handling
+- **Evita duplicados**: No falla si el ENUM ya existe
+- **Server defaults**: Valor por defecto a nivel DB
+- **Migración reversible**: Downgrade completo implementado
+
+#### Porcentaje con Decimales
+- **Tipo**: `NUMERIC(5,2)` permite hasta 999.99
+- **Validación**: Range 0-100 a múltiples niveles
+- **Precisión**: 2 decimales (ej: 33.33%)
+- **Storage**: Almacenado como decimal exacto (no float)
+
+#### Actualización vs Creación
+- **Sin diferencia**: El mismo endpoint sirve para ambos
+- **Idempotencia**: Múltiples llamadas con mismos datos → mismo resultado
+- **Sin versioning**: Siempre actualiza los valores actuales
+- **Sin historial**: No se mantiene registro de cambios previos
+
+---
+
 **Última actualización:** 28 de diciembre de 2025

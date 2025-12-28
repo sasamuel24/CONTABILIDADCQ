@@ -17,7 +17,9 @@ from modules.facturas.schemas import (
     EstadoUpdateRequest,
     EstadoUpdateResponse,
     InventariosPatchIn,
-    InventariosOut
+    InventariosOut,
+    AnticipoUpdateIn,
+    AnticipoOut
 )
 from core.auth import require_api_key
 
@@ -138,3 +140,83 @@ async def update_factura_inventarios(
     - 400 si valores son inválidos
     """
     return await service.update_inventarios(factura_id, inventarios)
+
+
+@router.patch("/{factura_id}/anticipo", response_model=AnticipoOut)
+async def update_factura_anticipo(
+    factura_id: UUID,
+    anticipo: AnticipoUpdateIn,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """
+    Actualiza los campos de anticipo de una factura.
+    
+    **Campos:**
+    - `tiene_anticipo`: boolean - Indica si la factura tiene anticipo
+    - `porcentaje_anticipo`: float | null - Porcentaje (0-100) o null
+    - `intervalo_entrega_contabilidad`: enum - 1_SEMANA, 2_SEMANAS, 3_SEMANAS, 1_MES
+    
+    **Reglas de validación (CHECK constraints):**
+    
+    1. **check_anticipo_porcentaje_required**:
+       - Si `tiene_anticipo = true` → `porcentaje_anticipo` NO puede ser null
+       - Si `tiene_anticipo = false` → `porcentaje_anticipo` DEBE ser null
+    
+    2. **check_porcentaje_anticipo_range**:
+       - Si `porcentaje_anticipo` no es null → debe estar entre 0 y 100 (inclusive)
+    
+    3. **intervalo_entrega_contabilidad**:
+       - Siempre obligatorio
+       - Valores permitidos: 1_SEMANA, 2_SEMANAS, 3_SEMANAS, 1_MES
+    
+    **Códigos de respuesta:**
+    - 200: Actualización exitosa
+    - 400: Validación fallida (violación de constraints)
+    - 404: Factura no encontrada
+    - 422: Error de validación Pydantic (tipo de dato, valores ENUM)
+    
+    **Ejemplos:**
+    
+    Factura SIN anticipo:
+    ```json
+    {
+      "tiene_anticipo": false,
+      "porcentaje_anticipo": null,
+      "intervalo_entrega_contabilidad": "1_SEMANA"
+    }
+    ```
+    
+    Factura CON anticipo del 30%:
+    ```json
+    {
+      "tiene_anticipo": true,
+      "porcentaje_anticipo": 30.0,
+      "intervalo_entrega_contabilidad": "2_SEMANAS"
+    }
+    ```
+    
+    Error (tiene_anticipo=true pero porcentaje=null):
+    ```json
+    {
+      "tiene_anticipo": true,
+      "porcentaje_anticipo": null,
+      "intervalo_entrega_contabilidad": "1_SEMANA"
+    }
+    ```
+    Respuesta 400:
+    ```json
+    {
+      "detail": {
+        "message": "Anticipo inválido",
+        "errors": [
+          {
+            "field": "porcentaje_anticipo",
+            "code": "check_anticipo_porcentaje_required",
+            "reason": "Si tiene_anticipo es true, porcentaje_anticipo no puede ser null"
+          }
+        ]
+      }
+    }
+    ```
+    """
+    return await service.update_anticipo(factura_id, anticipo)

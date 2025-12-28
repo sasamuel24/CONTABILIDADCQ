@@ -11,3 +11,8 @@ class AreaResponse(BaseModel):
     nombre: str
     
     model_config = {"from_attributes": True}
+
+
+class AreaCreate(BaseModel):
+    """Esquema para crear un área nueva."""
+    nombre: str

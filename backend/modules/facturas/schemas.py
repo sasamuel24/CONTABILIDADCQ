@@ -1,11 +1,12 @@
 """
 Esquemas Pydantic para el módulo de facturas.
 """
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime, date
 from typing import Optional, Literal
 from uuid import UUID
 import re
+from enum import Enum
 
 
 class FacturaBase(BaseModel):
@@ -157,5 +158,68 @@ class InventariosOut(BaseModel):
     requiere_entrada_inventarios: bool
     destino_inventarios: Optional[str]
     codigos: list[InventarioCodigoOut]
+    
+    model_config = {"from_attributes": True}
+
+
+# ========== Schemas de Anticipo ==========
+
+class IntervaloEntregaEnum(str, Enum):
+    """Enum para intervalo de entrega a contabilidad."""
+    UNA_SEMANA = "1_SEMANA"
+    DOS_SEMANAS = "2_SEMANAS"
+    TRES_SEMANAS = "3_SEMANAS"
+    UN_MES = "1_MES"
+
+
+class AnticipoUpdateIn(BaseModel):
+    """Esquema para actualizar campos de anticipo de una factura."""
+    tiene_anticipo: bool = Field(
+        ...,
+        description="Indica si la factura tiene anticipo"
+    )
+    porcentaje_anticipo: Optional[float] = Field(
+        None,
+        ge=0,
+        le=100,
+        description="Porcentaje de anticipo (0-100). Obligatorio si tiene_anticipo=true"
+    )
+    intervalo_entrega_contabilidad: IntervaloEntregaEnum = Field(
+        ...,
+        description="Intervalo de entrega a contabilidad (1_SEMANA, 2_SEMANAS, 3_SEMANAS, 1_MES)"
+    )
+    
+    model_config = {"extra": "forbid"}
+    
+    @model_validator(mode='after')
+    def validate_anticipo_porcentaje(self):
+        """
+        Valida el constraint: tiene_anticipo = (porcentaje_anticipo IS NOT NULL)
+        - Si tiene_anticipo=true  → porcentaje_anticipo NO puede ser None
+        - Si tiene_anticipo=false → porcentaje_anticipo DEBE ser None
+        """
+        tiene = self.tiene_anticipo
+        porcentaje = self.porcentaje_anticipo
+        
+        # Constraint: tiene_anticipo = (porcentaje_anticipo IS NOT NULL)
+        if tiene and porcentaje is None:
+            raise ValueError(
+                "Si tiene_anticipo es true, porcentaje_anticipo no puede ser null"
+            )
+        
+        if not tiene and porcentaje is not None:
+            raise ValueError(
+                "Si tiene_anticipo es false, porcentaje_anticipo debe ser null"
+            )
+        
+        return self
+
+
+class AnticipoOut(BaseModel):
+    """Esquema de respuesta para campos de anticipo."""
+    factura_id: UUID
+    tiene_anticipo: bool
+    porcentaje_anticipo: Optional[float]
+    intervalo_entrega_contabilidad: str
     
     model_config = {"from_attributes": True}

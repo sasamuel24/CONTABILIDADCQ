@@ -17,3 +17,11 @@ class AreaRepository:
         """Obtiene todas las áreas."""
         result = await self.db.execute(select(Area).order_by(Area.nombre))
         return result.scalars().all()
+    
+    async def create(self, area_data: dict) -> Area:
+        """Crea una nueva área."""
+        area = Area(**area_data)
+        self.db.add(area)
+        await self.db.commit()
+        await self.db.refresh(area)
+        return area

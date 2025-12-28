@@ -281,6 +281,20 @@ class Factura(Base, TimestampMixin):
         Enum('TIENDA', 'ALMACEN', name='destino_inventarios_enum'),
         nullable=True
     )
+    tiene_anticipo: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false"
+    )
+    porcentaje_anticipo: Mapped[Optional[float]] = mapped_column(
+        Numeric(5, 2),
+        nullable=True
+    )
+    intervalo_entrega_contabilidad: Mapped[str] = mapped_column(
+        Enum('1_SEMANA', '2_SEMANAS', '3_SEMANAS', '1_MES', name='intervalo_entrega_enum'),
+        nullable=False,
+        server_default="'1_SEMANA'"
+    )
     
     # Relaciones
     area: Mapped["Area"] = relationship(
@@ -342,6 +356,14 @@ class Factura(Base, TimestampMixin):
         CheckConstraint(
             "requiere_entrada_inventarios = false OR destino_inventarios IS NOT NULL",
             name="check_destino_inventarios_required"
+        ),
+        CheckConstraint(
+            "tiene_anticipo = (porcentaje_anticipo IS NOT NULL)",
+            name="check_anticipo_porcentaje_required"
+        ),
+        CheckConstraint(
+            "porcentaje_anticipo IS NULL OR (porcentaje_anticipo >= 0 AND porcentaje_anticipo <= 100)",
+            name="check_porcentaje_anticipo_range"
         ),
     )
     

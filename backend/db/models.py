@@ -281,6 +281,11 @@ class Factura(Base, TimestampMixin):
         Enum('TIENDA', 'ALMACEN', name='destino_inventarios_enum'),
         nullable=True
     )
+    presenta_novedad: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false"
+    )
     tiene_anticipo: Mapped[bool] = mapped_column(
         Boolean,
         nullable=False,
@@ -502,7 +507,7 @@ class FacturaInventarioCodigo(Base):
         index=True
     )
     codigo: Mapped[str] = mapped_column(
-        Enum('OCT', 'ECT', 'FPC', 'OCC', 'EDO', name='codigo_inventario_enum'),
+        Enum('OCT', 'ECT', 'FPC', 'OCC', 'EDO', 'NP', name='codigo_inventario_enum'),
         nullable=False
     )
     valor: Mapped[str] = mapped_column(

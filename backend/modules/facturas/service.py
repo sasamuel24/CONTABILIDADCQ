@@ -237,15 +237,33 @@ class FacturaService:
         if not inventarios_data.requiere_entrada_inventarios:
             logger.info(f"Factura {factura_id} no requiere inventarios - limpiando datos")
             
+            # Validación: Si no requiere inventarios, NO puede venir presenta_novedad=true ni código NP
+            if inventarios_data.presenta_novedad is True:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "message": "Inventarios inválido",
+                        "error": "presenta_novedad no puede ser true cuando requiere_entrada_inventarios=false"
+                    }
+                )
+            
+            if inventarios_data.codigos:
+                payload_codes = {c.codigo.upper() for c in inventarios_data.codigos}
+                if 'NP' in payload_codes:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail={
+                            "message": "Inventarios inválido",
+                            "error": "No puede incluir código NP cuando requiere_entrada_inventarios=false"
+                        }
+                    )
+            
             # Actualizar factura
             factura.requiere_entrada_inventarios = False
             factura.destino_inventarios = None
+            factura.presenta_novedad = False
             
             # Eliminar todos los códigos existentes
-            await self.db.execute(
-                select(FacturaInventarioCodigo)
-                .where(FacturaInventarioCodigo.factura_id == factura_id)
-            )
             codigos_existentes = (await self.db.execute(
                 select(FacturaInventarioCodigo)
                 .where(FacturaInventarioCodigo.factura_id == factura_id)
@@ -277,6 +295,16 @@ class FacturaService:
                 }
             )
         
+        # Validación: presenta_novedad es obligatorio
+        if inventarios_data.presenta_novedad is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Inventarios inválido",
+                    "error": "presenta_novedad es obligatorio cuando requiere_entrada_inventarios=true"
+                }
+            )
+        
         # Validación: codigos es obligatorio y no vacío
         if not inventarios_data.codigos or len(inventarios_data.codigos) == 0:
             raise HTTPException(
@@ -287,14 +315,32 @@ class FacturaService:
                 }
             )
         
-        # Definir códigos requeridos según destino
-        CODIGOS_REQUERIDOS: Dict[str, Set[str]] = {
+        # Definir códigos base requeridos según destino
+        CODIGOS_BASE: Dict[str, Set[str]] = {
             "TIENDA": {"OCT", "ECT", "FPC"},
             "ALMACEN": {"OCC", "EDO", "FPC"}
         }
         
-        required_codes = CODIGOS_REQUERIDOS[inventarios_data.destino_inventarios]
+        base_codes = CODIGOS_BASE[inventarios_data.destino_inventarios]
+        
+        # Si presenta_novedad=true, agregar NP a los códigos requeridos
+        if inventarios_data.presenta_novedad:
+            required_codes = base_codes | {"NP"}
+        else:
+            required_codes = base_codes
+        
         payload_codes = {c.codigo.upper() for c in inventarios_data.codigos}
+        
+        # Validar: Si presenta_novedad=false, NP NO puede venir
+        if not inventarios_data.presenta_novedad and 'NP' in payload_codes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Inventarios inválido",
+                    "extra_codes": ["NP"],
+                    "error": "NP no puede incluirse cuando presenta_novedad=false"
+                }
+            )
         
         # Validar códigos faltantes
         missing_codes = required_codes - payload_codes
@@ -303,20 +349,20 @@ class FacturaService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "message": "Inventarios inválido",
-                    "missing_codes": list(missing_codes),
-                    "error": f"Faltan códigos requeridos para {inventarios_data.destino_inventarios}: {missing_codes}"
+                    "missing_codes": sorted(list(missing_codes)),
+                    "error": f"Faltan códigos requeridos: {sorted(list(missing_codes))}"
                 }
             )
         
-        # Validar códigos extras
+        # Validar códigos extras (no permitidos)
         extra_codes = payload_codes - required_codes
         if extra_codes:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail={
                     "message": "Inventarios inválido",
-                    "extra_codes": list(extra_codes),
-                    "error": f"Códigos no permitidos para {inventarios_data.destino_inventarios}: {extra_codes}"
+                    "extra_codes": sorted(list(extra_codes)),
+                    "error": f"Códigos no permitidos: {sorted(list(extra_codes))}"
                 }
             )
         
@@ -341,6 +387,7 @@ class FacturaService:
         # Actualizar factura
         factura.requiere_entrada_inventarios = True
         factura.destino_inventarios = inventarios_data.destino_inventarios
+        factura.presenta_novedad = inventarios_data.presenta_novedad
         
         # UPSERT lógico de códigos
         # 1. Obtener códigos existentes

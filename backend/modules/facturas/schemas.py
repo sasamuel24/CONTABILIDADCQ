@@ -102,14 +102,14 @@ class FacturasPaginatedResponse(BaseModel):
 
 class InventarioCodigoIn(BaseModel):
     """Esquema para un código de inventario en el payload."""
-    codigo: str = Field(..., description="Código de inventario (OCT, ECT, FPC, OCC, EDO)")
+    codigo: str = Field(..., description="Código de inventario (OCT, ECT, FPC, OCC, EDO, NP)")
     valor: str = Field(..., description="Valor alfanumérico del código")
     
     @field_validator('codigo')
     @classmethod
     def validate_codigo(cls, v: str) -> str:
         """Valida que el código sea uno de los permitidos."""
-        allowed = {'OCT', 'ECT', 'FPC', 'OCC', 'EDO'}
+        allowed = {'OCT', 'ECT', 'FPC', 'OCC', 'EDO', 'NP'}
         if v.upper() not in allowed:
             raise ValueError(f"Código '{v}' no permitido. Debe ser uno de: {allowed}")
         return v.upper()
@@ -136,6 +136,10 @@ class InventariosPatchIn(BaseModel):
     destino_inventarios: Optional[Literal["TIENDA", "ALMACEN"]] = Field(
         None,
         description="Destino de inventarios (obligatorio si requiere_entrada_inventarios=true)"
+    )
+    presenta_novedad: Optional[bool] = Field(
+        None,
+        description="Indica si presenta novedad (obligatorio si requiere_entrada_inventarios=true)"
     )
     codigos: Optional[list[InventarioCodigoIn]] = Field(
         None,

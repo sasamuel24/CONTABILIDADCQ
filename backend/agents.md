@@ -1846,23 +1846,32 @@ Se ha implementado exitosamente el endpoint `PATCH /facturas/{factura_id}/invent
 Gestiona los campos de inventarios de una factura:
 - `requiere_entrada_inventarios` (boolean)
 - `destino_inventarios` (ENUM: TIENDA, ALMACEN)
+- `presenta_novedad` (boolean) - **NUEVO: Indica si hay novedad en inventarios**
 - Códigos de inventario asociados en tabla `factura_inventario_codigos`
+  - Códigos base: OCT, ECT, FPC (TIENDA) / OCC, EDO, FPC (ALMACEN)
+  - Código adicional: **NP (Novedad de Producto)** - solo cuando presenta_novedad=true
 
 ### Archivos Implementados
 
 #### 1. **modules/facturas/schemas.py**
 - ✅ `InventarioCodigoIn`: Schema de entrada para códigos
-  - Validación de código (OCT, ECT, FPC, OCC, EDO)
+  - Validación de código (OCT, ECT, FPC, OCC, EDO, **NP**)
   - Validación de valor (alfanumérico con guiones, no vacío)
 - ✅ `InventariosPatchIn`: Schema de entrada principal
+  - Campo `presenta_novedad: Optional[bool]` (obligatorio si requiere_entrada_inventarios=true)
 - ✅ `InventarioCodigoOut`: Schema de salida para códigos
 - ✅ `InventariosOut`: Schema de salida completo
 
 #### 2. **modules/facturas/service.py**
 - ✅ Método `update_inventarios(factura_id, inventarios_data)`
 - ✅ Validación de existencia de factura (404)
-- ✅ Caso 1: `requiere_entrada_inventarios=false` → Limpia todo
+- ✅ Caso 1: `requiere_entrada_inventarios=false` → Limpia todo (incluye presenta_novedad=false)
+  - ⚠️ Rechaza presenta_novedad=true (400)
+  - ⚠️ Rechaza código NP (400)
 - ✅ Caso 2: `requiere_entrada_inventarios=true` → Validaciones completas
+  - ✅ presenta_novedad obligatorio (400 si None)
+  - ✅ Si presenta_novedad=true → NP requerido
+  - ✅ Si presenta_novedad=false → NP rechazado (extra_codes)
 - ✅ UPSERT lógico: Actualiza, crea y elimina códigos
 
 #### 3. **modules/facturas/router.py**
@@ -1875,9 +1884,10 @@ Gestiona los campos de inventarios de una factura:
 {
   "requiere_entrada_inventarios": true|false,
   "destino_inventarios": "TIENDA"|"ALMACEN"|null,
+  "presenta_novedad": true|false|null,
   "codigos": [
     {
-      "codigo": "OCT"|"ECT"|"FPC"|"OCC"|"EDO",
+      "codigo": "OCT"|"ECT"|"FPC"|"OCC"|"EDO"|"NP",
       "valor": "string alfanumérico con guiones"
     }
   ]
@@ -1907,28 +1917,40 @@ Gestiona los campos de inventarios de una factura:
 
 **Comportamiento:**
 - `destino_inventarios` → NULL
+- `presenta_novedad` → false
 - Elimina TODOS los registros de `factura_inventario_codigos`
 - Responde con `codigos=[]`
+
+**Validaciones especiales:**
+- ⚠️ Si payload trae `presenta_novedad=true` → 400 (no permitido)
+- ⚠️ Si payload incluye código NP → 400 (no permitido)
 
 **Request:**
 ```json
 {
   "requiere_entrada_inventarios": false,
   "destino_inventarios": null,
+  "presenta_novedad": null,
   "codigos": null
 }
 ```
+presenta_novedad` es obligatorio** → 400 si es None
+3. **`codigos` es obligatorio y no vacío** → 400 si falta o está vacío
+4. **Códigos requeridos según destino y novedad:**
 
-#### Caso 2: `requiere_entrada_inventarios = true`
+| Destino  | presenta_novedad | Códigos Obligatorios       |
+|----------|------------------|----------------------------|
+| TIENDA   | false            | OCT, ECT, FPC              |
+| TIENDA   | true             | OCT, ECT, FPC, **NP**      |
+| ALMACEN  | false            | OCC, EDO, FPC              |
+| ALMACEN  | true             | OCC, EDO, FPC, **NP**      |
 
-**Validaciones obligatorias:**
-
-1. **`destino_inventarios` es obligatorio** → 400 si falta
-2. **`codigos` es obligatorio y no vacío** → 400 si falta o está vacío
-3. **Códigos requeridos según destino:**
-
-| Destino  | Códigos Obligatorios |
-|----------|----------------------|
+5. **Validación de NP según presenta_novedad:**
+   - Si `presenta_novedad=false` y viene NP → 400 con `extra_codes: ["NP"]`
+   - Si `presenta_novedad=true` y falta NP → 400 con `missing_codes: ["NP"]`
+6. **No se permiten códigos faltantes** → 400 con `missing_codes`
+7. **No se permiten códigos extras** → 400 con `extra_codes`
+8----------|----------------------|
 | TIENDA   | OCT, ECT, FPC        |
 | ALMACEN  | OCC, EDO, FPC        |
 
@@ -1936,11 +1958,14 @@ Gestiona los campos de inventarios de una factura:
 5. **No se permiten códigos extras** → 400 con `extra_codes`
 6. **Valores válidos:**
    - No vacíos (después de trim)
-   - Solo alfanuméricos, espacios y guiones: `/^[a-zA-Z0-9\s\-]+$/`
-   - Símbolos especiales → 422
-
-### Validaciones Implementadas
-
+   - Solo alfanuméricos, espacios y guiones: `/^[a-zA-, **NP**
+2. Campo `valor`:
+   - No vacío (después de trim)
+   - Solo alfanuméricos, espacios y guiones
+   - Símbolos especiales rechazados con 422
+3. Campo `presenta_novedad`:
+   - Tipo: bool | None
+   - Obligatorio cuando requiere_entrada_inventarios=true (validado en service)
 #### Validaciones a Nivel Schema (Pydantic)
 1. Campo `codigo` solo acepta: OCT, ECT, FPC, OCC, EDO
 2. Campo `valor`:
@@ -1948,10 +1973,16 @@ Gestiona los campos de inventarios de una factura:
    - Solo alfanuméricos, espacios y guiones
    - Símbolos especiales rechazados con 422
 
-#### Validaciones a Nivel Servicio (Lógica de Negocio)
-1. Factura existe (404 si no)
-2. Si `requiere_entrada_inventarios=false`: Limpia todo automáticamente
+   - ✅ Limpia todo automáticamente (destino_inventarios=NULL, presenta_novedad=false)
+   - ⚠️ Rechaza presenta_novedad=true (400)
+   - ⚠️ Rechaza código NP en payload (400)
 3. Si `requiere_entrada_inventarios=true`:
+   - ✅ `destino_inventarios` obligatorio (400)
+   - ✅ `presenta_novedad` obligatorio - no puede ser None (400)
+   - ✅ `codigos` obligatorio y no vacío (400)
+   - ✅ Set base según destino (TIENDA vs ALMACEN)
+   - ✅ Si presenta_novedad=true → agregar NP a set requerido
+   - ✅ Si presenta_novedad=false → NP no puede venir (extra_codes
    - ✅ `destino_inventarios` obligatorio (400)
    - ✅ `codigos` obligatorio y no vacío (400)
    - ✅ Códigos según destino (TIENDA vs ALMACEN)
@@ -2009,7 +2040,8 @@ Esto garantiza que la tabla `factura_inventario_codigos` siempre refleje exactam
 ### Ejemplos de Uso
 
 #### ✅ Success: TIENDA con códigos correctos
-
+presenta_novedad": false,
+  "
 **Request:**
 ```json
 {
@@ -2043,6 +2075,7 @@ Esto garantiza que la tabla `factura_inventario_codigos` siempre refleje exactam
 ```json
 {
   "requiere_entrada_inventarios": true,
+  "presenta_novedad": false,
   "destino_inventarios": "ALMACEN",
   "codigos": [
     {"codigo": "OCC", "valor": "A-111-XXX"},
@@ -2063,6 +2096,115 @@ Esto garantiza que la tabla `factura_inventario_codigos` siempre refleje exactam
     {"codigo": "FPC", "valor": "A-333-ZZZ", "created_at": "2025-12-28T10:00:01Z"},
     {"codigo": "OCC", "valor": "A-111-XXX", "created_at": "2025-12-28T09:59:59Z"}
   ]
+}
+```
+
+#### ✅ Success: TIENDA con novedad (incluye NP)
+
+**Request:**
+```json
+{
+  "requiere_entrada_inventarios": true,
+  "destino_inventarios": "TIENDA",
+  "presenta_novedad": true,
+  "codigos": [
+    {"codigo": "OCT", "valor": "T-123-ABC"},
+    {"codigo": "ECT", "valor": "T-456-DEF"},
+    {"codigo": "FPC", "valor": "T-789-GHI"},
+    {"codigo": "NP", "valor": "Novedad-Producto-001"}
+  ]
+}
+```
+
+**Response: 200**
+```json
+{
+  "factura_id": "550e8400-e29b-41d4-a716-446655440000",
+  "requiere_entrada_inventarios": true,
+  "destino_inventarios": "TIENDA",
+  "codigos": [
+    {"codigo": "ECT", "valor": "T-456-DEF", "created_at": "2025-12-28T10:00:00Z"},
+    {"codigo": "FPC", "valor": "T-789-GHI", "created_at": "2025-12-28T10:00:01Z"},
+    {"codigo": "NP", "valor": "Novedad-Producto-001", "created_at": "2025-12-28T10:00:02Z"},
+    {"codigo": "OCT", "valor": "T-123-ABC", "created_at": "2025-12-28T09:59:59Z"}
+  ]
+}
+```
+
+#### ❌ Error: presenta_novedad=false pero incluye NP
+
+**Request:**
+```json
+{
+  "requiere_entrada_inventarios": true,
+  "destino_inventarios": "TIENDA",
+  "presenta_novedad": false,
+  "codigos": [
+    {"codigo": "OCT", "valor": "T-123"},
+    {"codigo": "ECT", "valor": "T-456"},
+    {"codigo": "FPC", "valor": "T-789"},
+    {"codigo": "NP", "valor": "Novedad"}
+  ]
+}
+```
+
+**Response: 400**
+```json
+{
+  "detail": {
+    "message": "Inventarios inválido",
+    "extra_codes": ["NP"],
+    "error": "NP no puede incluirse cuando presenta_novedad=false"
+  }
+}
+```
+
+#### ❌ Error: presenta_novedad=true pero falta NP
+
+**Request:**
+```json
+{
+  "requiere_entrada_inventarios": true,
+  "destino_inventarios": "ALMACEN",
+  "presenta_novedad": true,
+  "codigos": [
+    {"codigo": "OCC", "valor": "A-111"},
+    {"codigo": "EDO", "valor": "A-222"},
+    {"codigo": "FPC", "valor": "A-333"}
+  ]
+}
+```
+
+**Response: 400**
+```json
+{
+  "detail": {
+    "message": "Inventarios inválido",
+    "missing_codes": ["NP"],
+    "error": "Faltan códigos requeridos: ['NP']"
+  }
+}
+```
+
+#### ❌ Error: requiere_entrada_inventarios=false pero presenta_novedad=true
+
+**Request:**
+```json
+{
+  "requiere_entrada_inventarios": false,
+  "destino_inventarios": null,
+  "presenta_novedad": true,
+  "codigos": null
+}
+```
+
+**Response: 400**
+```json
+{
+  "detail": {
+    "message": "Inventarios inválido",
+    "error": "presenta_novedad no puede ser true cuando requiere_entrada_inventarios=false"
+  }
 }
 ```
 
@@ -2172,11 +2314,13 @@ Esto garantiza que la tabla `factura_inventario_codigos` siempre refleje exactam
 #### Tabla: `facturas` (campos nuevos)
 - `requiere_entrada_inventarios`: BOOLEAN NOT NULL DEFAULT false
 - `destino_inventarios`: destino_inventarios_enum NULL
+- `presenta_novedad`: BOOLEAN NOT NULL DEFAULT false
 - CHECK constraint: `requiere_entrada_inventarios = false OR destino_inventarios IS NOT NULL`
 
 ```sql
 ALTER TABLE facturas ADD COLUMN requiere_entrada_inventarios BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE facturas ADD COLUMN destino_inventarios destino_inventarios_enum NULL;
+ALTER TABLE facturas ADD COLUMN presenta_novedad BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE facturas ADD CONSTRAINT check_destino_inventarios_required 
   CHECK (requiere_entrada_inventarios = false OR destino_inventarios IS NOT NULL);
 ```
@@ -2184,7 +2328,7 @@ ALTER TABLE facturas ADD CONSTRAINT check_destino_inventarios_required
 #### Tabla: `factura_inventario_codigos`
 - `id`: UUID PRIMARY KEY
 - `factura_id`: UUID REFERENCES facturas(id) ON DELETE CASCADE
-- `codigo`: codigo_inventario_enum NOT NULL
+- `codigo`: codigo_inventario_enum NOT NULL (valores: OCT, ECT, FPC, OCC, EDO, **NP**)
 - `valor`: TEXT NOT NULL
 - `created_at`: TIMESTAMP WITH TIME ZONE
 - UNIQUE CONSTRAINT: (factura_id, codigo)
@@ -2199,6 +2343,17 @@ CREATE TABLE factura_inventario_codigos (
   CONSTRAINT uq_factura_inventario_codigo UNIQUE (factura_id, codigo)
 );
 ```
+
+#### ENUM Types
+```sql
+CREATE TYPE destino_inventarios_enum AS ENUM ('TIENDA', 'ALMACEN');
+CREATE TYPE codigo_inventario_enum AS ENUM ('OCT', 'ECT', 'FPC', 'OCC', 'EDO', 'NP');
+```
+
+#### Migración: 9b88d470067b_add_presenta_novedad_and_np_codigo
+- ✅ Agregó columna `presenta_novedad` a tabla facturas
+- ✅ Agregó valor 'NP' al ENUM codigo_inventario_enum
+- ⚠️ Downgrade: Elimina columna pero mantiene 'NP' en ENUM (limitación PostgreSQL)
 
 #### ENUM Types
 ```sql

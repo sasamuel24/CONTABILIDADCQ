@@ -37,11 +37,15 @@ class FileRepository:
         )
         return result.scalar_one_or_none()
     
-    async def get_by_factura(self, factura_id: UUID) -> List[File]:
-        """Obtiene todos los archivos de una factura."""
-        result = await self.db.execute(
-            select(File).where(File.factura_id == factura_id).order_by(File.created_at.desc())
-        )
+    async def get_by_factura(self, factura_id: UUID, doc_type: Optional[str] = None) -> List[File]:
+        """Obtiene todos los archivos de una factura, opcionalmente filtrados por doc_type."""
+        query = select(File).where(File.factura_id == factura_id)
+        
+        if doc_type:
+            query = query.where(File.doc_type == doc_type)
+        
+        query = query.order_by(File.created_at.desc())
+        result = await self.db.execute(query)
         return result.scalars().all()
     
     async def get_pdf_by_factura(self, factura_id: UUID) -> Optional[File]:
@@ -54,5 +58,19 @@ class FileRepository:
             )
             .order_by(File.created_at.desc())
             .limit(1)
+        )
+        return result.scalar_one_or_none()
+    
+    async def get_by_factura_and_doc_type(
+        self, 
+        factura_id: UUID, 
+        doc_type: str
+    ) -> Optional[File]:
+        """Verifica si ya existe un archivo con el mismo factura_id y doc_type."""
+        result = await self.db.execute(
+            select(File).where(
+                File.factura_id == factura_id,
+                File.doc_type == doc_type
+            )
         )
         return result.scalar_one_or_none()

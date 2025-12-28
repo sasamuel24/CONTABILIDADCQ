@@ -68,3 +68,15 @@ class FacturaRepository:
             await self.db.flush()
             await self.db.refresh(factura)
         return factura
+    
+    async def update(self, factura_id: UUID, factura_data: dict) -> Optional[Factura]:
+        """Actualiza una factura completa."""
+        factura = await self.get_by_id(factura_id)
+        if factura:
+            for key, value in factura_data.items():
+                if hasattr(factura, key):
+                    setattr(factura, key, value)
+            factura.updated_at = datetime.utcnow()
+            await self.db.flush()
+            await self.db.refresh(factura)
+        return factura

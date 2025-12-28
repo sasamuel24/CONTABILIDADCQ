@@ -4,7 +4,7 @@ Incluye: Areas, Users, Estados, Facturas y Files.
 """
 from sqlalchemy import (
     String, Text, Boolean, Numeric, Date, BigInteger, SmallInteger,
-    ForeignKey, Index, UniqueConstraint, CheckConstraint
+    ForeignKey, Index, UniqueConstraint, CheckConstraint, Enum
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
@@ -132,6 +132,96 @@ class Estado(Base):
         return f"<Estado(id={self.id}, code={self.code}, label={self.label})>"
 
 
+class CentroCosto(Base, TimestampMixin):
+    """Modelo de Centros de Costo."""
+    __tablename__ = "centros_costo"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    nombre: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        unique=True,
+        index=True
+    )
+    activo: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True
+    )
+    
+    # Relaciones
+    operaciones: Mapped[List["CentroOperacion"]] = relationship(
+        "CentroOperacion",
+        back_populates="centro_costo",
+        lazy="selectin"
+    )
+    facturas: Mapped[List["Factura"]] = relationship(
+        "Factura",
+        back_populates="centro_costo",
+        foreign_keys="Factura.centro_costo_id",
+        lazy="selectin"
+    )
+    
+    def __repr__(self):
+        return f"<CentroCosto(id={self.id}, nombre={self.nombre})>"
+
+
+class CentroOperacion(Base, TimestampMixin):
+    """Modelo de Centros de Operación."""
+    __tablename__ = "centros_operacion"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    centro_costo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("centros_costo.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True
+    )
+    nombre: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        index=True
+    )
+    activo: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True
+    )
+    
+    # Relaciones
+    centro_costo: Mapped["CentroCosto"] = relationship(
+        "CentroCosto",
+        back_populates="operaciones",
+        lazy="selectin"
+    )
+    facturas: Mapped[List["Factura"]] = relationship(
+        "Factura",
+        back_populates="centro_operacion",
+        foreign_keys="Factura.centro_operacion_id",
+        lazy="selectin"
+    )
+    
+    # Constraints
+    __table_args__ = (
+        UniqueConstraint(
+            "centro_costo_id",
+            "nombre",
+            name="uq_centro_operacion_cc_nombre"
+        ),
+    )
+    
+    def __repr__(self):
+        return f"<CentroOperacion(id={self.id}, nombre={self.nombre})>"
+
+
 class Factura(Base, TimestampMixin):
     """Modelo de facturas del sistema."""
     __tablename__ = "facturas"
@@ -170,6 +260,27 @@ class Factura(Base, TimestampMixin):
         TIMESTAMP(timezone=True),
         nullable=True
     )
+    centro_costo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("centros_costo.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True
+    )
+    centro_operacion_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("centros_operacion.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True
+    )
+    requiere_entrada_inventarios: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false"
+    )
+    destino_inventarios: Mapped[Optional[str]] = mapped_column(
+        Enum('TIENDA', 'ALMACEN', name='destino_inventarios_enum'),
+        nullable=True
+    )
     
     # Relaciones
     area: Mapped["Area"] = relationship(
@@ -200,6 +311,24 @@ class Factura(Base, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin"
     )
+    centro_costo: Mapped[Optional["CentroCosto"]] = relationship(
+        "CentroCosto",
+        back_populates="facturas",
+        foreign_keys=[centro_costo_id],
+        lazy="selectin"
+    )
+    centro_operacion: Mapped[Optional["CentroOperacion"]] = relationship(
+        "CentroOperacion",
+        back_populates="facturas",
+        foreign_keys=[centro_operacion_id],
+        lazy="selectin"
+    )
+    inventario_codigos: Mapped[List["FacturaInventarioCodigo"]] = relationship(
+        "FacturaInventarioCodigo",
+        back_populates="factura",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
     
     # Constraints e índices
     __table_args__ = (
@@ -210,6 +339,10 @@ class Factura(Base, TimestampMixin):
         ),
         Index("ix_facturas_estado_area", "estado_id", "area_id"),
         CheckConstraint("total > 0", name="check_factura_total_positive"),
+        CheckConstraint(
+            "requiere_entrada_inventarios = false OR destino_inventarios IS NOT NULL",
+            name="check_destino_inventarios_required"
+        ),
     )
     
     def __repr__(self):
@@ -231,6 +364,11 @@ class File(Base, TimestampMixin):
         nullable=False,
         index=True
     )
+    doc_type: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        index=True
+    )
     storage_provider: Mapped[str] = mapped_column(
         Text,
         nullable=False,
@@ -240,11 +378,20 @@ class File(Base, TimestampMixin):
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     content_type: Mapped[str] = mapped_column(Text, nullable=False)
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    uploaded_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
     
     # Relaciones
     factura: Mapped["Factura"] = relationship(
         "Factura",
         back_populates="files",
+        lazy="selectin"
+    )
+    uploaded_by: Mapped[Optional["User"]] = relationship(
+        "User",
         lazy="selectin"
     )
     
@@ -255,6 +402,10 @@ class File(Base, TimestampMixin):
             name="check_file_storage_provider"
         ),
         CheckConstraint("size_bytes > 0", name="check_file_size_positive"),
+        CheckConstraint(
+            "doc_type IN ('OC','OS','OCT','ECT','OCC','EDO','FCP','FPC','EGRESO','SOPORTE_PAGO','FACTURA_PDF')",
+            name="check_file_doc_type"
+        ),
     )
     
     def __repr__(self):
@@ -311,3 +462,52 @@ class FacturaAsignacion(Base):
     
     def __repr__(self):
         return f"<FacturaAsignacion(id={self.id}, factura_id={self.factura_id}, responsable_user_id={self.responsable_user_id})>"
+
+
+class FacturaInventarioCodigo(Base):
+    """Modelo para códigos de inventario asociados a facturas."""
+    __tablename__ = "factura_inventario_codigos"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    factura_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facturas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    codigo: Mapped[str] = mapped_column(
+        Enum('OCT', 'ECT', 'FPC', 'OCC', 'EDO', name='codigo_inventario_enum'),
+        nullable=False
+    )
+    valor: Mapped[str] = mapped_column(
+        Text,
+        nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        default=datetime.utcnow,
+        nullable=False
+    )
+    
+    # Relaciones
+    factura: Mapped["Factura"] = relationship(
+        "Factura",
+        back_populates="inventario_codigos",
+        lazy="selectin"
+    )
+    
+    # Constraints e índices
+    __table_args__ = (
+        UniqueConstraint(
+            "factura_id",
+            "codigo",
+            name="uq_factura_inventario_codigo"
+        ),
+    )
+    
+    def __repr__(self):
+        return f"<FacturaInventarioCodigo(id={self.id}, factura_id={self.factura_id}, codigo={self.codigo})>"

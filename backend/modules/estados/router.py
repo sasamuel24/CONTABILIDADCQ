@@ -1,14 +1,14 @@
 """
 Router de FastAPI para el módulo de estados.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
 from db.session import get_db
 from modules.estados.repository import EstadoRepository
 from modules.estados.service import EstadoService
-from modules.estados.schemas import EstadoResponse
+from modules.estados.schemas import EstadoResponse, EstadoCreate
 
 
 router = APIRouter(prefix="/estados", tags=["Estados"])
@@ -24,3 +24,24 @@ def get_estado_service(db: AsyncSession = Depends(get_db)) -> EstadoService:
 async def list_estados(service: EstadoService = Depends(get_estado_service)):
     """Lista todos los estados disponibles para facturas."""
     return await service.list_estados()
+
+
+@router.post("/", response_model=EstadoResponse, status_code=status.HTTP_201_CREATED)
+async def create_estado(
+    estado_data: EstadoCreate,
+    service: EstadoService = Depends(get_estado_service)
+):
+    """
+    Crea un nuevo estado.
+    
+    Campos requeridos:
+    - **code**: Código único del estado (ej: "APROBADO", "RECHAZADO")
+    - **label**: Etiqueta descriptiva (ej: "Aprobado por Gerencia")
+    - **order**: Orden de visualización (número entero >= 1)
+    - **is_final**: Si es un estado final (default: false)
+    - **is_active**: Si está activo (default: true)
+    
+    Validaciones:
+    - El código debe ser único
+    """
+    return await service.create_estado(estado_data)

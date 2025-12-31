@@ -47,6 +47,17 @@ class FileResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class FileMiniOut(BaseModel):
+    """Esquema resumido de archivo para incluir en listados."""
+    id: UUID
+    doc_type: Optional[str] = None
+    filename: str
+    content_type: str
+    uploaded_at: datetime
+    
+    model_config = {"from_attributes": True}
+
+
 class ErrorResponse(BaseModel):
     """Schema para respuestas de error."""
     code: str

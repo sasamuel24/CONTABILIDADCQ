@@ -19,41 +19,43 @@ class DashboardRepository:
         result_estados = await self.db.execute(select(Estado))
         estados = {e.code: e.id for e in result_estados.scalars().all()}
         
+        # Contar total de facturas (Recibidas = Total en BD)
+        result_total = await self.db.execute(select(func.count(Factura.id)))
+        total = result_total.scalar() or 0
+        
         # Contar facturas por estado
         metrics = {
-            "recibidas": 0,
+            "recibidas": total,  # Total de facturas en la BD
             "asignadas": 0,
             "cerradas": 0,
             "pendientes": 0
         }
         
-        # Recibidas (estado: recibida)
+        # Asignadas (estado diferente a id=1 'recibida')
         if "recibida" in estados:
             result = await self.db.execute(
-                select(func.count(Factura.id)).where(Factura.estado_id == estados["recibida"])
-            )
-            metrics["recibidas"] = result.scalar() or 0
-        
-        # Asignadas (estado: asignada)
-        if "asignada" in estados:
-            result = await self.db.execute(
-                select(func.count(Factura.id)).where(Factura.estado_id == estados["asignada"])
+                select(func.count(Factura.id)).where(Factura.estado_id != estados["recibida"])
             )
             metrics["asignadas"] = result.scalar() or 0
         
-        # Cerradas (estado: cerrada)
+        # Cerradas (estado: cerrada, id=5)
         if "cerrada" in estados:
             result = await self.db.execute(
                 select(func.count(Factura.id)).where(Factura.estado_id == estados["cerrada"])
             )
             metrics["cerradas"] = result.scalar() or 0
         
-        # Pendientes (estado: pendiente)
-        if "pendiente" in estados:
+        # Pendientes (estado: recibida, id=1)
+        if "recibida" in estados:
             result = await self.db.execute(
-                select(func.count(Factura.id)).where(Factura.estado_id == estados["pendiente"])
+                select(func.count(Factura.id)).where(Factura.estado_id == estados["recibida"])
             )
             metrics["pendientes"] = result.scalar() or 0
+        
+        # Log para debug
+        from core.logging import logger
+        logger.info(f"Métricas calculadas - Total: {total}, Detalle: {metrics}")
+        logger.info(f"Estados disponibles: {estados}")
         
         return metrics
     

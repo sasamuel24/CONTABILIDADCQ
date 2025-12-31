@@ -43,16 +43,20 @@ async def register_file_metadata(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Registra metadata de un archivo PDF asociado a una factura.
+    Registra metadata de un archivo PDF asociado a una factura con doc_type="FACTURA_PDF".
     
     **Requiere API Key:** Header `x-api-key` con la clave válida.
     
     **Propósito:** Crear registro en tabla files sin upload binario (usado por n8n).
     
+    **IMPORTANTE:** Este endpoint asigna automáticamente `doc_type="FACTURA_PDF"` a todos 
+    los archivos registrados, permitiendo filtrarlos posteriormente.
+    
     **Validaciones:**
     - Verifica API Key (401 si inválida)
     - Verifica que la factura existe (404 si no)
     - Valida schema del body (422 si es inválido - automático por Pydantic)
+    - Asigna automáticamente doc_type="FACTURA_PDF"
     
     **Flujo con n8n:**
     1. n8n crea factura en POST /facturas
@@ -60,8 +64,9 @@ async def register_file_metadata(
     
     - **factura_id**: ID de la factura (desde URL)
     - **file_data**: Metadata del archivo (body JSON)
+    - **doc_type**: Se establece automáticamente como "FACTURA_PDF"
     """
-    logger.info(f"Registrando archivo para factura {factura_id}")
+    logger.info(f"Registrando archivo para factura {factura_id} con doc_type=FACTURA_PDF")
     
     # Operación: Verificar que la factura existe en BD
     # Datos necesarios: factura_id desde URL
@@ -76,14 +81,14 @@ async def register_file_metadata(
         )
     
     # ✅ Validación: Factura existe, proceder a crear registro de archivo
-    logger.info(f"Factura {factura_id} validada exitosamente, creando registro de archivo")
+    logger.info(f"Factura {factura_id} validada exitosamente, creando registro de archivo con doc_type=FACTURA_PDF")
     
-    # Operación: Crear registro en tabla files con metadata
-    # Datos necesarios: factura_id, file_data (5 campos validados por Pydantic)
-    result = await service.register_file_metadata(factura_id, file_data)
+    # Operación: Crear registro en tabla files con metadata y doc_type="FACTURA_PDF"
+    # Datos necesarios: factura_id, file_data (5 campos validados por Pydantic), doc_type="FACTURA_PDF"
+    result = await service.register_file_metadata(factura_id, file_data, doc_type="FACTURA_PDF")
     
     # ✅ Validación: Registro creado exitosamente con todos los campos en orden correcto
-    logger.info(f"Archivo {result.id} registrado exitosamente para factura {factura_id}")
+    logger.info(f"Archivo {result.id} registrado exitosamente para factura {factura_id} con doc_type=FACTURA_PDF")
     
     return result
 

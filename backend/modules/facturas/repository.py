@@ -3,6 +3,7 @@ Repositorio para operaciones de base de datos del módulo facturas.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from typing import Optional, List, Tuple
 from uuid import UUID
 from db.models import Factura, Area, Estado
@@ -17,8 +18,8 @@ class FacturaRepository:
     
     async def get_all(self, skip: int = 0, limit: int = 100, area_id: Optional[UUID] = None) -> Tuple[List[Factura], int]:
         """Obtiene todas las facturas con paginación y filtros opcionales."""
-        # Construir query base
-        query = select(Factura)
+        # Construir query base con eager loading de files
+        query = select(Factura).options(selectinload(Factura.files))
         count_query = select(func.count(Factura.id))
         
         # Aplicar filtro por area_id si se proporciona

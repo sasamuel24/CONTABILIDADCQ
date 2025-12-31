@@ -1,9 +1,55 @@
 """
-Middleware y dependencias de autenticación por API Key.
+Middleware y dependencias de autenticación por API Key y JWT.
 """
-from fastapi import Header, HTTPException, status
+from fastapi import Header, HTTPException, status, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from core.config import settings
 from core.logging import logger
+from core.security import decode_token
+from uuid import UUID
+
+
+security = HTTPBearer()
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> dict:
+    """
+    Dependencia para obtener el usuario actual desde el token JWT.
+    
+    Returns:
+        dict con información del usuario (user_id, email)
+    
+    Raises:
+        HTTPException 401: Si el token falta, es inválido o expiró
+    """
+    token = credentials.credentials
+    payload = decode_token(token)
+    
+    if not payload or payload.get("type") != "access":
+        logger.warning("Token inválido o expirado")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido o expirado",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    user_id = payload.get("sub")
+    email = payload.get("email")
+    
+    if not user_id:
+        logger.warning("Token sin user_id")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token inválido",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    
+    return {
+        "user_id": user_id,
+        "email": email
+    }
 
 
 async def require_api_key(x_api_key: str = Header(..., description="API Key para autenticación", alias="x-api-key")):

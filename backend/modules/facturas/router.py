@@ -19,7 +19,10 @@ from modules.facturas.schemas import (
     InventariosPatchIn,
     InventariosOut,
     AnticipoUpdateIn,
-    AnticipoOut
+    AnticipoOut,
+    SubmitResponsableOut,
+    CentrosPatchIn,
+    CentrosOut
 )
 from core.auth import require_api_key
 
@@ -220,3 +223,345 @@ async def update_factura_anticipo(
     ```
     """
     return await service.update_anticipo(factura_id, anticipo)
+
+
+@router.post("/{factura_id}/submit-responsable", response_model=SubmitResponsableOut)
+async def submit_responsable(
+    factura_id: UUID,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """
+    Endpoint de transición: Envía la factura desde Responsable a Contabilidad.
+    
+    **Validaciones antes de enviar:**
+    
+    1. **Centro de Costo y Operación:**
+       - centro_costo_id NO NULL
+       - centro_operacion_id NO NULL
+    
+    2. **Anticipo:**
+       - intervalo_entrega_contabilidad NO NULL
+       - tiene_anticipo = (porcentaje_anticipo IS NOT NULL)
+       - porcentaje_anticipo en rango 0-100
+    
+    3. **Inventarios:**
+       - Si requiere_entrada_inventarios=false:
+         * destino_inventarios = NULL
+         * presenta_novedad = false
+         * NO existe código NP
+       - Si requiere_entrada_inventarios=true:
+         * destino_inventarios obligatorio (TIENDA|ALMACEN)
+         * Códigos según matriz:
+           - TIENDA sin novedad: OCT, ECT, FPC
+           - TIENDA con novedad: OCT, ECT, FPC, NP
+           - ALMACEN sin novedad: OCC, EDO, FPC
+           - ALMACEN con novedad: OCC, EDO, FPC, NP
+         * Valores no vacíos
+    
+    **Si todas las validaciones pasan:**
+    - Reasigna la factura a área CONTABILIDAD
+    - Actualiza estado a EN_CONTABILIDAD
+    - Limpia assigned_to_user_id
+    - Actualiza assigned_at
+    
+    **Respuestas:**
+    - 200: Factura enviada exitosamente con detalle completo
+    - 400: Validaciones fallidas con detalle de errores
+    - 404: Factura no encontrada
+    
+    **Ejemplo de error 400:**
+    ```json
+    {
+      "detail": {
+        "message": "No se puede enviar a Contabilidad",
+        "missing_fields": ["centro_costo_id", "centro_operacion_id"],
+        "missing_codes": ["NP"],
+        "extra_codes": [],
+        "missing_files": []
+      }
+    }
+    ```
+    
+    **Ejemplo de éxito 200:**
+    ```json
+    {
+      "factura_id": "uuid",
+      "area_actual": "CONTABILIDAD",
+      "estado_actual": "EN_CONTABILIDAD",
+      "proveedor": "Proveedor ABC",
+      "numero_factura": "F-001",
+      "fecha_emision": "2025-12-28",
+      "total": 1000.00,
+      "centro_costo_id": "uuid",
+      "centro_operacion_id": "uuid",
+      "requiere_entrada_inventarios": true,
+      "destino_inventarios": "TIENDA",
+      "presenta_novedad": true,
+      "inventario_codigos": [
+        {"codigo": "OCT", "valor": "T-001", "created_at": "2025-12-28T10:00:00Z"},
+        {"codigo": "ECT", "valor": "T-002", "created_at": "2025-12-28T10:00:01Z"},
+        {"codigo": "FPC", "valor": "T-003", "created_at": "2025-12-28T10:00:02Z"},
+        {"codigo": "NP", "valor": "Novedad-001", "created_at": "2025-12-28T10:00:03Z"}
+      ],
+      "tiene_anticipo": true,
+      "porcentaje_anticipo": 50.0,
+      "intervalo_entrega_contabilidad": "2_SEMANAS",
+      "files": []
+    }
+    ```
+    """
+    return await service.submit_responsable(factura_id)
+
+
+@router.patch("/{factura_id}/centros", response_model=CentrosOut)
+async def update_centros(
+    factura_id: UUID,
+    centros: CentrosPatchIn,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """
+    Asigna Centro de Costo (CC) y Centro de Operación (CO) a una factura.
+    
+    **Validaciones:**
+    1. Factura debe existir (404 si no)
+    2. Centro de Costo debe existir (400 si no)
+    3. Centro de Operación debe existir (400 si no)
+    4. **CRÍTICO**: Centro de Operación debe pertenecer al Centro de Costo seleccionado
+       - Se valida que `centro_operacion.centro_costo_id == centro_costo_id`
+       - Si no coincide → 400
+    
+    **Request Body:**
+    ```json
+    {
+      "centro_costo_id": "uuid-del-centro-costo",
+      "centro_operacion_id": "uuid-del-centro-operacion"
+    }
+    ```
+    
+    **Respuestas:**
+    - **200**: Asignación exitosa
+      ```json
+      {
+        "factura_id": "uuid",
+        "centro_costo_id": "uuid",
+        "centro_operacion_id": "uuid"
+      }
+      ```
+    
+    - **400**: Validación fallida
+      ```json
+      {
+        "detail": {
+          "message": "Centro de operación no pertenece al centro de costo",
+          "centro_costo_id": "uuid-cc",
+          "centro_operacion_id": "uuid-co",
+          "centro_operacion_real_cc_id": "uuid-cc-real"
+        }
+      }
+      ```
+    
+    - **404**: Factura no encontrada
+      ```json
+      {
+        "detail": "Factura con ID {uuid} no encontrada"
+      }
+      ```
+    
+    **Flujo recomendado en frontend:**
+    1. Usuario selecciona Centro de Costo → GET /catalogos/centros-costo
+    2. Frontend carga Centros de Operación filtrados → GET /catalogos/centros-costo/{cc_id}/centros-operacion
+    3. Usuario selecciona ambos y envía → PATCH /facturas/{id}/centros
+    
+    Esto garantiza que el CO mostrado en el dropdown ya pertenece al CC, evitando errores de validación.
+    """
+    return await service.update_centros(factura_id, centros)
+
+
+@router.post(
+    "/{factura_id}/submit-tesoreria",
+    response_model=SubmitResponsableOut,
+    summary="Enviar factura a Tesorería",
+    description="Transición de factura desde CONTABILIDAD a TESORERIA (solo accesible por rol Contabilidad)"
+)
+async def submit_tesoreria(
+    factura_id: UUID,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """
+    Envía una factura desde CONTABILIDAD a TESORERIA.
+    
+    Este endpoint permite que el área de Contabilidad audite y envíe la factura
+    a Tesorería manteniendo todos los datos validados anteriormente.
+    
+    **Validaciones:**
+    1. Factura debe existir (404 si no)
+    2. Factura debe estar actualmente en área CONTABILIDAD
+       - Si NO está en Contabilidad → 409 "La factura no está en Contabilidad"
+    3. Factura no debe estar ya en Tesorería
+       - Si ya está en Tesorería → 409 "La factura ya fue enviada a Tesorería"
+    
+    **Acción realizada:**
+    - Cambia `area_id` a TESORERIA (b067adcd-13ff-420f-9389-42bfaa78cf9f)
+    - Actualiza `estado_id` a 7
+    - Limpia `assigned_to_user_id` (NULL)
+    - Actualiza `assigned_at` a timestamp actual
+    
+    **Respuestas:**
+    - **200**: Transición exitosa
+      ```json
+      {
+        "factura_id": "uuid",
+        "area_id": "uuid-tesoreria",
+        "area_actual": "Tesorería",
+        "estado_id": 7,
+        "estado_actual": "En Tesorería",
+        "proveedor": "...",
+        "numero_factura": "...",
+        "centro_costo_id": "uuid",
+        "centro_operacion_id": "uuid",
+        "requiere_entrada_inventarios": true,
+        "destino_inventarios": "TIENDA",
+        "presenta_novedad": false,
+        "inventario_codigos": [...],
+        "tiene_anticipo": true,
+        "porcentaje_anticipo": 50.0,
+        "intervalo_entrega_contabilidad": "2_SEMANAS",
+        "files": [...]
+      }
+      ```
+    
+    - **404**: Factura no encontrada
+      ```json
+      {
+        "detail": "Factura con ID {uuid} no encontrada"
+      }
+      ```
+    
+    - **409**: Validación de área fallida
+      ```json
+      {
+        "detail": "La factura no está en Contabilidad"
+      }
+      ```
+      o
+      ```json
+      {
+        "detail": "La factura ya fue enviada a Tesorería"
+      }
+      ```
+    
+    **Flujo completo:**
+    1. Responsable valida y envía → POST /facturas/{id}/submit-responsable (área pasa a CONTABILIDAD)
+    2. Contabilidad audita y envía → POST /facturas/{id}/submit-tesoreria (área pasa a TESORERIA)
+    3. Tesorería procesa pago
+    """
+    return await service.submit_tesoreria(factura_id)
+
+
+@router.post(
+    "/{factura_id}/close-tesoreria",
+    response_model=SubmitResponsableOut,
+    summary="Cerrar factura en Tesorería",
+    description="Finaliza el proceso de una factura en Tesorería validando archivos requeridos (PEC, EC, PCE)"
+)
+async def close_tesoreria(
+    factura_id: UUID,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """
+    Cierra una factura en TESORERIA después de validar documentos requeridos.
+    
+    Este endpoint permite que el área de Tesorería finalice el proceso de la factura
+    después de subir los documentos obligatorios: PEC, EC y PCE.
+    
+    **Validaciones:**
+    1. Factura debe existir (404 si no)
+    2. Factura debe estar actualmente en área TESORERIA
+       - Si NO está en Tesorería → 409 "La factura no está en Tesorería"
+    3. Deben existir los siguientes archivos adjuntos:
+       - **PEC**: Pago Electrónico Certificado
+       - **EC**: Estado de Cuenta
+       - **PCE**: Pago Con Egreso
+       - Si faltan archivos → 400 con lista de archivos faltantes
+    
+    **Acción realizada:**
+    - Cambia `estado_id` a 5 (estado finalizado)
+    - Mantiene `area_id` en TESORERIA
+    
+    **Respuestas:**
+    - **200**: Cierre exitoso
+      ```json
+      {
+        "factura_id": "uuid",
+        "area_id": "uuid-tesoreria",
+        "area_actual": "Tesorería",
+        "estado_id": 5,
+        "estado_actual": "Finalizada",
+        "proveedor": "...",
+        "numero_factura": "...",
+        "centro_costo_id": "uuid",
+        "centro_operacion_id": "uuid",
+        "inventario_codigos": [...],
+        "tiene_anticipo": true,
+        "files": [
+          {
+            "id": "uuid",
+            "filename": "PEC.pdf",
+            "doc_type": "PEC",
+            "content_type": "application/pdf",
+            "size_bytes": 12345,
+            "uploaded_at": "2025-12-29T..."
+          },
+          {
+            "doc_type": "EC",
+            ...
+          },
+          {
+            "doc_type": "PCE",
+            ...
+          }
+        ]
+      }
+      ```
+    
+    - **400**: Faltan archivos requeridos
+      ```json
+      {
+        "detail": {
+          "message": "No se puede cerrar la factura en Tesorería",
+          "missing_files": ["PEC", "EC"]
+        }
+      }
+      ```
+    
+    - **404**: Factura no encontrada
+      ```json
+      {
+        "detail": "Factura con ID {uuid} no encontrada"
+      }
+      ```
+    
+    - **409**: Factura no está en Tesorería
+      ```json
+      {
+        "detail": "La factura no está en Tesorería"
+      }
+      ```
+    
+    **Flujo completo:**
+    1. Responsable valida → POST /facturas/{id}/submit-responsable (→ CONTABILIDAD)
+    2. Contabilidad audita → POST /facturas/{id}/submit-tesoreria (→ TESORERIA)
+    3. Tesorería sube archivos:
+       - POST /facturas/{id}/files/upload (doc_type: PEC)
+       - POST /facturas/{id}/files/upload (doc_type: EC)
+       - POST /facturas/{id}/files/upload (doc_type: PCE)
+    4. Tesorería cierra → POST /facturas/{id}/close-tesoreria (→ FINALIZADA)
+    
+    **Nota sobre archivos:**
+    - Los doc_types PEC, EC, PCE solo aceptan archivos PDF
+    - Extensión permitida: .pdf
+    - Content-Type: application/pdf
+    """
+    return await service.close_tesoreria(factura_id)
+
+

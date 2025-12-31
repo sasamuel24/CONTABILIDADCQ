@@ -20,6 +20,8 @@ from modules.files.router import router as files_router
 from modules.asignaciones.router import router as asignaciones_router
 from modules.centros_costo.router import router as centros_costo_router
 from modules.centros_operacion.router import router as centros_operacion_router
+from modules.users.router import router as users_router
+from modules.roles.router import router as roles_router
 
 
 # Crear instancia de FastAPI
@@ -49,6 +51,8 @@ app.include_router(files_router, prefix="/api/v1")
 app.include_router(asignaciones_router, prefix="/api/v1")
 app.include_router(centros_costo_router, prefix="/api/v1")
 app.include_router(centros_operacion_router, prefix="/api/v1")
+app.include_router(users_router, prefix="/api/v1")
+app.include_router(roles_router, prefix="/api/v1")
 
 
 @app.get("/health")

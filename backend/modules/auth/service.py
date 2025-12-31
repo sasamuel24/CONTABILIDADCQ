@@ -91,4 +91,10 @@ class AuthService:
                 detail="Usuario no encontrado"
             )
         
-        return UserMeResponse.model_validate(user)
+        return UserMeResponse(
+            id=user.id,
+            nombre=user.nombre,
+            email=user.email,
+            role=user.role.code,
+            area=user.area
+        )

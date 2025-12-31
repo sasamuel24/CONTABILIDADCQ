@@ -18,7 +18,23 @@ class FileService:
     
     ALLOWED_DOC_TYPES = {
         "OC", "OS", "OCT", "ECT", "OCC", "EDO", 
-        "FCP", "FPC", "EGRESO", "SOPORTE_PAGO", "FACTURA_PDF"
+        "FCP", "FPC", "EGRESO", "SOPORTE_PAGO", "FACTURA_PDF",
+        "APROBACION_GERENCIA", "PEC", "EC", "PCE"
+    }
+    
+    # Content types permitidos por doc_type
+    ALLOWED_CONTENT_TYPES = {
+        "APROBACION_GERENCIA": {
+            "application/pdf", "image/jpeg", "image/png", "image/webp"
+        },
+        # Todos los demás solo aceptan PDF
+        "default": {"application/pdf"}
+    }
+    
+    # Extensiones permitidas por doc_type
+    ALLOWED_EXTENSIONS = {
+        "APROBACION_GERENCIA": {".pdf", ".jpg", ".jpeg", ".png", ".webp"},
+        "default": {".pdf"}
     }
     
     def __init__(self, repository: FileRepository):
@@ -27,20 +43,30 @@ class FileService:
     async def register_file_metadata(
         self, 
         factura_id: UUID, 
-        file_data: FileCreateRequest
+        file_data: FileCreateRequest,
+        doc_type: str = "FACTURA_PDF"
     ) -> FileResponse:
         """
         Registra metadata de un archivo sin realizar upload físico.
         
         Propósito: Crear registro en tabla files asociado a una factura existente.
-        Datos necesarios: factura_id (validado previamente), file_data con los 5 campos.
+        Datos necesarios: factura_id (validado previamente), file_data con los 5 campos, doc_type.
+        
+        Args:
+            factura_id: UUID de la factura a la que se asocia el archivo
+            file_data: Metadata del archivo (storage_provider, storage_path, filename, content_type, size_bytes)
+            doc_type: Tipo de documento, por defecto "FACTURA_PDF"
+        
+        Returns:
+            FileResponse con todos los datos del archivo registrado
         """
-        logger.info(f"Registrando metadata de archivo para factura {factura_id}: {file_data.filename}")
+        logger.info(f"Registrando metadata de archivo para factura {factura_id}: {file_data.filename} con doc_type={doc_type}")
         
         try:
-            # Operación: Crear registro en BD con metadata del archivo
+            # Operación: Crear registro en BD con metadata del archivo y doc_type
             db_file_data = {
                 "factura_id": factura_id,
+                "doc_type": doc_type,
                 "storage_provider": file_data.storage_provider,
                 "storage_path": file_data.storage_path,
                 "filename": file_data.filename,
@@ -51,7 +77,7 @@ class FileService:
             db_file = await self.repository.create(db_file_data)
             
             # ✅ Validación: Registro creado exitosamente con ID generado
-            logger.info(f"Metadata de archivo registrada exitosamente: {db_file.id}")
+            logger.info(f"Metadata de archivo registrada exitosamente: {db_file.id} con doc_type={doc_type}")
             
             # Retornar con uploaded_at mapeado desde created_at
             return FileResponse(
@@ -187,20 +213,46 @@ class FileService:
                 detail={"code": "bad_request", "message": "doc_type debe ser uno de los permitidos"}
             )
         
-        # Validación 2: tipo de archivo PDF
-        if file.content_type != "application/pdf":
-            logger.warning(f"Tipo de archivo inválido: {file.content_type}")
+        # Obtener content_types y extensiones permitidas según doc_type
+        allowed_content_types = self.ALLOWED_CONTENT_TYPES.get(
+            doc_type, 
+            self.ALLOWED_CONTENT_TYPES["default"]
+        )
+        allowed_extensions = self.ALLOWED_EXTENSIONS.get(
+            doc_type, 
+            self.ALLOWED_EXTENSIONS["default"]
+        )
+        
+        # Validación 2: tipo de archivo
+        if file.content_type not in allowed_content_types:
+            logger.warning(f"Tipo de archivo inválido: {file.content_type} para doc_type: {doc_type}")
+            allowed_types_str = ", ".join(sorted(allowed_content_types))
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"code": "bad_request", "message": "Solo se permiten archivos PDF"}
+                detail={
+                    "code": "bad_request", 
+                    "message": f"Para {doc_type} solo se permiten: {allowed_types_str}"
+                }
             )
         
-        # Validación 3: extensión .pdf
-        if not file.filename or not file.filename.lower().endswith('.pdf'):
-            logger.warning(f"Extensión de archivo inválida: {file.filename}")
+        # Validación 3: extensión de archivo
+        if not file.filename:
+            logger.warning("Filename no proporcionado")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail={"code": "bad_request", "message": "El archivo debe tener extensión .pdf"}
+                detail={"code": "bad_request", "message": "Se requiere nombre de archivo"}
+            )
+        
+        file_extension = Path(file.filename).suffix.lower()
+        if file_extension not in allowed_extensions:
+            logger.warning(f"Extensión de archivo inválida: {file_extension} para doc_type: {doc_type}")
+            allowed_ext_str = ", ".join(sorted(allowed_extensions))
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "bad_request", 
+                    "message": f"Para {doc_type} solo se permiten extensiones: {allowed_ext_str}"
+                }
             )
         
         # Validación 4: verificar duplicado
@@ -245,7 +297,7 @@ class FileService:
                 "storage_provider": "local",
                 "storage_path": str(file_path),
                 "filename": new_filename,
-                "content_type": "application/pdf",
+                "content_type": file.content_type,  # Usar content_type real del archivo
                 "size_bytes": len(content),
                 "uploaded_by_user_id": uploaded_by_user_id
             }

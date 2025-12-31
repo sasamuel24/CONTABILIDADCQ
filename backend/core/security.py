@@ -29,6 +29,10 @@ def get_password_hash(password: str) -> str:
     return hashed.decode('utf-8')
 
 
+# Alias para compatibilidad
+hash_password = get_password_hash
+
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Crear token de acceso JWT."""
     to_encode = data.copy()

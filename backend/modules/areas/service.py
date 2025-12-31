@@ -2,9 +2,10 @@
 Servicio para lógica de negocio de áreas.
 """
 from modules.areas.repository import AreaRepository
-from modules.areas.schemas import AreaResponse
+from modules.areas.schemas import AreaResponse, AreaCreate
 from typing import List
 from core.logging import logger
+from fastapi import HTTPException, status
 
 
 class AreaService:
@@ -29,12 +30,12 @@ class AreaService:
             return AreaResponse.model_validate(area)
         except Exception as e:
             logger.error(f"Error al crear área: {str(e)}")
-            if "duplicate key value" in str(e).lower():
+            if "duplicate key value" in str(e).lower() or "unicidad" in str(e).lower():
                 raise HTTPException(
-                    status_code=400,
+                    status_code=status.HTTP_409_CONFLICT,
                     detail=f"El área '{area_data.nombre}' ya existe"
                 )
             raise HTTPException(
-                status_code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error al crear área: {str(e)}"
             )

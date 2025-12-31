@@ -3104,4 +3104,696 @@ El sistema implementa validación en tres capas para máxima robustez:
 
 ---
 
-**Última actualización:** 28 de diciembre de 2025
+## 🔄 Sistema de Transición de Estados
+
+### Flujo de Aprobación de Facturas
+
+El sistema implementa un flujo de múltiples etapas para aprobar y procesar facturas:
+
+```
+RESPONSABLE → CONTABILIDAD → TESORERIA → FINALIZADA
+```
+
+### Endpoint: Submit Responsable
+
+**Ruta:** `POST /api/v1/facturas/{factura_id}/submit-responsable`
+
+**Propósito:** Validar factura completa y enviar a Contabilidad
+
+**Validaciones Exhaustivas:**
+1. **Centro de Costo y Operación:** Ambos deben estar asignados
+2. **Anticipo:** 
+   - Si `tiene_anticipo=true` → `porcentaje_anticipo` y `intervalo_entrega_contabilidad` requeridos
+   - Si `tiene_anticipo=false` → ambos campos deben ser null
+3. **Inventarios (si requiere_entrada_inventarios=true):**
+   - Debe tener `destino_inventarios` (TIENDA/ALMACEN)
+   - Debe tener `presenta_novedad` definido
+   - Códigos requeridos según matriz:
+     ```
+     TIENDA sin novedad: OCT, ECT, FPC
+     TIENDA con novedad: OCT, ECT, FPC, NP
+     ALMACEN sin novedad: OCC, EDO, FPC
+     ALMACEN con novedad: OCC, EDO, FPC, NP
+     ```
+4. **Archivos (opcional):** Si se requieren archivos específicos
+
+**Acción:**
+- Cambia `area_id` → CONTABILIDAD (725f5e5a-49d3-4e44-800f-f5ff21e187ac)
+- Busca estado con code/label ILIKE "%contabilidad%"
+- `assigned_to_user_id` → NULL
+- `assigned_at` → timestamp actual
+
+**Respuesta 200:**
+```json
+{
+  "factura_id": "uuid",
+  "area_id": "uuid-contabilidad",
+  "area_actual": "Contabilidad",
+  "estado_id": 3,
+  "estado_actual": "En Contabilidad",
+  "proveedor": "...",
+  "numero_factura": "...",
+  "centro_costo_id": "uuid",
+  "centro_operacion_id": "uuid",
+  "requiere_entrada_inventarios": true,
+  "destino_inventarios": "TIENDA",
+  "presenta_novedad": false,
+  "inventario_codigos": [
+    {"codigo": "OCT", "valor": "T-123"},
+    {"codigo": "ECT", "valor": "T-456"},
+    {"codigo": "FPC", "valor": "T-789"}
+  ],
+  "tiene_anticipo": true,
+  "porcentaje_anticipo": 50.0,
+  "intervalo_entrega_contabilidad": "2_SEMANAS",
+  "files": [...]
+}
+```
+
+**Respuesta 400 (Validación fallida):**
+```json
+{
+  "detail": {
+    "message": "Validación de inventarios fallida",
+    "missing_codes": ["OCT", "ECT"],
+    "extra_codes": ["NP"]
+  }
+}
+```
+
+**Código relacionado:**
+- Service: `modules/facturas/service.py` → `submit_responsable()` (277 líneas)
+- Router: `modules/facturas/router.py` → `POST /{factura_id}/submit-responsable`
+- Schema: `SubmitResponsableOut`, `SubmitErrorDetail`
+
+---
+
+### Endpoint: Submit Tesorería
+
+**Ruta:** `POST /api/v1/facturas/{factura_id}/submit-tesoreria`
+
+**Propósito:** Auditar factura en Contabilidad y enviar a Tesorería
+
+**Validaciones:**
+1. Factura debe existir → 404
+2. Debe estar en área CONTABILIDAD (725f5e5a-49d3-4e44-800f-f5ff21e187ac) → 409 si no
+3. No debe estar ya en TESORERIA → 409 si ya está
+
+**Acción:**
+- Cambia `area_id` → TESORERIA (b067adcd-13ff-420f-9389-42bfaa78cf9f)
+- Cambia `estado_id` → 7
+- `assigned_to_user_id` → NULL
+- `assigned_at` → timestamp actual
+
+**Respuesta 200:** Mismo formato que `SubmitResponsableOut`
+
+**Respuesta 409:**
+```json
+{
+  "detail": "La factura no está en Contabilidad"
+}
+```
+o
+```json
+{
+  "detail": "La factura ya fue enviada a Tesorería"
+}
+```
+
+**Código relacionado:**
+- Service: `modules/facturas/service.py` → `submit_tesoreria()` (143 líneas)
+- Router: `modules/facturas/router.py` → `POST /{factura_id}/submit-tesoreria`
+
+---
+
+### Endpoint: Close Tesorería
+
+**Ruta:** `POST /api/v1/facturas/{factura_id}/close-tesoreria`
+
+**Propósito:** Finalizar factura en Tesorería validando documentos de pago
+
+**Validaciones:**
+1. Factura debe existir → 404
+2. Debe estar en área TESORERIA (b067adcd-13ff-420f-9389-42bfaa78cf9f) → 409 si no
+3. **Archivos requeridos:** Deben existir los siguientes doc_types:
+   - **PEC** (Pago Electrónico Certificado)
+   - **EC** (Estado de Cuenta)
+   - **PCE** (Pago Con Egreso)
+
+**Acción:**
+- Cambia `estado_id` → 5 (estado finalizado)
+- Mantiene `area_id` en TESORERIA
+
+**Respuesta 200:** Mismo formato que `SubmitResponsableOut` incluyendo todos los archivos
+
+**Respuesta 400 (Archivos faltantes):**
+```json
+{
+  "detail": {
+    "message": "No se puede cerrar la factura en Tesorería",
+    "missing_files": ["PEC", "EC"]
+  }
+}
+```
+
+**Respuesta 409:**
+```json
+{
+  "detail": "La factura no está en Tesorería"
+}
+```
+
+**Código relacionado:**
+- Service: `modules/facturas/service.py` → `close_tesoreria()` (156 líneas)
+- Router: `modules/facturas/router.py` → `POST /{factura_id}/close-tesoreria`
+
+---
+
+## 📎 Sistema de Archivos (Files)
+
+### Doc Types Permitidos
+
+El sistema soporta los siguientes tipos de documentos:
+
+#### Documentos de Inventario
+- **OC**: Orden de Compra
+- **OS**: Orden de Servicio
+- **OCT**: Orden de Compra Tienda
+- **ECT**: Entrada a Compra Tienda
+- **OCC**: Orden de Compra Compras
+- **EDO**: Entrada de Orden
+- **FCP**: Factura Compra Proveedor
+- **FPC**: Factura Para Contabilidad
+
+#### Documentos de Pago
+- **EGRESO**: Comprobante de Egreso
+- **SOPORTE_PAGO**: Soporte de Pago
+- **PEC**: Pago Electrónico Certificado (requerido en Tesorería)
+- **EC**: Estado de Cuenta (requerido en Tesorería)
+- **PCE**: Pago Con Egreso (requerido en Tesorería)
+
+#### Documentos Generales
+- **FACTURA_PDF**: PDF de la factura principal
+- **APROBACION_GERENCIA**: Aprobación de Gerencia
+
+### Reglas de Content Type
+
+#### Documentos que aceptan solo PDF
+Todos los doc_types excepto `APROBACION_GERENCIA`:
+- **Content-Type permitido:** `application/pdf`
+- **Extensión permitida:** `.pdf`
+
+#### Documentos que aceptan PDF e Imágenes
+Solo `APROBACION_GERENCIA`:
+- **Content-Types permitidos:**
+  - `application/pdf`
+  - `image/jpeg`
+  - `image/png`
+  - `image/webp`
+- **Extensiones permitidas:** `.pdf`, `.jpg`, `.jpeg`, `.png`, `.webp`
+
+### Validaciones de Upload
+
+**Endpoint:** `POST /api/v1/facturas/{factura_id}/files/upload`
+
+**Validaciones:**
+1. `doc_type` debe estar en `ALLOWED_DOC_TYPES`
+2. `content_type` debe coincidir con doc_type
+3. Extensión del archivo debe ser válida
+4. No debe existir duplicado (mismo `factura_id` + `doc_type`) → 409
+
+**Código relacionado:**
+- Service: `modules/files/service.py` → `upload_file()`
+- Constantes: `ALLOWED_DOC_TYPES`, `ALLOWED_CONTENT_TYPES`, `ALLOWED_EXTENSIONS`
+
+### Migraciones de Doc Types
+
+#### Migración 782ec018a4d8
+Agregó `APROBACION_GERENCIA` al CHECK constraint
+
+#### Migración f0bc2aa0072c
+Agregó `PEC`, `EC`, `PCE` al CHECK constraint
+
+**CHECK Constraint actual:**
+```sql
+CHECK (doc_type IN (
+  'OC','OS','OCT','ECT','OCC','EDO','FCP','FPC',
+  'EGRESO','SOPORTE_PAGO','FACTURA_PDF',
+  'APROBACION_GERENCIA','PEC','EC','PCE'
+))
+```
+
+---
+
+## 🏷️ Sistema de Estados
+
+### Endpoint: Crear Estado
+
+**Ruta:** `POST /api/v1/estados`
+
+**Propósito:** Crear un nuevo estado para el catálogo de estados de facturas
+
+**Request Body:**
+```json
+{
+  "code": "APROBADO_GERENCIA",
+  "label": "Aprobado por Gerencia",
+  "order": 5,
+  "is_final": false,
+  "is_active": true
+}
+```
+
+**Validaciones:**
+1. `code` debe ser único → 409 si ya existe
+2. `code`: 1-50 caracteres
+3. `label`: 1-100 caracteres
+4. `order`: >= 1
+5. `is_final`: boolean (default: false)
+6. `is_active`: boolean (default: true)
+
+**Respuesta 201:**
+```json
+{
+  "id": 8,
+  "code": "APROBADO_GERENCIA",
+  "label": "Aprobado por Gerencia",
+  "order": 5,
+  "is_final": false,
+  "is_active": true
+}
+```
+
+**Respuesta 409:**
+```json
+{
+  "detail": "Ya existe un estado con el código 'APROBADO_GERENCIA'"
+}
+```
+
+**Código relacionado:**
+- Service: `modules/estados/service.py` → `create_estado()`
+- Repository: `modules/estados/repository.py` → `create()`, `get_by_code()`
+- Router: `modules/estados/router.py` → `POST /`
+- Schema: `EstadoCreate`, `EstadoResponse`
+
+**Modelo Estado:**
+```python
+class Estado(Base):
+    id: Mapped[int]              # SmallInteger, PK, autoincrement
+    code: Mapped[str]             # Text, unique, indexed
+    label: Mapped[str]            # Text
+    order: Mapped[int]            # SmallInteger
+    is_final: Mapped[bool]        # Boolean, default=False
+    is_active: Mapped[bool]       # Boolean, default=True
+```
+
+---
+
+## 🔄 Flujo Completo de Procesamiento de Facturas
+
+### Diagrama de Flujo
+
+```
+┌─────────────────┐
+│  RESPONSABLE    │
+│  (área origen)  │
+└────────┬────────┘
+         │
+         │ 1. Validar datos completos:
+         │    - CC/CO asignados
+         │    - Anticipo configurado
+         │    - Inventarios completos (si aplica)
+         │
+         ▼
+┌─────────────────────────────────────┐
+│ POST /submit-responsable            │
+│ ✓ Validación exhaustiva             │
+│ ✓ area_id → CONTABILIDAD           │
+│ ✓ estado_id → "En Contabilidad"    │
+└────────┬────────────────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│  CONTABILIDAD   │
+│  (auditoría)    │
+└────────┬────────┘
+         │
+         │ 2. Revisar y auditar factura
+         │
+         ▼
+┌─────────────────────────────────────┐
+│ POST /submit-tesoreria              │
+│ ✓ Validar área actual               │
+│ ✓ area_id → TESORERIA              │
+│ ✓ estado_id → 7                     │
+└────────┬────────────────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│   TESORERIA     │
+│  (pago)         │
+└────────┬────────┘
+         │
+         │ 3. Procesar pago y subir documentos:
+         │    - POST /files/upload (doc_type: PEC)
+         │    - POST /files/upload (doc_type: EC)
+         │    - POST /files/upload (doc_type: PCE)
+         │
+         ▼
+┌─────────────────────────────────────┐
+│ POST /close-tesoreria               │
+│ ✓ Validar archivos PEC, EC, PCE    │
+│ ✓ estado_id → 5 (FINALIZADA)       │
+└────────┬────────────────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│   FINALIZADA    │
+│ (estado final)  │
+└─────────────────┘
+```
+
+### Resumen de Endpoints
+
+| Endpoint | Área Origen | Área Destino | Validaciones Clave |
+|----------|-------------|--------------|-------------------|
+| `submit-responsable` | Cualquiera | CONTABILIDAD | CC/CO, Anticipo, Inventarios |
+| `submit-tesoreria` | CONTABILIDAD | TESORERIA | Área actual |
+| `close-tesoreria` | TESORERIA | TESORERIA | Archivos PEC/EC/PCE |
+
+### Estados del Sistema
+
+| ID | Code | Label | Descripción |
+|----|------|-------|-------------|
+| 1 | PENDIENTE | Pendiente | Estado inicial |
+| 3 | EN_CONTABILIDAD | En Contabilidad | Después de submit-responsable |
+| 7 | EN_TESORERIA | En Tesorería | Después de submit-tesoreria |
+| 5 | FINALIZADA | Finalizada | Después de close-tesoreria |
+
+### Áreas del Sistema
+
+| ID | Nombre | UUID |
+|----|--------|------|
+| 1 | Contabilidad | 725f5e5a-49d3-4e44-800f-f5ff21e187ac |
+| 2 | Tesorería | b067adcd-13ff-420f-9389-42bfaa78cf9f |
+
+---
+
+## 🎨 Frontend - Integración con React
+
+### Configuración del Frontend
+
+#### Variables de Entorno
+Archivo: `frontend/.env.local`
+```env
+VITE_API_BASE_URL=http://localhost:8000/api/v1
+```
+
+### Cliente API (`src/lib/api.ts`)
+
+Cliente centralizado para todas las comunicaciones con el backend.
+
+#### Interfaces TypeScript
+
+```typescript
+export interface LoginResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  nombre: string;
+}
+
+export interface DashboardMetrics {
+  recibidas: number;
+  asignadas: number;
+  cerradas: number;
+  pendientes: number;
+}
+
+export interface Area {
+  id: string;
+  nombre: string;
+}
+
+export interface FacturaAsignada {
+  numero_factura: string;
+  proveedor: string;
+  area: string;
+  quien_la_tiene: string;
+  fecha_asignacion: string;
+  estado: string;
+}
+```
+
+#### Funciones del Cliente API
+
+**Autenticación:**
+- `login(email: string, password: string): Promise<LoginResponse>`
+  - Endpoint: `POST /auth/login`
+  - Guarda tokens en localStorage
+  
+- `getCurrentUser(): Promise<User>`
+  - Endpoint: `GET /auth/me`
+  - Incluye Authorization header automáticamente
+  
+- `logout(): void`
+  - Limpia tokens de localStorage
+  
+- `hasValidSession(): boolean`
+  - Verifica existencia de access_token
+
+**Dashboard:**
+- `getDashboardMetrics(): Promise<DashboardMetrics>`
+  - Endpoint: `GET /dashboard/facturas/metrics`
+  - Retorna métricas de facturas por estado
+  
+- `getAreas(): Promise<Area[]>`
+  - Endpoint: `GET /areas/`
+  - Lista todas las áreas disponibles
+  
+- `getFacturasAsignadas(): Promise<FacturaAsignada[]>`
+  - Endpoint: `GET /dashboard/areas/recientes-asignadas`
+  - Retorna facturas recientemente asignadas con detalles
+
+#### Helper Interno
+
+```typescript
+async function fetchAPI<T>(
+  endpoint: string,
+  options?: RequestInit,
+  skipAuthRedirect = false
+): Promise<T>
+```
+
+- Agrega automáticamente `Authorization: Bearer <token>`
+- Maneja errores 401 (sesión expirada) con logout automático
+- Parsea respuestas JSON
+- Lanza `ApiError` con detalles del backend
+
+### Flujo de Autenticación
+
+```mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant F as Frontend
+    participant B as Backend
+    participant DB as PostgreSQL
+
+    U->>F: Ingresa email/password
+    F->>B: POST /auth/login
+    B->>DB: Verifica credenciales
+    DB-->>B: Usuario válido
+    B-->>F: access_token + refresh_token
+    F->>F: Guarda en localStorage
+    F->>B: GET /auth/me
+    B-->>F: Datos del usuario
+    F-->>U: Redirige a Dashboard
+```
+
+### Componentes del Frontend
+
+#### App.tsx
+- Gestión global de estado de autenticación
+- Verificación de sesión al montar (`useEffect`)
+- Renderizado condicional: LoginPage vs Dashboard
+- Loading state durante verificación inicial
+
+**Estados principales:**
+```typescript
+const [isAuthenticated, setIsAuthenticated] = useState(false);
+const [userName, setUserName] = useState<string>("");
+const [isLoading, setIsLoading] = useState(true);
+```
+
+#### LoginPage.tsx
+- Formulario de autenticación
+- Validación de campos
+- Loading state durante login
+- Manejo de errores con mensajes informativos
+- Integración con `api.login()`
+
+**Manejo de errores:**
+```typescript
+try {
+  await login(email, password);
+  await refreshUserData();
+} catch (err) {
+  setError("Email o contraseña incorrectos. Por favor, verifica tus credenciales.");
+}
+```
+
+#### Dashboard.tsx
+- Visualización de métricas de facturas
+- Filtrado por área
+- Búsqueda de facturas
+- Paginación
+- Estados de loading y error
+
+**Integración con API:**
+```typescript
+useEffect(() => {
+  const loadDashboardData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [metricsData, areasData, facturasData] = await Promise.all([
+        getDashboardMetrics(),
+        getAreas(),
+        getFacturasAsignadas(),
+      ]);
+      setMetrics(metricsData);
+      // ... procesar áreas y facturas
+    } catch (err) {
+      setError("Error al cargar los datos del dashboard");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  loadDashboardData();
+}, [activeSection]);
+```
+
+**Características implementadas:**
+- ✅ Métricas en tiempo real (recibidas, asignadas, cerradas, pendientes)
+- ✅ Lista de áreas desde base de datos
+- ✅ Tabla de facturas asignadas con datos reales
+- ✅ Filtrado por área y búsqueda
+- ✅ Skeleton loading durante carga
+- ✅ Manejo de errores con mensajes claros
+- ✅ Estados con colores (Asignada, En Curso, Cerrada, etc.)
+
+#### InboxView.tsx (Bandeja de Facturas)
+- Vista principal de bandeja de entrada de facturas
+- Lista paginada de todas las facturas
+- Búsqueda por proveedor y número de factura
+- Filtrado por estado
+- Drawer lateral con detalle de factura
+- Actualización de área de la factura
+
+**Integración con API:**
+```typescript
+useEffect(() => {
+  const loadInboxData = async () => {
+    const [facturasData, areasData] = await Promise.all([
+      getFacturas(0, 1000),
+      getAreas(),
+    ]);
+    setFacturas(facturasData.items);
+    setAreas(areasData);
+  };
+  loadInboxData();
+}, []);
+```
+
+**Funcionalidades:**
+- ✅ Lista completa de facturas desde backend
+- ✅ Métricas por estado (Total, Recibidas, Cerradas)
+- ✅ Búsqueda en tiempo real
+- ✅ Filtrado por estado dinámico
+- ✅ Paginación (10 items por página)
+- ✅ Drawer con detalle completo de factura
+- ✅ Actualización de área con confirmación
+- ✅ Loading states durante carga
+- ✅ Manejo de errores con mensajes
+- ✅ Vista previa de documento PDF (placeholder)
+
+### Mapeo de Campos Backend → Frontend
+
+| Backend (snake_case) | Frontend | Descripción |
+|---------------------|----------|-------------|
+| `numero_factura` | `numero_factura` | Número de factura |
+| `quien_la_tiene` | `quien_la_tiene` | Usuario asignado |
+| `fecha_asignacion` | `fecha_asignacion` | Fecha de asignación |
+| `estado` | `estado` | Estado de la factura |
+
+**Nota:** El frontend mantiene snake_case para campos de backend para simplificar el mapeo.
+
+### Configuración de Estados
+
+```typescript
+const estadoConfig: Record<string, { color: string; bgColor: string }> = {
+  'Pendiente': { color: 'text-yellow-700', bgColor: 'bg-yellow-100' },
+  'Asignada': { color: 'text-blue-700', bgColor: 'bg-blue-100' },
+  'En Curso': { color: 'text-purple-700', bgColor: 'bg-purple-100' },
+  'Cerrada': { color: 'text-green-700', bgColor: 'bg-green-100' },
+  // Fallback para estados no definidos
+  // Se usa: bg-gray-100 text-gray-700
+};
+```
+
+### Manejo de Errores
+
+**Errores de Autenticación (401):**
+```typescript
+if (response.status === 401 && !skipAuthRedirect) {
+  clearTokens();
+  window.location.href = '/';
+  throw new Error('Sesión expirada');
+}
+```
+
+**Errores del Backend:**
+```typescript
+interface ApiError {
+  detail: string | { message: string; [key: string]: any };
+}
+```
+
+El cliente parsea automáticamente errores 422 (Validación), 400 (Bad Request), 500 (Internal Server Error).
+
+### Próximas Mejoras Frontend
+
+- [ ] Implementar refresh token automático antes de expiración
+- [ ] Agregar debounce en búsqueda de facturas
+- [ ] Caché de datos del dashboard con invalidación inteligente
+- [ ] Loading states más granulares (por sección)
+- [ ] Notificaciones toast para operaciones exitosas/fallidas
+- [ ] Página de detalle de factura con edición
+- [ ] Upload de archivos desde frontend
+- [ ] Filtros avanzados (por fecha, proveedor, estado)
+
+### Archivos del Frontend
+
+```
+frontend/
+├── .env.local              # Variables de entorno (no commitear)
+├── src/
+│   ├── App.tsx            # Punto de entrada, gestión de sesión
+│   ├── lib/
+│   │   └── api.ts         # Cliente API completo
+│   └── components/
+│       ├── LoginPage.tsx  # Autenticación
+│       └── Dashboard.tsx  # Vista principal con datos reales
+├── package.json
+└── vite.config.ts
+```
+
+---
+
+**Última actualización:** 29 de diciembre de 2025

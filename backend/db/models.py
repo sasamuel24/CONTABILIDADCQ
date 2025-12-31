@@ -15,6 +15,46 @@ import uuid
 from db.base import Base, TimestampMixin
 
 
+class Rol(Base, TimestampMixin):
+    """Modelo de roles del sistema."""
+    __tablename__ = "roles"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    code: Mapped[str] = mapped_column(
+        String(50),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+    nombre: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False
+    )
+    descripcion: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        default=True,
+        nullable=False
+    )
+    
+    # Relaciones
+    users: Mapped[List["User"]] = relationship(
+        "User",
+        back_populates="role",
+        lazy="selectin"
+    )
+    
+    def __repr__(self):
+        return f"<Rol(code={self.code}, nombre={self.nombre})>"
+
+
 class Area(Base):
     """Modelo de áreas para asignación de facturas."""
     __tablename__ = "areas"
@@ -23,6 +63,12 @@ class Area(Base):
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4
+    )
+    code: Mapped[str] = mapped_column(
+        String(50),
+        unique=True,
+        nullable=False,
+        index=True
     )
     nombre: Mapped[str] = mapped_column(
         Text,
@@ -69,17 +115,25 @@ class User(Base, TimestampMixin):
         nullable=True
     )
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
-    role: Mapped[str] = mapped_column(
-        Text,
+    
+    # Relación con roles
+    role_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("roles.id", ondelete="RESTRICT"),
         nullable=False,
-        default="user"
+        index=True
     )
+    
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     
     # Relaciones
     area: Mapped[Optional["Area"]] = relationship(
         "Area",
         back_populates="users",
+        lazy="selectin"
+    )
+    role: Mapped["Rol"] = relationship(
+        "Rol",
         lazy="selectin"
     )
     facturas_asignadas: Mapped[List["Factura"]] = relationship(
@@ -430,7 +484,7 @@ class File(Base, TimestampMixin):
         ),
         CheckConstraint("size_bytes > 0", name="check_file_size_positive"),
         CheckConstraint(
-            "doc_type IN ('OC','OS','OCT','ECT','OCC','EDO','FCP','FPC','EGRESO','SOPORTE_PAGO','FACTURA_PDF')",
+            "doc_type IN ('OC','OS','OCT','ECT','OCC','EDO','FCP','FPC','EGRESO','SOPORTE_PAGO','FACTURA_PDF','APROBACION_GERENCIA','PEC','EC','PCE')",
             name="check_file_doc_type"
         ),
     )

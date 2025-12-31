@@ -3,10 +3,11 @@ Esquemas Pydantic para el módulo de facturas.
 """
 from pydantic import BaseModel, Field, field_validator, model_validator
 from datetime import datetime, date
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from uuid import UUID
 import re
 from enum import Enum
+from modules.files.schemas import FileMiniOut
 
 
 class FacturaBase(BaseModel):
@@ -71,6 +72,7 @@ class FacturaListItem(BaseModel):
     estado: str
     centro_costo: Optional[str] = None
     centro_operacion: Optional[str] = None
+    files: List[FileMiniOut] = []
     
     model_config = {"from_attributes": True}
 
@@ -225,5 +227,76 @@ class AnticipoOut(BaseModel):
     tiene_anticipo: bool
     porcentaje_anticipo: Optional[float]
     intervalo_entrega_contabilidad: str
+    
+    model_config = {"from_attributes": True}
+
+
+# ========== Schemas de Submit Responsable ==========
+
+class SubmitErrorDetail(BaseModel):
+    """Detalle de errores en validación de submit."""
+    message: str
+    missing_fields: Optional[list[str]] = []
+    missing_codes: Optional[list[str]] = []
+    extra_codes: Optional[list[str]] = []
+    missing_files: Optional[list[str]] = []
+
+
+class SubmitResponsableOut(BaseModel):
+    """Esquema de respuesta exitosa para submit_responsable."""
+    factura_id: UUID
+    area_id: UUID
+    area_actual: str
+    estado_id: int
+    estado_actual: str
+    
+    # Datos principales de factura
+    proveedor: str
+    numero_factura: str
+    fecha_emision: Optional[date]
+    total: float
+    
+    # Centro de Costo y Operación
+    centro_costo_id: Optional[UUID]
+    centro_operacion_id: Optional[UUID]
+    
+    # Inventarios
+    requiere_entrada_inventarios: bool
+    destino_inventarios: Optional[str]
+    presenta_novedad: bool
+    inventario_codigos: list[InventarioCodigoOut]
+    
+    # Anticipo
+    tiene_anticipo: bool
+    porcentaje_anticipo: Optional[float]
+    intervalo_entrega_contabilidad: str
+    
+    # Archivos (opcional)
+    files: Optional[list[dict]] = []
+    
+    model_config = {"from_attributes": True}
+
+
+# ========== Schemas de Centros (CC/CO) ==========
+
+class CentrosPatchIn(BaseModel):
+    """Esquema para asignar Centro de Costo y Centro de Operación a una factura."""
+    centro_costo_id: UUID = Field(
+        ...,
+        description="ID del Centro de Costo"
+    )
+    centro_operacion_id: UUID = Field(
+        ...,
+        description="ID del Centro de Operación (debe pertenecer al Centro de Costo)"
+    )
+    
+    model_config = {"extra": "forbid"}
+
+
+class CentrosOut(BaseModel):
+    """Esquema de respuesta para asignación de Centros."""
+    factura_id: UUID
+    centro_costo_id: UUID
+    centro_operacion_id: UUID
     
     model_config = {"from_attributes": True}

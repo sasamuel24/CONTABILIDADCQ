@@ -13,13 +13,19 @@ from modules.facturas.schemas import (
     InventariosOut,
     InventarioCodigoOut,
     AnticipoUpdateIn,
-    AnticipoOut
+    AnticipoOut,
+    SubmitResponsableOut,
+    SubmitErrorDetail,
+    CentrosPatchIn,
+    CentrosOut
 )
 from typing import List, Optional, Set, Dict
 from core.logging import logger
 from fastapi import HTTPException, status
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
+from db.models import File
 
 
 class FacturaService:
@@ -74,6 +80,19 @@ class FacturaService:
         
         items = []
         for f in facturas:
+            # Mapear files con uploaded_at desde created_at
+            from modules.files.schemas import FileMiniOut
+            files_out = [
+                FileMiniOut(
+                    id=file.id,
+                    doc_type=file.doc_type,
+                    filename=file.filename,
+                    content_type=file.content_type,
+                    uploaded_at=file.created_at
+                )
+                for file in f.files
+            ]
+            
             items.append(FacturaListItem(
                 id=f.id,
                 proveedor=f.proveedor,
@@ -83,7 +102,8 @@ class FacturaService:
                 total=float(f.total),
                 estado=f.estado.label if f.estado else "Sin estado",
                 centro_costo=f.centro_costo.nombre if f.centro_costo else None,
-                centro_operacion=f.centro_operacion.nombre if f.centro_operacion else None
+                centro_operacion=f.centro_operacion.nombre if f.centro_operacion else None,
+                files=files_out
             ))
         
         page = (skip // limit) + 1 if limit > 0 else 1
@@ -195,7 +215,13 @@ class FacturaService:
         # Validar relación CC/CO
         await self._validate_centro_operacion(centro_costo_id, centro_operacion_id)
         
-        factura = await self.repository.update(factura_id, factura_data.model_dump(exclude_unset=True))
+        # Lógica: Si se asigna un área nueva, cambiar estado a "Asignada" (estado_id = 2)
+        update_data = factura_data.model_dump(exclude_unset=True)
+        if factura_data.area_id is not None and factura_data.area_id != factura.area_id:
+            logger.info(f"Área cambiada de {factura.area_id} a {factura_data.area_id}, actualizando estado a Asignada")
+            update_data['estado_id'] = 2  # Estado: Asignada
+        
+        factura = await self.repository.update(factura_id, update_data)
         return await self.get_factura(factura.id)
     
     async def update_inventarios(
@@ -550,4 +576,677 @@ class FacturaService:
             tiene_anticipo=factura.tiene_anticipo,
             porcentaje_anticipo=float(factura.porcentaje_anticipo) if factura.porcentaje_anticipo is not None else None,
             intervalo_entrega_contabilidad=factura.intervalo_entrega_contabilidad
+        )
+    
+    async def submit_responsable(
+        self,
+        factura_id: UUID
+    ) -> SubmitResponsableOut:
+        """
+        Endpoint de transición: Envía la factura desde Responsable a Contabilidad.
+        
+        Valida todos los requisitos antes de mover la factura:
+        - Centro de Costo y Operación
+        - Anticipo completo
+        - Inventarios correctos (con presenta_novedad y NP)
+        
+        Si todo cumple, reasigna la factura a área CONTABILIDAD.
+        """
+        from sqlalchemy import select
+        from db.models import Factura, FacturaInventarioCodigo, Area, Estado
+        
+        logger.info(f"Iniciando submit_responsable para factura {factura_id}")
+        
+        # Verificar que la factura existe
+        result = await self.db.execute(
+            select(Factura).where(Factura.id == factura_id)
+        )
+        factura = result.scalar_one_or_none()
+        
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        
+        # Acumuladores de errores
+        missing_fields = []
+        missing_codes = []
+        extra_codes = []
+        missing_files = []
+        
+        # ========== VALIDACIÓN 1: Centro de Costo y Operación ==========
+        if factura.centro_costo_id is None:
+            missing_fields.append("centro_costo_id")
+        if factura.centro_operacion_id is None:
+            missing_fields.append("centro_operacion_id")
+        
+        # ========== VALIDACIÓN 2: Intervalo de entrega ==========
+        if factura.intervalo_entrega_contabilidad is None:
+            missing_fields.append("intervalo_entrega_contabilidad")
+        
+        # ========== VALIDACIÓN 3: Anticipo ==========
+        # Constraint 1: tiene_anticipo = (porcentaje_anticipo IS NOT NULL)
+        if factura.tiene_anticipo and factura.porcentaje_anticipo is None:
+            missing_fields.append("porcentaje_anticipo")
+        
+        if not factura.tiene_anticipo and factura.porcentaje_anticipo is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "No se puede enviar a Contabilidad",
+                    "error": "Inconsistencia en anticipo: tiene_anticipo=false pero porcentaje_anticipo tiene valor"
+                }
+            )
+        
+        # Constraint 2: porcentaje_anticipo IS NULL OR (0 <= porcentaje_anticipo <= 100)
+        if factura.porcentaje_anticipo is not None:
+            if factura.porcentaje_anticipo < 0 or factura.porcentaje_anticipo > 100:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "message": "No se puede enviar a Contabilidad",
+                        "error": f"porcentaje_anticipo fuera de rango: {factura.porcentaje_anticipo}"
+                    }
+                )
+        
+        # ========== VALIDACIÓN 4: Inventarios ==========
+        if not factura.requiere_entrada_inventarios:
+            # Caso A: No requiere inventarios
+            # - destino_inventarios debe ser NULL
+            if factura.destino_inventarios is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "message": "No se puede enviar a Contabilidad",
+                        "error": "requiere_entrada_inventarios=false pero destino_inventarios tiene valor"
+                    }
+                )
+            
+            # - presenta_novedad debe ser false
+            if factura.presenta_novedad:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "message": "No se puede enviar a Contabilidad",
+                        "error": "requiere_entrada_inventarios=false pero presenta_novedad=true"
+                    }
+                )
+            
+            # - NO debe existir código NP
+            codigos_result = await self.db.execute(
+                select(FacturaInventarioCodigo)
+                .where(FacturaInventarioCodigo.factura_id == factura_id)
+            )
+            codigos = codigos_result.scalars().all()
+            
+            if any(c.codigo == 'NP' for c in codigos):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "message": "No se puede enviar a Contabilidad",
+                        "error": "requiere_entrada_inventarios=false pero existe código NP"
+                    }
+                )
+        
+        else:
+            # Caso B: Requiere inventarios
+            # - destino_inventarios obligatorio
+            if factura.destino_inventarios is None:
+                missing_fields.append("destino_inventarios")
+            else:
+                # Validar códigos según destino y presenta_novedad
+                CODIGOS_BASE: Dict[str, Set[str]] = {
+                    "TIENDA": {"OCT", "ECT", "FPC"},
+                    "ALMACEN": {"OCC", "EDO", "FPC"}
+                }
+                
+                base_codes = CODIGOS_BASE.get(factura.destino_inventarios, set())
+                
+                # Si presenta_novedad=true, agregar NP a requeridos
+                if factura.presenta_novedad:
+                    required_codes = base_codes | {"NP"}
+                else:
+                    required_codes = base_codes
+                
+                # Obtener códigos existentes
+                codigos_result = await self.db.execute(
+                    select(FacturaInventarioCodigo)
+                    .where(FacturaInventarioCodigo.factura_id == factura_id)
+                )
+                codigos = codigos_result.scalars().all()
+                existing_codes = {c.codigo for c in codigos}
+                
+                # Validar faltantes
+                missing = required_codes - existing_codes
+                if missing:
+                    missing_codes.extend(sorted(list(missing)))
+                
+                # Validar extras
+                extra = existing_codes - required_codes
+                if extra:
+                    extra_codes.extend(sorted(list(extra)))
+                
+                # Validar que NP no esté si presenta_novedad=false
+                if not factura.presenta_novedad and 'NP' in existing_codes:
+                    extra_codes.append('NP')
+                
+                # Validar valores no vacíos
+                for codigo in codigos:
+                    if not codigo.valor or not codigo.valor.strip():
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail={
+                                "message": "No se puede enviar a Contabilidad",
+                                "error": f"Código {codigo.codigo} tiene valor vacío"
+                            }
+                        )
+        
+        # ========== VALIDACIÓN 5: Archivos (opcional según negocio) ==========
+        # Comentado por ahora - descomentar si se requiere
+        # if factura.requiere_entrada_inventarios:
+        #     files_result = await self.db.execute(
+        #         select(File).where(File.factura_id == factura_id)
+        #     )
+        #     files = files_result.scalars().all()
+        #     file_types = {f.doc_type for f in files}
+        #     
+        #     if 'OC_OS' not in file_types:
+        #         missing_files.append('OC_OS')
+        #     if 'SOPORTE_ENTRADA_INVENTARIOS' not in file_types:
+        #         missing_files.append('SOPORTE_ENTRADA_INVENTARIOS')
+        # 
+        # if factura.presenta_novedad:
+        #     if 'NOTA_CREDITO' not in file_types:
+        #         missing_files.append('NOTA_CREDITO')
+        
+        # ========== SI HAY ERRORES, RETORNAR 400 ==========
+        if missing_fields or missing_codes or extra_codes or missing_files:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "No se puede enviar a Contabilidad",
+                    "missing_fields": missing_fields,
+                    "missing_codes": missing_codes,
+                    "extra_codes": extra_codes,
+                    "missing_files": missing_files
+                }
+            )
+        
+        # ========== VALIDACIÓN EXITOSA: REASIGNAR A CONTABILIDAD ==========
+        
+        # Buscar área CONTABILIDAD
+        area_result = await self.db.execute(
+            select(Area).where(Area.nombre.ilike("%contabilidad%"))
+        )
+        area_contabilidad = area_result.scalar_one_or_none()
+        
+        if not area_contabilidad:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Área CONTABILIDAD no encontrada en el sistema"
+            )
+        
+        # Buscar estado (puede ser EN_CONTABILIDAD, PENDIENTE_CONTABILIDAD, etc.)
+        # Estado tiene campos: code, label (no nombre)
+        estado_result = await self.db.execute(
+            select(Estado).where(
+                (Estado.code.ilike("%contabilidad%")) |
+                (Estado.label.ilike("%contabilidad%")) |
+                (Estado.label.ilike("%pendiente%"))
+            )
+        )
+        estado_contabilidad = estado_result.scalars().first()
+        
+        if not estado_contabilidad:
+            # Fallback: buscar por ID si existe un catálogo fijo
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Estado para CONTABILIDAD no encontrado en el sistema"
+            )
+        
+        # Guardar área anterior para el histórico
+        area_anterior_id = factura.area_id
+        
+        # Actualizar factura
+        factura.area_id = area_contabilidad.id
+        factura.estado_id = estado_contabilidad.id
+        factura.assigned_to_user_id = None
+        factura.assigned_at = datetime.utcnow()
+        
+        # Commit de cambios
+        await self.db.commit()
+        await self.db.refresh(factura)
+        
+        # Obtener códigos para respuesta
+        codigos_result = await self.db.execute(
+            select(FacturaInventarioCodigo)
+            .where(FacturaInventarioCodigo.factura_id == factura_id)
+        )
+        codigos = codigos_result.scalars().all()
+        
+        # Obtener archivos para respuesta
+        files_result = await self.db.execute(
+            select(File)
+            .where(File.factura_id == factura_id)
+        )
+        files = files_result.scalars().all()
+        
+        logger.info(
+            f"Factura {factura_id} enviada a CONTABILIDAD exitosamente. "
+            f"Área: {area_contabilidad.nombre}, Estado: {estado_contabilidad.label}"
+        )
+        
+        # Construir respuesta
+        return SubmitResponsableOut(
+            factura_id=factura.id,
+            area_id=area_contabilidad.id,
+            area_actual=area_contabilidad.nombre,
+            estado_id=estado_contabilidad.id,
+            estado_actual=estado_contabilidad.label,
+            proveedor=factura.proveedor,
+            numero_factura=factura.numero_factura,
+            fecha_emision=factura.fecha_emision,
+            total=float(factura.total),
+            centro_costo_id=factura.centro_costo_id,
+            centro_operacion_id=factura.centro_operacion_id,
+            requiere_entrada_inventarios=factura.requiere_entrada_inventarios,
+            destino_inventarios=factura.destino_inventarios,
+            presenta_novedad=factura.presenta_novedad,
+            inventario_codigos=[
+                InventarioCodigoOut(
+                    codigo=c.codigo,
+                    valor=c.valor,
+                    created_at=c.created_at
+                ) for c in codigos
+            ],
+            tiene_anticipo=factura.tiene_anticipo,
+            porcentaje_anticipo=float(factura.porcentaje_anticipo) if factura.porcentaje_anticipo else None,
+            intervalo_entrega_contabilidad=factura.intervalo_entrega_contabilidad,
+            files=[
+                {
+                    "id": str(f.id),
+                    "filename": f.filename,
+                    "doc_type": f.doc_type,
+                    "content_type": f.content_type,
+                    "size_bytes": f.size_bytes,
+                    "uploaded_at": f.created_at.isoformat() if hasattr(f, 'created_at') and f.created_at else None
+                } for f in files
+            ]
+        )
+    
+    async def submit_tesoreria(self, factura_id: UUID) -> SubmitResponsableOut:
+        """
+        Envía una factura desde CONTABILIDAD a TESORERIA.
+        
+        Validaciones:
+        1. Factura debe existir
+        2. Factura debe estar actualmente en área CONTABILIDAD
+        3. Factura no debe estar ya en TESORERIA
+        
+        Acción:
+        - Cambiar area_id a TESORERIA
+        - Cambiar estado_id a 7
+        - Limpiar assigned_to_user_id y actualizar assigned_at
+        """
+        from db.models import Area, Estado, FacturaInventarioCodigo
+        from sqlalchemy import select
+        
+        CONTABILIDAD_AREA_ID = UUID("725f5e5a-49d3-4e44-800f-f5ff21e187ac")
+        TESORERIA_AREA_ID = UUID("b067adcd-13ff-420f-9389-42bfaa78cf9f")
+        TESORERIA_ESTADO_ID = 7
+        
+        logger.info(f"Iniciando submit_tesoreria para factura {factura_id}")
+        
+        # Validación 1: Factura existe
+        factura = await self.repository.get_by_id(factura_id)
+        if not factura:
+            logger.warning(f"Factura {factura_id} no encontrada")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        
+        # Validación 2: Factura debe estar en CONTABILIDAD
+        if factura.area_id != CONTABILIDAD_AREA_ID:
+            logger.warning(
+                f"Factura {factura_id} no está en Contabilidad. "
+                f"Área actual: {factura.area_id}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La factura no está en Contabilidad"
+            )
+        
+        # Validación 3: No debe estar ya en Tesorería
+        if factura.area_id == TESORERIA_AREA_ID:
+            logger.warning(f"Factura {factura_id} ya está en Tesorería")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La factura ya fue enviada a Tesorería"
+            )
+        
+        # Obtener área Tesorería
+        area_result = await self.db.execute(
+            select(Area).where(Area.id == TESORERIA_AREA_ID)
+        )
+        area_tesoreria = area_result.scalar_one_or_none()
+        
+        if not area_tesoreria:
+            logger.error(f"Área Tesorería con ID {TESORERIA_AREA_ID} no encontrada")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Configuración de área Tesorería no encontrada"
+            )
+        
+        # Obtener estado
+        estado_result = await self.db.execute(
+            select(Estado).where(Estado.id == TESORERIA_ESTADO_ID)
+        )
+        estado_tesoreria = estado_result.scalar_one_or_none()
+        
+        if not estado_tesoreria:
+            logger.error(f"Estado con ID {TESORERIA_ESTADO_ID} no encontrado")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Configuración de estado no encontrada"
+            )
+        
+        # Actualizar factura
+        factura.area_id = TESORERIA_AREA_ID
+        factura.estado_id = TESORERIA_ESTADO_ID
+        factura.assigned_to_user_id = None
+        factura.assigned_at = datetime.utcnow()
+        
+        # Commit de cambios
+        await self.db.commit()
+        await self.db.refresh(factura)
+        
+        # Obtener códigos para respuesta
+        codigos_result = await self.db.execute(
+            select(FacturaInventarioCodigo)
+            .where(FacturaInventarioCodigo.factura_id == factura_id)
+        )
+        codigos = codigos_result.scalars().all()
+        
+        # Obtener archivos para respuesta
+        files_result = await self.db.execute(
+            select(File)
+            .where(File.factura_id == factura_id)
+        )
+        files = files_result.scalars().all()
+        
+        logger.info(
+            f"Factura {factura_id} enviada a TESORERIA exitosamente. "
+            f"Área: {area_tesoreria.nombre}, Estado: {estado_tesoreria.label}"
+        )
+        
+        # Construir respuesta
+        return SubmitResponsableOut(
+            factura_id=factura.id,
+            area_id=area_tesoreria.id,
+            area_actual=area_tesoreria.nombre,
+            estado_id=estado_tesoreria.id,
+            estado_actual=estado_tesoreria.label,
+            proveedor=factura.proveedor,
+            numero_factura=factura.numero_factura,
+            fecha_emision=factura.fecha_emision,
+            total=float(factura.total),
+            centro_costo_id=factura.centro_costo_id,
+            centro_operacion_id=factura.centro_operacion_id,
+            requiere_entrada_inventarios=factura.requiere_entrada_inventarios,
+            destino_inventarios=factura.destino_inventarios,
+            presenta_novedad=factura.presenta_novedad,
+            inventario_codigos=[
+                InventarioCodigoOut(
+                    codigo=c.codigo,
+                    valor=c.valor,
+                    created_at=c.created_at
+                ) for c in codigos
+            ],
+            tiene_anticipo=factura.tiene_anticipo,
+            porcentaje_anticipo=float(factura.porcentaje_anticipo) if factura.porcentaje_anticipo else None,
+            intervalo_entrega_contabilidad=factura.intervalo_entrega_contabilidad,
+            files=[
+                {
+                    "id": str(f.id),
+                    "filename": f.filename,
+                    "doc_type": f.doc_type,
+                    "content_type": f.content_type,
+                    "size_bytes": f.size_bytes,
+                    "uploaded_at": f.created_at.isoformat() if hasattr(f, 'created_at') and f.created_at else None
+                } for f in files
+            ]
+        )
+    
+    async def close_tesoreria(self, factura_id: UUID) -> SubmitResponsableOut:
+        """
+        Cierra una factura en TESORERIA cambiando su estado a finalizado.
+        
+        Validaciones:
+        1. Factura debe existir
+        2. Factura debe estar actualmente en área TESORERIA
+        3. Deben existir los archivos requeridos: PEC, EC, PCE
+        
+        Acción:
+        - Cambiar estado_id a 5 (estado final)
+        """
+        from db.models import Area, Estado, FacturaInventarioCodigo
+        from sqlalchemy import select
+        
+        TESORERIA_AREA_ID = UUID("b067adcd-13ff-420f-9389-42bfaa78cf9f")
+        ESTADO_FINALIZADO_ID = 5
+        REQUIRED_DOC_TYPES = {"PEC", "EC", "PCE"}
+        
+        logger.info(f"Iniciando close_tesoreria para factura {factura_id}")
+        
+        # Validación 1: Factura existe
+        factura = await self.repository.get_by_id(factura_id)
+        if not factura:
+            logger.warning(f"Factura {factura_id} no encontrada")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        
+        # Validación 2: Factura debe estar en TESORERIA
+        if factura.area_id != TESORERIA_AREA_ID:
+            logger.warning(
+                f"Factura {factura_id} no está en Tesorería. "
+                f"Área actual: {factura.area_id}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="La factura no está en Tesorería"
+            )
+        
+        # Validación 3: Verificar archivos requeridos (PEC, EC, PCE)
+        files_result = await self.db.execute(
+            select(File.doc_type)
+            .where(File.factura_id == factura_id)
+            .where(File.doc_type.in_(REQUIRED_DOC_TYPES))
+        )
+        existing_doc_types = {row[0] for row in files_result.all()}
+        
+        missing_files = list(REQUIRED_DOC_TYPES - existing_doc_types)
+        
+        if missing_files:
+            logger.warning(
+                f"Factura {factura_id} no tiene todos los archivos requeridos. "
+                f"Faltan: {missing_files}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "No se puede cerrar la factura en Tesorería",
+                    "missing_files": sorted(missing_files)
+                }
+            )
+        
+        # Obtener área Tesorería
+        area_result = await self.db.execute(
+            select(Area).where(Area.id == TESORERIA_AREA_ID)
+        )
+        area_tesoreria = area_result.scalar_one_or_none()
+        
+        # Obtener estado finalizado
+        estado_result = await self.db.execute(
+            select(Estado).where(Estado.id == ESTADO_FINALIZADO_ID)
+        )
+        estado_finalizado = estado_result.scalar_one_or_none()
+        
+        if not estado_finalizado:
+            logger.error(f"Estado con ID {ESTADO_FINALIZADO_ID} no encontrado")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Configuración de estado no encontrada"
+            )
+        
+        # Actualizar factura
+        factura.estado_id = ESTADO_FINALIZADO_ID
+        
+        # Commit de cambios
+        await self.db.commit()
+        await self.db.refresh(factura)
+        
+        # Obtener códigos para respuesta
+        codigos_result = await self.db.execute(
+            select(FacturaInventarioCodigo)
+            .where(FacturaInventarioCodigo.factura_id == factura_id)
+        )
+        codigos = codigos_result.scalars().all()
+        
+        # Obtener todos los archivos para respuesta
+        all_files_result = await self.db.execute(
+            select(File)
+            .where(File.factura_id == factura_id)
+        )
+        files = all_files_result.scalars().all()
+        
+        logger.info(
+            f"Factura {factura_id} cerrada en TESORERIA exitosamente. "
+            f"Estado: {estado_finalizado.label}"
+        )
+        
+        # Construir respuesta
+        return SubmitResponsableOut(
+            factura_id=factura.id,
+            area_id=area_tesoreria.id if area_tesoreria else TESORERIA_AREA_ID,
+            area_actual=area_tesoreria.nombre if area_tesoreria else "Tesorería",
+            estado_id=estado_finalizado.id,
+            estado_actual=estado_finalizado.label,
+            proveedor=factura.proveedor,
+            numero_factura=factura.numero_factura,
+            fecha_emision=factura.fecha_emision,
+            total=float(factura.total),
+            centro_costo_id=factura.centro_costo_id,
+            centro_operacion_id=factura.centro_operacion_id,
+            requiere_entrada_inventarios=factura.requiere_entrada_inventarios,
+            destino_inventarios=factura.destino_inventarios,
+            presenta_novedad=factura.presenta_novedad,
+            inventario_codigos=[
+                InventarioCodigoOut(
+                    codigo=c.codigo,
+                    valor=c.valor,
+                    created_at=c.created_at
+                ) for c in codigos
+            ],
+            tiene_anticipo=factura.tiene_anticipo,
+            porcentaje_anticipo=float(factura.porcentaje_anticipo) if factura.porcentaje_anticipo else None,
+            intervalo_entrega_contabilidad=factura.intervalo_entrega_contabilidad,
+            files=[
+                {
+                    "id": str(f.id),
+                    "filename": f.filename,
+                    "doc_type": f.doc_type,
+                    "content_type": f.content_type,
+                    "size_bytes": f.size_bytes,
+                    "uploaded_at": f.created_at.isoformat() if hasattr(f, 'created_at') and f.created_at else None
+                } for f in files
+            ]
+        )
+    
+    async def update_centros(
+        self,
+        factura_id: UUID,
+        centros_data: "CentrosPatchIn"
+    ) -> "CentrosOut":
+        """
+        Asigna Centro de Costo y Centro de Operación a una factura.
+        
+        Validaciones:
+        - Factura existe
+        - Centro de Costo existe
+        - Centro de Operación existe
+        - Centro de Operación pertenece al Centro de Costo
+        """
+        from sqlalchemy import select
+        from db.models import Factura, CentroCosto, CentroOperacion
+        
+        logger.info(f"Asignando centros a factura {factura_id}")
+        
+        # Verificar que la factura existe
+        result = await self.db.execute(
+            select(Factura).where(Factura.id == factura_id)
+        )
+        factura = result.scalar_one_or_none()
+        
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        
+        # Verificar que el Centro de Costo existe
+        cc_result = await self.db.execute(
+            select(CentroCosto).where(CentroCosto.id == centros_data.centro_costo_id)
+        )
+        centro_costo = cc_result.scalar_one_or_none()
+        
+        if not centro_costo:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Centro de Costo con ID {centros_data.centro_costo_id} no encontrado"
+            )
+        
+        # Verificar que el Centro de Operación existe
+        co_result = await self.db.execute(
+            select(CentroOperacion).where(CentroOperacion.id == centros_data.centro_operacion_id)
+        )
+        centro_operacion = co_result.scalar_one_or_none()
+        
+        if not centro_operacion:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Centro de Operación con ID {centros_data.centro_operacion_id} no encontrado"
+            )
+        
+        # VALIDACIÓN CRÍTICA: El CO debe pertenecer al CC
+        if centro_operacion.centro_costo_id != centros_data.centro_costo_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "message": "Centro de operación no pertenece al centro de costo",
+                    "centro_costo_id": str(centros_data.centro_costo_id),
+                    "centro_operacion_id": str(centros_data.centro_operacion_id),
+                    "centro_operacion_real_cc_id": str(centro_operacion.centro_costo_id)
+                }
+            )
+        
+        # Actualizar factura
+        factura.centro_costo_id = centros_data.centro_costo_id
+        factura.centro_operacion_id = centros_data.centro_operacion_id
+        
+        await self.db.commit()
+        await self.db.refresh(factura)
+        
+        logger.info(
+            f"Centros asignados exitosamente a factura {factura_id}: "
+            f"CC={centro_costo.nombre}, CO={centro_operacion.nombre}"
+        )
+        
+        return CentrosOut(
+            factura_id=factura.id,
+            centro_costo_id=factura.centro_costo_id,
+            centro_operacion_id=factura.centro_operacion_id
         )

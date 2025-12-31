@@ -38,6 +38,7 @@ class LogoutRequest(BaseModel):
 class AreaInfo(BaseModel):
     """Información básica de área."""
     id: UUID
+    code: str
     nombre: str
     
     model_config = {"from_attributes": True}

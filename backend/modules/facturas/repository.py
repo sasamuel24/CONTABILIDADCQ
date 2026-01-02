@@ -18,8 +18,11 @@ class FacturaRepository:
     
     async def get_all(self, skip: int = 0, limit: int = 100, area_id: Optional[UUID] = None) -> Tuple[List[Factura], int]:
         """Obtiene todas las facturas con paginación y filtros opcionales."""
-        # Construir query base con eager loading de files
-        query = select(Factura).options(selectinload(Factura.files))
+        # Construir query base con eager loading de files e inventario_codigos
+        query = select(Factura).options(
+            selectinload(Factura.files),
+            selectinload(Factura.inventario_codigos)
+        )
         count_query = select(func.count(Factura.id))
         
         # Aplicar filtro por area_id si se proporciona

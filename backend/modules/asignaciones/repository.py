@@ -71,12 +71,12 @@ class AsignacionRepository:
             )
     
     async def validate_factura_assignable_state(self, factura: Factura):
-        """Valida que la factura esté en un estado asignable (Recibida)."""
-        # Estado "Recibida" debe tener id = 1
-        if factura.estado_id != 1:
+        """Valida que la factura esté en un estado asignable (Recibida o Asignada)."""
+        # Estado "Recibida" (id = 1) o "Asignada" (id = 2)
+        if factura.estado_id not in [1, 2]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La factura solo puede ser asignada si está en estado 'Recibida'"
+                detail="La factura solo puede ser asignada si está en estado 'Recibida' o 'Asignada'"
             )
     
     async def validate_no_duplicate_assignment(

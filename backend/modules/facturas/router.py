@@ -110,6 +110,26 @@ async def update_factura_estado(
     return await service.update_estado(factura_id, request.estado_id)
 
 
+@router.get("/{factura_id}/inventarios", response_model=InventariosOut)
+async def get_factura_inventarios(
+    factura_id: UUID,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """
+    Obtiene los inventarios de una factura.
+    
+    **Retorna:**
+    - factura_id: ID de la factura
+    - requiere_entrada_inventarios: bool
+    - destino_inventarios: TIENDA | ALMACEN | null
+    - codigos: lista de códigos con sus valores
+    
+    **Validaciones:**
+    - 404 si factura_id no existe
+    """
+    return await service.get_inventarios(factura_id)
+
+
 @router.patch("/{factura_id}/inventarios", response_model=InventariosOut)
 async def update_factura_inventarios(
     factura_id: UUID,
@@ -143,6 +163,23 @@ async def update_factura_inventarios(
     - 400 si valores son inválidos
     """
     return await service.update_inventarios(factura_id, inventarios)
+
+
+@router.get("/{factura_id}/anticipo", response_model=AnticipoOut)
+async def get_factura_anticipo(
+    factura_id: UUID,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """
+    Obtiene los campos de anticipo de una factura.
+    
+    **Respuesta:**
+    - `factura_id`: UUID de la factura
+    - `tiene_anticipo`: boolean
+    - `porcentaje_anticipo`: float | null
+    - `intervalo_entrega_contabilidad`: string (1_SEMANA, 2_SEMANAS, 3_SEMANAS, 1_MES)
+    """
+    return await service.get_anticipo(factura_id)
 
 
 @router.patch("/{factura_id}/anticipo", response_model=AnticipoOut)

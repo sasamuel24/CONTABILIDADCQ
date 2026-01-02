@@ -93,6 +93,17 @@ class FacturaService:
                 for file in f.files
             ]
             
+            # Mapear códigos de inventario
+            from modules.facturas.schemas import InventarioCodigoOut
+            inventarios_codigos_out = [
+                InventarioCodigoOut(
+                    codigo=codigo.codigo,
+                    valor=codigo.valor,
+                    created_at=codigo.created_at
+                )
+                for codigo in f.inventario_codigos
+            ]
+            
             items.append(FacturaListItem(
                 id=f.id,
                 proveedor=f.proveedor,
@@ -103,6 +114,15 @@ class FacturaService:
                 estado=f.estado.label if f.estado else "Sin estado",
                 centro_costo=f.centro_costo.nombre if f.centro_costo else None,
                 centro_operacion=f.centro_operacion.nombre if f.centro_operacion else None,
+                centro_costo_id=f.centro_costo_id,
+                centro_operacion_id=f.centro_operacion_id,
+                requiere_entrada_inventarios=f.requiere_entrada_inventarios,
+                destino_inventarios=f.destino_inventarios,
+                presenta_novedad=f.presenta_novedad,
+                inventarios_codigos=inventarios_codigos_out,
+                tiene_anticipo=f.tiene_anticipo,
+                porcentaje_anticipo=float(f.porcentaje_anticipo) if f.porcentaje_anticipo is not None else None,
+                intervalo_entrega_contabilidad=f.intervalo_entrega_contabilidad,
                 files=files_out
             ))
         
@@ -223,6 +243,56 @@ class FacturaService:
         
         factura = await self.repository.update(factura_id, update_data)
         return await self.get_factura(factura.id)
+    
+    async def get_inventarios(
+        self,
+        factura_id: UUID
+    ) -> InventariosOut:
+        """
+        Obtiene los inventarios de una factura.
+        """
+        logger.info(f"Obteniendo inventarios de factura ID: {factura_id}")
+        
+        from sqlalchemy import select
+        from db.models import Factura, FacturaInventarioCodigo
+        
+        # Verificar que la factura existe
+        result = await self.db.execute(
+            select(Factura).where(Factura.id == factura_id)
+        )
+        factura = result.scalar_one_or_none()
+        
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        
+        # Obtener códigos de inventario
+        result_codigos = await self.db.execute(
+            select(FacturaInventarioCodigo)
+            .where(FacturaInventarioCodigo.factura_id == factura_id)
+            .order_by(FacturaInventarioCodigo.codigo)
+        )
+        codigos = result_codigos.scalars().all()
+        
+        # Convertir a esquema de salida
+        from modules.facturas.schemas import InventarioCodigoOut
+        codigos_out = [
+            InventarioCodigoOut(
+                codigo=c.codigo,
+                valor=c.valor,
+                created_at=c.created_at
+            )
+            for c in codigos
+        ]
+        
+        return InventariosOut(
+            factura_id=factura.id,
+            requiere_entrada_inventarios=factura.requiere_entrada_inventarios,
+            destino_inventarios=factura.destino_inventarios,
+            codigos=codigos_out
+        )
     
     async def update_inventarios(
         self,
@@ -473,6 +543,37 @@ class FacturaService:
                 )
                 for c in codigos_finales
             ]
+        )
+    
+    async def get_anticipo(
+        self,
+        factura_id: UUID
+    ) -> AnticipoOut:
+        """
+        Obtiene los campos de anticipo de una factura.
+        """
+        logger.info(f"Obteniendo anticipo de factura ID: {factura_id}")
+        
+        # Verificar que la factura existe
+        from sqlalchemy import select
+        from db.models import Factura
+        
+        result = await self.db.execute(
+            select(Factura).where(Factura.id == factura_id)
+        )
+        factura = result.scalar_one_or_none()
+        
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        
+        return AnticipoOut(
+            factura_id=factura.id,
+            tiene_anticipo=factura.tiene_anticipo,
+            porcentaje_anticipo=float(factura.porcentaje_anticipo) if factura.porcentaje_anticipo is not None else None,
+            intervalo_entrega_contabilidad=factura.intervalo_entrega_contabilidad
         )
     
     async def update_anticipo(

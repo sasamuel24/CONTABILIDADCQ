@@ -72,6 +72,15 @@ class FacturaListItem(BaseModel):
     estado: str
     centro_costo: Optional[str] = None
     centro_operacion: Optional[str] = None
+    centro_costo_id: Optional[UUID] = None
+    centro_operacion_id: Optional[UUID] = None
+    requiere_entrada_inventarios: bool = False
+    destino_inventarios: Optional[str] = None
+    presenta_novedad: bool = False
+    inventarios_codigos: List['InventarioCodigoOut'] = []
+    tiene_anticipo: bool = False
+    porcentaje_anticipo: Optional[float] = None
+    intervalo_entrega_contabilidad: Optional[str] = None
     files: List[FileMiniOut] = []
     
     model_config = {"from_attributes": True}

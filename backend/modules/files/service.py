@@ -5,6 +5,7 @@ from modules.files.repository import FileRepository
 from modules.files.schemas import FileResponse, FileCreateRequest, FileUploadResponse
 from typing import List, Optional
 from core.logging import logger
+from core.config import settings
 from fastapi import HTTPException, status, UploadFile
 from uuid import UUID
 from pathlib import Path
@@ -270,68 +271,133 @@ class FileService:
             )
         
         try:
-            # Crear estructura de carpetas
-            base_path = Path("storage/facturas") / str(factura_id) / doc_type
-            base_path.mkdir(parents=True, exist_ok=True)
+            # Determinar si usar S3 o storage local
+            use_s3 = bool(settings.aws_access_key_id and settings.s3_bucket)
             
-            # Generar nombre de archivo con timestamp
-            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-            sanitized_filename = self._sanitize_filename(file.filename)
-            new_filename = f"{timestamp}_{sanitized_filename}"
-            file_path = base_path / new_filename
-            
-            # Guardar archivo
-            content = await file.read()
-            file_path.write_bytes(content)
-            
-            # ✅ Validación: Archivo guardado exitosamente
-            if not file_path.exists():
-                raise Exception("Error al verificar archivo guardado")
-            
-            logger.info(f"Archivo guardado exitosamente en: {file_path}")
-            
-            # Registrar en base de datos
-            file_data = {
-                "factura_id": factura_id,
-                "doc_type": doc_type,
-                "storage_provider": "local",
-                "storage_path": str(file_path),
-                "filename": new_filename,
-                "content_type": file.content_type,  # Usar content_type real del archivo
-                "size_bytes": len(content),
-                "uploaded_by_user_id": uploaded_by_user_id
-            }
-            
-            db_file = await self.repository.create(file_data)
-            
-            # ✅ Validación: Registro creado exitosamente
-            logger.info(f"Archivo registrado en BD con ID: {db_file.id}")
-            
-            # Construir respuesta
-            response_data = {
-                "file_id": db_file.id,
-                "factura_id": db_file.factura_id,
-                "doc_type": db_file.doc_type,
-                "filename": db_file.filename,
-                "content_type": db_file.content_type,
-                "size_bytes": db_file.size_bytes,
-                "storage_provider": db_file.storage_provider,
-                "storage_path": db_file.storage_path,
-                "created_at": db_file.created_at
-            }
-            
-            # Solo incluir uploaded_by_user_id si está presente
-            if uploaded_by_user_id:
-                response_data["uploaded_by_user_id"] = uploaded_by_user_id
-            
-            return FileUploadResponse(**response_data)
+            if use_s3:
+                # ============ SUBIDA A S3 ============
+                from core.s3_service import s3_service
+                
+                # Generar key de S3
+                timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+                sanitized_filename = self._sanitize_filename(file.filename)
+                new_filename = f"{timestamp}_{sanitized_filename}"
+                s3_key = f"dev/facturas/{factura_id}/{doc_type}/{new_filename}"
+                
+                # Subir a S3
+                logger.info(f"Subiendo archivo a S3: {s3_key}")
+                content = await file.read()
+                file_bytes_io = __import__('io').BytesIO(content)
+                
+                s3_metadata = s3_service.upload_fileobj(
+                    fileobj=file_bytes_io,
+                    key=s3_key,
+                    content_type=file.content_type
+                )
+                
+                # Generar URL prefirmada (válida 10 minutos)
+                download_url = s3_service.presign_get_url(s3_key, expires_in=600)
+                
+                # Registrar en base de datos
+                file_data = {
+                    "factura_id": factura_id,
+                    "doc_type": doc_type,
+                    "storage_provider": "s3",
+                    "storage_path": s3_key,  # Guardar key de S3
+                    "filename": new_filename,
+                    "content_type": s3_metadata["content_type"],
+                    "size_bytes": s3_metadata["size_bytes"],
+                    "uploaded_by_user_id": uploaded_by_user_id
+                }
+                
+                db_file = await self.repository.create(file_data)
+                logger.info(f"Archivo S3 registrado en BD con ID: {db_file.id}")
+                
+                # Construir respuesta
+                response_data = {
+                    "file_id": db_file.id,
+                    "factura_id": db_file.factura_id,
+                    "doc_type": db_file.doc_type,
+                    "filename": db_file.filename,
+                    "content_type": db_file.content_type,
+                    "size_bytes": db_file.size_bytes,
+                    "storage_provider": db_file.storage_provider,
+                    "storage_path": db_file.storage_path,
+                    "created_at": db_file.created_at,
+                    "download_url": download_url
+                }
+                
+                if uploaded_by_user_id:
+                    response_data["uploaded_by_user_id"] = uploaded_by_user_id
+                
+                return FileUploadResponse(**response_data)
+                
+            else:
+                # ============ SUBIDA LOCAL (FALLBACK) ============
+                logger.info("AWS no configurado, usando storage local")
+                
+                # Crear estructura de carpetas
+                base_path = Path("storage/facturas") / str(factura_id) / doc_type
+                base_path.mkdir(parents=True, exist_ok=True)
+                
+                # Generar nombre de archivo con timestamp
+                timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+                sanitized_filename = self._sanitize_filename(file.filename)
+                new_filename = f"{timestamp}_{sanitized_filename}"
+                file_path = base_path / new_filename
+                
+                # Guardar archivo
+                content = await file.read()
+                file_path.write_bytes(content)
+                
+                # ✅ Validación: Archivo guardado exitosamente
+                if not file_path.exists():
+                    raise Exception("Error al verificar archivo guardado")
+                
+                logger.info(f"Archivo guardado exitosamente en: {file_path}")
+                
+                # Registrar en base de datos
+                file_data = {
+                    "factura_id": factura_id,
+                    "doc_type": doc_type,
+                    "storage_provider": "local",
+                    "storage_path": str(file_path),
+                    "filename": new_filename,
+                    "content_type": file.content_type,
+                    "size_bytes": len(content),
+                    "uploaded_by_user_id": uploaded_by_user_id
+                }
+                
+                db_file = await self.repository.create(file_data)
+                
+                # ✅ Validación: Registro creado exitosamente
+                logger.info(f"Archivo registrado en BD con ID: {db_file.id}")
+                
+                # Construir respuesta
+                response_data = {
+                    "file_id": db_file.id,
+                    "factura_id": db_file.factura_id,
+                    "doc_type": db_file.doc_type,
+                    "filename": db_file.filename,
+                    "content_type": db_file.content_type,
+                    "size_bytes": db_file.size_bytes,
+                    "storage_provider": db_file.storage_provider,
+                    "storage_path": db_file.storage_path,
+                    "created_at": db_file.created_at
+                }
+                
+                # Solo incluir uploaded_by_user_id si está presente
+                if uploaded_by_user_id:
+                    response_data["uploaded_by_user_id"] = uploaded_by_user_id
+                
+                return FileUploadResponse(**response_data)
             
         except HTTPException:
             # Re-lanzar HTTPExceptions tal cual
             raise
         except Exception as e:
             logger.error(f"Error guardando archivo: {e}")
-            # Intentar limpiar archivo si se guardó
+            # Intentar limpiar archivo si se guardó localmente
             if 'file_path' in locals() and file_path.exists():
                 try:
                     file_path.unlink()

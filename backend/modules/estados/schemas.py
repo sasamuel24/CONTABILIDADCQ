@@ -14,6 +14,15 @@ class EstadoCreate(BaseModel):
     is_active: bool = Field(default=True, description="Si el estado está activo")
 
 
+class EstadoUpdate(BaseModel):
+    """Esquema para actualizar un estado existente."""
+    code: Optional[str] = Field(None, min_length=1, max_length=50, description="Código único del estado")
+    label: Optional[str] = Field(None, min_length=1, max_length=100, description="Etiqueta descriptiva del estado")
+    order: Optional[int] = Field(None, ge=1, description="Orden de visualización")
+    is_final: Optional[bool] = Field(None, description="Si es un estado final")
+    is_active: Optional[bool] = Field(None, description="Si el estado está activo")
+
+
 class EstadoResponse(BaseModel):
     """Esquema de respuesta para estados."""
     id: int

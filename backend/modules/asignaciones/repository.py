@@ -71,12 +71,12 @@ class AsignacionRepository:
             )
     
     async def validate_factura_assignable_state(self, factura: Factura):
-        """Valida que la factura esté en un estado asignable (Recibida o Asignada)."""
-        # Estado "Recibida" (id = 1) o "Asignada" (id = 2)
-        if factura.estado_id not in [1, 2]:
+        """Valida que la factura esté en un estado asignable (Recibida, Asignada o En contabilidad)."""
+        # Estado "Recibida" (id = 1), "Asignada" (id = 2) o "En contabilidad" (id = 3)
+        if factura.estado_id not in [1, 2, 3]:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="La factura solo puede ser asignada si está en estado 'Recibida' o 'Asignada'"
+                detail="La factura solo puede ser asignada si está en estado 'Recibida', 'Asignada' o 'En contabilidad'"
             )
     
     async def validate_no_duplicate_assignment(
@@ -126,13 +126,22 @@ class AsignacionRepository:
         area_id: UUID,
         responsable_user_id: UUID
     ):
-        """Actualiza los campos de asignación en la factura."""
+        """Actualiza los campos de asignación en la factura y su estado según el área."""
         from datetime import datetime
         
         factura.area_id = area_id
         factura.assigned_to_user_id = responsable_user_id
         factura.assigned_at = datetime.utcnow()
-        factura.estado_id = 2  # Estado "Asignada"
+        
+        # Actualizar estado según el área
+        # Contabilidad: 725f5e5a-49d3-4e44-800f-f5ff21e187ac -> Estado 3 "En contabilidad"
+        # Tesorería: b067adcd-13ff-420f-9389-42bfaa78cf9f -> Estado 7 "Pendiente en Tesoreria"
+        if str(area_id) == '725f5e5a-49d3-4e44-800f-f5ff21e187ac':
+            factura.estado_id = 3  # En contabilidad
+        elif str(area_id) == 'b067adcd-13ff-420f-9389-42bfaa78cf9f':
+            factura.estado_id = 7  # Pendiente en Tesoreria
+        else:
+            factura.estado_id = 2  # Estado "Asignada" para otras áreas
         
         await self.db.flush()
     

@@ -8,7 +8,7 @@ from typing import List
 from db.session import get_db
 from modules.estados.repository import EstadoRepository
 from modules.estados.service import EstadoService
-from modules.estados.schemas import EstadoResponse, EstadoCreate
+from modules.estados.schemas import EstadoResponse, EstadoCreate, EstadoUpdate
 
 
 router = APIRouter(prefix="/estados", tags=["Estados"])
@@ -45,3 +45,26 @@ async def create_estado(
     - El código debe ser único
     """
     return await service.create_estado(estado_data)
+
+
+@router.patch("/{estado_id}", response_model=EstadoResponse)
+async def update_estado(
+    estado_id: int,
+    estado_data: EstadoUpdate,
+    service: EstadoService = Depends(get_estado_service)
+):
+    """
+    Actualiza un estado existente.
+    
+    Campos opcionales:
+    - **code**: Código único del estado
+    - **label**: Etiqueta descriptiva
+    - **order**: Orden de visualización
+    - **is_final**: Si es un estado final
+    - **is_active**: Si está activo
+    
+    Validaciones:
+    - El estado debe existir
+    - Si se cambia el código, no debe existir otro estado con ese código
+    """
+    return await service.update_estado(estado_id, estado_data)

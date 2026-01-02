@@ -20,6 +20,13 @@ class EstadoRepository:
         )
         return result.scalars().all()
     
+    async def get_by_id(self, estado_id: int) -> Optional[Estado]:
+        """Busca un estado por su ID."""
+        result = await self.db.execute(
+            select(Estado).where(Estado.id == estado_id)
+        )
+        return result.scalar_one_or_none()
+    
     async def get_by_code(self, code: str) -> Optional[Estado]:
         """Busca un estado por su código."""
         result = await self.db.execute(
@@ -31,6 +38,20 @@ class EstadoRepository:
         """Crea un nuevo estado."""
         estado = Estado(**estado_data)
         self.db.add(estado)
+        await self.db.commit()
+        await self.db.refresh(estado)
+        return estado
+    
+    async def update(self, estado_id: int, estado_data: dict) -> Optional[Estado]:
+        """Actualiza un estado existente."""
+        estado = await self.get_by_id(estado_id)
+        if not estado:
+            return None
+        
+        for key, value in estado_data.items():
+            if value is not None:
+                setattr(estado, key, value)
+        
         await self.db.commit()
         await self.db.refresh(estado)
         return estado

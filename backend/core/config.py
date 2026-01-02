@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     # Logging
     log_level: str = "INFO"
     
+    # AWS S3 Configuration
+    aws_access_key_id: str = ""
+    aws_secret_access_key: str = ""
+    aws_region: str = "us-east-2"
+    s3_bucket: str = "bucket-facturas-contabilidad-cq2026"
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -28,6 +28,7 @@ class FileUploadResponse(BaseModel):
     storage_path: str
     created_at: datetime
     uploaded_by_user_id: Optional[UUID] = None
+    download_url: Optional[str] = None  # URL prefirmada para S3
     
     model_config = {"from_attributes": True}
 

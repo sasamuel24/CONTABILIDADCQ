@@ -22,7 +22,9 @@ from modules.facturas.schemas import (
     AnticipoOut,
     SubmitResponsableOut,
     CentrosPatchIn,
-    CentrosOut
+    CentrosOut,
+    DevolverAResponsableIn,
+    DevolverAResponsableOut
 )
 from core.auth import require_api_key
 
@@ -41,10 +43,11 @@ async def list_facturas(
     skip: int = 0,
     limit: int = 100,
     area_id: Optional[UUID] = Query(None, description="Filtrar por ID de área"),
+    estado: Optional[str] = Query(None, description="Filtrar por estado de la factura"),
     service: FacturaService = Depends(get_factura_service)
 ):
     """Lista todas las facturas con paginación y filtros opcionales."""
-    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id)
+    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, estado=estado)
 
 
 @router.get("/{factura_id}", response_model=FacturaResponse)
@@ -600,5 +603,33 @@ async def close_tesoreria(
     - Content-Type: application/pdf
     """
     return await service.close_tesoreria(factura_id)
+
+
+@router.post(
+    "/{factura_id}/devolver-a-responsable",
+    response_model=DevolverAResponsableOut,
+    status_code=status.HTTP_200_OK
+)
+async def devolver_a_responsable(
+    factura_id: UUID,
+    data: DevolverAResponsableIn,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """
+    Devuelve una factura de Contabilidad a Responsable.
+    
+    **Requisitos:**
+    - La factura debe estar en estado "Contabilidad" (estado_id = 3)
+    - El motivo debe tener al menos 10 caracteres
+    
+    **Efecto:**
+    - Cambia el estado a "Asignada" (estado_id = 2) - vuelve a Responsable
+    - Guarda el motivo de devolución
+    
+    **Uso:**
+    - Contabilidad puede rechazar una factura y devolverla al Responsable del área
+    - El responsable verá el motivo de devolución y podrá corregir
+    """
+    return await service.devolver_a_responsable(factura_id, data.motivo)
 
 

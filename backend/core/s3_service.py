@@ -3,6 +3,7 @@ Servicio para operaciones con Amazon S3.
 Maneja upload de archivos y generación de URLs prefirmadas.
 """
 import boto3
+from botocore.config import Config
 from botocore.exceptions import ClientError, NoCredentialsError
 from typing import BinaryIO, Optional
 from core.config import settings
@@ -16,11 +17,18 @@ class S3Service:
     def __init__(self):
         """Inicializa el cliente S3 con credenciales desde settings."""
         try:
+            # Configuración para presigned URLs
+            s3_config = Config(
+                signature_version='s3v4',
+                region_name=settings.aws_region
+            )
+            
             self.s3_client = boto3.client(
                 's3',
                 aws_access_key_id=settings.aws_access_key_id,
                 aws_secret_access_key=settings.aws_secret_access_key,
-                region_name=settings.aws_region
+                region_name=settings.aws_region,
+                config=s3_config
             )
             self.bucket = settings.s3_bucket
             logger.info(f"S3Service inicializado: bucket={self.bucket}, region={settings.aws_region}")
@@ -105,6 +113,7 @@ class S3Service:
             HTTPException: Si falla la generación de la URL
         """
         try:
+            logger.info(f"Generando presigned URL para key: '{key}'")
             url = self.s3_client.generate_presigned_url(
                 'get_object',
                 Params={
@@ -113,7 +122,8 @@ class S3Service:
                 },
                 ExpiresIn=expires_in
             )
-            logger.info(f"URL prefirmada generada para: {key} (expira en {expires_in}s)")
+            logger.info(f"URL prefirmada generada exitosamente (expira en {expires_in}s)")
+            logger.debug(f"URL generada: {url[:100]}...")
             return url
             
         except ClientError as e:
@@ -171,6 +181,106 @@ class S3Service:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error al descargar archivo"
+            )
+    
+    def get_file_with_metadata(self, key: str) -> tuple[bytes, str]:
+        """
+        Descarga el contenido de un archivo desde S3 junto con su content_type.
+        
+        Args:
+            key: Ruta del objeto en S3
+            
+        Returns:
+            tuple: (contenido_bytes, content_type)
+            
+        Raises:
+            HTTPException: Si falla la descarga
+        """
+        try:
+            response = self.s3_client.get_object(
+                Bucket=self.bucket,
+                Key=key
+            )
+            content = response['Body'].read()
+            content_type = response.get('ContentType', 'application/octet-stream')
+            logger.info(f"Archivo descargado de S3: {key} (content_type: {content_type})")
+            return content, content_type
+            
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            if error_code == 'NoSuchKey':
+                logger.warning(f"Archivo no encontrado en S3: {key}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Archivo no encontrado en S3"
+                )
+            error_msg = e.response.get('Error', {}).get('Message', 'Error desconocido')
+            logger.error(f"Error descargando de S3: {error_msg}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al descargar archivo: {error_msg}"
+            )
+        except Exception as e:
+            logger.error(f"Error inesperado descargando de S3: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al descargar archivo"
+            )
+    
+    def list_files_in_prefix(self, prefix: str) -> list[dict]:
+        """
+        Lista todos los archivos en S3 que coincidan con un prefijo.
+        
+        Args:
+            prefix: Prefijo para buscar (ej: "dev/facturas/id-factura/pdf/")
+            
+        Returns:
+            list: Lista de diccionarios con metadata de archivos
+            
+        Raises:
+            HTTPException: Si falla la operación
+        """
+        try:
+            response = self.s3_client.list_objects_v2(
+                Bucket=self.bucket,
+                Prefix=prefix
+            )
+            
+            files = []
+            if 'Contents' in response:
+                for obj in response['Contents']:
+                    # Extraer nombre del archivo desde la key
+                    key = obj['Key']
+                    filename = key.split('/')[-1]
+                    
+                    logger.info(f"Procesando archivo S3 - Key completa: '{key}', Filename: '{filename}'")
+                    
+                    # Generar URL prefirmada usando la Key completa sin modificar
+                    download_url = self.presign_get_url(key, expires_in=600)
+                    
+                    files.append({
+                        'key': key,
+                        'filename': filename,
+                        'size_bytes': obj['Size'],
+                        'last_modified': obj['LastModified'].isoformat(),
+                        'download_url': download_url
+                    })
+            
+            logger.info(f"Listados {len(files)} archivos con prefijo: {prefix}")
+            return files
+            
+        except ClientError as e:
+            error_msg = e.response.get('Error', {}).get('Message', 'Error desconocido')
+            logger.error(f"Error listando archivos en S3: {error_msg}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al listar archivos: {error_msg}"
+            )
+        except Exception as e:
+            logger.error(f"Error inesperado listando archivos en S3: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al listar archivos"
             )
 
 

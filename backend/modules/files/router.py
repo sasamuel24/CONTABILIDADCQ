@@ -231,3 +231,31 @@ async def download_file(
             "Content-Disposition": f'attachment; filename="{filename}"'
         }
     )
+
+
+@router.get("/facturas/{factura_id}/files/download")
+async def download_file_by_key(
+    factura_id: UUID,
+    key: str = Query(..., description="S3 key del archivo"),
+    service: FileService = Depends(get_file_service)
+):
+    """
+    Descarga un archivo directamente desde S3 usando su key.
+    Endpoint proxy para evitar problemas con presigned URLs.
+    """
+    try:
+        content, filename, content_type = await service.download_from_s3(key)
+        
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error descargando archivo: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al descargar el archivo"
+        )

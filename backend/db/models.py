@@ -86,6 +86,7 @@ class Area(Base):
     facturas: Mapped[List["Factura"]] = relationship(
         "Factura",
         back_populates="area",
+        foreign_keys="Factura.area_id",
         lazy="selectin"
     )
     
@@ -294,6 +295,12 @@ class Factura(Base, TimestampMixin):
         nullable=False,
         index=True
     )
+    area_origen_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("areas.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True
+    )
     total: Mapped[float] = mapped_column(
         Numeric(12, 2),
         nullable=False
@@ -354,11 +361,26 @@ class Factura(Base, TimestampMixin):
         nullable=False,
         server_default="'1_SEMANA'"
     )
+    es_gasto_adm: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false"
+    )
+    motivo_devolucion: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True
+    )
     
     # Relaciones
     area: Mapped["Area"] = relationship(
         "Area",
+        foreign_keys=[area_id],
         back_populates="facturas",
+        lazy="selectin"
+    )
+    area_origen: Mapped[Optional["Area"]] = relationship(
+        "Area",
+        foreign_keys=[area_origen_id],
         lazy="selectin"
     )
     estado: Mapped["Estado"] = relationship(

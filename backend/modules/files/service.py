@@ -152,21 +152,96 @@ class FileService:
         )
     
     async def get_files_by_factura(self, factura_id: UUID, doc_type: Optional[str] = None) -> List[FileResponse]:
-        """Obtiene todos los archivos de una factura, opcionalmente filtrados por doc_type."""
+        """
+        Obtiene todos los archivos de una factura, opcionalmente filtrados por doc_type.
+        Si no encuentra archivos en BD y doc_type='FACTURA_PDF', busca en S3 directamente.
+        """
         logger.info(f"Obteniendo archivos de factura: {factura_id}, doc_type: {doc_type}")
         files = await self.repository.get_by_factura(factura_id, doc_type)
         
-        return [FileResponse(
-            id=f.id,
-            factura_id=f.factura_id,
-            doc_type=f.doc_type,
-            storage_provider=f.storage_provider,
-            storage_path=f.storage_path,
-            filename=f.filename,
-            content_type=f.content_type,
-            size_bytes=f.size_bytes,
-            uploaded_at=f.created_at
-        ) for f in files]
+        # Si no hay archivos en BD y se busca FACTURA_PDF, buscar en S3
+        if len(files) == 0 and doc_type == 'FACTURA_PDF':
+            use_s3 = bool(settings.aws_access_key_id and settings.s3_bucket)
+            
+            if use_s3:
+                from core.s3_service import s3_service
+                
+                # Buscar en la ruta dev/facturas/{factura_id}/FACTURA_PDF/
+                s3_prefix = f"dev/facturas/{factura_id}/FACTURA_PDF/"
+                logger.info(f"Buscando archivos en S3 con prefijo: {s3_prefix}")
+                
+                try:
+                    s3_files = s3_service.list_files_in_prefix(s3_prefix)
+                    
+                    # Convertir archivos de S3 a FileResponse
+                    return [FileResponse(
+                        id=UUID('00000000-0000-0000-0000-000000000000'),  # ID temporal
+                        factura_id=factura_id,
+                        doc_type='FACTURA_PDF',
+                        storage_provider='s3',
+                        storage_path=f['key'],
+                        filename=f['filename'],
+                        content_type='application/pdf',
+                        size_bytes=f['size_bytes'],
+                        uploaded_at=f['last_modified'],
+                        download_url=f['download_url']
+                    ) for f in s3_files]
+                except Exception as e:
+                    logger.error(f"Error listando archivos desde S3: {e}")
+        
+        # Para archivos de BD, generar download_url si son de S3
+        result = []
+        for f in files:
+            download_url = None
+            if f.storage_provider == 's3':
+                try:
+                    from core.s3_service import s3_service
+                    download_url = s3_service.presign_get_url(f.storage_path)
+                except Exception as e:
+                    logger.error(f"Error generando presigned URL: {e}")
+            
+            result.append(FileResponse(
+                id=f.id,
+                factura_id=f.factura_id,
+                doc_type=f.doc_type,
+                storage_provider=f.storage_provider,
+                storage_path=f.storage_path,
+                filename=f.filename,
+                content_type=f.content_type,
+                size_bytes=f.size_bytes,
+                uploaded_at=f.created_at,
+                download_url=download_url
+            ))
+        
+        return result
+    
+    async def download_from_s3(self, key: str) -> tuple[bytes, str, str]:
+        """
+        Descarga un archivo directamente desde S3.
+        
+        Args:
+            key: S3 key del archivo
+            
+        Returns:
+            tuple: (contenido_bytes, filename, content_type)
+        """
+        try:
+            from core.s3_service import s3_service
+            
+            # Extraer filename de la key
+            filename = key.split('/')[-1]
+            
+            logger.info(f"Descargando archivo desde S3: {key}")
+            content, content_type = s3_service.get_file_with_metadata(key)
+            
+            return content, filename, content_type
+            
+        except Exception as e:
+            logger.error(f"Error descargando desde S3: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al descargar el archivo desde S3"
+            )
     
     async def get_pdf_by_factura(self, factura_id: UUID) -> tuple[bytes, str, str]:
         """Obtiene el PDF de una factura."""

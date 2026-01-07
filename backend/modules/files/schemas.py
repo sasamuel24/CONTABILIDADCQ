@@ -44,6 +44,7 @@ class FileResponse(BaseModel):
     content_type: str
     size_bytes: int
     uploaded_at: datetime
+    download_url: Optional[str] = None
     
     model_config = {"from_attributes": True}
 
@@ -55,6 +56,9 @@ class FileMiniOut(BaseModel):
     filename: str
     content_type: str
     uploaded_at: datetime
+    storage_provider: Optional[str] = None
+    storage_path: Optional[str] = None
+    download_url: Optional[str] = None
     
     model_config = {"from_attributes": True}
 

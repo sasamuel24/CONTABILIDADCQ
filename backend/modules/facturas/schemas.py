@@ -38,6 +38,10 @@ class FacturaCreate(BaseModel):
     )
     centro_costo_id: Optional[UUID] = Field(None, description="ID del centro de costo")
     centro_operacion_id: Optional[UUID] = Field(None, description="ID del centro de operación")
+    es_gasto_adm: bool = Field(
+        default=False,
+        description="Indica si es un gasto administrativo (omite validación de OC y APROBACIÓN)"
+    )
 
 
 class FacturaUpdate(BaseModel):
@@ -47,6 +51,7 @@ class FacturaUpdate(BaseModel):
     assigned_to_user_id: Optional[UUID] = None
     centro_costo_id: Optional[UUID] = None
     centro_operacion_id: Optional[UUID] = None
+    es_gasto_adm: Optional[bool] = None
 
 
 class EstadoUpdateRequest(BaseModel):
@@ -68,6 +73,7 @@ class FacturaListItem(BaseModel):
     numero_factura: str
     fecha_emision: Optional[date]
     area: str
+    area_origen_id: Optional[UUID] = None
     total: float
     estado: str
     centro_costo: Optional[str] = None
@@ -81,6 +87,8 @@ class FacturaListItem(BaseModel):
     tiene_anticipo: bool = False
     porcentaje_anticipo: Optional[float] = None
     intervalo_entrega_contabilidad: Optional[str] = None
+    es_gasto_adm: bool = False
+    motivo_devolucion: Optional[str] = None
     files: List[FileMiniOut] = []
     
     model_config = {"from_attributes": True}
@@ -97,6 +105,7 @@ class FacturaResponse(FacturaBase):
     centro_operacion: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    motivo_devolucion: Optional[str] = None
     
     model_config = {"from_attributes": True}
 
@@ -280,6 +289,9 @@ class SubmitResponsableOut(BaseModel):
     porcentaje_anticipo: Optional[float]
     intervalo_entrega_contabilidad: str
     
+    # Gasto Administrativo
+    es_gasto_adm: bool
+    
     # Archivos (opcional)
     files: Optional[list[dict]] = []
     
@@ -307,5 +319,28 @@ class CentrosOut(BaseModel):
     factura_id: UUID
     centro_costo_id: UUID
     centro_operacion_id: UUID
+    
+    model_config = {"from_attributes": True}
+
+
+# ========== Schemas de Devolución a Responsable ==========
+
+class DevolverAResponsableIn(BaseModel):
+    """Esquema para devolver una factura de Contabilidad a Responsable."""
+    motivo: str = Field(
+        ...,
+        min_length=10,
+        max_length=1000,
+        description="Motivo de la devolución (mínimo 10 caracteres)"
+    )
+    
+    model_config = {"extra": "forbid"}
+
+
+class DevolverAResponsableOut(BaseModel):
+    """Esquema de respuesta para devolución a responsable."""
+    factura_id: UUID
+    estado_actual: str
+    motivo_devolucion: str
     
     model_config = {"from_attributes": True}

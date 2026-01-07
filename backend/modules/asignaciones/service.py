@@ -50,11 +50,8 @@ class AsignacionService:
         # Validación 5: Factura en estado asignable
         await self.repository.validate_factura_assignable_state(factura)
         
-        # Validación 6: No hay asignación duplicada
-        await self.repository.validate_no_duplicate_assignment(
-            factura_id,
-            data.responsable_user_id
-        )
+        # NOTA: Se permite crear múltiples asignaciones al mismo usuario para historial
+        # (ej: cuando una factura se devuelve y se vuelve a asignar)
         
         # Crear asignación
         asignacion = await self.repository.create_asignacion(

@@ -72,11 +72,12 @@ class FacturaService:
         self,
         skip: int = 0,
         limit: int = 100,
-        area_id: Optional[UUID] = None
+        area_id: Optional[UUID] = None,
+        estado: Optional[str] = None
     ) -> FacturasPaginatedResponse:
         """Lista todas las facturas con paginación y filtros."""
-        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}")
-        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id)
+        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, estado={estado}")
+        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, estado=estado)
         
         items = []
         for f in facturas:
@@ -110,6 +111,7 @@ class FacturaService:
                 numero_factura=f.numero_factura,
                 fecha_emision=f.fecha_emision,
                 area=f.area.nombre if f.area else "Sin área",
+                area_origen_id=f.area_origen_id,
                 total=float(f.total),
                 estado=f.estado.label if f.estado else "Sin estado",
                 centro_costo=f.centro_costo.nombre if f.centro_costo else None,
@@ -123,6 +125,8 @@ class FacturaService:
                 tiene_anticipo=f.tiene_anticipo,
                 porcentaje_anticipo=float(f.porcentaje_anticipo) if f.porcentaje_anticipo is not None else None,
                 intervalo_entrega_contabilidad=f.intervalo_entrega_contabilidad,
+                es_gasto_adm=f.es_gasto_adm,
+                motivo_devolucion=f.motivo_devolucion,
                 files=files_out
             ))
         
@@ -163,7 +167,8 @@ class FacturaService:
             centro_costo=factura.centro_costo.nombre if factura.centro_costo else None,
             centro_operacion=factura.centro_operacion.nombre if factura.centro_operacion else None,
             created_at=factura.created_at,
-            updated_at=factura.updated_at
+            updated_at=factura.updated_at,
+            motivo_devolucion=factura.motivo_devolucion
         )
     
     async def get_factura_by_numero(self, numero_factura: str) -> FacturaResponse:
@@ -240,6 +245,12 @@ class FacturaService:
         if factura_data.area_id is not None and factura_data.area_id != factura.area_id:
             logger.info(f"Área cambiada de {factura.area_id} a {factura_data.area_id}, actualizando estado a Asignada")
             update_data['estado_id'] = 2  # Estado: Asignada
+            
+            # IMPORTANTE: Si area_origen_id es NULL, establecerlo la primera vez
+            # Esto guarda el área original asignada por Facturación y nunca cambia
+            if factura.area_origen_id is None:
+                update_data['area_origen_id'] = factura_data.area_id
+                logger.info(f"Estableciendo area_origen_id: {factura_data.area_id}")
         
         factura = await self.repository.update(factura_id, update_data)
         return await self.get_factura(factura.id)
@@ -906,7 +917,7 @@ class FacturaService:
                 detail="Estado para CONTABILIDAD no encontrado en el sistema"
             )
         
-        # Guardar área anterior para el histórico
+        # Guardar área anterior para el histórico (referencia)
         area_anterior_id = factura.area_id
         
         # Actualizar factura
@@ -914,6 +925,9 @@ class FacturaService:
         factura.estado_id = estado_contabilidad.id
         factura.assigned_to_user_id = None
         factura.assigned_at = datetime.utcnow()
+        
+        # Limpiar motivo de devolución al reenviar
+        factura.motivo_devolucion = None
         
         # Commit de cambios
         await self.db.commit()
@@ -1351,3 +1365,81 @@ class FacturaService:
             centro_costo_id=factura.centro_costo_id,
             centro_operacion_id=factura.centro_operacion_id
         )
+
+    async def devolver_a_responsable(
+        self,
+        factura_id: UUID,
+        motivo: str
+    ) -> dict:
+        """
+        Devuelve una factura de Contabilidad al Área Responsable original.
+        Solo permitido si la factura está en estado de Contabilidad (estado_id = 3).
+        Usa area_origen_id que nunca cambia durante el ciclo de vida de la factura.
+        """
+        from sqlalchemy import select
+        from db.models import Factura, Estado, Area
+        
+        logger.info(f"Devolviendo factura {factura_id} a Responsable. Motivo: {motivo}")
+        
+        # Obtener factura
+        result = await self.db.execute(
+            select(Factura).where(Factura.id == factura_id)
+        )
+        factura = result.scalar_one_or_none()
+        
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        
+        # Validar que esté en estado Contabilidad (estado_id = 3)
+        if factura.estado_id != 3:
+            result_estado = await self.db.execute(
+                select(Estado).where(Estado.id == factura.estado_id)
+            )
+            estado_actual = result_estado.scalar_one_or_none()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"La factura debe estar en estado 'Contabilidad' para poder devolverla. Estado actual: {estado_actual.label if estado_actual else 'Desconocido'}"
+            )
+        
+        # Validar que exista area_origen_id
+        if not factura.area_origen_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La factura no tiene un área de origen asignada. No se puede devolver."
+            )
+        
+        # Devolver a área origen (que nunca cambia)
+        factura.area_id = factura.area_origen_id
+        factura.estado_id = 2  # Estado "Asignada" (Responsable)
+        factura.motivo_devolucion = motivo
+        factura.assigned_to_user_id = None  # Limpiar asignación específica
+        
+        await self.db.commit()
+        await self.db.refresh(factura)
+        
+        # Obtener nombre del estado actual
+        result_estado = await self.db.execute(
+            select(Estado).where(Estado.id == factura.estado_id)
+        )
+        estado = result_estado.scalar_one_or_none()
+        
+        # Obtener nombre del área
+        result_area = await self.db.execute(
+            select(Area).where(Area.id == factura.area_id)
+        )
+        area = result_area.scalar_one_or_none()
+        
+        logger.info(
+            f"Factura {factura_id} devuelta exitosamente a {area.nombre if area else 'Área desconocida'}"
+        )
+        
+        return {
+            "factura_id": str(factura.id),
+            "area_id": str(factura.area_id),
+            "area_nombre": area.nombre if area else "Desconocido",
+            "estado_actual": estado.label if estado else "Desconocido",
+            "motivo_devolucion": factura.motivo_devolucion
+        }

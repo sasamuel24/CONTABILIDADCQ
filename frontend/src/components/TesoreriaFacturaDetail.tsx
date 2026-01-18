@@ -349,7 +349,8 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
 
   const handleDownloadFile = (storageProvider: string, storagePath: string, filename: string) => {
     const link = document.createElement('a');
-    link.href = `http://localhost:8000/api/v1/facturas/${factura.id}/files/download?key=${storagePath}`;
+    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    link.href = `${API_BASE}/facturas/${factura.id}/files/download?key=${storagePath}`;
     link.download = filename;
     document.body.appendChild(link);
     link.click();

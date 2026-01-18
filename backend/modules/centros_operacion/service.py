@@ -9,7 +9,9 @@ from modules.centros_operacion.repository import CentroOperacionRepository
 from modules.centros_operacion.schemas import (
     CentroOperacionCreate,
     CentroOperacionUpdate,
-    CentroOperacionResponse
+    CentroOperacionResponse,
+    CentroOperacionBulkCreate,
+    CentroOperacionBulkResponse
 )
 from modules.centros_costo.repository import CentroCostoRepository
 from core.logging import logger
@@ -147,6 +149,63 @@ class CentroOperacionService:
         response = CentroOperacionResponse.model_validate(updated)
         response.centro_costo_nombre = updated.centro_costo.nombre
         return response
+    
+    async def bulk_create(self, data: CentroOperacionBulkCreate) -> CentroOperacionBulkResponse:
+        """Crea múltiples centros de operación de forma masiva."""
+        logger.info(f"Carga masiva: {len(data.nombres)} centros para CC {data.centro_costo_id}")
+        
+        # Validar que el centro de costo existe
+        centro_costo = await self.centro_costo_repo.get_by_id(data.centro_costo_id)
+        if not centro_costo:
+            logger.warning(f"Centro de costo {data.centro_costo_id} no encontrado")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Centro de costo con ID {data.centro_costo_id} no encontrado"
+            )
+        
+        created = []
+        skipped = []
+        
+        # Procesar cada nombre
+        for nombre in data.nombres:
+            nombre = nombre.strip()
+            if not nombre:
+                continue
+            
+            # Verificar si ya existe
+            existing = await self.repository.get_by_nombre_and_cc(nombre, data.centro_costo_id)
+            if existing:
+                logger.info(f"Centro '{nombre}' ya existe, omitiendo")
+                skipped.append(nombre)
+                continue
+            
+            # Preparar para crear
+            created.append({
+                "nombre": nombre,
+                "centro_costo_id": data.centro_costo_id,
+                "activo": data.activo
+            })
+        
+        # Crear todos los centros de una vez
+        created_centros = []
+        if created:
+            centros = await self.repository.bulk_create(created)
+            created_centros = [
+                CentroOperacionResponse(
+                    **centro.__dict__,
+                    centro_costo_nombre=centro.centro_costo.nombre
+                )
+                for centro in centros
+            ]
+        
+        logger.info(f"Carga masiva completada: {len(created_centros)} creados, {len(skipped)} omitidos")
+        
+        return CentroOperacionBulkResponse(
+            created=created_centros,
+            skipped=skipped,
+            total_created=len(created_centros),
+            total_skipped=len(skipped)
+        )
     
     async def deactivate(self, centro_id: UUID) -> CentroOperacionResponse:
         """Desactiva un centro de operación (soft delete)."""

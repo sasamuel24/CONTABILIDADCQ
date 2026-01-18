@@ -12,7 +12,9 @@ from modules.centros_operacion.service import CentroOperacionService
 from modules.centros_operacion.schemas import (
     CentroOperacionCreate,
     CentroOperacionUpdate,
-    CentroOperacionResponse
+    CentroOperacionResponse,
+    CentroOperacionBulkCreate,
+    CentroOperacionBulkResponse
 )
 from modules.centros_costo.repository import CentroCostoRepository
 
@@ -62,6 +64,35 @@ async def create_centro_operacion(
 ):
     """Crea un nuevo centro de operación."""
     return await service.create(data)
+
+
+@router.post(
+    "/centros-operacion/bulk",
+    response_model=CentroOperacionBulkResponse,
+    status_code=status.HTTP_201_CREATED
+)
+async def bulk_create_centros_operacion(
+    data: CentroOperacionBulkCreate,
+    service: CentroOperacionService = Depends(get_service)
+):
+    """
+    Crea múltiples centros de operación de forma masiva.
+    
+    Permite crear varios centros de operación con el mismo centro de costo.
+    Los nombres duplicados serán omitidos automáticamente.
+    
+    **Body:**
+    - centro_costo_id: ID del centro de costo común para todos
+    - nombres: Lista de nombres de centros de operación
+    - activo: Estado activo (true por defecto)
+    
+    **Retorna:**
+    - created: Lista de centros creados exitosamente
+    - skipped: Lista de nombres que ya existían
+    - total_created: Total de centros creados
+    - total_skipped: Total omitidos
+    """
+    return await service.bulk_create(data)
 
 
 @router.patch("/centros-operacion/{centro_id}", response_model=CentroOperacionResponse)

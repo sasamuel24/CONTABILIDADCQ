@@ -4,6 +4,7 @@ Router de FastAPI para el módulo de áreas.
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
+from uuid import UUID
 
 from db.session import get_db
 from modules.areas.repository import AreaRepository
@@ -43,3 +44,21 @@ async def create_area(
     - 422: Validación fallida (nombre vacío o inválido)
     """
     return await service.create_area(area_data)
+
+
+@router.delete("/{area_id}", status_code=204)
+async def delete_area(
+    area_id: UUID,
+    service: AreaService = Depends(get_area_service)
+):
+    """
+    Elimina un área por su ID.
+    
+    - **area_id**: ID del área a eliminar
+    
+    **Errores**:
+    - 404: Área no encontrada
+    - 409: El área tiene registros asociados y no puede ser eliminada
+    """
+    await service.delete_area(area_id)
+    return None

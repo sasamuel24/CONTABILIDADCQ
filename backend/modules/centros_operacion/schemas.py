@@ -34,3 +34,18 @@ class CentroOperacionResponse(CentroOperacionBase):
     updated_at: datetime
     
     model_config = {"from_attributes": True}
+
+
+class CentroOperacionBulkCreate(BaseModel):
+    """Schema para carga masiva de centros de operación."""
+    centro_costo_id: UUID = Field(..., description="ID del centro de costo al que pertenecen todos")
+    nombres: list[str] = Field(..., min_length=1, description="Lista de nombres de centros de operación")
+    activo: bool = Field(default=True, description="Estado activo para todos los centros")
+
+
+class CentroOperacionBulkResponse(BaseModel):
+    """Schema de respuesta para carga masiva."""
+    created: list[CentroOperacionResponse] = Field(default_factory=list, description="Centros creados exitosamente")
+    skipped: list[str] = Field(default_factory=list, description="Nombres omitidos (ya existían)")
+    total_created: int = Field(..., description="Total de centros creados")
+    total_skipped: int = Field(..., description="Total de centros omitidos")

@@ -73,3 +73,15 @@ class CentroOperacionRepository:
         await self.db.flush()
         await self.db.refresh(centro, ["centro_costo"])
         return centro
+    
+    async def bulk_create(self, centros_data: list[dict]) -> List[CentroOperacion]:
+        """Crea múltiples centros de operación."""
+        centros = [CentroOperacion(**data) for data in centros_data]
+        self.db.add_all(centros)
+        await self.db.flush()
+        
+        # Refrescar todos con el centro_costo cargado
+        for centro in centros:
+            await self.db.refresh(centro, ["centro_costo"])
+        
+        return centros

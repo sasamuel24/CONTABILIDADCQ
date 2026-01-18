@@ -6,7 +6,7 @@ python-multipart==0.0.20
 # Database
 sqlalchemy==2.0.40
 asyncpg==0.30.0
-alembic==1.15.3
+alembic==1.14.1
 
 # Validation y schemas
 pydantic==2.10.6

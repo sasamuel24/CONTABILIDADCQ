@@ -2,7 +2,7 @@
  * API Client para comunicación con el backend FastAPI
  */
 
-export const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || 'https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/prod');
+export const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || 'https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1');
 
 // Tipos de respuesta del backend
 export interface LoginResponse {

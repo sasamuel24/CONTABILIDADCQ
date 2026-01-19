@@ -50,7 +50,16 @@ async def clean_facturas():
             # Eliminar en orden (respetando foreign keys)
             print("\n🗑️  Eliminando datos...")
             
-            # Eliminar archivos asociados a facturas (si existe la tabla)
+            # 1. Eliminar asignaciones de facturas (debe ser primero por la FK)
+            try:
+                await session.execute(text("DELETE FROM factura_asignaciones"))
+                await session.commit()
+                print("  ✓ Asignaciones eliminadas")
+            except Exception as e:
+                await session.rollback()
+                print(f"  ⊘ Asignaciones: {str(e)[:50]}")
+            
+            # 2. Eliminar archivos asociados a facturas
             try:
                 await session.execute(text("DELETE FROM files WHERE factura_id IS NOT NULL"))
                 await session.commit()
@@ -59,7 +68,7 @@ async def clean_facturas():
                 await session.rollback()
                 print(f"  ⊘ Archivos: {str(e)[:50]}")
             
-            # Eliminar facturas
+            # 3. Eliminar facturas
             await session.execute(text("DELETE FROM facturas"))
             await session.commit()
             print("  ✓ Facturas eliminadas")

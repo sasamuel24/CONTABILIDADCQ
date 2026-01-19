@@ -5,6 +5,7 @@ import {
   getAreas, 
   updateFactura,
   getFacturaFilesByDocType,
+  API_BASE_URL,
   type FacturaListItem,
   type Area,
   type FacturaUpdate,
@@ -135,7 +136,6 @@ export function InboxView() {
         const finalFilename = filename;
         
         // Usar endpoint proxy del backend para archivos S3
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
         const downloadUrl = `${API_BASE_URL}/facturas/${selectedFactura.id}/files/download?key=${encodeURIComponent(storagePath)}`;
         const link = document.createElement('a');
         link.href = downloadUrl;

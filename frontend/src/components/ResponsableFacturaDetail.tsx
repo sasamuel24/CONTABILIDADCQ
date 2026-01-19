@@ -11,7 +11,8 @@ import {
   updateFacturaInventarios,
   updateFacturaAnticipo,
   asignarFactura,
-  updateFactura
+  updateFactura,
+  API_BASE_URL
 } from '../lib/api';
 
 interface ResponsableFacturaDetailProps {
@@ -464,7 +465,6 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const handleVerDocumento = (fileId: string) => {
     // Abrir documento en nueva pestaña
     const token = localStorage.getItem('access_token');
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
     const url = `${API_BASE_URL}/files/${fileId}/download`;
     
     // Abrir en nueva ventana con token en header (mediante fetch y blob)

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, CheckCircle, AlertCircle, Trash2, Download, FileText } from 'lucide-react';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion } from '../lib/api';
-import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, uploadFacturaFile, updateFacturaEstado } from '../lib/api';
+import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, uploadFacturaFile, updateFacturaEstado, API_BASE_URL } from '../lib/api';
 
 interface TesoreriaFacturaDetailProps {
   factura: FacturaListItem;
@@ -349,8 +349,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
 
   const handleDownloadFile = (storageProvider: string, storagePath: string, filename: string) => {
     const link = document.createElement('a');
-    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
-    link.href = `${API_BASE}/facturas/${factura.id}/files/download?key=${storagePath}`;
+    link.href = `${API_BASE_URL}/facturas/${factura.id}/files/download?key=${storagePath}`;
     link.download = filename;
     document.body.appendChild(link);
     link.click();
@@ -366,7 +365,6 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
     
     // Fallback: descargar a través del backend
     const token = localStorage.getItem('access_token');
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
     const url = `${API_BASE_URL}/files/${archivo.id}/download`;
     
     fetch(url, {

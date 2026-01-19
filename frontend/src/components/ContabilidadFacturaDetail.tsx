@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Download, FileText } from 'lucide-react';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion } from '../lib/api';
-import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable } from '../lib/api';
+import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable, API_BASE_URL } from '../lib/api';
 
 interface ContabilidadFacturaDetailProps {
   factura: FacturaListItem;
@@ -280,7 +280,6 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
 
   const handleVerDocumento = (fileId: string) => {
     const token = localStorage.getItem('access_token');
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
     const url = `${API_BASE_URL}/files/${fileId}/download`;
     
     fetch(url, {

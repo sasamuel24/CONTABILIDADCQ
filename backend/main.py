@@ -3,6 +3,8 @@ Punto de entrada principal de la aplicación FastAPI.
 """
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
+from fastapi.openapi.utils import get_openapi
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
@@ -30,9 +32,9 @@ app = FastAPI(
     version=settings.app_version,
     debug=settings.debug,
     description="API para gestión de facturas - Sistema CONTABILIDADCQ",
-    docs_url="/api/v1/docs",
-    redoc_url="/api/v1/redoc",
-    openapi_url="/api/v1/openapi.json"
+    docs_url=None,  # Deshabilitamos los docs por defecto
+    redoc_url=None,  # Deshabilitamos redoc por defecto
+    openapi_url=None  # Deshabilitamos openapi por defecto
 )
 
 # Configurar CORS
@@ -57,6 +59,36 @@ app.include_router(centros_costo_router, prefix="/api/v1")
 app.include_router(centros_operacion_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(roles_router, prefix="/api/v1")
+
+
+# Endpoints personalizados para documentación con CORS habilitado
+@app.get("/api/v1/openapi.json", include_in_schema=False)
+async def get_open_api_endpoint():
+    """Endpoint personalizado para OpenAPI schema con CORS."""
+    return get_openapi(
+        title=settings.app_name,
+        version=settings.app_version,
+        description="API para gestión de facturas - Sistema CONTABILIDADCQ",
+        routes=app.routes,
+    )
+
+
+@app.get("/api/v1/docs", include_in_schema=False)
+async def get_documentation():
+    """Endpoint personalizado para Swagger UI con CORS."""
+    return get_swagger_ui_html(
+        openapi_url="/api/v1/openapi.json",
+        title=f"{settings.app_name} - Documentación",
+    )
+
+
+@app.get("/api/v1/redoc", include_in_schema=False)
+async def get_redoc_documentation():
+    """Endpoint personalizado para ReDoc con CORS."""
+    return get_redoc_html(
+        openapi_url="/api/v1/openapi.json",
+        title=f"{settings.app_name} - Documentación",
+    )
 
 
 @app.get("/health")

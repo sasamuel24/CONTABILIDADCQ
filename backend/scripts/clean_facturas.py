@@ -50,11 +50,14 @@ async def clean_facturas():
             # Eliminar en orden (respetando foreign keys)
             print("\n🗑️  Eliminando datos...")
             
-            # 1. Eliminar asignaciones de facturas (debe ser primero por la FK)
+            # 1. Eliminar asignaciones SOLO de las facturas que vamos a eliminar
             try:
-                await session.execute(text("DELETE FROM factura_asignaciones"))
+                await session.execute(text("""
+                    DELETE FROM factura_asignaciones 
+                    WHERE factura_id IN (SELECT id FROM facturas)
+                """))
                 await session.commit()
-                print("  ✓ Asignaciones eliminadas")
+                print("  ✓ Asignaciones relacionadas eliminadas")
             except Exception as e:
                 await session.rollback()
                 print(f"  ⊘ Asignaciones: {str(e)[:50]}")

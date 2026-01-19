@@ -27,7 +27,8 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:5173",
         "https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com",
-        "https://main.d174bkkc7dp7ba.amplifyapp.com"
+        "https://main.d174bkkc7dp7ba.amplifyapp.com",
+        "https://main.d174bkkc7dp7ba.amplifyapp.com/"
     ]
     
     # Logging

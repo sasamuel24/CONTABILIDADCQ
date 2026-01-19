@@ -29,7 +29,10 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     debug=settings.debug,
-    description="API para gestión de facturas - Sistema CONTABILIDADCQ"
+    description="API para gestión de facturas - Sistema CONTABILIDADCQ",
+    docs_url="/api/v1/docs",
+    redoc_url="/api/v1/redoc",
+    openapi_url="/api/v1/openapi.json"
 )
 
 # Configurar CORS

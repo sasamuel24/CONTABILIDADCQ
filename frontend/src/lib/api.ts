@@ -177,7 +177,7 @@ async function fetchAPI<T>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = `${API_BASE_URL}/api/v1${endpoint}`;
 
   try {
     const response = await fetch(url, {

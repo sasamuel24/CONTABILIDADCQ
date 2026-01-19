@@ -280,7 +280,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
 
   const handleVerDocumento = (fileId: string) => {
     const token = localStorage.getItem('access_token');
-    const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
     const url = `${API_BASE_URL}/files/${fileId}/download`;
     
     fetch(url, {

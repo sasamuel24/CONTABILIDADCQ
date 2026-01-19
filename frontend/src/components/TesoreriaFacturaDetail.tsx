@@ -349,7 +349,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
 
   const handleDownloadFile = (storageProvider: string, storagePath: string, filename: string) => {
     const link = document.createElement('a');
-    const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
     link.href = `${API_BASE}/facturas/${factura.id}/files/download?key=${storagePath}`;
     link.download = filename;
     document.body.appendChild(link);
@@ -366,7 +366,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
     
     // Fallback: descargar a través del backend
     const token = localStorage.getItem('access_token');
-    const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
     const url = `${API_BASE_URL}/files/${archivo.id}/download`;
     
     fetch(url, {

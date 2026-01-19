@@ -378,7 +378,7 @@ export async function uploadFacturaFile(
   formData.append('file', file);
   formData.append('doc_type', docType);
 
-  const response = await fetch(`${API_BASE_URL}/facturas/${facturaId}/files/upload`, {
+  const response = await fetch(`${API_BASE_URL}/api/v1/facturas/${facturaId}/files/upload`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -392,6 +392,37 @@ export async function uploadFacturaFile(
   }
 
   return response.json();
+}
+
+/**
+ * Descargar archivo de una factura desde S3 usando su key
+ */
+export async function downloadFacturaFile(
+  facturaId: string,
+  key: string
+): Promise<Blob> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error('No hay token de autenticación');
+  }
+
+  const encodedKey = encodeURIComponent(key);
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/facturas/${facturaId}/files/download?key=${encodedKey}`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Error al descargar el archivo');
+  }
+
+  return response.blob();
 }
 
 // ============================================

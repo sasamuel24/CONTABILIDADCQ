@@ -50,33 +50,19 @@ async def clean_facturas():
             # Eliminar en orden (respetando foreign keys)
             print("\n🗑️  Eliminando datos...")
             
-            # 1. Códigos de inventarios (si existe)
-            try:
-                await session.execute(text("DELETE FROM inventarios_codigos"))
-                print("  ✓ Códigos de inventario eliminados")
-            except:
-                print("  ⊘ Tabla inventarios_codigos no existe")
-            
-            # 2. Asignaciones de facturas
-            try:
-                await session.execute(text("DELETE FROM factura_asignaciones"))
-                print("  ✓ Asignaciones eliminadas")
-            except:
-                print("  ⊘ Tabla factura_asignaciones no existe")
-            
-            # 3. Archivos asociados a facturas
+            # Eliminar archivos asociados a facturas (si existe la tabla)
             try:
                 await session.execute(text("DELETE FROM files WHERE factura_id IS NOT NULL"))
+                await session.commit()
                 print("  ✓ Archivos eliminados")
-            except:
-                print("  ⊘ Error eliminando archivos")
+            except Exception as e:
+                await session.rollback()
+                print(f"  ⊘ Archivos: {str(e)[:50]}")
             
-            # 4. Facturas
+            # Eliminar facturas
             await session.execute(text("DELETE FROM facturas"))
-            print("  ✓ Facturas eliminadas")
-            
-            # Commit de los cambios
             await session.commit()
+            print("  ✓ Facturas eliminadas")
             
             # Verificar eliminación
             result_check = await session.execute(text("SELECT COUNT(*) FROM facturas"))

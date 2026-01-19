@@ -23,7 +23,12 @@ class Settings(BaseSettings):
     api_key: str = "change-this-in-production"
     
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://q5wixwop2j.execute-api.us-east-2.amazonaws.com",
+        "https://main.d19vrtdmjsq1n2.amplifyapp.com"
+    ]
     
     # Logging
     log_level: str = "INFO"

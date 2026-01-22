@@ -20,7 +20,7 @@ class FileService:
     ALLOWED_DOC_TYPES = {
         "OC", "OS", "OCT", "ECT", "OCC", "EDO", 
         "FCP", "FPC", "EGRESO", "SOPORTE_PAGO", "FACTURA_PDF",
-        "APROBACION_GERENCIA", "PEC", "EC", "PCE"
+        "APROBACION_GERENCIA", "PEC", "EC", "PCE", "PED"
     }
     
     # Content types permitidos por doc_type

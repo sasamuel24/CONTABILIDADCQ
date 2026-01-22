@@ -506,7 +506,7 @@ class File(Base, TimestampMixin):
         ),
         CheckConstraint("size_bytes > 0", name="check_file_size_positive"),
         CheckConstraint(
-            "doc_type IN ('OC','OS','OCT','ECT','OCC','EDO','FCP','FPC','EGRESO','SOPORTE_PAGO','FACTURA_PDF','APROBACION_GERENCIA','PEC','EC','PCE')",
+            "doc_type IN ('OC','OS','OCT','ECT','OCC','EDO','FCP','FPC','EGRESO','SOPORTE_PAGO','FACTURA_PDF','APROBACION_GERENCIA','PEC','EC','PCE','PED')",
             name="check_file_doc_type"
         ),
     )

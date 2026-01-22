@@ -56,20 +56,23 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
   const [porcentajeAnticipo, setPorcentajeAnticipo] = useState('');
   const [intervaloEntrega, setIntervaloEntrega] = useState('');
 
-  // Estados para documentos de Tesorería (obligatorios)
+  // Estados para documentos de Tesorería (al menos uno obligatorio)
   const [archivoPEC, setArchivoPEC] = useState<string>('');
   const [archivoEC, setArchivoEC] = useState<string>('');
   const [archivoPCE, setArchivoPCE] = useState<string>('');
+  const [archivoPED, setArchivoPED] = useState<string>('');
   
   // Estados para archivos de Tesorería subidos
   const [archivoPECExistente, setArchivoPECExistente] = useState<FileMiniOut | null>(null);
   const [archivoECExistente, setArchivoECExistente] = useState<FileMiniOut | null>(null);
   const [archivoPCEExistente, setArchivoPCEExistente] = useState<FileMiniOut | null>(null);
+  const [archivoPEDExistente, setArchivoPEDExistente] = useState<FileMiniOut | null>(null);
   
   // Estados de loading para uploads de Tesorería
   const [uploadingPEC, setUploadingPEC] = useState(false);
   const [uploadingEC, setUploadingEC] = useState(false);
   const [uploadingPCE, setUploadingPCE] = useState(false);
+  const [uploadingPED, setUploadingPED] = useState(false);
 
   // Estados de validación
   const [errores, setErrores] = useState<Record<string, string>>({});
@@ -183,10 +186,11 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
   useEffect(() => {
     const cargarArchivosTesoreria = async () => {
       try {
-        const [archivosPEC, archivosEC, archivosPCE] = await Promise.all([
+        const [archivosPEC, archivosEC, archivosPCE, archivosPED] = await Promise.all([
           getFacturaFilesByDocType(factura.id, 'PEC'),
           getFacturaFilesByDocType(factura.id, 'EC'),
-          getFacturaFilesByDocType(factura.id, 'PCE')
+          getFacturaFilesByDocType(factura.id, 'PCE'),
+          getFacturaFilesByDocType(factura.id, 'PED')
         ]);
         
         if (archivosPEC.length > 0) {
@@ -201,6 +205,10 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
           setArchivoPCEExistente(archivosPCE[0]);
           setArchivoPCE(archivosPCE[0].filename);
         }
+        if (archivosPED.length > 0) {
+          setArchivoPEDExistente(archivosPED[0]);
+          setArchivoPED(archivosPED[0].filename);
+        }
       } catch (error) {
         console.error('Error cargando archivos de Tesorería:', error);
       }
@@ -209,7 +217,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
     cargarArchivosTesoreria();
   }, [factura.id]);
 
-  const handleFileUpload = async (tipo: 'pec' | 'ec' | 'pce') => {
+  const handleFileUpload = async (tipo: 'pec' | 'ec' | 'pce' | 'ped') => {
     // Crear input file temporal
     const input = document.createElement('input');
     input.type = 'file';
@@ -253,6 +261,12 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
           setLoading = setUploadingPCE;
           setArchivo = setArchivoPCE;
           setArchivoExistente = setArchivoPCEExistente;
+          break;
+        case 'ped':
+          docType = 'PED';
+          setLoading = setUploadingPED;
+          setArchivo = setArchivoPED;
+          setArchivoExistente = setArchivoPEDExistente;
           break;
         default:
           return;
@@ -305,14 +319,15 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
   const validarFormulario = (): boolean => {
     const nuevosErrores: Record<string, string> = {};
 
-    if (!archivoPECExistente && !archivoPEC) {
-      nuevosErrores.pec = 'El documento PEC es obligatorio';
-    }
-    if (!archivoECExistente && !archivoEC) {
-      nuevosErrores.ec = 'El documento EC es obligatorio';
-    }
-    if (!archivoPCEExistente && !archivoPCE) {
-      nuevosErrores.pce = 'El documento PCE es obligatorio';
+    // Validar que al menos uno de los documentos esté cargado
+    const tieneAlMenosUnDocumento = 
+      archivoPECExistente || archivoPEC ||
+      archivoECExistente || archivoEC ||
+      archivoPCEExistente || archivoPCE ||
+      archivoPEDExistente || archivoPED;
+
+    if (!tieneAlMenosUnDocumento) {
+      nuevosErrores.general = 'Debe cargar al menos uno de los documentos de Tesorería (PEC, EC, PCE o PED)';
     }
 
     setErrores(nuevosErrores);
@@ -323,7 +338,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
     setMostrarValidacion(true);
     
     if (!validarFormulario()) {
-      alert('❌ Por favor cargue todos los documentos obligatorios de Tesorería');
+      alert('❌ Por favor cargue al menos uno de los documentos de Tesorería (PEC, EC, PCE o PED)');
       return;
     }
 
@@ -333,7 +348,14 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
       // Actualizar estado a "Cerrada" (id: 5)
       await updateFacturaEstado(factura.id, 5);
       
-      alert('✅ Factura cerrada exitosamente\n\nLa factura ha sido finalizada y cerrada.\nDocumentos de Tesorería registrados:\n• PEC: ' + archivoPEC + '\n• EC: ' + archivoEC + '\n• PCE: ' + archivoPCE);
+      // Construir mensaje con documentos cargados
+      const documentosCargados = [];
+      if (archivoPEC || archivoPECExistente) documentosCargados.push('• PEC: ' + (archivoPEC || archivoPECExistente?.filename));
+      if (archivoEC || archivoECExistente) documentosCargados.push('• EC: ' + (archivoEC || archivoECExistente?.filename));
+      if (archivoPCE || archivoPCEExistente) documentosCargados.push('• PCE: ' + (archivoPCE || archivoPCEExistente?.filename));
+      if (archivoPED || archivoPEDExistente) documentosCargados.push('• PED: ' + (archivoPED || archivoPEDExistente?.filename));
+      
+      alert('✅ Factura cerrada exitosamente\n\nLa factura ha sido finalizada y cerrada.\nDocumentos de Tesorería registrados:\n' + documentosCargados.join('\n'));
       onClose();
     } catch (error: any) {
       console.error('Error finalizando factura:', error);
@@ -741,19 +763,30 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                 </div>
               </div>
 
-              {/* Documentos de Tesorería (OBLIGATORIOS) */}
+              {/* Documentos de Tesorería (AL MENOS UNO OBLIGATORIO) */}
               <div className="border-t-2 border-blue-200 pt-6">
-                <h4 className="text-gray-900 font-semibold mb-4 flex items-center gap-2">
+                <h4 className="text-gray-900 font-semibold mb-2 flex items-center gap-2">
                   <Upload className="w-5 h-5 text-blue-600" />
                   Documentos de Tesorería
                 </h4>
+                <p className="text-sm text-gray-600 mb-4">
+                  <span className="text-red-600 font-medium">*</span> Debe cargar al menos uno de los siguientes documentos
+                </p>
+                
+                {mostrarValidacion && errores.general && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-600 text-sm flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4" />
+                      {errores.general}
+                    </p>
+                  </div>
+                )}
                 
                 <div className="space-y-4">
                   {/* PEC */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
                       PEC (Planilla de Egresos de Caja)
-                      <span className="text-red-600 text-xs">*obligatorio</span>
                     </label>
                     
                     {!archivoPECExistente ? (
@@ -780,20 +813,12 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                         </button>
                       </div>
                     )}
-                    
-                    {mostrarValidacion && errores.pec && (
-                      <p className="text-red-600 text-sm mt-2 flex items-center gap-1">
-                        <AlertCircle className="w-4 h-4" />
-                        {errores.pec}
-                      </p>
-                    )}
                   </div>
 
                   {/* EC */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
                       EC (Egreso de Caja)
-                      <span className="text-red-600 text-xs">*obligatorio</span>
                     </label>
                     
                     {!archivoECExistente ? (
@@ -820,20 +845,12 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                         </button>
                       </div>
                     )}
-                    
-                    {mostrarValidacion && errores.ec && (
-                      <p className="text-red-600 text-sm mt-2 flex items-center gap-1">
-                        <AlertCircle className="w-4 h-4" />
-                        {errores.ec}
-                      </p>
-                    )}
                   </div>
 
                   {/* PCE */}
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
                       PCE (Presupuesto de Caja y Egresos)
-                      <span className="text-red-600 text-xs">*obligatorio</span>
                     </label>
                     
                     {!archivoPCEExistente ? (
@@ -860,12 +877,37 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                         </button>
                       </div>
                     )}
+                  </div>
+
+                  {/* PED */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <label className="block text-sm font-medium text-gray-900 mb-2">
+                      PED (Presupuesto de Egresos y Desembolsos)
+                    </label>
                     
-                    {mostrarValidacion && errores.pce && (
-                      <p className="text-red-600 text-sm mt-2 flex items-center gap-1">
-                        <AlertCircle className="w-4 h-4" />
-                        {errores.pce}
-                      </p>
+                    {!archivoPEDExistente ? (
+                      <button
+                        onClick={() => handleFileUpload('ped')}
+                        disabled={uploadingPED}
+                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
+                          uploadingPED
+                            ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                        }`}
+                      >
+                        <Upload className="w-4 h-4" />
+                        {uploadingPED ? 'Subiendo...' : 'Subir PED (PDF)'}
+                      </button>
+                    ) : (
+                      <div className="flex items-center justify-between bg-white border border-green-300 rounded-lg p-3">
+                        <button
+                          onClick={() => handleVerDocumento(archivoPEDExistente)}
+                          className="text-green-700 text-sm flex items-center gap-2 hover:underline"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          {archivoPEDExistente.filename}
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

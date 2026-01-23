@@ -21,31 +21,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    # Hacer la columna created_by nullable
-    op.alter_column('carpetas', 'created_by',
-                    existing_type=postgresql.UUID(),
-                    nullable=True)
-    
-    # Verificar y crear foreign key si no existe
-    conn = op.get_bind()
-    inspector = sa.inspect(conn)
-    fks = [fk['name'] for fk in inspector.get_foreign_keys('carpetas')]
-    
-    if 'fk_carpetas_created_by' not in fks:
-        op.create_foreign_key(
-            'fk_carpetas_created_by',
-            'carpetas',
-            'users',
-            ['created_by'],
-            ['id'],
-            ondelete='SET NULL'
-        )
+    # Esta migración ya no es necesaria porque created_by se crea nullable
+    # en la migración 30795df66e40
+    pass
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_index('ix_carpetas_created_by', 'carpetas')
-    op.drop_constraint('fk_carpetas_created_by', 'carpetas', type_='foreignkey')
-    op.alter_column('carpetas', 'created_by',
-                    existing_type=postgresql.UUID(),
-                    nullable=False)
+    pass

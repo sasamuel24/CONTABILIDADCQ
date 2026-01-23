@@ -32,8 +32,11 @@ def upgrade() -> None:
             sa.Column('nombre', sa.Text(), nullable=False),
             sa.Column('parent_id', postgresql.UUID(as_uuid=True), nullable=True),
             sa.Column('factura_id', postgresql.UUID(as_uuid=True), nullable=True),
+            sa.Column('archivada', sa.Boolean(), nullable=False, server_default='false'),
+            sa.Column('created_by', postgresql.UUID(as_uuid=True), nullable=True),
             sa.Column('created_at', postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text('now()')),
             sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), nullable=False, server_default=sa.text('now()')),
+            sa.ForeignKeyConstraint(['created_by'], ['users.id'], name='fk_carpetas_created_by', ondelete='SET NULL'),
             sa.ForeignKeyConstraint(['factura_id'], ['facturas.id'], name='fk_carpetas_factura_id', ondelete='CASCADE'),
             sa.ForeignKeyConstraint(['parent_id'], ['carpetas.id'], name='fk_carpetas_parent_id', ondelete='CASCADE'),
             sa.PrimaryKeyConstraint('id')

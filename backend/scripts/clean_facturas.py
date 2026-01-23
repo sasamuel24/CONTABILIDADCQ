@@ -35,7 +35,19 @@ async def clean_facturas():
             result_facturas = await session.execute(text("SELECT COUNT(*) FROM facturas"))
             count_facturas = result_facturas.scalar()
             
+            result_files = await session.execute(text("SELECT COUNT(*) FROM files WHERE factura_id IS NOT NULL"))
+            count_files = result_files.scalar()
+            
+            result_asignaciones = await session.execute(text("SELECT COUNT(*) FROM factura_asignaciones"))
+            count_asignaciones = result_asignaciones.scalar()
+            
+            result_codigos = await session.execute(text("SELECT COUNT(*) FROM inventarios_codigos"))
+            count_codigos = result_codigos.scalar()
+            
             print(f"  - Facturas: {count_facturas}")
+            print(f"  - Archivos adjuntos: {count_files}")
+            print(f"  - Asignaciones: {count_asignaciones}")
+            print(f"  - Códigos de inventario: {count_codigos}")
             
             if count_facturas == 0:
                 print("\n✅ No hay facturas para eliminar.")
@@ -50,31 +62,24 @@ async def clean_facturas():
             # Eliminar en orden (respetando foreign keys)
             print("\n🗑️  Eliminando datos...")
             
-            # 1. Eliminar asignaciones SOLO de las facturas que vamos a eliminar
-            try:
-                await session.execute(text("""
-                    DELETE FROM factura_asignaciones 
-                    WHERE factura_id IN (SELECT id FROM facturas)
-                """))
-                await session.commit()
-                print("  ✓ Asignaciones relacionadas eliminadas")
-            except Exception as e:
-                await session.rollback()
-                print(f"  ⊘ Asignaciones: {str(e)[:50]}")
+            # 1. Códigos de inventarios
+            await session.execute(text("DELETE FROM inventarios_codigos"))
+            print("  ✓ Códigos de inventario eliminados")
             
-            # 2. Eliminar archivos asociados a facturas
-            try:
-                await session.execute(text("DELETE FROM files WHERE factura_id IS NOT NULL"))
-                await session.commit()
-                print("  ✓ Archivos eliminados")
-            except Exception as e:
-                await session.rollback()
-                print(f"  ⊘ Archivos: {str(e)[:50]}")
+            # 2. Asignaciones de facturas
+            await session.execute(text("DELETE FROM factura_asignaciones"))
+            print("  ✓ Asignaciones eliminadas")
             
-            # 3. Eliminar facturas
+            # 3. Archivos asociados a facturas
+            await session.execute(text("DELETE FROM files WHERE factura_id IS NOT NULL"))
+            print("  ✓ Archivos eliminados")
+            
+            # 4. Facturas
             await session.execute(text("DELETE FROM facturas"))
-            await session.commit()
             print("  ✓ Facturas eliminadas")
+            
+            # Commit de los cambios
+            await session.commit()
             
             # Verificar eliminación
             result_check = await session.execute(text("SELECT COUNT(*) FROM facturas"))
@@ -83,6 +88,9 @@ async def clean_facturas():
             if count_check == 0:
                 print(f"\n✅ Limpieza completada exitosamente.")
                 print(f"   - {count_facturas} facturas eliminadas")
+                print(f"   - {count_files} archivos eliminados")
+                print(f"   - {count_asignaciones} asignaciones eliminadas")
+                print(f"   - {count_codigos} códigos eliminados")
             else:
                 print(f"\n⚠️  Advertencia: Aún quedan {count_check} facturas en la base de datos.")
                 
@@ -92,12 +100,72 @@ async def clean_facturas():
         raise
 
 
+async def clean_all_data():
+    """Eliminar TODOS los datos (facturas, áreas, usuarios, etc.) - ¡PELIGROSO!"""
+    
+    print("⚠️⚠️⚠️  ADVERTENCIA MÁXIMA  ⚠️⚠️⚠️")
+    print("Este script eliminará TODOS los datos de TODAS las tablas.")
+    print("Incluyendo: facturas, archivos, usuarios, áreas, estados, centros, roles, etc.")
+    print("Esta acción NO se puede deshacer y dejará la base de datos casi vacía.")
+    
+    confirmacion = input("\n¿REALMENTE quieres hacer esto? Escribe 'ELIMINAR TODO': ")
+    
+    if confirmacion != "ELIMINAR TODO":
+        print("❌ Operación cancelada.")
+        return
+    
+    try:
+        async with AsyncSessionLocal() as session:
+            print("\n🗑️  Eliminando TODOS los datos...")
+            
+            # Orden de eliminación respetando foreign keys
+            tables = [
+                "inventarios_codigos",
+                "factura_asignaciones",
+                "files",
+                "facturas",
+                "centros_operacion",
+                "centros_costo",
+                "users",
+                "roles",
+                # No eliminar áreas ni estados (datos maestros)
+            ]
+            
+            for table in tables:
+                await session.execute(text(f"DELETE FROM {table}"))
+                print(f"  ✓ Tabla {table} limpiada")
+            
+            await session.commit()
+            print("\n✅ Limpieza total completada.")
+            
+    except Exception as e:
+        logger.error(f"Error al limpiar datos: {e}")
+        print(f"\n❌ Error: {e}")
+        raise
+
+
 def main():
     """Función principal."""
+    import sys
+    
     print("═" * 70)
-    print("🧹 SCRIPT DE LIMPIEZA DE FACTURAS")
+    print("🧹 SCRIPT DE LIMPIEZA DE BASE DE DATOS")
     print("═" * 70)
-    asyncio.run(clean_facturas())
+    print("\nOpciones:")
+    print("1. Limpiar solo facturas y datos relacionados (RECOMENDADO)")
+    print("2. Limpiar TODOS los datos (¡PELIGROSO!)")
+    print("0. Cancelar")
+    
+    opcion = input("\nSelecciona una opción (0-2): ")
+    
+    if opcion == "1":
+        asyncio.run(clean_facturas())
+    elif opcion == "2":
+        asyncio.run(clean_all_data())
+    elif opcion == "0":
+        print("❌ Operación cancelada.")
+    else:
+        print("❌ Opción inválida.")
 
 
 if __name__ == "__main__":

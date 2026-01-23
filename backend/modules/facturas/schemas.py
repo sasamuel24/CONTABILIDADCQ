@@ -54,6 +54,20 @@ class FacturaUpdate(BaseModel):
     es_gasto_adm: Optional[bool] = None
 
 
+class AsignarCarpetaRequest(BaseModel):
+    """Request para asignar factura a carpeta."""
+    carpeta_id: UUID = Field(..., description="ID de la carpeta donde se asignará la factura")
+
+
+class AsignarCarpetaResponse(BaseModel):
+    """Response de asignación de carpeta."""
+    id: UUID
+    numero_factura: str
+    carpeta_id: UUID
+    carpeta_nombre: str
+    updated_at: datetime
+
+
 class EstadoUpdateRequest(BaseModel):
     """Request para actualizar estado de factura."""
     estado_id: int = Field(..., description="ID del nuevo estado")
@@ -64,6 +78,15 @@ class EstadoUpdateResponse(BaseModel):
     id: UUID
     estado: str
     updated_at: datetime
+
+
+class CarpetaEnFactura(BaseModel):
+    """Esquema de carpeta en factura."""
+    id: UUID
+    nombre: str
+    parent_id: Optional[UUID] = None
+    
+    model_config = {"from_attributes": True}
 
 
 class FacturaListItem(BaseModel):
@@ -90,6 +113,8 @@ class FacturaListItem(BaseModel):
     es_gasto_adm: bool = False
     motivo_devolucion: Optional[str] = None
     files: List[FileMiniOut] = []
+    carpeta_id: Optional[UUID] = None
+    carpeta: Optional[CarpetaEnFactura] = None
     
     model_config = {"from_attributes": True}
 
@@ -106,6 +131,8 @@ class FacturaResponse(FacturaBase):
     created_at: datetime
     updated_at: datetime
     motivo_devolucion: Optional[str] = None
+    carpeta_id: Optional[UUID] = None
+    carpeta: Optional[CarpetaEnFactura] = None
     
     model_config = {"from_attributes": True}
 

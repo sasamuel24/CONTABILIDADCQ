@@ -3,9 +3,7 @@
  */
 
 // Variables de entorno de Vite - definidas en vite-env.d.ts
-export const API_BASE_URL = String(
-  import.meta.env.VITE_API_BASE_URL || 'https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1'
-);
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1';
 
 // Tipos de respuesta del backend
 export interface LoginResponse {
@@ -60,6 +58,12 @@ export interface FileMiniOut {
   storage_path?: string;
 }
 
+export interface CarpetaEnFactura {
+  id: string;
+  nombre: string;
+  parent_id: string | null;
+}
+
 export interface FacturaListItem {
   id: string;
   proveedor: string;
@@ -83,6 +87,8 @@ export interface FacturaListItem {
   motivo_devolucion: string | null;
   area_origen_id: string | null;
   files: FileMiniOut[];
+  carpeta_id: string | null;
+  carpeta: CarpetaEnFactura | null;
 }
 
 export interface FacturasPaginatedResponse {
@@ -673,5 +679,113 @@ export async function devolverAResponsable(
       'Authorization': token ? `Bearer ${token}` : '',
     },
     body: JSON.stringify({ motivo }),
+  });
+}
+
+// ==================== CARPETAS ====================
+
+export interface FacturaEnCarpeta {
+  id: string;
+  numero_factura: string;
+  proveedor: string;
+  total: number;
+  carpeta_nombre?: string | null;
+}
+
+export interface Carpeta {
+  id: string;
+  nombre: string;
+  parent_id: string | null;
+  factura_id: string | null;
+  created_at: string;
+  updated_at: string;
+  children: Carpeta[];
+  facturas: FacturaEnCarpeta[];
+}
+
+export interface CarpetaCreate {
+  nombre: string;
+  parent_id?: string | null;
+}
+
+export interface CarpetaUpdate {
+  nombre?: string;
+  parent_id?: string | null;
+  factura_id?: string | null;
+}
+
+export interface AsignarFacturaCarpetaRequest {
+  carpeta_id: string;
+}
+
+export interface AsignarFacturaCarpetaResponse {
+  factura_id: string;
+  carpeta_id: string;
+  carpeta_nombre: string;
+}
+
+/**
+ * Obtener todas las carpetas raíz con su jerarquía completa
+ */
+export async function getCarpetas(): Promise<Carpeta[]> {
+  return fetchAPI<Carpeta[]>('/carpetas/');
+}
+
+/**
+ * Obtener una carpeta específica por ID con sus subcarpetas
+ */
+export async function getCarpetaById(carpetaId: string): Promise<Carpeta> {
+  return fetchAPI<Carpeta>(`/carpetas/${carpetaId}`);
+}
+
+/**
+ * Obtener subcarpetas de una carpeta específica
+ */
+export async function getCarpetasByParent(parentId: string): Promise<Carpeta[]> {
+  return fetchAPI<Carpeta[]>(`/carpetas/parent/${parentId}`);
+}
+
+/**
+ * Crear una nueva carpeta
+ */
+export async function createCarpeta(data: CarpetaCreate): Promise<Carpeta> {
+  return fetchAPI<Carpeta>('/carpetas/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Actualizar una carpeta existente
+ */
+export async function updateCarpeta(
+  carpetaId: string,
+  data: CarpetaUpdate
+): Promise<Carpeta> {
+  return fetchAPI<Carpeta>(`/carpetas/${carpetaId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Eliminar una carpeta
+ */
+export async function deleteCarpeta(carpetaId: string): Promise<void> {
+  return fetchAPI<void>(`/carpetas/${carpetaId}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Asignar una factura a una carpeta
+ */
+export async function asignarFacturaACarpeta(
+  facturaId: string,
+  data: AsignarFacturaCarpetaRequest
+): Promise<AsignarFacturaCarpetaResponse> {
+  return fetchAPI<AsignarFacturaCarpetaResponse>(`/facturas/${facturaId}/carpeta`, {
+    method: 'POST',
+    body: JSON.stringify(data),
   });
 }

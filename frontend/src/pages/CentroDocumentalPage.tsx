@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, LogOut, FileBarChart } from 'lucide-react';
-import { getFacturas, getAreas, type FacturaListItem, type Area } from '../lib/api';
+import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, LogOut, FileBarChart, FolderInput } from 'lucide-react';
+import { getFacturas, getAreas, type FacturaListItem, type Area, type Carpeta } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { CarpetasPanel } from '../components/CarpetasPanel';
+import { AsignarCarpetaModal } from '../components/AsignarCarpetaModal';
 
 export function CentroDocumentalPage() {
   const { user, logout } = useAuth();
@@ -20,6 +22,11 @@ export function CentroDocumentalPage() {
   const [selectedEstado, setSelectedEstado] = useState('Todos');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
+  
+  // Carpetas
+  const [selectedCarpeta, setSelectedCarpeta] = useState<Carpeta | null>(null);
+  const [showAsignarModal, setShowAsignarModal] = useState(false);
+  const [facturaToAssign, setFacturaToAssign] = useState<FacturaListItem | null>(null);
   
   // Ordenamiento
   const [sortColumn, setSortColumn] = useState<keyof FacturaListItem>('fecha_emision');
@@ -96,7 +103,22 @@ export function CentroDocumentalPage() {
     // Filtro de fecha hasta
     const matchesFechaHasta = !fechaHasta || (factura.fecha_emision && new Date(factura.fecha_emision) <= new Date(fechaHasta));
 
-    return matchesSearch && matchesArea && matchesEstado && matchesFechaDesde && matchesFechaHasta;
+    // Filtro de carpeta
+    let matchesCarpeta = true;
+    if (selectedCarpeta) {
+      // Obtener IDs de todas las facturas en la carpeta seleccionada y sus subcarpetas
+      const getFacturaIds = (carpeta: Carpeta): string[] => {
+        const ids = carpeta.facturas?.map(f => f.id) || [];
+        carpeta.children?.forEach(child => {
+          ids.push(...getFacturaIds(child));
+        });
+        return ids;
+      };
+      const carpetaFacturaIds = getFacturaIds(selectedCarpeta);
+      matchesCarpeta = carpetaFacturaIds.includes(factura.id);
+    }
+
+    return matchesSearch && matchesArea && matchesEstado && matchesFechaDesde && matchesFechaHasta && matchesCarpeta;
   });
 
   // Ordenar facturas
@@ -134,7 +156,24 @@ export function CentroDocumentalPage() {
   // Reset página al cambiar filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedArea, selectedEstado, fechaDesde, fechaHasta, sortColumn, sortDirection]);
+  }, [searchQuery, selectedArea, selectedEstado, fechaDesde, fechaHasta, sortColumn, sortDirection, selectedCarpeta]);
+
+  const handleAsignarCarpeta = (factura: FacturaListItem) => {
+    setFacturaToAssign(factura);
+    setShowAsignarModal(true);
+  };
+
+  const handleAsignarSuccess = async () => {
+    // Recargar facturas después de asignar
+    try {
+      const [facturasResponse] = await Promise.all([
+        getFacturas(0, 10000)
+      ]);
+      setFacturas(facturasResponse.items);
+    } catch (err) {
+      console.error('Error reloading facturas:', err);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -187,294 +226,353 @@ export function CentroDocumentalPage() {
       {/* Contenido principal */}
       <main className="flex-1 p-6">
         <div className="max-w-7xl mx-auto">
-          {/* Filtros */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Filtros</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              {/* Búsqueda */}
-              <div className="lg:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Buscar
-                </label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Número de factura o proveedor"
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Filtro por área */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Área
-                </label>
-                <select
-                  value={selectedArea}
-                  onChange={(e) => setSelectedArea(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="Todas">Todas las áreas</option>
-                  {areas.map(area => (
-                    <option key={area.id} value={area.nombre}>{area.nombre}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Filtro por estado */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Estado
-                </label>
-                <select
-                  value={selectedEstado}
-                  onChange={(e) => setSelectedEstado(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="Todos">Todos los estados</option>
-                  {estadosUnicos.map(estado => (
-                    <option key={estado} value={estado}>{estado}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Fecha desde */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fecha desde
-                </label>
-                <input
-                  type="date"
-                  value={fechaDesde}
-                  onChange={(e) => setFechaDesde(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              {/* Fecha hasta */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Fecha hasta
-                </label>
-                <input
-                  type="date"
-                  value={fechaHasta}
-                  onChange={(e) => setFechaHasta(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+          <div className="grid grid-cols-12 gap-6">
+            {/* Panel de carpetas - 3 columnas */}
+            <div className="col-span-3">
+              <CarpetasPanel 
+                onSelectCarpeta={setSelectedCarpeta}
+                selectedCarpeta={selectedCarpeta}
+              />
             </div>
 
-            {/* Botón limpiar filtros */}
-            {(searchQuery || selectedArea !== 'Todas' || selectedEstado !== 'Todos' || fechaDesde || fechaHasta) && (
-              <div className="mt-4">
-                <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSelectedArea('Todas');
-                    setSelectedEstado('Todos');
-                    setFechaDesde('');
-                    setFechaHasta('');
-                  }}
-                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
-                >
-                  Limpiar filtros
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Tabla */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            {/* Header de la tabla con contador */}
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Facturas ({sortedFacturas.length})
-              </h2>
-              <div className="text-sm text-gray-500">
-                Mostrando {startIndex + 1}-{Math.min(startIndex + itemsPerPage, sortedFacturas.length)} de {sortedFacturas.length}
-              </div>
-            </div>
-
-            {isLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <p className="text-gray-600">Cargando facturas...</p>
-                </div>
-              </div>
-            ) : error ? (
-              <div className="flex items-center justify-center py-12">
-                <div className="text-center">
-                  <p className="text-red-600 font-medium mb-2">Error al cargar datos</p>
-                  <p className="text-gray-500 text-sm">{error}</p>
-                </div>
-              </div>
-            ) : sortedFacturas.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <FileText className="w-16 h-16 text-gray-300 mb-4" />
-                <p className="text-gray-600 font-medium">No hay facturas disponibles</p>
-                <p className="text-gray-500 text-sm mt-1">Intenta ajustar los filtros de búsqueda</p>
-              </div>
-            ) : (
-              <>
-                {/* Tabla */}
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50 border-b border-gray-200">
-                      <tr>
-                        <th 
-                          onClick={() => handleSort('numero_factura')}
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4" />
-                            <span>Número Factura</span>
-                            {sortColumn === 'numero_factura' && (
-                              <span className="text-blue-600">
-                                {sortDirection === 'asc' ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </div>
-                        </th>
-                        <th 
-                          onClick={() => handleSort('fecha_emision')}
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-4 h-4" />
-                            <span>Fecha Emisión</span>
-                            {sortColumn === 'fecha_emision' && (
-                              <span className="text-blue-600">
-                                {sortDirection === 'asc' ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </div>
-                        </th>
-                        <th 
-                          onClick={() => handleSort('proveedor')}
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Building2 className="w-4 h-4" />
-                            <span>Proveedor</span>
-                            {sortColumn === 'proveedor' && (
-                              <span className="text-blue-600">
-                                {sortDirection === 'asc' ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </div>
-                        </th>
-                        <th 
-                          onClick={() => handleSort('area')}
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Activity className="w-4 h-4" />
-                            <span>Área</span>
-                            {sortColumn === 'area' && (
-                              <span className="text-blue-600">
-                                {sortDirection === 'asc' ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </div>
-                        </th>
-                        <th 
-                          onClick={() => handleSort('total')}
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            <DollarSign className="w-4 h-4" />
-                            <span>Total</span>
-                            {sortColumn === 'total' && (
-                              <span className="text-blue-600">
-                                {sortDirection === 'asc' ? '↑' : '↓'}
-                              </span>
-                            )}
-                          </div>
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Proceso Actual
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {paginatedFacturas.map((factura) => {
-                        const proceso = getProcesoActual(factura.estado);
-                        const procesoColor = getProcesoColor(proceso);
-                        
-                        return (
-                          <tr key={factura.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className="font-mono text-sm font-medium text-gray-900">
-                                {factura.numero_factura}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                              {factura.fecha_emision 
-                                ? new Date(factura.fecha_emision).toLocaleDateString('es-ES', {
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric'
-                                  })
-                                : '-'}
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-900">
-                              {factura.proveedor}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                              {factura.area}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${procesoColor}`}>
-                                {proceso}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Paginación */}
-                {totalPages > 1 && (
-                  <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                    <button
-                      onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                      disabled={currentPage === 1}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                      Anterior
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-700">
-                        Página <span className="font-medium">{currentPage}</span> de <span className="font-medium">{totalPages}</span>
-                      </span>
+            {/* Contenido principal - 9 columnas */}
+            <div className="col-span-9">
+              {/* Filtros */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Filtros</h2>
+                  {selectedCarpeta && (
+                    <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
+                      <FolderInput className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-900">{selectedCarpeta.nombre}</span>
                     </div>
-                    <button
-                      onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                      disabled={currentPage === totalPages}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  )}
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  {/* Búsqueda */}
+                  <div className="lg:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Buscar
+                    </label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Número de factura o proveedor"
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Filtro por área */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Área
+                    </label>
+                    <select
+                      value={selectedArea}
+                      onChange={(e) => setSelectedArea(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
-                      Siguiente
-                      <ChevronRight className="w-4 h-4" />
+                      <option value="Todas">Todas las áreas</option>
+                      {areas.map(area => (
+                        <option key={area.id} value={area.nombre}>{area.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Filtro por estado */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Estado
+                    </label>
+                    <select
+                      value={selectedEstado}
+                      onChange={(e) => setSelectedEstado(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="Todos">Todos los estados</option>
+                      {estadosUnicos.map(estado => (
+                        <option key={estado} value={estado}>{estado}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Fecha desde */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fecha desde
+                    </label>
+                    <input
+                      type="date"
+                      value={fechaDesde}
+                      onChange={(e) => setFechaDesde(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  {/* Fecha hasta */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Fecha hasta
+                    </label>
+                    <input
+                      type="date"
+                      value={fechaHasta}
+                      onChange={(e) => setFechaHasta(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Botón limpiar filtros */}
+                {(searchQuery || selectedArea !== 'Todas' || selectedEstado !== 'Todos' || fechaDesde || fechaHasta) && (
+                  <div className="mt-4">
+                    <button
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSelectedArea('Todas');
+                        setSelectedEstado('Todos');
+                        setFechaDesde('');
+                        setFechaHasta('');
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Limpiar filtros
                     </button>
                   </div>
                 )}
-              </>
-            )}
+              </div>
+
+              {/* Tabla */}
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                {/* Header de la tabla con contador */}
+                <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Facturas ({sortedFacturas.length})
+                  </h2>
+                  <div className="text-sm text-gray-500">
+                    Mostrando {startIndex + 1}-{Math.min(startIndex + itemsPerPage, sortedFacturas.length)} de {sortedFacturas.length}
+                  </div>
+                </div>
+
+                {isLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                      <p className="text-gray-600">Cargando facturas...</p>
+                    </div>
+                  </div>
+                ) : error ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <p className="text-red-600 font-medium mb-2">Error al cargar datos</p>
+                      <p className="text-gray-500 text-sm">{error}</p>
+                    </div>
+                  </div>
+                ) : sortedFacturas.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <FileText className="w-16 h-16 text-gray-300 mb-4" />
+                    <p className="text-gray-600 font-medium">No hay facturas disponibles</p>
+                    <p className="text-gray-500 text-sm mt-1">Intenta ajustar los filtros de búsqueda</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Tabla */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-gray-50 border-b border-gray-200">
+                          <tr>
+                            <th 
+                              onClick={() => handleSort('numero_factura')}
+                              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <FileText className="w-4 h-4" />
+                                <span>Número Factura</span>
+                                {sortColumn === 'numero_factura' && (
+                                  <span className="text-blue-600">
+                                    {sortDirection === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th 
+                              onClick={() => handleSort('fecha_emision')}
+                              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-4 h-4" />
+                                <span>Fecha Emisión</span>
+                                {sortColumn === 'fecha_emision' && (
+                                  <span className="text-blue-600">
+                                    {sortDirection === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th 
+                              onClick={() => handleSort('proveedor')}
+                              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Building2 className="w-4 h-4" />
+                                <span>Proveedor</span>
+                                {sortColumn === 'proveedor' && (
+                                  <span className="text-blue-600">
+                                    {sortDirection === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th 
+                              onClick={() => handleSort('area')}
+                              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Activity className="w-4 h-4" />
+                                <span>Área</span>
+                                {sortColumn === 'area' && (
+                                  <span className="text-blue-600">
+                                    {sortDirection === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th 
+                              onClick={() => handleSort('total')}
+                              className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
+                                <DollarSign className="w-4 h-4" />
+                                <span>Total</span>
+                                {sortColumn === 'total' && (
+                                  <span className="text-blue-600">
+                                    {sortDirection === 'asc' ? '↑' : '↓'}
+                                  </span>
+                                )}
+                              </div>
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Archivado
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Proceso Actual
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                              Acciones
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {paginatedFacturas.map((factura) => {
+                            const proceso = getProcesoActual(factura.estado);
+                            const procesoColor = getProcesoColor(proceso);
+                            
+                            return (
+                              <tr key={factura.id} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className="font-mono text-sm font-medium text-gray-900">
+                                    {factura.numero_factura}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                  {factura.fecha_emision 
+                                    ? new Date(factura.fecha_emision).toLocaleDateString('es-ES', {
+                                        day: '2-digit',
+                                        month: 'short',
+                                        year: 'numeric'
+                                      })
+                                    : '-'}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-900">
+                                  {factura.proveedor}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                  {factura.area}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                  <div className="flex justify-center" title={factura.carpeta ? `Archivado en: ${factura.carpeta.nombre}` : 'Sin archivar'}>
+                                    <FolderInput className={`w-5 h-5 ${
+                                      factura.carpeta 
+                                        ? 'text-green-600' 
+                                        : 'text-red-500'
+                                    }`} />
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${procesoColor}`}>
+                                    {proceso}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <button
+                                    onClick={() => handleAsignarCarpeta(factura)}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                    title="Asignar a carpeta"
+                                  >
+                                    <FolderInput className="w-3.5 h-3.5" />
+                                    <span>Carpeta</span>
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Paginación */}
+                    {totalPages > 1 && (
+                      <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                        <button
+                          onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                          disabled={currentPage === 1}
+                          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                          Anterior
+                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-700">
+                            Página <span className="font-medium">{currentPage}</span> de <span className="font-medium">{totalPages}</span>
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                          disabled={currentPage === totalPages}
+                          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          Siguiente
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </main>
+
+      {/* Modal de asignar carpeta */}
+      {showAsignarModal && facturaToAssign && (
+        <AsignarCarpetaModal
+          isOpen={showAsignarModal}
+          onClose={() => {
+            setShowAsignarModal(false);
+            setFacturaToAssign(null);
+          }}
+          factura={facturaToAssign}
+          onSuccess={handleAsignarSuccess}
+        />
+      )}
     </div>
   );
 }

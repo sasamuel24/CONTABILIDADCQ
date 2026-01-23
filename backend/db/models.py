@@ -277,6 +277,68 @@ class CentroOperacion(Base, TimestampMixin):
         return f"<CentroOperacion(id={self.id}, nombre={self.nombre})>"
 
 
+class Carpeta(Base, TimestampMixin):
+    """Modelo de carpetas para organizar facturas."""
+    __tablename__ = "carpetas"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    nombre: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        index=True
+    )
+    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("carpetas.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True
+    )
+    factura_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facturas.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True
+    )
+    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+    
+    # Relaciones
+    parent: Mapped[Optional["Carpeta"]] = relationship(
+        "Carpeta",
+        remote_side="Carpeta.id",
+        back_populates="children",
+        lazy="selectin"
+    )
+    children: Mapped[List["Carpeta"]] = relationship(
+        "Carpeta",
+        back_populates="parent",
+        lazy="selectin",
+        cascade="all, delete-orphan"
+    )
+    factura: Mapped[Optional["Factura"]] = relationship(
+        "Factura",
+        foreign_keys=[factura_id],
+        lazy="selectin"
+    )
+    facturas: Mapped[List["Factura"]] = relationship(
+        "Factura",
+        foreign_keys="Factura.carpeta_id",
+        lazy="selectin",
+        viewonly=True
+    )
+    
+    def __repr__(self):
+        return f"<Carpeta(id={self.id}, nombre={self.nombre})>"
+
+
 class Factura(Base, TimestampMixin):
     """Modelo de facturas del sistema."""
     __tablename__ = "facturas"
@@ -298,6 +360,12 @@ class Factura(Base, TimestampMixin):
     area_origen_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("areas.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True
+    )
+    carpeta_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("carpetas.id", ondelete="SET NULL"),
         nullable=True,
         index=True
     )
@@ -422,6 +490,11 @@ class Factura(Base, TimestampMixin):
         "FacturaInventarioCodigo",
         back_populates="factura",
         cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+    carpeta: Mapped[Optional["Carpeta"]] = relationship(
+        "Carpeta",
+        foreign_keys=[carpeta_id],
         lazy="selectin"
     )
     

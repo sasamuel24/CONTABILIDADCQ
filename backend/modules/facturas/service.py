@@ -17,7 +17,8 @@ from modules.facturas.schemas import (
     SubmitResponsableOut,
     SubmitErrorDetail,
     CentrosPatchIn,
-    CentrosOut
+    CentrosOut,
+    AsignarCarpetaResponse
 )
 from typing import List, Optional, Set, Dict
 from core.logging import logger
@@ -95,7 +96,7 @@ class FacturaService:
             ]
             
             # Mapear códigos de inventario
-            from modules.facturas.schemas import InventarioCodigoOut
+            from modules.facturas.schemas import InventarioCodigoOut, CarpetaEnFactura
             inventarios_codigos_out = [
                 InventarioCodigoOut(
                     codigo=codigo.codigo,
@@ -104,6 +105,15 @@ class FacturaService:
                 )
                 for codigo in f.inventario_codigos
             ]
+            
+            # Mapear carpeta si existe
+            carpeta_out = None
+            if f.carpeta:
+                carpeta_out = CarpetaEnFactura(
+                    id=f.carpeta.id,
+                    nombre=f.carpeta.nombre,
+                    parent_id=f.carpeta.parent_id
+                )
             
             items.append(FacturaListItem(
                 id=f.id,
@@ -127,7 +137,9 @@ class FacturaService:
                 intervalo_entrega_contabilidad=f.intervalo_entrega_contabilidad,
                 es_gasto_adm=f.es_gasto_adm,
                 motivo_devolucion=f.motivo_devolucion,
-                files=files_out
+                files=files_out,
+                carpeta_id=f.carpeta_id,
+                carpeta=carpeta_out
             ))
         
         page = (skip // limit) + 1 if limit > 0 else 1
@@ -216,6 +228,58 @@ class FacturaService:
             id=factura.id,
             estado=factura.estado.label if factura.estado else "Sin estado",
             updated_at=factura.updated_at
+        )
+    
+    async def asignar_carpeta(
+        self,
+        factura_id: UUID,
+        carpeta_id: UUID
+    ) -> AsignarCarpetaResponse:
+        """Asigna una factura a una carpeta."""
+        logger.info(f"Asignando factura {factura_id} a carpeta {carpeta_id}")
+        
+        # Verificar que la factura existe
+        factura = await self.repository.get_by_id(factura_id)
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        
+        # Verificar que la carpeta existe
+        if self.db:
+            from db.models import Carpeta
+            from sqlalchemy import select
+            
+            result = await self.db.execute(
+                select(Carpeta).where(Carpeta.id == carpeta_id)
+            )
+            carpeta = result.scalar_one_or_none()
+            
+            if not carpeta:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Carpeta con ID {carpeta_id} no encontrada"
+                )
+        
+        # Actualizar carpeta_id en la factura
+        factura_actualizada = await self.repository.update(
+            factura_id,
+            {"carpeta_id": carpeta_id}
+        )
+        
+        if not factura_actualizada:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al asignar carpeta a factura"
+            )
+        
+        return AsignarCarpetaResponse(
+            id=factura_actualizada.id,
+            numero_factura=factura_actualizada.numero_factura,
+            carpeta_id=carpeta_id,
+            carpeta_nombre=carpeta.nombre if carpeta else "N/A",
+            updated_at=factura_actualizada.updated_at
         )
     
     async def update_factura(

@@ -55,10 +55,10 @@ PGPASSWORD="$DB_PASSWORD" psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "SELECT CO
 echo ""
 
 echo "[PASO 4] Reiniciar servicio backend"
-sudo systemctl restart contabilidad-backend
+sudo systemctl restart contabilidadcq
 sleep 3
 echo "[OK] Backend reiniciado"
-sudo systemctl status contabilidad-backend --no-pager | grep Active
+sudo systemctl status contabilidadcq --no-pager | grep Active
 echo ""
 
 echo "[PASO 5] Actualizar frontend"
@@ -78,7 +78,7 @@ echo "[PASO 6] Verificacion final"
 echo "========================"
 echo ""
 echo "[INFO] Estado Backend:"
-sudo systemctl status contabilidad-backend --no-pager | grep Active
+sudo systemctl status contabilidadcq --no-pager | grep Active
 echo ""
 echo "[INFO] Estado Nginx:"
 sudo systemctl status nginx --no-pager | grep Active

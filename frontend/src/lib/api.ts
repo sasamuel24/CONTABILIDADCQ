@@ -895,7 +895,8 @@ export async function updateDistribucionCCCO(
 ): Promise<DistribucionCCCO[]> {
   return fetchAPI<DistribucionCCCO[]>(`/facturas/${facturaId}/distribucion-ccco`, {
     method: 'PUT',
-    body: JSON.stringify(data),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
   });
 }
 

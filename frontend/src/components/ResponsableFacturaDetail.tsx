@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, AlertCircle, Eye, Download, FileText, CheckCircle, Loader2 } from 'lucide-react';
-import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, InventariosData, UnidadNegocio, CuentaAuxiliar } from '../lib/api';
+import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, InventariosData, UnidadNegocio, CuentaAuxiliar, DistribucionCCCO } from '../lib/api';
 import { 
   uploadFacturaFile, 
   getFacturaFilesByDocType,
@@ -16,8 +16,11 @@ import {
   updateFacturaAnticipo,
   asignarFactura,
   updateFactura,
+  getDistribucionCCCO,
+  updateDistribucionCCCO,
   API_BASE_URL
 } from '../lib/api';
+import { DistribucionCCCOTable } from './DistribucionCCCOTable';
 
 interface ResponsableFacturaDetailProps {
   factura: FacturaListItem;
@@ -120,6 +123,11 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   // Estado para Gasto Administrativo
   const [esGastoAdm, setEsGastoAdm] = useState(factura.es_gasto_adm || false);
 
+  // Estados para Distribución CC/CO
+  const [distribuciones, setDistribuciones] = useState<DistribucionCCCO[]>([]);
+  const [loadingDistribucion, setLoadingDistribucion] = useState(true);
+  const [savingDistribucion, setSavingDistribucion] = useState(false);
+
   // Cargar archivos existentes al montar el componente
   useEffect(() => {
     const cargarArchivosExistentes = async () => {
@@ -205,36 +213,29 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     cargarCuentasAuxiliares();
   }, []);
 
-  // Cargar centros de operación cuando se selecciona un centro de costo
+  // Cargar centros de operación al montar el componente (todos, sin filtro)
   useEffect(() => {
     const cargarCentrosOperacion = async () => {
-      if (!centroCosto) {
-        setCentrosOperacion([]);
-        // Solo limpiar el centro de operación si no hay centro de costo
-        // Y no es la carga inicial (cuando factura ya tiene valores)
-        if (!factura.centro_costo_id) {
-          setCentroOperacion('');
-        }
-        return;
-      }
-
       try {
-        const centros = await getCentrosOperacion(centroCosto, true);
-        setCentrosOperacion(centros);
+        // Cargar todos los centros de operación sin filtrar por CC
+        const todosCentrosCosto = await getCentrosCosto(true);
+        const allCentrosOperacion = [];
         
-        // Si ya no está el centro de operación seleccionado, limpiarlo
-        // PERO no limpiar si es la carga inicial con datos de la factura
-        if (centroOperacion && !centros.find(c => c.id === centroOperacion) && centroOperacion !== factura.centro_operacion_id) {
-          setCentroOperacion('');
+        for (const cc of todosCentrosCosto) {
+          const centros = await getCentrosOperacion(cc.id, true);
+          allCentrosOperacion.push(...centros);
         }
+        
+        setCentrosOperacion(allCentrosOperacion);
       } catch (error) {
         console.error('Error cargando centros de operación:', error);
-        alert('Error al cargar centros de operación');
+      } finally {
+        setLoadingCentros(false);
       }
     };
 
     cargarCentrosOperacion();
-  }, [centroCosto]);
+  }, []);
 
   // Cargar datos de inventarios al montar el componente
   useEffect(() => {
@@ -305,6 +306,23 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
     cargarAnticipo();
   }, [factura.id, factura.tiene_anticipo, factura.porcentaje_anticipo, factura.intervalo_entrega_contabilidad]);
+
+  // Cargar distribuciones CC/CO al montar el componente
+  useEffect(() => {
+    const cargarDistribuciones = async () => {
+      try {
+        setLoadingDistribucion(true);
+        const dist = await getDistribucionCCCO(factura.id);
+        setDistribuciones(dist);
+      } catch (error) {
+        console.error('Error cargando distribuciones:', error);
+      } finally {
+        setLoadingDistribucion(false);
+      }
+    };
+
+    cargarDistribuciones();
+  }, [factura.id]);
 
   // Guardar todos los campos de clasificación (CC, CO, UN, CA)
   const handleGuardarClasificacion = async () => {
@@ -451,6 +469,24 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       alert(`❌ Error al guardar intervalo: ${error.message || 'Error desconocido'}`);
     } finally {
       setSavingIntervalo(false);
+    }
+  };
+
+  // Guardar distribución CC/CO
+  const handleGuardarDistribucion = async (distribuciones: Omit<DistribucionCCCO, 'id' | 'factura_id' | 'created_at' | 'updated_at'>[]) => {
+    try {
+      setSavingDistribucion(true);
+      const distribucionesActualizadas = await updateDistribucionCCCO(factura.id, {
+        distribuciones
+      });
+      setDistribuciones(distribucionesActualizadas);
+      alert('✅ Distribución CC/CO actualizada correctamente');
+    } catch (error: any) {
+      console.error('Error guardando distribución:', error);
+      alert(`❌ Error al guardar distribución: ${error.message || 'Error desconocido'}`);
+      throw error;
+    } finally {
+      setSavingDistribucion(false);
     }
   };
 
@@ -671,14 +707,6 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const validarFormulario = (): boolean => {
     const nuevosErrores: Record<string, string> = {};
 
-    // Validar Centro de Costo y Operación (siempre obligatorios)
-    if (!centroCosto) {
-      nuevosErrores.centroCosto = 'El Centro de Costo es obligatorio';
-    }
-    if (!centroOperacion) {
-      nuevosErrores.centroOperacion = 'El Centro de Operación es obligatorio';
-    }
-
     // Validar OC y APROBACIÓN solo si NO es gasto administrativo
     if (!esGastoAdm) {
       if (!archivoOCExistente) {
@@ -733,9 +761,6 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     if (!validarFormulario()) {
       // Crear mensaje más descriptivo
       const mensajesError = [];
-      if (errores.centroCosto || errores.centroOperacion) {
-        mensajesError.push('Centro de Costo/Operación');
-      }
       if (!esGastoAdm && (errores.oc || errores.aprobacion)) {
         mensajesError.push('OC y Aprobación');
       }
@@ -1097,142 +1122,25 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               )}
             </div>
 
-            {/* Clasificación Contable (CC, CO, UN, CA) - BLOQUE UNIFICADO */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-gray-900 font-semibold text-lg">Clasificación Contable</h4>
-                {factura.centro_costo_id && factura.centro_operacion_id && factura.unidad_negocio_id && factura.cuenta_auxiliar_id && (
-                  <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full flex items-center gap-1 font-medium">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Completo
-                  </span>
-                )}
-              </div>
-              
-              <div className="space-y-4 bg-gray-50 p-4 rounded-lg">
-                {/* Centro de Costo */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Centro de Costo (CC) <span className="text-red-600">*</span>
-                  </label>
-                  <select
-                    value={centroCosto}
-                    onChange={(e) => setCentroCosto(e.target.value)}
-                    disabled={loadingCentros}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      mostrarValidacion && errores.centroCosto ? 'border-red-500' : 'border-gray-300'
-                    } ${loadingCentros ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
-                  >
-                    <option value="">{loadingCentros ? 'Cargando...' : 'Seleccione un centro de costo'}</option>
-                    {centrosCosto.map(cc => (
-                      <option key={cc.id} value={cc.id}>{cc.nombre}</option>
-                    ))}
-                  </select>
-                  {mostrarValidacion && errores.centroCosto && (
-                    <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errores.centroCosto}
-                    </p>
-                  )}
+            {/* Distribución CC/CO */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+              {(loadingDistribucion || loadingCentros || loadingUnidades || loadingCuentas) ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <span className="ml-2 text-gray-600">Cargando datos...</span>
                 </div>
-
-                {/* Centro de Operación */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Centro de Operación (CO) <span className="text-red-600">*</span>
-                  </label>
-                  <select
-                    value={centroOperacion}
-                    onChange={(e) => setCentroOperacion(e.target.value)}
-                    disabled={!centroCosto || loadingCentros}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      mostrarValidacion && errores.centroOperacion ? 'border-red-500' : 'border-gray-300'
-                    } ${(!centroCosto || loadingCentros) ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
-                  >
-                    <option value="">
-                      {!centroCosto ? 'Primero seleccione un centro de costo' : 'Seleccione un centro de operación'}
-                    </option>
-                    {centrosOperacion.map(co => (
-                      <option key={co.id} value={co.id}>{co.nombre}</option>
-                    ))}
-                  </select>
-                  {mostrarValidacion && errores.centroOperacion && (
-                    <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      {errores.centroOperacion}
-                    </p>
-                  )}
-                </div>
-
-                {/* Unidad de Negocio */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Unidad de Negocio (UN)
-                  </label>
-                  <select
-                    value={unidadNegocio}
-                    onChange={(e) => setUnidadNegocio(e.target.value)}
-                    disabled={loadingUnidades}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 border-gray-300 ${
-                      loadingUnidades ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
-                    }`}
-                  >
-                    <option value="">{loadingUnidades ? 'Cargando...' : 'Seleccione una unidad de negocio (opcional)'}</option>
-                    {unidadesNegocio.map(un => (
-                      <option key={un.id} value={un.id}>{un.codigo} - {un.descripcion}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Cuenta Auxiliar */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Cuenta Auxiliar (CA)
-                  </label>
-                  <select
-                    value={cuentaAuxiliar}
-                    onChange={(e) => setCuentaAuxiliar(e.target.value)}
-                    disabled={loadingCuentas}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 border-gray-300 ${
-                      loadingCuentas ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
-                    }`}
-                  >
-                    <option value="">{loadingCuentas ? 'Cargando...' : 'Seleccione una cuenta auxiliar (opcional)'}</option>
-                    {cuentasAuxiliares.map(ca => (
-                      <option key={ca.id} value={ca.id}>{ca.codigo} - {ca.descripcion}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Botón único para guardar todo */}
-                <div className="pt-2">
-                  <button
-                    onClick={handleGuardarClasificacion}
-                    disabled={!centroCosto || !centroOperacion || savingCentros}
-                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all shadow-md ${
-                      (!centroCosto || !centroOperacion || savingCentros)
-                        ? 'bg-gray-400 cursor-not-allowed text-gray-700' 
-                        : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg text-white'
-                    }`}
-                  >
-                    {savingCentros ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Guardando...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Guardar Clasificación Contable
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
+              ) : (
+                <DistribucionCCCOTable
+                  facturaId={factura.id}
+                  distribuciones={distribuciones}
+                  centrosCosto={centrosCosto}
+                  centrosOperacion={centrosOperacion}
+                  unidadesNegocio={unidadesNegocio}
+                  cuentasAuxiliares={cuentasAuxiliares}
+                  onSave={handleGuardarDistribucion}
+                  saving={savingDistribucion}
+                />
+              )}
             </div>
 
             {/* ¿Requiere Inventario? */}

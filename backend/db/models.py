@@ -580,6 +580,12 @@ class Factura(Base, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin"
     )
+    distribucion_ccco: Mapped[List["FacturaDistribucionCCCO"]] = relationship(
+        "FacturaDistribucionCCCO",
+        back_populates="factura",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
     carpeta: Mapped[Optional["Carpeta"]] = relationship(
         "Carpeta",
         foreign_keys=[carpeta_id],
@@ -785,3 +791,85 @@ class FacturaInventarioCodigo(Base):
     
     def __repr__(self):
         return f"<FacturaInventarioCodigo(id={self.id}, factura_id={self.factura_id}, codigo={self.codigo})>"
+
+
+class FacturaDistribucionCCCO(Base, TimestampMixin):
+    """
+    Modelo para distribución de facturas entre múltiples CC/CO/UN/CA con porcentajes.
+    Permite dividir una factura en múltiples combinaciones de clasificación contable.
+    """
+    __tablename__ = "facturas_distribucion_ccco"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    factura_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facturas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    centro_costo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("centros_costo.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True
+    )
+    centro_operacion_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("centros_operacion.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True
+    )
+    unidad_negocio_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("unidades_negocio.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True
+    )
+    cuenta_auxiliar_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cuentas_auxiliares.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True
+    )
+    porcentaje: Mapped[float] = mapped_column(
+        Numeric(5, 2),
+        nullable=False
+    )
+    
+    # Relaciones
+    factura: Mapped["Factura"] = relationship(
+        "Factura",
+        back_populates="distribucion_ccco",
+        lazy="selectin"
+    )
+    centro_costo: Mapped["CentroCosto"] = relationship(
+        "CentroCosto",
+        lazy="selectin"
+    )
+    centro_operacion: Mapped["CentroOperacion"] = relationship(
+        "CentroOperacion",
+        lazy="selectin"
+    )
+    unidad_negocio: Mapped[Optional["UnidadNegocio"]] = relationship(
+        "UnidadNegocio",
+        lazy="selectin"
+    )
+    cuenta_auxiliar: Mapped[Optional["CuentaAuxiliar"]] = relationship(
+        "CuentaAuxiliar",
+        lazy="selectin"
+    )
+    
+    # Constraints
+    __table_args__ = (
+        CheckConstraint(
+            "porcentaje > 0 AND porcentaje <= 100",
+            name="check_porcentaje_valid"
+        ),
+    )
+    
+    def __repr__(self):
+        return f"<FacturaDistribucionCCCO(id={self.id}, factura_id={self.factura_id}, porcentaje={self.porcentaje})>"

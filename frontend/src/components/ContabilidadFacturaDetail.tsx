@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Download, FileText } from 'lucide-react';
-import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion } from '../lib/api';
-import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable, API_BASE_URL } from '../lib/api';
+import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, DistribucionCCCO, UnidadNegocio, CuentaAuxiliar } from '../lib/api';
+import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares } from '../lib/api';
 
 interface ContabilidadFacturaDetailProps {
   factura: FacturaListItem;
@@ -53,6 +53,14 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   // Estados para unidad de negocio y cuenta auxiliar
   const [unidadNegocio, setUnidadNegocio] = useState<string>('');
   const [cuentaAuxiliar, setCuentaAuxiliar] = useState<string>('');
+
+  // Estados para distribución CC/CO
+  const [distribuciones, setDistribuciones] = useState<DistribucionCCCO[]>([]);
+  const [loadingDistribucion, setLoadingDistribucion] = useState(true);
+  const [unidadesNegocio, setUnidadesNegocio] = useState<UnidadNegocio[]>([]);
+  const [cuentasAuxiliares, setCuentasAuxiliares] = useState<CuentaAuxiliar[]>([]);
+  const [centrosCostoCompletos, setCentrosCostoCompletos] = useState<CentroCosto[]>([]);
+  const [centrosOperacionCompletos, setCentrosOperacionCompletos] = useState<CentroOperacion[]>([]);
 
   // Estados para inventarios
   const [requiereInventario, setRequiereInventario] = useState(false);
@@ -181,6 +189,41 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
     setUnidadNegocio(factura.unidad_negocio || '');
     setCuentaAuxiliar(factura.cuenta_auxiliar || '');
   }, [factura]);
+
+  // Cargar distribución CC/CO y catálogos
+  useEffect(() => {
+    const cargarDistribucionYCatalogos = async () => {
+      try {
+        setLoadingDistribucion(true);
+        
+        const [dist, cc, un, ca] = await Promise.all([
+          getDistribucionCCCO(factura.id),
+          getCentrosCosto(true),
+          getUnidadesNegocio(true),
+          getCuentasAuxiliares(true)
+        ]);
+        
+        setDistribuciones(dist);
+        setCentrosCostoCompletos(cc);
+        setUnidadesNegocio(un);
+        setCuentasAuxiliares(ca);
+        
+        // Cargar todos los COs
+        const allCOs: CentroOperacion[] = [];
+        for (const centro of cc) {
+          const cos = await getCentrosOperacion(centro.id, true);
+          allCOs.push(...cos);
+        }
+        setCentrosOperacionCompletos(allCOs);
+      } catch (error) {
+        console.error('Error cargando distribución:', error);
+      } finally {
+        setLoadingDistribucion(false);
+      }
+    };
+
+    cargarDistribucionYCatalogos();
+  }, [factura.id]);
   
   // Calcular checklist de auditoría
   const calcularChecklist = (): ChecklistItem[] => {
@@ -566,69 +609,68 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                 )}
               </div>
 
-              {/* Centro de Costo y Operación */}
+              {/* Distribución CC/CO */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Centro de Costos / Operación</h4>
-                {loadingCentros ? (
-                  <div className="text-sm text-gray-500">Cargando centros...</div>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Centro de Costo (CC)
-                      </label>
-                      <input
-                        type="text"
-                        value={centroCosto?.nombre || 'No asignado'}
-                        disabled
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Centro de Operación (CO)
-                      </label>
-                      <input
-                        type="text"
-                        value={centroOperacion?.nombre || 'No asignado'}
-                        disabled
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                      />
+                <h4 className="text-gray-900 font-semibold mb-3">Distribución de Centros de Costo / Operación</h4>
+                {loadingDistribucion ? (
+                  <div className="text-sm text-gray-500">Cargando distribución...</div>
+                ) : distribuciones.length > 0 ? (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-gray-300">
+                            <th className="text-left py-2 px-3 font-semibold text-gray-700">Centro de Costo</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-700">Centro de Operación</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-700">Unidad de Negocio</th>
+                            <th className="text-left py-2 px-3 font-semibold text-gray-700">Cuenta Auxiliar</th>
+                            <th className="text-right py-2 px-3 font-semibold text-gray-700">Porcentaje</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {distribuciones.map((dist, index) => {
+                            const cc = centrosCostoCompletos.find(c => c.id === dist.centro_costo_id);
+                            const co = centrosOperacionCompletos.find(c => c.id === dist.centro_operacion_id);
+                            const un = dist.unidad_negocio_id ? unidadesNegocio.find(u => u.id === dist.unidad_negocio_id) : null;
+                            const ca = dist.cuenta_auxiliar_id ? cuentasAuxiliares.find(c => c.id === dist.cuenta_auxiliar_id) : null;
+                            
+                            return (
+                              <tr key={index} className="border-b border-gray-200 hover:bg-gray-100">
+                                <td className="py-2 px-3 text-gray-900">
+                                  {cc ? cc.nombre : 'N/A'}
+                                </td>
+                                <td className="py-2 px-3 text-gray-900">
+                                  {co ? co.nombre : 'N/A'}
+                                </td>
+                                <td className="py-2 px-3 text-gray-700">
+                                  {un ? `${un.codigo} - ${un.descripcion}` : '-'}
+                                </td>
+                                <td className="py-2 px-3 text-gray-700">
+                                  {ca ? `${ca.codigo} - ${ca.descripcion}` : '-'}
+                                </td>
+                                <td className="py-2 px-3 text-right font-medium text-gray-900">
+                                  {dist.porcentaje.toFixed(2)}%
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-gray-300 bg-gray-100">
+                            <td colSpan={4} className="py-2 px-3 text-right font-semibold text-gray-900">Total:</td>
+                            <td className="py-2 px-3 text-right font-bold text-gray-900">
+                              {distribuciones.reduce((sum, d) => sum + d.porcentaje, 0).toFixed(2)}%
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
                     </div>
                   </div>
+                ) : (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                    <p className="text-yellow-700 text-sm">No hay distribución configurada para esta factura</p>
+                  </div>
                 )}
-              </div>
-
-              {/* Unidad de Negocio */}
-              <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Unidad de Negocio</h4>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Unidad de Negocio (UN)
-                  </label>
-                  <input
-                    type="text"
-                    value={unidadNegocio || 'No asignado'}
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                  />
-                </div>
-              </div>
-
-              {/* Cuenta Auxiliar */}
-              <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Cuenta Auxiliar</h4>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Cuenta Auxiliar
-                  </label>
-                  <input
-                    type="text"
-                    value={cuentaAuxiliar || 'No asignado'}
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                  />
-                </div>
               </div>
 
               {/* Inventarios */}

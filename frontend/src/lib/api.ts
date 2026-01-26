@@ -478,6 +478,22 @@ export interface CuentaAuxiliar {
   updated_at: string;
 }
 
+export interface DistribucionCCCO {
+  id?: string;
+  factura_id?: string;
+  centro_costo_id: string;
+  centro_operacion_id: string;
+  unidad_negocio_id?: string | null;
+  cuenta_auxiliar_id?: string | null;
+  porcentaje: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface DistribucionBulkUpdate {
+  distribuciones: Omit<DistribucionCCCO, 'id' | 'factura_id' | 'created_at' | 'updated_at'>[];
+}
+
 /**
  * Obtener todos los centros de costo
  */
@@ -860,5 +876,34 @@ export async function asignarFacturaACarpeta(
   return fetchAPI<AsignarFacturaCarpetaResponse>(`/facturas/${facturaId}/carpeta`, {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Obtener distribución CC/CO de una factura
+ */
+export async function getDistribucionCCCO(facturaId: string): Promise<DistribucionCCCO[]> {
+  return fetchAPI<DistribucionCCCO[]>(`/facturas/${facturaId}/distribucion-ccco`);
+}
+
+/**
+ * Actualizar distribución CC/CO de una factura
+ */
+export async function updateDistribucionCCCO(
+  facturaId: string,
+  data: DistribucionBulkUpdate
+): Promise<DistribucionCCCO[]> {
+  return fetchAPI<DistribucionCCCO[]>(`/facturas/${facturaId}/distribucion-ccco`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Eliminar todas las distribuciones de una factura
+ */
+export async function deleteDistribucionCCCO(facturaId: string): Promise<void> {
+  return fetchAPI<void>(`/facturas/${facturaId}/distribucion-ccco`, {
+    method: 'DELETE',
   });
 }

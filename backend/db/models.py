@@ -277,6 +277,36 @@ class CentroOperacion(Base, TimestampMixin):
         return f"<CentroOperacion(id={self.id}, nombre={self.nombre})>"
 
 
+class UnidadNegocio(Base, TimestampMixin):
+    """Modelo de Unidades de Negocio."""
+    __tablename__ = "unidades_negocio"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    codigo: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        unique=True,
+        index=True
+    )
+    descripcion: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        index=True
+    )
+    activa: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True
+    )
+    
+    def __repr__(self):
+        return f"<UnidadNegocio(codigo={self.codigo}, descripcion={self.descripcion})>"
+
+
 class Carpeta(Base, TimestampMixin):
     """Modelo de carpetas para organizar facturas."""
     __tablename__ = "carpetas"

@@ -11,7 +11,7 @@ echo "================================================"
 echo ""
 
 # Variables
-REMOTE_PATH="/home/ubuntu/app"
+REMOTE_PATH="/home/ubuntu/CONTABILIDADCQ"
 DB_HOST="contabilidadcq.cfjkmqcfgzar.us-east-2.rds.amazonaws.com"
 DB_USER="postgres"
 DB_NAME="contabilidadcq"

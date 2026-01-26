@@ -529,7 +529,7 @@ export async function updateFacturaCentros(
  * Obtener todas las unidades de negocio
  */
 export async function getUnidadesNegocio(activasOnly: boolean = true): Promise<UnidadNegocio[]> {
-  return fetchAPI<UnidadNegocio[]>(`/api/v1/unidades-negocio?activas_only=${activasOnly}`);
+  return fetchAPI<UnidadNegocio[]>(`/unidades-negocio?activas_only=${activasOnly}`);
 }
 
 /**
@@ -554,7 +554,7 @@ export async function updateFacturaUnidadNegocio(
  * Obtener todas las cuentas auxiliares
  */
 export async function getCuentasAuxiliares(activasOnly: boolean = true): Promise<CuentaAuxiliar[]> {
-  return fetchAPI<CuentaAuxiliar[]>(`/api/v1/cuentas-auxiliares?activas_only=${activasOnly}`);
+  return fetchAPI<CuentaAuxiliar[]>(`/cuentas-auxiliares?activas_only=${activasOnly}`);
 }
 
 /**

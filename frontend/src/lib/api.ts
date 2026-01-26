@@ -89,6 +89,10 @@ export interface FacturaListItem {
   files: FileMiniOut[];
   carpeta_id: string | null;
   carpeta: CarpetaEnFactura | null;
+  unidad_negocio_id: string | null;
+  unidad_negocio: string | null;
+  cuenta_auxiliar_id: string | null;
+  cuenta_auxiliar: string | null;
 }
 
 export interface FacturasPaginatedResponse {
@@ -456,6 +460,24 @@ export interface CentroOperacion {
   updated_at: string;
 }
 
+export interface UnidadNegocio {
+  id: string;
+  codigo: string;
+  descripcion: string;
+  activa: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CuentaAuxiliar {
+  id: string;
+  codigo: string;
+  descripcion: string;
+  activa: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Obtener todos los centros de costo
  */
@@ -498,7 +520,58 @@ export async function updateFacturaCentros(
 ): Promise<UpdateCentrosResponse> {
   return fetchAPI<UpdateCentrosResponse>(`/facturas/${facturaId}/centros`, {
     method: 'PATCH',
-    body: JSON.stringify(data),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+}
+
+/**
+ * Obtener todas las unidades de negocio
+ */
+export async function getUnidadesNegocio(activasOnly: boolean = true): Promise<UnidadNegocio[]> {
+  return fetchAPI<UnidadNegocio[]>(`/unidades-negocio?activas_only=${activasOnly}`);
+}
+
+/**
+ * Actualizar unidad de negocio de una factura
+ */
+export interface UpdateUnidadNegocioRequest {
+  unidad_negocio_id: string | null;
+}
+
+export async function updateFacturaUnidadNegocio(
+  facturaId: string,
+  unidadNegocioId: string | null
+): Promise<void> {
+  await fetchAPI(`/facturas/${facturaId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ unidad_negocio_id: unidadNegocioId })
+  });
+}
+
+/**
+ * Obtener todas las cuentas auxiliares
+ */
+export async function getCuentasAuxiliares(activasOnly: boolean = true): Promise<CuentaAuxiliar[]> {
+  return fetchAPI<CuentaAuxiliar[]>(`/cuentas-auxiliares?activas_only=${activasOnly}`);
+}
+
+/**
+ * Actualizar cuenta auxiliar de una factura
+ */
+export interface UpdateCuentaAuxiliarRequest {
+  cuenta_auxiliar_id: string | null;
+}
+
+export async function updateFacturaCuentaAuxiliar(
+  facturaId: string,
+  cuentaAuxiliarId: string | null
+): Promise<void> {
+  await fetchAPI(`/facturas/${facturaId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cuenta_auxiliar_id: cuentaAuxiliarId })
   });
 }
 

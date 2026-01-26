@@ -50,6 +50,10 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   const [centroOperacion, setCentroOperacion] = useState<CentroOperacion | null>(null);
   const [loadingCentros, setLoadingCentros] = useState(true);
 
+  // Estados para unidad de negocio y cuenta auxiliar
+  const [unidadNegocio, setUnidadNegocio] = useState<string>('');
+  const [cuentaAuxiliar, setCuentaAuxiliar] = useState<string>('');
+
   // Estados para inventarios
   const [requiereInventario, setRequiereInventario] = useState(false);
   const [tipoIngreso, setTipoIngreso] = useState<'tienda' | 'almacen' | ''>('');
@@ -170,6 +174,12 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
     if (factura.intervalo_entrega_contabilidad) {
       setIntervaloEntrega(factura.intervalo_entrega_contabilidad);
     }
+  }, [factura]);
+
+  // Cargar unidad de negocio y cuenta auxiliar
+  useEffect(() => {
+    setUnidadNegocio(factura.unidad_negocio || '');
+    setCuentaAuxiliar(factura.cuenta_auxiliar || '');
   }, [factura]);
   
   // Calcular checklist de auditoría
@@ -587,6 +597,38 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Unidad de Negocio */}
+              <div>
+                <h4 className="text-gray-900 font-semibold mb-3">Unidad de Negocio</h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Unidad de Negocio (UN)
+                  </label>
+                  <input
+                    type="text"
+                    value={unidadNegocio || 'No asignado'}
+                    disabled
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+
+              {/* Cuenta Auxiliar */}
+              <div>
+                <h4 className="text-gray-900 font-semibold mb-3">Cuenta Auxiliar</h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cuenta Auxiliar
+                  </label>
+                  <input
+                    type="text"
+                    value={cuentaAuxiliar || 'No asignado'}
+                    disabled
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+                  />
+                </div>
               </div>
 
               {/* Inventarios */}

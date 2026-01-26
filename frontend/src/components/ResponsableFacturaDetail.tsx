@@ -1,12 +1,16 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, AlertCircle, Eye, Download, FileText, CheckCircle, Loader2 } from 'lucide-react';
-import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, InventariosData } from '../lib/api';
+import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, InventariosData, UnidadNegocio, CuentaAuxiliar } from '../lib/api';
 import { 
   uploadFacturaFile, 
   getFacturaFilesByDocType,
   getCentrosCosto,
   getCentrosOperacion,
   updateFacturaCentros,
+  getUnidadesNegocio,
+  updateFacturaUnidadNegocio,
+  getCuentasAuxiliares,
+  updateFacturaCuentaAuxiliar,
   getFacturaInventarios,
   updateFacturaInventarios,
   updateFacturaAnticipo,
@@ -66,6 +70,18 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [centrosOperacion, setCentrosOperacion] = useState<CentroOperacion[]>([]);
   const [loadingCentros, setLoadingCentros] = useState(true);
   const [savingCentros, setSavingCentros] = useState(false);
+
+  // Estados para Unidad de Negocio
+  const [unidadNegocio, setUnidadNegocio] = useState(factura.unidad_negocio_id || '');
+  const [unidadesNegocio, setUnidadesNegocio] = useState<UnidadNegocio[]>([]);
+  const [loadingUnidades, setLoadingUnidades] = useState(true);
+  const [savingUnidad, setSavingUnidad] = useState(false);
+
+  // Estados para Cuenta Auxiliar
+  const [cuentaAuxiliar, setCuentaAuxiliar] = useState(factura.cuenta_auxiliar_id || '');
+  const [cuentasAuxiliares, setCuentasAuxiliares] = useState<CuentaAuxiliar[]>([]);
+  const [loadingCuentas, setLoadingCuentas] = useState(true);
+  const [savingCuenta, setSavingCuenta] = useState(false);
 
   // Estados para Inventarios
   const [requiereInventario, setRequiereInventario] = useState(false);
@@ -151,6 +167,42 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     };
 
     cargarCentrosCosto();
+  }, []);
+
+  // Cargar unidades de negocio al montar el componente
+  useEffect(() => {
+    const cargarUnidadesNegocio = async () => {
+      try {
+        setLoadingUnidades(true);
+        const unidades = await getUnidadesNegocio(true);
+        setUnidadesNegocio(unidades);
+      } catch (error) {
+        console.error('Error cargando unidades de negocio:', error);
+        alert('Error al cargar unidades de negocio');
+      } finally {
+        setLoadingUnidades(false);
+      }
+    };
+
+    cargarUnidadesNegocio();
+  }, []);
+
+  // Cargar cuentas auxiliares al montar el componente
+  useEffect(() => {
+    const cargarCuentasAuxiliares = async () => {
+      try {
+        setLoadingCuentas(true);
+        const cuentas = await getCuentasAuxiliares(true);
+        setCuentasAuxiliares(cuentas);
+      } catch (error) {
+        console.error('Error cargando cuentas auxiliares:', error);
+        alert('Error al cargar cuentas auxiliares');
+      } finally {
+        setLoadingCuentas(false);
+      }
+    };
+
+    cargarCuentasAuxiliares();
   }, []);
 
   // Cargar centros de operación cuando se selecciona un centro de costo
@@ -267,13 +319,40 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         centro_costo_id: centroCosto,
         centro_operacion_id: centroOperacion
       });
-      
       alert('✅ Centros actualizados correctamente');
     } catch (error: any) {
       console.error('Error guardando centros:', error);
       alert(`❌ Error al guardar centros: ${error.message || 'Error desconocido'}`);
     } finally {
       setSavingCentros(false);
+    }
+  };
+
+  // Guardar unidad de negocio
+  const handleGuardarUnidad = async () => {
+    try {
+      setSavingUnidad(true);
+      await updateFacturaUnidadNegocio(factura.id, unidadNegocio || null);
+      alert('✅ Unidad de Negocio actualizada correctamente');
+    } catch (error: any) {
+      console.error('Error guardando unidad de negocio:', error);
+      alert(`❌ Error al guardar unidad de negocio: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setSavingUnidad(false);
+    }
+  };
+
+  // Guardar cuenta auxiliar
+  const handleGuardarCuenta = async () => {
+    try {
+      setSavingCuenta(true);
+      await updateFacturaCuentaAuxiliar(factura.id, cuentaAuxiliar || null);
+      alert('✅ Cuenta Auxiliar actualizada correctamente');
+    } catch (error: any) {
+      console.error('Error guardando cuenta auxiliar:', error);
+      alert(`❌ Error al guardar cuenta auxiliar: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setSavingCuenta(false);
     }
   };
 
@@ -1123,6 +1202,132 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                         Guardar Centros de Costo y Operación
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Unidad de Negocio */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-gray-900 font-semibold">Unidad de Negocio</h4>
+                {factura.unidad_negocio_id && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Asignado
+                  </span>
+                )}
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Unidad de Negocio (UN)
+                  </label>
+                  <select
+                    value={unidadNegocio}
+                    onChange={(e) => setUnidadNegocio(e.target.value)}
+                    disabled={loadingUnidades}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 border-gray-300 ${
+                      loadingUnidades ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <option value="">{loadingUnidades ? 'Cargando...' : 'Seleccione una unidad de negocio (opcional)'}</option>
+                    {unidadesNegocio.map(un => (
+                      <option key={un.id} value={un.id}>{un.codigo} - {un.descripcion}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Botón para guardar unidad */}
+                <div className="pt-2">
+                  <button
+                    onClick={handleGuardarUnidad}
+                    disabled={savingUnidad}
+                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all shadow-md ${
+                      savingUnidad
+                        ? 'bg-gray-400 cursor-not-allowed text-gray-700' 
+                        : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg text-white'
+                    }`}
+                  >
+                    {savingUnidad ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Guardar Unidad de Negocio
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Cuenta Auxiliar */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-gray-900 font-semibold">Cuenta Auxiliar</h4>
+                {factura.cuenta_auxiliar_id && (
+                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Asignado
+                  </span>
+                )}
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cuenta Auxiliar
+                  </label>
+                  <select
+                    value={cuentaAuxiliar}
+                    onChange={(e) => setCuentaAuxiliar(e.target.value)}
+                    disabled={loadingCuentas}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 border-gray-300 ${
+                      loadingCuentas ? 'bg-gray-100 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <option value="">{loadingCuentas ? 'Cargando...' : 'Seleccione una cuenta auxiliar (opcional)'}</option>
+                    {cuentasAuxiliares.map(ca => (
+                      <option key={ca.id} value={ca.id}>{ca.codigo} - {ca.descripcion}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Botón para guardar cuenta */}
+                <div className="pt-2">
+                  <button
+                    onClick={handleGuardarCuenta}
+                    disabled={savingCuenta}
+                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all shadow-md ${
+                      savingCuenta
+                        ? 'bg-gray-400 cursor-not-allowed text-gray-700' 
+                        : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg text-white'
+                    }`}
+                  >
+                    {savingCuenta ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Guardar Cuenta Auxiliar
                       </>
                     )}
                   </button>

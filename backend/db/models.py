@@ -303,8 +303,54 @@ class UnidadNegocio(Base, TimestampMixin):
         default=True
     )
     
+    # Relaciones
+    facturas: Mapped[List["Factura"]] = relationship(
+        "Factura",
+        back_populates="unidad_negocio",
+        foreign_keys="Factura.unidad_negocio_id",
+        lazy="selectin"
+    )
+    
     def __repr__(self):
         return f"<UnidadNegocio(codigo={self.codigo}, descripcion={self.descripcion})>"
+
+
+class CuentaAuxiliar(Base, TimestampMixin):
+    """Modelo de Cuentas Auxiliares contables."""
+    __tablename__ = "cuentas_auxiliares"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    codigo: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        unique=True,
+        index=True
+    )
+    descripcion: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+        index=True
+    )
+    activa: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True
+    )
+    
+    # Relaciones
+    facturas: Mapped[List["Factura"]] = relationship(
+        "Factura",
+        back_populates="cuenta_auxiliar",
+        foreign_keys="Factura.cuenta_auxiliar_id",
+        lazy="selectin"
+    )
+    
+    def __repr__(self):
+        return f"<CuentaAuxiliar(codigo={self.codigo}, descripcion={self.descripcion})>"
 
 
 class Carpeta(Base, TimestampMixin):
@@ -399,6 +445,12 @@ class Factura(Base, TimestampMixin):
         nullable=True,
         index=True
     )
+    unidad_negocio_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("unidades_negocio.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True
+    )
     total: Mapped[float] = mapped_column(
         Numeric(12, 2),
         nullable=False
@@ -468,6 +520,12 @@ class Factura(Base, TimestampMixin):
         Text,
         nullable=True
     )
+    cuenta_auxiliar_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cuentas_auxiliares.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True
+    )
     
     # Relaciones
     area: Mapped["Area"] = relationship(
@@ -525,6 +583,16 @@ class Factura(Base, TimestampMixin):
     carpeta: Mapped[Optional["Carpeta"]] = relationship(
         "Carpeta",
         foreign_keys=[carpeta_id],
+        lazy="selectin"
+    )
+    unidad_negocio: Mapped[Optional["UnidadNegocio"]] = relationship(
+        "UnidadNegocio",
+        foreign_keys=[unidad_negocio_id],
+        lazy="selectin"
+    )
+    cuenta_auxiliar: Mapped[Optional["CuentaAuxiliar"]] = relationship(
+        "CuentaAuxiliar",
+        foreign_keys=[cuenta_auxiliar_id],
         lazy="selectin"
     )
     

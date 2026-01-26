@@ -139,7 +139,11 @@ class FacturaService:
                 motivo_devolucion=f.motivo_devolucion,
                 files=files_out,
                 carpeta_id=f.carpeta_id,
-                carpeta=carpeta_out
+                carpeta=carpeta_out,
+                unidad_negocio_id=f.unidad_negocio_id,
+                unidad_negocio=f.unidad_negocio.codigo if f.unidad_negocio else None,
+                cuenta_auxiliar_id=f.cuenta_auxiliar_id,
+                cuenta_auxiliar=f.cuenta_auxiliar.codigo if f.cuenta_auxiliar else None
             ))
         
         page = (skip // limit) + 1 if limit > 0 else 1

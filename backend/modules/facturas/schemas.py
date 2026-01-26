@@ -42,6 +42,8 @@ class FacturaCreate(BaseModel):
         default=False,
         description="Indica si es un gasto administrativo (omite validación de OC y APROBACIÓN)"
     )
+    unidad_negocio_id: Optional[UUID] = Field(None, description="ID de la unidad de negocio")
+    cuenta_auxiliar_id: Optional[UUID] = Field(None, description="ID de la cuenta auxiliar")
 
 
 class FacturaUpdate(BaseModel):
@@ -52,6 +54,8 @@ class FacturaUpdate(BaseModel):
     centro_costo_id: Optional[UUID] = None
     centro_operacion_id: Optional[UUID] = None
     es_gasto_adm: Optional[bool] = None
+    unidad_negocio_id: Optional[UUID] = None
+    cuenta_auxiliar_id: Optional[UUID] = None
 
 
 class AsignarCarpetaRequest(BaseModel):
@@ -115,6 +119,10 @@ class FacturaListItem(BaseModel):
     files: List[FileMiniOut] = []
     carpeta_id: Optional[UUID] = None
     carpeta: Optional[CarpetaEnFactura] = None
+    unidad_negocio_id: Optional[UUID] = None
+    unidad_negocio: Optional[str] = None
+    cuenta_auxiliar_id: Optional[UUID] = None
+    cuenta_auxiliar: Optional[str] = None
     
     model_config = {"from_attributes": True}
 

@@ -21,7 +21,9 @@ class FacturaRepository:
         # Construir query base con eager loading de files e inventario_codigos
         query = select(Factura).options(
             selectinload(Factura.files),
-            selectinload(Factura.inventario_codigos)
+            selectinload(Factura.inventario_codigos),
+            selectinload(Factura.unidad_negocio),
+            selectinload(Factura.cuenta_auxiliar)
         )
         count_query = select(func.count(Factura.id))
         

@@ -19,12 +19,11 @@ from .schemas import (
 
 
 router = APIRouter(
-    prefix="/cuentas-auxiliares",
     tags=["Cuentas Auxiliares"]
 )
 
 
-@router.get("/", response_model=List[CuentaAuxiliarList])
+@router.get("/cuentas-auxiliares", response_model=List[CuentaAuxiliarList])
 async def get_cuentas_auxiliares(
     activas_only: bool = Query(False, description="Filtrar solo cuentas activas"),
     db: AsyncSession = Depends(get_db),
@@ -39,7 +38,7 @@ async def get_cuentas_auxiliares(
     return await service.get_all(activas_only=activas_only)
 
 
-@router.get("/{cuenta_id}", response_model=CuentaAuxiliarResponse)
+@router.get("/cuentas-auxiliares/{cuenta_id}", response_model=CuentaAuxiliarResponse)
 async def get_cuenta_auxiliar(
     cuenta_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -50,7 +49,7 @@ async def get_cuenta_auxiliar(
     return await service.get_by_id(cuenta_id)
 
 
-@router.post("/", response_model=CuentaAuxiliarResponse, status_code=201)
+@router.post("/cuentas-auxiliares", response_model=CuentaAuxiliarResponse, status_code=201)
 async def create_cuenta_auxiliar(
     cuenta_data: CuentaAuxiliarCreate,
     db: AsyncSession = Depends(get_db),
@@ -61,7 +60,7 @@ async def create_cuenta_auxiliar(
     return await service.create(cuenta_data)
 
 
-@router.put("/{cuenta_id}", response_model=CuentaAuxiliarResponse)
+@router.put("/cuentas-auxiliares/{cuenta_id}", response_model=CuentaAuxiliarResponse)
 async def update_cuenta_auxiliar(
     cuenta_id: UUID,
     cuenta_data: CuentaAuxiliarUpdate,
@@ -73,7 +72,7 @@ async def update_cuenta_auxiliar(
     return await service.update(cuenta_id, cuenta_data)
 
 
-@router.delete("/{cuenta_id}", status_code=204)
+@router.delete("/cuentas-auxiliares/{cuenta_id}", status_code=204)
 async def delete_cuenta_auxiliar(
     cuenta_id: UUID,
     db: AsyncSession = Depends(get_db),

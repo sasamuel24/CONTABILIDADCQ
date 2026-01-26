@@ -34,25 +34,44 @@ async def clean_facturas():
     
     try:
         async with AsyncSessionLocal() as session:
+            # Verificar qué tablas existen
+            print("\n📊 Verificando tablas existentes...")
+            tables_check = await session.execute(text("""
+                SELECT table_name 
+                FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name IN ('facturas', 'files', 'factura_asignaciones', 'factura_inventario_codigo')
+            """))
+            existing_tables = {row[0] for row in tables_check.fetchall()}
+            print(f"  Tablas encontradas: {', '.join(existing_tables) if existing_tables else 'ninguna'}")
+            
             # Contar registros antes de eliminar
             print("\n📊 Contando registros actuales...")
             
-            result_facturas = await session.execute(text("SELECT COUNT(*) FROM facturas"))
-            count_facturas = result_facturas.scalar()
+            count_facturas = 0
+            count_files = 0
+            count_asignaciones = 0
+            count_codigos = 0
             
-            result_files = await session.execute(text("SELECT COUNT(*) FROM files WHERE factura_id IS NOT NULL"))
-            count_files = result_files.scalar()
+            if 'facturas' in existing_tables:
+                result_facturas = await session.execute(text("SELECT COUNT(*) FROM facturas"))
+                count_facturas = result_facturas.scalar()
+                print(f"  - Facturas: {count_facturas}")
             
-            result_asignaciones = await session.execute(text("SELECT COUNT(*) FROM factura_asignaciones"))
-            count_asignaciones = result_asignaciones.scalar()
+            if 'files' in existing_tables:
+                result_files = await session.execute(text("SELECT COUNT(*) FROM files WHERE factura_id IS NOT NULL"))
+                count_files = result_files.scalar()
+                print(f"  - Archivos adjuntos: {count_files}")
             
-            result_codigos = await session.execute(text("SELECT COUNT(*) FROM inventarios_codigos"))
-            count_codigos = result_codigos.scalar()
+            if 'factura_asignaciones' in existing_tables:
+                result_asignaciones = await session.execute(text("SELECT COUNT(*) FROM factura_asignaciones"))
+                count_asignaciones = result_asignaciones.scalar()
+                print(f"  - Asignaciones: {count_asignaciones}")
             
-            print(f"  - Facturas: {count_facturas}")
-            print(f"  - Archivos adjuntos: {count_files}")
-            print(f"  - Asignaciones: {count_asignaciones}")
-            print(f"  - Códigos de inventario: {count_codigos}")
+            if 'factura_inventario_codigo' in existing_tables:
+                result_codigos = await session.execute(text("SELECT COUNT(*) FROM factura_inventario_codigo"))
+                count_codigos = result_codigos.scalar()
+                print(f"  - Códigos de inventario: {count_codigos}")
             
             if count_facturas == 0:
                 print("\n✅ No hay facturas para eliminar.")
@@ -67,21 +86,25 @@ async def clean_facturas():
             # Eliminar en orden (respetando foreign keys)
             print("\n🗑️  Eliminando datos...")
             
-            # 1. Códigos de inventarios
-            await session.execute(text("DELETE FROM inventarios_codigos"))
-            print("  ✓ Códigos de inventario eliminados")
+            # 1. Códigos de inventarios (si existe la tabla)
+            if 'factura_inventario_codigo' in existing_tables:
+                await session.execute(text("DELETE FROM factura_inventario_codigo"))
+                print("  ✓ Códigos de inventario eliminados")
             
-            # 2. Asignaciones de facturas
-            await session.execute(text("DELETE FROM factura_asignaciones"))
-            print("  ✓ Asignaciones eliminadas")
+            # 2. Asignaciones de facturas (si existe la tabla)
+            if 'factura_asignaciones' in existing_tables:
+                await session.execute(text("DELETE FROM factura_asignaciones"))
+                print("  ✓ Asignaciones eliminadas")
             
-            # 3. Archivos asociados a facturas
-            await session.execute(text("DELETE FROM files WHERE factura_id IS NOT NULL"))
-            print("  ✓ Archivos eliminados")
+            # 3. Archivos asociados a facturas (si existe la tabla)
+            if 'files' in existing_tables:
+                await session.execute(text("DELETE FROM files WHERE factura_id IS NOT NULL"))
+                print("  ✓ Archivos eliminados")
             
             # 4. Facturas
-            await session.execute(text("DELETE FROM facturas"))
-            print("  ✓ Facturas eliminadas")
+            if 'facturas' in existing_tables:
+                await session.execute(text("DELETE FROM facturas"))
+                print("  ✓ Facturas eliminadas")
             
             # Commit de los cambios
             await session.commit()

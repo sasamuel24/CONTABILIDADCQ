@@ -306,52 +306,38 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     cargarAnticipo();
   }, [factura.id, factura.tiene_anticipo, factura.porcentaje_anticipo, factura.intervalo_entrega_contabilidad]);
 
-  // Guardar centros cuando cambien
-  const handleGuardarCentros = async () => {
+  // Guardar todos los campos de clasificación (CC, CO, UN, CA)
+  const handleGuardarClasificacion = async () => {
     if (!centroCosto || !centroOperacion) {
-      alert('Debe seleccionar ambos centros');
+      alert('Debe seleccionar Centro de Costo y Centro de Operación');
       return;
     }
 
     try {
       setSavingCentros(true);
+      setSavingUnidad(true);
+      setSavingCuenta(true);
+
+      // Guardar centros (obligatorios)
       await updateFacturaCentros(factura.id, {
         centro_costo_id: centroCosto,
         centro_operacion_id: centroOperacion
       });
-      alert('✅ Centros actualizados correctamente');
+
+      // Guardar unidad de negocio (opcional)
+      await updateFacturaUnidadNegocio(factura.id, unidadNegocio || null);
+
+      // Guardar cuenta auxiliar (opcional)
+      await updateFacturaCuentaAuxiliar(factura.id, cuentaAuxiliar || null);
+
+      alert('✅ Clasificación actualizada correctamente');
+      
     } catch (error: any) {
-      console.error('Error guardando centros:', error);
-      alert(`❌ Error al guardar centros: ${error.message || 'Error desconocido'}`);
+      console.error('Error guardando clasificación:', error);
+      alert(`❌ Error al guardar: ${error.message || 'Error desconocido'}`);
     } finally {
       setSavingCentros(false);
-    }
-  };
-
-  // Guardar unidad de negocio
-  const handleGuardarUnidad = async () => {
-    try {
-      setSavingUnidad(true);
-      await updateFacturaUnidadNegocio(factura.id, unidadNegocio || null);
-      alert('✅ Unidad de Negocio actualizada correctamente');
-    } catch (error: any) {
-      console.error('Error guardando unidad de negocio:', error);
-      alert(`❌ Error al guardar unidad de negocio: ${error.message || 'Error desconocido'}`);
-    } finally {
       setSavingUnidad(false);
-    }
-  };
-
-  // Guardar cuenta auxiliar
-  const handleGuardarCuenta = async () => {
-    try {
-      setSavingCuenta(true);
-      await updateFacturaCuentaAuxiliar(factura.id, cuentaAuxiliar || null);
-      alert('✅ Cuenta Auxiliar actualizada correctamente');
-    } catch (error: any) {
-      console.error('Error guardando cuenta auxiliar:', error);
-      alert(`❌ Error al guardar cuenta auxiliar: ${error.message || 'Error desconocido'}`);
-    } finally {
       setSavingCuenta(false);
     }
   };
@@ -1111,21 +1097,21 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               )}
             </div>
 
-            {/* Centro de Costo y Operación (OBLIGATORIOS) */}
+            {/* Clasificación Contable (CC, CO, UN, CA) - BLOQUE UNIFICADO */}
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-gray-900 font-semibold">Centro de Costos / Operación</h4>
-                {factura.centro_costo_id && factura.centro_operacion_id && (
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-gray-900 font-semibold text-lg">Clasificación Contable</h4>
+                {factura.centro_costo_id && factura.centro_operacion_id && factura.unidad_negocio_id && factura.cuenta_auxiliar_id && (
+                  <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full flex items-center gap-1 font-medium">
                     <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    Asignado
+                    Completo
                   </span>
                 )}
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-4 bg-gray-50 p-4 rounded-lg">
                 {/* Centro de Costo */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1137,7 +1123,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                     disabled={loadingCentros}
                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       mostrarValidacion && errores.centroCosto ? 'border-red-500' : 'border-gray-300'
-                    } ${loadingCentros ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    } ${loadingCentros ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                   >
                     <option value="">{loadingCentros ? 'Cargando...' : 'Seleccione un centro de costo'}</option>
                     {centrosCosto.map(cc => (
@@ -1163,7 +1149,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                     disabled={!centroCosto || loadingCentros}
                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       mostrarValidacion && errores.centroOperacion ? 'border-red-500' : 'border-gray-300'
-                    } ${(!centroCosto || loadingCentros) ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    } ${(!centroCosto || loadingCentros) ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}`}
                   >
                     <option value="">
                       {!centroCosto ? 'Primero seleccione un centro de costo' : 'Seleccione un centro de operación'}
@@ -1180,10 +1166,50 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   )}
                 </div>
 
-                {/* Botón para guardar centros - MÁS DESTACADO */}
+                {/* Unidad de Negocio */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Unidad de Negocio (UN)
+                  </label>
+                  <select
+                    value={unidadNegocio}
+                    onChange={(e) => setUnidadNegocio(e.target.value)}
+                    disabled={loadingUnidades}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 border-gray-300 ${
+                      loadingUnidades ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
+                    }`}
+                  >
+                    <option value="">{loadingUnidades ? 'Cargando...' : 'Seleccione una unidad de negocio (opcional)'}</option>
+                    {unidadesNegocio.map(un => (
+                      <option key={un.id} value={un.id}>{un.codigo} - {un.descripcion}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Cuenta Auxiliar */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Cuenta Auxiliar (CA)
+                  </label>
+                  <select
+                    value={cuentaAuxiliar}
+                    onChange={(e) => setCuentaAuxiliar(e.target.value)}
+                    disabled={loadingCuentas}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 border-gray-300 ${
+                      loadingCuentas ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
+                    }`}
+                  >
+                    <option value="">{loadingCuentas ? 'Cargando...' : 'Seleccione una cuenta auxiliar (opcional)'}</option>
+                    {cuentasAuxiliares.map(ca => (
+                      <option key={ca.id} value={ca.id}>{ca.codigo} - {ca.descripcion}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Botón único para guardar todo */}
                 <div className="pt-2">
                   <button
-                    onClick={handleGuardarCentros}
+                    onClick={handleGuardarClasificacion}
                     disabled={!centroCosto || !centroOperacion || savingCentros}
                     className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all shadow-md ${
                       (!centroCosto || !centroOperacion || savingCentros)
@@ -1201,133 +1227,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        Guardar Centros de Costo y Operación
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Unidad de Negocio */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-gray-900 font-semibold">Unidad de Negocio</h4>
-                {factura.unidad_negocio_id && (
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Asignado
-                  </span>
-                )}
-              </div>
-              
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Unidad de Negocio (UN)
-                  </label>
-                  <select
-                    value={unidadNegocio}
-                    onChange={(e) => setUnidadNegocio(e.target.value)}
-                    disabled={loadingUnidades}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 border-gray-300 ${
-                      loadingUnidades ? 'bg-gray-100 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    <option value="">{loadingUnidades ? 'Cargando...' : 'Seleccione una unidad de negocio (opcional)'}</option>
-                    {unidadesNegocio.map(un => (
-                      <option key={un.id} value={un.id}>{un.codigo} - {un.descripcion}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Botón para guardar unidad */}
-                <div className="pt-2">
-                  <button
-                    onClick={handleGuardarUnidad}
-                    disabled={savingUnidad}
-                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all shadow-md ${
-                      savingUnidad
-                        ? 'bg-gray-400 cursor-not-allowed text-gray-700' 
-                        : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg text-white'
-                    }`}
-                  >
-                    {savingUnidad ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Guardando...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Guardar Unidad de Negocio
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Cuenta Auxiliar */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-gray-900 font-semibold">Cuenta Auxiliar</h4>
-                {factura.cuenta_auxiliar_id && (
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full flex items-center gap-1">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Asignado
-                  </span>
-                )}
-              </div>
-              
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Cuenta Auxiliar
-                  </label>
-                  <select
-                    value={cuentaAuxiliar}
-                    onChange={(e) => setCuentaAuxiliar(e.target.value)}
-                    disabled={loadingCuentas}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 border-gray-300 ${
-                      loadingCuentas ? 'bg-gray-100 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    <option value="">{loadingCuentas ? 'Cargando...' : 'Seleccione una cuenta auxiliar (opcional)'}</option>
-                    {cuentasAuxiliares.map(ca => (
-                      <option key={ca.id} value={ca.id}>{ca.codigo} - {ca.descripcion}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Botón para guardar cuenta */}
-                <div className="pt-2">
-                  <button
-                    onClick={handleGuardarCuenta}
-                    disabled={savingCuenta}
-                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all shadow-md ${
-                      savingCuenta
-                        ? 'bg-gray-400 cursor-not-allowed text-gray-700' 
-                        : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg text-white'
-                    }`}
-                  >
-                    {savingCuenta ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Guardando...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Guardar Cuenta Auxiliar
+                        Guardar Clasificación Contable
                       </>
                     )}
                   </button>

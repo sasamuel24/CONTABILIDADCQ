@@ -12,10 +12,10 @@ echo ""
 
 # Variables
 REMOTE_PATH="/home/ubuntu/CONTABILIDADCQ"
-DB_HOST="contabilidadcq.cfjkmqcfgzar.us-east-2.rds.amazonaws.com"
+DB_HOST="database-1.chgqoo4oaal4.us-east-2.rds.amazonaws.com"
 DB_USER="postgres"
 DB_NAME="contabilidadcq"
-DB_PASSWORD="C0ntabilidad2024!"
+DB_PASSWORD="Samuel22."
 
 echo "[PASO 1] Actualizar código desde GitHub"
 cd $REMOTE_PATH

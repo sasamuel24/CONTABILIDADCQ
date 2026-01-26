@@ -9,6 +9,11 @@ from pathlib import Path
 # Agregar el directorio raíz al path para importar módulos
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Cargar variables de entorno desde .env
+from dotenv import load_dotenv
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
 import asyncio
 from sqlalchemy import text
 from db.session import AsyncSessionLocal

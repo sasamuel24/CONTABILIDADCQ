@@ -6,6 +6,7 @@ import {
   updateFactura,
   getFacturaFilesByDocType,
   API_BASE_URL,
+  downloadFileById,
   type FacturaListItem,
   type Area,
   type FacturaUpdate,
@@ -15,6 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ResponsableFacturaDetail } from './ResponsableFacturaDetail';
 import { ContabilidadFacturaDetail } from './ContabilidadFacturaDetail';
 import { TesoreriaFacturaDetail } from './TesoreriaFacturaDetail';
+import { FilePreviewModal } from './FilePreviewModal';
 
 interface AreaWithCount extends Area {
   count: number;
@@ -47,6 +49,7 @@ export function InboxView() {
   const [error, setError] = useState<string | null>(null);
   const [soportePagoFiles, setSoportePagoFiles] = useState<FileMiniOut[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
   const itemsPerPage = 10;
 
   // Cargar datos iniciales
@@ -146,6 +149,27 @@ export function InboxView() {
       }
     } catch (err) {
       console.error('Error al descargar archivo:', err);
+      alert('Error al descargar el archivo');
+    }
+  };
+
+  const handlePreviewFile = (file: FileMiniOut) => {
+    setPreviewFile(file);
+  };
+
+  const handleDownloadById = async (file: FileMiniOut) => {
+    try {
+      const blob = await downloadFileById(file.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error descargando archivo:', error);
       alert('Error al descargar el archivo');
     }
   };
@@ -551,22 +575,31 @@ export function InboxView() {
                               </div>
                             </div>
                           </div>
-                          {file.storage_path ? (
+                          <div className="flex items-center gap-2">
                             <button
-                              onClick={() => handleDownloadFile(file.storage_provider || 's3', file.storage_path || '', file.filename)}
-                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                              title="Descargar archivo"
+                              onClick={() => handlePreviewFile(file)}
+                              className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Vista previa"
                             >
-                              <Download className="w-4 h-4 text-green-600" />
+                              <Eye className="w-4 h-4 text-blue-600" />
                             </button>
-                          ) : (
-                            <button 
-                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors opacity-50 cursor-not-allowed"
-                              title="Archivo no disponible"
-                            >
-                              <Download className="w-4 h-4 text-gray-400" />
-                            </button>
-                          )}
+                            {file.storage_path ? (
+                              <button
+                                onClick={() => handleDownloadFile(file.storage_provider || 's3', file.storage_path || '', file.filename)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Descargar archivo"
+                              >
+                                <Download className="w-4 h-4 text-green-600" />
+                              </button>
+                            ) : (
+                              <button 
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors opacity-50 cursor-not-allowed"
+                                title="Archivo no disponible"
+                              >
+                                <Download className="w-4 h-4 text-gray-400" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -623,6 +656,19 @@ export function InboxView() {
             </>
           )}
         </>
+      )}
+
+      {/* Modal de vista previa */}
+      {previewFile && selectedFactura && (
+        <FilePreviewModal
+          fileId={previewFile.id}
+          filename={previewFile.filename}
+          contentType={previewFile.content_type}
+          storagePath={previewFile.storage_path}
+          facturaId={selectedFactura.id}
+          onClose={() => setPreviewFile(null)}
+          onDownload={() => handleDownloadById(previewFile)}
+        />
       )}
     </div>
   );

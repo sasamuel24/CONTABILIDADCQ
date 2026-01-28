@@ -233,24 +233,45 @@ async def download_file(
     )
 
 
+@router.get("/files/{file_id}/preview")
+async def preview_file(
+    file_id: UUID,
+    service: FileService = Depends(get_file_service)
+):
+    """Muestra vista previa de un archivo específico por su ID (inline, sin forzar descarga)."""
+    content, content_type, filename = await service.get_file_content(file_id)
+    
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"'
+        }
+    )
+
+
 @router.get("/facturas/{factura_id}/files/download")
 async def download_file_by_key(
     factura_id: UUID,
     key: str = Query(..., description="S3 key del archivo"),
+    inline: bool = Query(False, description="Si es True, muestra inline en lugar de forzar descarga"),
     service: FileService = Depends(get_file_service)
 ):
     """
     Descarga un archivo directamente desde S3 usando su key.
     Endpoint proxy para evitar problemas con presigned URLs.
+    Si inline=True, muestra el archivo en el navegador en lugar de descargarlo.
     """
     try:
         content, filename, content_type = await service.download_from_s3(key)
+        
+        disposition = 'inline' if inline else 'attachment'
         
         return Response(
             content=content,
             media_type=content_type,
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"'
+                "Content-Disposition": f'{disposition}; filename="{filename}"'
             }
         )
     except Exception as e:

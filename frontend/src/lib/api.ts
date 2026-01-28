@@ -438,6 +438,40 @@ export async function downloadFacturaFile(
   return response.blob();
 }
 
+/**
+ * Descargar archivo por ID (para descarga directa)
+ */
+export async function downloadFileById(fileId: string): Promise<Blob> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error('No hay token de autenticación');
+  }
+
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/files/${fileId}`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.detail || 'Error al descargar el archivo');
+  }
+
+  return response.blob();
+}
+
+/**
+ * Obtener URL de vista previa de un archivo por ID
+ */
+export function getFilePreviewUrl(fileId: string): string {
+  return `${API_BASE_URL}/api/v1/files/${fileId}/preview`;
+}
+
 // ============================================
 // CENTROS DE COSTO Y OPERACIÓN
 // ============================================

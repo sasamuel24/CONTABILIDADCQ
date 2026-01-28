@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Download, FileText } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Download, FileText, Eye } from 'lucide-react';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, DistribucionCCCO, UnidadNegocio, CuentaAuxiliar } from '../lib/api';
-import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares } from '../lib/api';
+import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares, downloadFileById } from '../lib/api';
+import { FilePreviewModal } from './FilePreviewModal';
 
 interface ContabilidadFacturaDetailProps {
   factura: FacturaListItem;
@@ -80,6 +81,9 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   const [tieneAnticipo, setTieneAnticipo] = useState(false);
   const [porcentajeAnticipo, setPorcentajeAnticipo] = useState('');
   const [intervaloEntrega, setIntervaloEntrega] = useState('');
+
+  // Estados para vista previa
+  const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
 
   // Cargar archivos existentes
   useEffect(() => {
@@ -372,6 +376,27 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
     }
   };
 
+  const handlePreviewFile = (file: FileMiniOut) => {
+    setPreviewFile(file);
+  };
+
+  const handleDownloadById = async (file: FileMiniOut) => {
+    try {
+      const blob = await downloadFileById(file.id);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error descargando archivo:', error);
+      alert('Error al descargar el archivo');
+    }
+  };
+
   return (
     <>
       {/* Overlay */}
@@ -581,22 +606,31 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                               </div>
                             </div>
                           </div>
-                          {file.storage_path ? (
+                          <div className="flex items-center gap-2">
                             <button
-                              onClick={() => handleDownloadFile(file.storage_provider || 's3', file.storage_path || '', file.filename)}
-                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                              title="Descargar archivo"
+                              onClick={() => handlePreviewFile(file)}
+                              className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Vista previa"
                             >
-                              <Download className="w-4 h-4 text-green-600" />
+                              <Eye className="w-4 h-4 text-blue-600" />
                             </button>
-                          ) : (
-                            <button 
-                              className="p-2 hover:bg-gray-100 rounded-lg transition-colors opacity-50 cursor-not-allowed"
-                              title="Archivo no disponible"
-                            >
-                              <Download className="w-4 h-4 text-gray-400" />
-                            </button>
-                          )}
+                            {file.storage_path ? (
+                              <button
+                                onClick={() => handleDownloadFile(file.storage_provider || 's3', file.storage_path || '', file.filename)}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Descargar archivo"
+                              >
+                                <Download className="w-4 h-4 text-green-600" />
+                              </button>
+                            ) : (
+                              <button 
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors opacity-50 cursor-not-allowed"
+                                title="Archivo no disponible"
+                              >
+                                <Download className="w-4 h-4 text-gray-400" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -932,6 +966,19 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de vista previa */}
+      {previewFile && (
+        <FilePreviewModal
+          fileId={previewFile.id}
+          filename={previewFile.filename}
+          contentType={previewFile.content_type}
+          storagePath={previewFile.storage_path}
+          facturaId={factura.id}
+          onClose={() => setPreviewFile(null)}
+          onDownload={() => handleDownloadById(previewFile)}
+        />
       )}
     </>
   );

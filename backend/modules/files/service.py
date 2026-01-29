@@ -9,8 +9,9 @@ from core.config import settings
 from fastapi import HTTPException, status, UploadFile
 from uuid import UUID
 from pathlib import Path
-import re
 from datetime import datetime, timezone
+import mimetypes
+import re
 import os
 
 
@@ -40,6 +41,38 @@ class FileService:
     
     def __init__(self, repository: FileRepository):
         self.repository = repository
+    
+    def _detect_content_type(self, filename: str) -> str:
+        """
+        Detecta el content_type basado en la extensión del archivo.
+        
+        Args:
+            filename: Nombre del archivo con extensión
+            
+        Returns:
+            str: content_type detectado o 'application/octet-stream' si no se puede detectar
+        """
+        # Inicializar mimetypes si no está hecho
+        if not mimetypes.inited:
+            mimetypes.init()
+        
+        # Obtener el content_type basado en la extensión
+        content_type, _ = mimetypes.guess_type(filename)
+        
+        # Si no se detecta, usar un valor por defecto
+        if not content_type:
+            # Mapeo manual para extensiones comunes
+            ext = Path(filename).suffix.lower()
+            manual_map = {
+                '.jpg': 'image/jpeg',
+                '.jpeg': 'image/jpeg',
+                '.png': 'image/png',
+                '.pdf': 'application/pdf',
+                '.webp': 'image/webp'
+            }
+            content_type = manual_map.get(ext, 'application/octet-stream')
+        
+        return content_type
     
     async def register_file_metadata(
         self, 
@@ -145,7 +178,21 @@ class FileService:
             content = file_path.read_bytes()
             return content, file.content_type, file.filename
         
-        # TODO: Implementar para S3 y Google Drive
+        # Descargar desde S3
+        if file.storage_provider == "s3":
+            try:
+                from core.s3_service import s3_service
+                logger.info(f"Descargando archivo desde S3: {file.storage_path}")
+                content, content_type = s3_service.get_file_with_metadata(file.storage_path)
+                return content, content_type, file.filename
+            except Exception as e:
+                logger.error(f"Error descargando desde S3: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Error al descargar el archivo desde S3"
+                )
+        
+        # Otros proveedores no implementados
         raise HTTPException(
             status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=f"Storage provider '{file.storage_provider}' no implementado"
@@ -299,19 +346,7 @@ class FileService:
             self.ALLOWED_EXTENSIONS["default"]
         )
         
-        # Validación 2: tipo de archivo
-        if file.content_type not in allowed_content_types:
-            logger.warning(f"Tipo de archivo inválido: {file.content_type} para doc_type: {doc_type}")
-            allowed_types_str = ", ".join(sorted(allowed_content_types))
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "code": "bad_request", 
-                    "message": f"Para {doc_type} solo se permiten: {allowed_types_str}"
-                }
-            )
-        
-        # Validación 3: extensión de archivo
+        # Validación 2: extensión de archivo (primero)
         if not file.filename:
             logger.warning("Filename no proporcionado")
             raise HTTPException(
@@ -330,6 +365,24 @@ class FileService:
                     "message": f"Para {doc_type} solo se permiten extensiones: {allowed_ext_str}"
                 }
             )
+        
+        # Detectar content_type automáticamente si el que viene del navegador no es válido
+        detected_content_type = self._detect_content_type(file.filename)
+        actual_content_type = file.content_type if file.content_type in allowed_content_types else detected_content_type
+        
+        # Validación 3: tipo de archivo (después de la detección)
+        if actual_content_type not in allowed_content_types:
+            logger.warning(f"Tipo de archivo inválido: {actual_content_type} (original: {file.content_type}) para doc_type: {doc_type}")
+            allowed_types_str = ", ".join(sorted(allowed_content_types))
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "code": "bad_request", 
+                    "message": f"Para {doc_type} solo se permiten: {allowed_types_str}"
+                }
+            )
+        
+        logger.info(f"Content-type detectado: {actual_content_type} (original: {file.content_type})")
         
         # Validación 4: verificar duplicado
         existing_file = await self.repository.get_by_factura_and_doc_type(
@@ -367,7 +420,7 @@ class FileService:
                 s3_metadata = s3_service.upload_fileobj(
                     fileobj=file_bytes_io,
                     key=s3_key,
-                    content_type=file.content_type
+                    content_type=actual_content_type
                 )
                 
                 # Generar URL prefirmada (válida 10 minutos)
@@ -438,7 +491,7 @@ class FileService:
                     "storage_provider": "local",
                     "storage_path": str(file_path),
                     "filename": new_filename,
-                    "content_type": file.content_type,
+                    "content_type": actual_content_type,
                     "size_bytes": len(content),
                     "uploaded_by_user_id": uploaded_by_user_id
                 }

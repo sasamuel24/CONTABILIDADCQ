@@ -27,6 +27,7 @@ export function FilePreviewModal({
     : `${API_BASE_URL}/api/v1/files/${fileId}/preview`;
 
   const isPDF = contentType === 'application/pdf';
+  const isImage = contentType?.startsWith('image/');
   
   // URL con zoom optimizado para PDFs
   const previewUrl = isPDF 
@@ -80,6 +81,20 @@ export function FilePreviewModal({
               }}
               title={filename}
             />
+          ) : isImage ? (
+            <div className="w-full h-full flex items-center justify-center bg-gray-50">
+              <img
+                src={baseUrl}
+                alt={filename}
+                className="max-w-full max-h-full object-contain"
+                style={{
+                  width: 'auto',
+                  height: 'auto',
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                }}
+              />
+            </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gray-50">
               <div className="text-center p-6">

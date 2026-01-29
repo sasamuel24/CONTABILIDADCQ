@@ -485,17 +485,26 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                               {archivoOCExistente.filename}
                             </div>
                             {archivoOCExistente.storage_path && (
-                              <button
-                                onClick={() => handleDownloadFile(
-                                  archivoOCExistente.storage_provider || 's3',
-                                  archivoOCExistente.storage_path || '',
-                                  archivoOCExistente.filename
-                                )}
-                                className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                                title="Descargar archivo"
-                              >
-                                <Download className="w-4 h-4 text-blue-600" />
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handlePreviewFile(archivoOCExistente)}
+                                  className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Vista previa"
+                                >
+                                  <Eye className="w-4 h-4 text-blue-600" />
+                                </button>
+                                <button
+                                  onClick={() => handleDownloadFile(
+                                    archivoOCExistente.storage_provider || 's3',
+                                    archivoOCExistente.storage_path || '',
+                                    archivoOCExistente.filename
+                                  )}
+                                  className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                                  title="Descargar archivo"
+                                >
+                                  <Download className="w-4 h-4 text-blue-600" />
+                                </button>
+                              </div>
                             )}
                           </div>
                         ) : (
@@ -514,17 +523,26 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                               {archivoAprobacionExistente.filename}
                             </div>
                             {archivoAprobacionExistente.storage_path && (
-                              <button
-                                onClick={() => handleDownloadFile(
-                                  archivoAprobacionExistente.storage_provider || 's3',
-                                  archivoAprobacionExistente.storage_path || '',
-                                  archivoAprobacionExistente.filename
-                                )}
-                                className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                                title="Descargar archivo"
-                              >
-                                <Download className="w-4 h-4 text-blue-600" />
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handlePreviewFile(archivoAprobacionExistente)}
+                                  className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Vista previa"
+                                >
+                                  <Eye className="w-4 h-4 text-blue-600" />
+                                </button>
+                                <button
+                                  onClick={() => handleDownloadFile(
+                                    archivoAprobacionExistente.storage_provider || 's3',
+                                    archivoAprobacionExistente.storage_path || '',
+                                    archivoAprobacionExistente.filename
+                                  )}
+                                  className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                                  title="Descargar archivo"
+                                >
+                                  <Download className="w-4 h-4 text-blue-600" />
+                                </button>
+                              </div>
                             )}
                           </div>
                         ) : (

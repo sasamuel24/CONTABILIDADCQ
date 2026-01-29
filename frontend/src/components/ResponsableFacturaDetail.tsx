@@ -1043,17 +1043,26 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                         <p className="text-xs text-gray-500">Documento cargado</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleDownloadFile(
-                        archivoOCExistente.storage_provider || 's3',
-                        archivoOCExistente.storage_path || '',
-                        archivoOCExistente.filename
-                      )}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                      title="Descargar archivo"
-                    >
-                      <Download className="w-4 h-4 text-green-600" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handlePreviewFile(archivoOCExistente)}
+                        className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Vista previa"
+                      >
+                        <Eye className="w-4 h-4 text-blue-600" />
+                      </button>
+                      <button
+                        onClick={() => handleDownloadFile(
+                          archivoOCExistente.storage_provider || 's3',
+                          archivoOCExistente.storage_path || '',
+                          archivoOCExistente.filename
+                        )}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Descargar archivo"
+                      >
+                        <Download className="w-4 h-4 text-green-600" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -1113,17 +1122,26 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                         <p className="text-xs text-gray-500">Documento cargado</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleDownloadFile(
-                        archivoAprobacionExistente.storage_provider || 's3',
-                        archivoAprobacionExistente.storage_path || '',
-                        archivoAprobacionExistente.filename
-                      )}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                      title="Descargar archivo"
-                    >
-                      <Download className="w-4 h-4 text-green-600" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handlePreviewFile(archivoAprobacionExistente)}
+                        className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Vista previa"
+                      >
+                        <Eye className="w-4 h-4 text-blue-600" />
+                      </button>
+                      <button
+                        onClick={() => handleDownloadFile(
+                          archivoAprobacionExistente.storage_provider || 's3',
+                          archivoAprobacionExistente.storage_path || '',
+                          archivoAprobacionExistente.filename
+                        )}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Descargar archivo"
+                      >
+                        <Download className="w-4 h-4 text-green-600" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (

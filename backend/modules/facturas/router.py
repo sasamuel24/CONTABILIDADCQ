@@ -25,6 +25,8 @@ from modules.facturas.schemas import (
     CentrosOut,
     DevolverAResponsableIn,
     DevolverAResponsableOut,
+    DevolverAFacturacionIn,
+    DevolverAFacturacionOut,
     AsignarCarpetaRequest,
     AsignarCarpetaResponse
 )
@@ -659,5 +661,35 @@ async def devolver_a_responsable(
     - El responsable verá el motivo de devolución y podrá corregir
     """
     return await service.devolver_a_responsable(factura_id, data.motivo)
+
+
+@router.post(
+    "/{factura_id}/devolver-a-facturacion",
+    response_model=DevolverAFacturacionOut,
+    status_code=status.HTTP_200_OK
+)
+async def devolver_a_facturacion(
+    factura_id: UUID,
+    data: DevolverAFacturacionIn,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """
+    Devuelve una factura de Responsable a Facturación.
+    
+    **Requisitos:**
+    - La factura debe estar en estado "Asignada" (Responsable, estado_id = 2)
+    - El motivo debe tener al menos 10 caracteres
+    
+    **Efecto:**
+    - Cambia el estado a "Recibida" (estado_id = 1) - vuelve a Facturación
+    - Asigna la factura al usuario de Facturación (Marlin CQ)
+    - Guarda el motivo de devolución
+    
+    **Uso:**
+    - El Responsable puede rechazar una factura y devolverla a Facturación
+    - Facturación verá el motivo de devolución y podrá corregir
+    - La factura desaparece de la vista del Responsable
+    """
+    return await service.devolver_a_facturacion(factura_id, data.motivo)
 
 

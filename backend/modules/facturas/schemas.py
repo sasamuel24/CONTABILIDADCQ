@@ -379,3 +379,27 @@ class DevolverAResponsableOut(BaseModel):
     motivo_devolucion: str
     
     model_config = {"from_attributes": True}
+
+
+# ========== Schemas de Devolución a Facturación ==========
+
+class DevolverAFacturacionIn(BaseModel):
+    """Esquema para devolver una factura de Responsable a Facturación."""
+    motivo: str = Field(
+        ...,
+        min_length=10,
+        max_length=1000,
+        description="Motivo de la devolución (mínimo 10 caracteres)"
+    )
+    
+    model_config = {"extra": "forbid"}
+
+
+class DevolverAFacturacionOut(BaseModel):
+    """Esquema de respuesta para devolución a facturación."""
+    factura_id: UUID
+    estado_actual: str
+    motivo_devolucion: str
+    usuario_facturacion: str
+    
+    model_config = {"from_attributes": True}

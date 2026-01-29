@@ -1511,3 +1511,97 @@ class FacturaService:
             "estado_actual": estado.label if estado else "Desconocido",
             "motivo_devolucion": factura.motivo_devolucion
         }
+    
+    async def devolver_a_facturacion(
+        self,
+        factura_id: UUID,
+        motivo: str
+    ) -> dict:
+        """
+        Devuelve una factura de Responsable al área de Facturación.
+        Solo permitido si la factura está en estado de Responsable (estado_id = 2).
+        Asigna al usuario de Facturación y cambia estado a "Recibida" (estado_id = 1).
+        """
+        from sqlalchemy import select
+        from db.models import Factura, Estado, Area, User
+        
+        logger.info(f"Devolviendo factura {factura_id} a Facturación. Motivo: {motivo}")
+        
+        # ID del usuario de Facturación (Marlin CQ)
+        FACTURACION_USER_ID = "24c529cd-f587-4076-8d9e-4e38c743cb0a"
+        
+        # Obtener factura
+        result = await self.db.execute(
+            select(Factura).where(Factura.id == factura_id)
+        )
+        factura = result.scalar_one_or_none()
+        
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        
+        # Validar que esté en estado Responsable/Asignada (estado_id = 2)
+        if factura.estado_id != 2:
+            result_estado = await self.db.execute(
+                select(Estado).where(Estado.id == factura.estado_id)
+            )
+            estado_actual = result_estado.scalar_one_or_none()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"La factura debe estar en estado 'Asignada' (Responsable) para poder devolverla a Facturación. Estado actual: {estado_actual.label if estado_actual else 'Desconocido'}"
+            )
+        
+        # Buscar área de Facturación por código 'fact'
+        result_area = await self.db.execute(
+            select(Area).where(Area.code == 'fact')
+        )
+        area_facturacion = result_area.scalar_one_or_none()
+        
+        if not area_facturacion:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No se encontró el área de Facturación en el sistema"
+            )
+        
+        # Verificar que el usuario de Facturación existe
+        result_user = await self.db.execute(
+            select(User).where(User.id == FACTURACION_USER_ID)
+        )
+        user_facturacion = result_user.scalar_one_or_none()
+        
+        if not user_facturacion:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No se encontró el usuario de Facturación en el sistema"
+            )
+        
+        # Devolver a Facturación
+        factura.area_id = area_facturacion.id
+        factura.estado_id = 1  # Estado "Recibida" (vuelve a Facturación)
+        factura.motivo_devolucion = motivo
+        factura.assigned_to_user_id = FACTURACION_USER_ID  # Asignar específicamente a Marlin CQ
+        
+        await self.db.commit()
+        await self.db.refresh(factura)
+        
+        # Obtener nombre del estado actual
+        result_estado = await self.db.execute(
+            select(Estado).where(Estado.id == factura.estado_id)
+        )
+        estado = result_estado.scalar_one_or_none()
+        
+        logger.info(
+            f"Factura {factura_id} devuelta exitosamente a Facturación (Usuario: {user_facturacion.nombre})"
+        )
+        
+        return {
+            "factura_id": str(factura.id),
+            "area_id": str(factura.area_id),
+            "area_nombre": area_facturacion.nombre,
+            "estado_actual": estado.label if estado else "Desconocido",
+            "motivo_devolucion": factura.motivo_devolucion,
+            "usuario_facturacion": user_facturacion.nombre
+        }
+

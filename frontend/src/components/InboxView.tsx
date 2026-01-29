@@ -477,6 +477,25 @@ export function InboxView() {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Alerta de Devolución (si existe motivo) */}
+              {selectedFactura.motivo_devolucion && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <h4 className="text-red-900 font-semibold mb-1">Factura Devuelta por Responsable</h4>
+                      <p className="text-red-700 text-sm mb-2">
+                        Esta factura fue devuelta para correcciones. Por favor revise y corrija antes de reasignar.
+                      </p>
+                      <div className="bg-white border border-red-200 rounded p-3">
+                        <p className="text-xs font-semibold text-red-900 mb-1">MOTIVO DE DEVOLUCIÓN:</p>
+                        <p className="text-sm text-gray-800">{selectedFactura.motivo_devolucion}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {/* Información de la Factura */}
               <div>
                 <h4 className="text-gray-900 mb-3">Información de la Factura</h4>

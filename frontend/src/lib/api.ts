@@ -805,6 +805,38 @@ export async function devolverAResponsable(
   });
 }
 
+// ==================== DEVOLUCIÓN A FACTURACIÓN ====================
+
+export interface DevolverAFacturacionRequest {
+  motivo: string;
+}
+
+export interface DevolverAFacturacionResponse {
+  factura_id: string;
+  estado_actual: string;
+  motivo_devolucion: string;
+  usuario_facturacion: string;
+}
+
+/**
+ * Devolver una factura de Responsable a Facturación
+ */
+export async function devolverAFacturacion(
+  facturaId: string,
+  motivo: string
+): Promise<DevolverAFacturacionResponse> {
+  const token = getAccessToken();
+  
+  return fetchAPI<DevolverAFacturacionResponse>(`/facturas/${facturaId}/devolver-a-facturacion`, {
+    method: 'POST',
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : '',
+    },
+    body: JSON.stringify({ motivo }),
+  });
+}
+
+
 // ==================== CARPETAS ====================
 
 export interface FacturaEnCarpeta {

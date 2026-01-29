@@ -19,7 +19,8 @@ import {
   getDistribucionCCCO,
   updateDistribucionCCCO,
   API_BASE_URL,
-  downloadFileById
+  downloadFileById,
+  devolverAFacturacion
 } from '../lib/api';
 import { DistribucionCCCOTable } from './DistribucionCCCOTable';
 import { FilePreviewModal } from './FilePreviewModal';
@@ -48,6 +49,11 @@ const INTERVALOS_ENTREGA = [
 ];
 
 export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFacturaDetailProps) {
+  // Estados para modal de devolución a Facturación
+  const [mostrarModalDevolucion, setMostrarModalDevolucion] = useState(false);
+  const [motivoDevolucion, setMotivoDevolucion] = useState('');
+  const [enviandoDevolucion, setEnviandoDevolucion] = useState(false);
+  
   // Estados para archivos
   const [archivoOC, setArchivoOC] = useState<string>('');
   const [archivoAprobacion, setArchivoAprobacion] = useState<string>('');
@@ -821,8 +827,38 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     }
   };
 
+  const handleDevolverAFacturacion = async () => {
+    if (motivoDevolucion.trim().length < 10) {
+      alert('❌ El motivo debe tener al menos 10 caracteres');
+      return;
+    }
+
+    try {
+      setEnviandoDevolucion(true);
+      await devolverAFacturacion(factura.id, motivoDevolucion.trim());
+      alert('✅ Factura devuelta a Facturación correctamente');
+      setMostrarModalDevolucion(false);
+      setMotivoDevolucion('');
+      onClose(); // Cerrar modal después de devolver
+    } catch (error: any) {
+      console.error('Error devolviendo factura:', error);
+      alert(`❌ Error al devolver factura: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setEnviandoDevolucion(false);
+    }
+  };
+
+  console.log('🔍 RENDER - mostrarModalDevolucion:', mostrarModalDevolucion);
+
   return (
     <>
+      {/* DEBUG: Indicador visual del estado */}
+      {mostrarModalDevolucion && (
+        <div style={{ position: 'fixed', top: 10, right: 10, zIndex: 9999, background: 'red', color: 'white', padding: '10px' }}>
+          MODAL ACTIVADO
+        </div>
+      )}
+      
       {/* Overlay */}
       <div className="fixed inset-0 bg-white z-40" />
       
@@ -1663,6 +1699,19 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 Cerrar
               </button>
               <button
+                onClick={() => {
+                  console.log('Clic en botón Devolver a Facturación');
+                  console.log('Estado actual mostrarModalDevolucion:', mostrarModalDevolucion);
+                  alert('Botón clickeado - abriendo modal');
+                  setMostrarModalDevolucion(true);
+                  console.log('Estado después de set:', true);
+                }}
+                disabled={enviandoDevolucion}
+                className="px-6 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Devolver a Facturación
+              </button>
+              <button
                 onClick={handleEnviarContabilidad}
                 disabled={enviandoContabilidad}
                 className={`px-6 py-2 rounded-lg transition-colors font-medium ${
@@ -1685,6 +1734,69 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         </div>
       </div>
 
+      {/* Modal de Devolución a Facturación */}
+      {mostrarModalDevolucion && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+          style={{ zIndex: 9999, position: 'fixed' }}
+        >
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full" style={{ position: 'relative', zIndex: 10000 }}>
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">Devolver a Facturación</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                La factura será devuelta al área de Facturación para correcciones
+              </p>
+            </div>
+            
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Motivo de devolución <span className="text-red-600">*</span>
+              </label>
+              <textarea
+                value={motivoDevolucion}
+                onChange={(e) => setMotivoDevolucion(e.target.value)}
+                rows={4}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+                placeholder="Describa el motivo de la devolución (mínimo 10 caracteres)..."
+                disabled={enviandoDevolucion}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {motivoDevolucion.length}/1000 caracteres (mínimo 10)
+              </p>
+              {motivoDevolucion.length > 0 && motivoDevolucion.length < 10 && (
+                <p className="text-xs text-red-600 mt-1">
+                  ⚠️ El motivo debe tener al menos 10 caracteres
+                </p>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex gap-3 justify-end bg-gray-50">
+              <button
+                onClick={() => {
+                  setMostrarModalDevolucion(false);
+                  setMotivoDevolucion('');
+                }}
+                disabled={enviandoDevolucion}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDevolverAFacturacion}
+                disabled={enviandoDevolucion || motivoDevolucion.trim().length < 10}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  enviandoDevolucion || motivoDevolucion.trim().length < 10
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-red-600 text-white hover:bg-red-700'
+                }`}
+              >
+                {enviandoDevolucion ? 'Devolviendo...' : 'Confirmar Devolución'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de vista previa */}
       {previewFile && (
         <FilePreviewModal
@@ -1700,4 +1812,3 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     </>
   );
 }
-

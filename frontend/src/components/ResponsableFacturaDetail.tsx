@@ -848,17 +848,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     }
   };
 
-  console.log('🔍 RENDER - mostrarModalDevolucion:', mostrarModalDevolucion);
-
   return (
     <>
-      {/* DEBUG: Indicador visual del estado */}
-      {mostrarModalDevolucion && (
-        <div style={{ position: 'fixed', top: 10, right: 10, zIndex: 9999, background: 'red', color: 'white', padding: '10px' }}>
-          MODAL ACTIVADO
-        </div>
-      )}
-      
       {/* Overlay */}
       <div className="fixed inset-0 bg-white z-40" />
       
@@ -1699,13 +1690,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 Cerrar
               </button>
               <button
-                onClick={() => {
-                  console.log('Clic en botón Devolver a Facturación');
-                  console.log('Estado actual mostrarModalDevolucion:', mostrarModalDevolucion);
-                  alert('Botón clickeado - abriendo modal');
-                  setMostrarModalDevolucion(true);
-                  console.log('Estado después de set:', true);
-                }}
+                onClick={() => setMostrarModalDevolucion(true)}
                 disabled={enviandoDevolucion}
                 className="px-6 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >

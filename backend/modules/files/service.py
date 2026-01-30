@@ -384,19 +384,22 @@ class FileService:
         
         logger.info(f"Content-type detectado: {actual_content_type} (original: {file.content_type})")
         
-        # Validación 4: verificar duplicado
-        existing_file = await self.repository.get_by_factura_and_doc_type(
-            factura_id, doc_type
-        )
-        if existing_file:
-            logger.warning(f"Archivo duplicado: factura_id={factura_id}, doc_type={doc_type}")
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "code": "file_already_exists",
-                    "message": "Ya existe un archivo PDF para este factura_id y doc_type"
-                }
+        # Validación 4: verificar duplicado (EXCEPTO para OC que permite múltiples archivos)
+        if doc_type != 'OC':  # Permitir múltiples archivos OC/OS
+            existing_file = await self.repository.get_by_factura_and_doc_type(
+                factura_id, doc_type
             )
+            if existing_file:
+                logger.warning(f"Archivo duplicado: factura_id={factura_id}, doc_type={doc_type}")
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "code": "file_already_exists",
+                        "message": "Ya existe un archivo PDF para este factura_id y doc_type"
+                    }
+                )
+        else:
+            logger.info(f"Permitiendo múltiples archivos OC/OS para factura_id={factura_id}")
         
         try:
             # Determinar si usar S3 o storage local

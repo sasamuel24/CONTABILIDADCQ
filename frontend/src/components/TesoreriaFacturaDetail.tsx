@@ -3,6 +3,7 @@ import { X, Upload, CheckCircle, AlertCircle, Trash2, Download, FileText, Eye } 
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, DistribucionCCCO, UnidadNegocio, CuentaAuxiliar } from '../lib/api';
 import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, uploadFacturaFile, updateFacturaEstado, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares, downloadFileById } from '../lib/api';
 import { FilePreviewModal } from './FilePreviewModal';
+import { ConfirmModal } from './ConfirmModal';
 
 interface TesoreriaFacturaDetailProps {
   factura: FacturaListItem;
@@ -27,7 +28,7 @@ const INTERVALOS_ENTREGA = [
 
 export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDetailProps) {
   // Estados para archivos previos
-  const [archivoOCExistente, setArchivoOCExistente] = useState<FileMiniOut | null>(null);
+  const [archivosOCExistentes, setArchivosOCExistentes] = useState<FileMiniOut[]>([]);
   const [archivoAprobacionExistente, setArchivoAprobacionExistente] = useState<FileMiniOut | null>(null);
   const [archivoInventarioExistente, setArchivoInventarioExistente] = useState<FileMiniOut | null>(null);
   const [soportePagoFiles, setSoportePagoFiles] = useState<FileMiniOut[]>([]);
@@ -97,6 +98,16 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
 
   // Estados para vista previa
   const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
+  
+  // Estados para modales de confirmación
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmModalConfig, setConfirmModalConfig] = useState<{
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    onConfirm?: () => void;
+    showCancel?: boolean;
+  }>({ title: '', message: '', type: 'info' });
 
   // Cargar archivos existentes
   useEffect(() => {
@@ -111,7 +122,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
           getFacturaFilesByDocType(factura.id, 'FACTURA_PDF')
         ]);
         
-        if (archivosOC.length > 0) setArchivoOCExistente(archivosOC[0]);
+        setArchivosOCExistentes(archivosOC);
         if (archivosAprobacion.length > 0) setArchivoAprobacionExistente(archivosAprobacion[0]);
         if (archivosInventario.length > 0) setArchivoInventarioExistente(archivosInventario[0]);
         setSoportePagoFiles(archivosSoportePago);
@@ -398,7 +409,12 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
     setMostrarValidacion(true);
     
     if (!validarFormulario()) {
-      alert('❌ Por favor cargue al menos uno de los documentos de Tesorería (PEC, EC, PCE o PED)');
+      setConfirmModalConfig({
+        title: 'Documentos Pendientes',
+        message: 'Debe cargar al menos uno de los documentos de Tesorería (PEC, EC, PCE o PED) antes de finalizar.',
+        type: 'warning'
+      });
+      setShowConfirmModal(true);
       return;
     }
 
@@ -410,16 +426,26 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
       
       // Construir mensaje con documentos cargados
       const documentosCargados = [];
-      if (archivoPEC || archivoPECExistente) documentosCargados.push('• PEC: ' + (archivoPEC || archivoPECExistente?.filename));
-      if (archivoEC || archivoECExistente) documentosCargados.push('• EC: ' + (archivoEC || archivoECExistente?.filename));
-      if (archivoPCE || archivoPCEExistente) documentosCargados.push('• PCE: ' + (archivoPCE || archivoPCEExistente?.filename));
-      if (archivoPED || archivoPEDExistente) documentosCargados.push('• PED: ' + (archivoPED || archivoPEDExistente?.filename));
+      if (archivoPEC || archivoPECExistente) documentosCargados.push(`• PEC: ${archivoPEC || archivoPECExistente?.filename}`);
+      if (archivoEC || archivoECExistente) documentosCargados.push(`• EC: ${archivoEC || archivoECExistente?.filename}`);
+      if (archivoPCE || archivoPCEExistente) documentosCargados.push(`• PCE: ${archivoPCE || archivoPCEExistente?.filename}`);
+      if (archivoPED || archivoPEDExistente) documentosCargados.push(`• PED: ${archivoPED || archivoPEDExistente?.filename}`);
       
-      alert('✅ Factura cerrada exitosamente\n\nLa factura ha sido finalizada y cerrada.\nDocumentos de Tesorería registrados:\n' + documentosCargados.join('\n'));
-      onClose();
+      setConfirmModalConfig({
+        title: 'Factura Cerrada',
+        message: `La factura ha sido finalizada y cerrada exitosamente.\n\nDocumentos de Tesorería registrados:\n${documentosCargados.join('\n')}`,
+        type: 'success',
+        onConfirm: () => onClose()
+      });
+      setShowConfirmModal(true);
     } catch (error: any) {
       console.error('Error finalizando factura:', error);
-      alert(`❌ Error al finalizar factura: ${error.message || 'Error desconocido'}`);
+      setConfirmModalConfig({
+        title: 'Error al Finalizar',
+        message: `No se pudo finalizar la factura.\n\n${error.message || 'Error desconocido'}`,
+        type: 'error'
+      });
+      setShowConfirmModal(true);
     } finally {
       setProcesando(false);
     }
@@ -563,38 +589,47 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                     <div className="text-sm text-gray-500">Cargando archivos...</div>
                   ) : (
                     <>
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-700 text-sm font-medium">OC / OS:</span>
-                        {archivoOCExistente ? (
-                          <div className="flex items-center gap-2">
-                            <div className="text-green-600 text-sm flex items-center gap-1">
-                              <CheckCircle className="w-4 h-4" />
-                              {archivoOCExistente.filename}
-                            </div>
-                            {archivoOCExistente.storage_path && (
-                              <div className="flex items-center gap-1">
-                                <button
-                                  onClick={() => handlePreviewFile(archivoOCExistente)}
-                                  style={{color: '#00829a'}}
-                                  className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
-                                  title="Vista previa"
-                                >
-                                  <Eye className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDownloadFile(
-                                    archivoOCExistente.storage_provider || 's3',
-                                    archivoOCExistente.storage_path || '',
-                                    archivoOCExistente.filename
-                                  )}
-                                  style={{color: '#00829a'}}
-                                  className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                                  title="Descargar archivo"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
+                      <div>
+                        <span className="text-gray-700 text-sm font-medium mb-2 block">OC / OS:</span>
+                        {archivosOCExistentes.length > 0 ? (
+                          <div className="space-y-2">
+                            {archivosOCExistentes.map((archivo, index) => (
+                              <div key={archivo.id} className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200">
+                                <div className="text-green-600 text-sm flex items-center gap-1">
+                                  <CheckCircle className="w-4 h-4" />
+                                  <span className="font-medium">OC/OS {index + 1}:</span>
+                                  <span>{archivo.filename}</span>
+                                </div>
+                                {archivo.storage_path && (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => handlePreviewFile(archivo)}
+                                      style={{color: '#00829a'}}
+                                      className="p-1.5 rounded-lg transition-colors"
+                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 130, 154, 0.1)'}
+                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                      title="Vista previa"
+                                    >
+                                      <Eye className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDownloadFile(
+                                        archivo.storage_provider || 's3',
+                                        archivo.storage_path || '',
+                                        archivo.filename
+                                      )}
+                                      style={{color: '#00829a'}}
+                                      className="p-1.5 rounded-lg transition-colors"
+                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 130, 154, 0.1)'}
+                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                      title="Descargar archivo"
+                                    >
+                                      <Download className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            ))}
                           </div>
                         ) : (
                           <span className="text-red-600 text-sm flex items-center gap-1">
@@ -1282,6 +1317,17 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
           onDownload={() => handleDownloadById(previewFile)}
         />
       )}
+      
+      {/* Modal de confirmación moderno */}
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={confirmModalConfig.onConfirm}
+        title={confirmModalConfig.title}
+        message={confirmModalConfig.message}
+        type={confirmModalConfig.type}
+        showCancel={confirmModalConfig.showCancel}
+      />
     </>
   );
 }

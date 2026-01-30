@@ -24,6 +24,7 @@ import {
 } from '../lib/api';
 import { DistribucionCCCOTable } from './DistribucionCCCOTable';
 import { FilePreviewModal } from './FilePreviewModal';
+import { ConfirmModal } from './ConfirmModal';
 
 interface ResponsableFacturaDetailProps {
   factura: FacturaListItem;
@@ -61,7 +62,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [archivoNotaCredito, setArchivoNotaCredito] = useState<string>('');
 
   // Estados para archivos existentes (ya subidos)
-  const [archivoOCExistente, setArchivoOCExistente] = useState<FileMiniOut | null>(null);
+  const [archivosOCExistentes, setArchivosOCExistentes] = useState<FileMiniOut[]>([]);
   const [archivoAprobacionExistente, setArchivoAprobacionExistente] = useState<FileMiniOut | null>(null);
   const [soportePagoFiles, setSoportePagoFiles] = useState<FileMiniOut[]>([]);
   const [loadingArchivos, setLoadingArchivos] = useState(true);
@@ -138,6 +139,16 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
   // Estados para vista previa
   const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
+  
+  // Estados para modales de confirmación
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmModalConfig, setConfirmModalConfig] = useState<{
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    onConfirm?: () => void;
+    showCancel?: boolean;
+  }>({ title: '', message: '', type: 'info' });
 
   // Cargar archivos existentes al montar el componente
   useEffect(() => {
@@ -151,9 +162,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
           getFacturaFilesByDocType(factura.id, 'FACTURA_PDF')
         ]);
         
-        if (archivosOC.length > 0) {
-          setArchivoOCExistente(archivosOC[0]);
-        }
+        // Cargar todos los archivos OC/OS
+        setArchivosOCExistentes(archivosOC);
         
         if (archivosAprobacion.length > 0) {
           setArchivoAprobacionExistente(archivosAprobacion[0]);
@@ -584,7 +594,12 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         intervalo_entrega_contabilidad: intervaloEntrega
       });
 
-      alert('✅ Todos los cambios se guardaron correctamente');
+      setConfirmModalConfig({
+        title: 'Cambios Guardados',
+        message: 'Todos los cambios se han guardado correctamente en la factura.',
+        type: 'success'
+      });
+      setShowConfirmModal(true);
 
     } catch (error: any) {
       console.error('Error guardando cambios:', error);
@@ -791,13 +806,14 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         
         // Actualizar archivo existente en estado
         if (tipo === 'oc') {
-          setArchivoOCExistente({
+          // Agregar el nuevo archivo al array de archivos OC
+          setArchivosOCExistentes(prev => [...prev, {
             id: response.file_id,
             filename: response.filename,
             doc_type: response.doc_type,
             content_type: response.content_type,
             uploaded_at: response.created_at
-          });
+          }]);
         } else if (tipo === 'aprobacion') {
           setArchivoAprobacionExistente({
             id: response.file_id,
@@ -837,8 +853,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
     // Validar OC y APROBACIÓN solo si NO es gasto administrativo
     if (!esGastoAdm) {
-      if (!archivoOCExistente) {
-        nuevosErrores.oc = 'OC es obligatorio (o marque como gasto administrativo)';
+      if (archivosOCExistentes.length === 0) {
+        nuevosErrores.oc = 'Debe subir al menos una OC/OS (o marque como gasto administrativo)';
       }
       if (!archivoAprobacionExistente) {
         nuevosErrores.aprobacion = 'Aprobación es obligatoria (o marque como gasto administrativo)';
@@ -894,10 +910,15 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       }
       
       const mensaje = mensajesError.length > 0 
-        ? `❌ Faltan campos obligatorios: ${mensajesError.join(', ')}`
-        : '❌ Por favor complete todos los campos obligatorios';
+        ? `Faltan campos obligatorios:\n\n${mensajesError.join('\n')}`
+        : 'Por favor complete todos los campos obligatorios antes de enviar.';
       
-      alert(mensaje);
+      setConfirmModalConfig({
+        title: 'Validación Pendiente',
+        message: mensaje,
+        type: 'warning'
+      });
+      setShowConfirmModal(true);
       return;
     }
 
@@ -913,11 +934,21 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         responsable_user_id: CONTABILIDAD_USER_ID
       });
       
-      alert('✅ Factura enviada correctamente al área de Contabilidad');
-      onClose(); // Cerrar modal después de enviar
+      setConfirmModalConfig({
+        title: 'Factura Enviada',
+        message: 'La factura ha sido enviada exitosamente al área de Contabilidad para su revisión y aprobación.',
+        type: 'success',
+        onConfirm: () => onClose()
+      });
+      setShowConfirmModal(true);
     } catch (error: any) {
       console.error('Error enviando a contabilidad:', error);
-      alert(`❌ Error al enviar factura: ${error.message || 'Error desconocido'}`);
+      setConfirmModalConfig({
+        title: 'Error al Enviar',
+        message: `No se pudo enviar la factura a Contabilidad.\n\n${error.message || 'Error desconocido'}`,
+        type: 'error'
+      });
+      setShowConfirmModal(true);
     } finally {
       setEnviandoContabilidad(false);
     }
@@ -1143,7 +1174,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               </div>
             </div>
 
-            {/* Botón Subir OC/OS */}
+            {/* Botón Subir OC/OS - Múltiples archivos */}
             <div>
               <h4 className="text-gray-900 font-semibold mb-3">
                 OC / OS
@@ -1155,44 +1186,56 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 <div className="w-full px-4 py-3 bg-gray-200 rounded-lg animate-pulse">
                   <div className="h-5 bg-gray-300 rounded w-32 mx-auto"></div>
                 </div>
-              ) : archivoOCExistente ? (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{archivoOCExistente.filename}</p>
-                        <p className="text-xs text-gray-500">Documento cargado</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handlePreviewFile(archivoOCExistente)}
-                        className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Vista previa"
-                      >
-                        <Eye className="w-4 h-4 text-blue-600" />
-                      </button>
-                      <button
-                        onClick={() => handleDownloadFile(
-                          archivoOCExistente.storage_provider || 's3',
-                          archivoOCExistente.storage_path || '',
-                          archivoOCExistente.filename
-                        )}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                        title="Descargar archivo"
-                      >
-                        <Download className="w-4 h-4 text-green-600" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
               ) : (
-                <>
+                <div className="space-y-2">
+                  {/* Lista de archivos OC existentes */}
+                  {archivosOCExistentes.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {archivosOCExistentes.map((archivo, index) => (
+                        <div key={archivo.id} className="flex items-center justify-between bg-green-50 border border-green-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-900">{archivo.filename}</p>
+                              <p className="text-xs text-gray-500">Documento {index + 1}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handlePreviewFile(archivo)}
+                              className="p-2 rounded-lg transition-colors"
+                              style={{color: '#00829a'}}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 130, 154, 0.1)'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              title="Vista previa"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDownloadFile(
+                                archivo.storage_provider || 's3',
+                                archivo.storage_path || '',
+                                archivo.filename
+                              )}
+                              className="p-2 rounded-lg transition-colors"
+                              style={{color: '#00829a'}}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(0, 130, 154, 0.1)'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              title="Descargar archivo"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Botón para agregar más archivos */}
                   <button
                     onClick={() => handleFileUpload('oc')}
                     disabled={uploadingOC}
@@ -1219,22 +1262,19 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                     }}
                   >
                     <Upload className="w-4 h-4" />
-                    {uploadingOC ? 'Subiendo...' : 'Subir OC / OS'}
+                    {uploadingOC ? 'Subiendo...' : archivosOCExistentes.length > 0 ? 'Agregar otra OC / OS' : 'Subir OC / OS'}
                   </button>
-                  <p className="text-xs text-gray-500 mt-2">
-                    {archivoOC ? (
-                      <span className="text-green-600">✓ {archivoOC}</span>
-                    ) : (
-                      'No hay archivo cargado'
-                    )}
-                  </p>
+                  
+                  {archivosOCExistentes.length === 0 && !archivoOC && (
+                    <p className="text-xs text-gray-500 mt-2">No hay archivos cargados</p>
+                  )}
                   {errores.oc && (
                     <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" />
                       {errores.oc}
                     </p>
                   )}
-                </>
+                </div>
               )}
             </div>
 
@@ -1911,6 +1951,17 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
           onDownload={() => handleDownloadById(previewFile)}
         />
       )}
+      
+      {/* Modal de confirmación moderno */}
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={confirmModalConfig.onConfirm}
+        title={confirmModalConfig.title}
+        message={confirmModalConfig.message}
+        type={confirmModalConfig.type}
+        showCancel={confirmModalConfig.showCancel}
+      />
     </>
   );
 }

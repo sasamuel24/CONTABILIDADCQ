@@ -19,13 +19,20 @@ export function TesoreriaPage() {
       <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
         {/* Logo/Header */}
         <div className="p-6 border-b border-gray-200">
-          <h1 className="text-xl font-bold text-gray-900">{user?.area?.nombre || 'CONTABILIDAD CQ'}</h1>
-          <p className="text-sm text-gray-500 mt-1">Tesorería</p>
+          <h1 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="text-xl font-bold text-gray-900">{user?.area?.nombre || 'CONTABILIDAD CQ'}</h1>
+          <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-sm text-gray-500 mt-1">Tesorería</p>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 p-4">
-          <button className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg">
+          <button 
+            style={{
+              fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+              backgroundColor: '#e0f5f7',
+              color: '#00829a'
+            }}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg"
+          >
             <Inbox className="w-5 h-5" />
             Bandeja de Entrada
           </button>
@@ -35,17 +42,31 @@ export function TesoreriaPage() {
         <div className="p-4 border-t border-gray-200">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-medium">
+              <div 
+                style={{backgroundColor: '#00829a'}}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium"
+              >
                 {user?.nombre.charAt(0).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{user?.nombre}</p>
-                <p className="text-xs text-gray-500 truncate">{user?.area?.nombre}</p>
+                <p style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm font-medium text-gray-900 truncate">{user?.nombre}</p>
+                <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-xs text-gray-500 truncate">{user?.area?.nombre}</p>
               </div>
             </div>
             <button
               onClick={handleLogout}
-              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+              style={{
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f3f4f6';
+                e.currentTarget.style.color = '#4b5563';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = '#9ca3af';
+              }}
+              className="p-2 text-gray-400 rounded-lg"
               title="Cerrar sesión"
             >
               <LogOut className="w-5 h-5" />

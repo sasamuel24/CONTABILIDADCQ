@@ -92,6 +92,9 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
   const [mostrarValidacion, setMostrarValidacion] = useState(false);
   const [procesando, setProcesando] = useState(false);
 
+  // Estado para dropdown de tipo de documento
+  const [tipoDocumentoSeleccionado, setTipoDocumentoSeleccionado] = useState<string>('');
+
   // Estados para vista previa
   const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
 
@@ -493,22 +496,25 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
         <div className="flex min-h-full items-center justify-center p-6">
           <div className="w-full max-w-3xl bg-white shadow-2xl rounded-lg border border-gray-200 my-8">
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-lg">
+            <div style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}} className="text-white p-6 rounded-t-lg">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1 mt-2">
-                  <h3 className="text-white mb-2 text-xl font-semibold">Detalle de Factura - Tesorería</h3>
+                  <h3 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="text-white mb-2 text-xl font-semibold">Detalle de Factura - Tesorería</h3>
                 </div>
                 <button 
                   onClick={onClose}
-                  className="p-2 hover:bg-blue-500 rounded-lg transition-colors"
+                  style={{transition: 'background-color 0.2s'}}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  className="p-2 rounded-lg"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
               
               <div className="flex items-center gap-3">
-                <span className="font-mono text-white text-lg">{factura.numero_factura}</span>
-                <span className="text-blue-200">•</span>
+                <span style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="font-mono text-white text-lg">{factura.numero_factura}</span>
+                <span className="text-white" style={{opacity: 0.7}}>•</span>
                 <span className={`px-3 py-1 rounded-full border text-sm ${statusConfig[factura.estado]?.bgColor || 'bg-gray-100 border-gray-200'} ${statusConfig[factura.estado]?.color || 'text-gray-700'}`}>
                   {factura.estado}
                 </span>
@@ -520,7 +526,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
               
               {/* Información de la Factura */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Información de la Factura</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Información de la Factura</h4>
                 <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Proveedor</span>
@@ -551,7 +557,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
 
               {/* Adjuntos previos (solo lectura) */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Documentos Adjuntos Previos</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Documentos Adjuntos Previos</h4>
                 <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                   {loadingArchivos ? (
                     <div className="text-sm text-gray-500">Cargando archivos...</div>
@@ -560,13 +566,36 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                       <div className="flex items-center justify-between">
                         <span className="text-gray-700 text-sm font-medium">OC / OS:</span>
                         {archivoOCExistente ? (
-                          <button
-                            onClick={() => handleVerDocumento(archivoOCExistente)}
-                            className="text-green-600 text-sm flex items-center gap-1 hover:underline"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            {archivoOCExistente.filename}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <div className="text-green-600 text-sm flex items-center gap-1">
+                              <CheckCircle className="w-4 h-4" />
+                              {archivoOCExistente.filename}
+                            </div>
+                            {archivoOCExistente.storage_path && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handlePreviewFile(archivoOCExistente)}
+                                  style={{color: '#00829a'}}
+                                  className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Vista previa"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDownloadFile(
+                                    archivoOCExistente.storage_provider || 's3',
+                                    archivoOCExistente.storage_path || '',
+                                    archivoOCExistente.filename
+                                  )}
+                                  style={{color: '#00829a'}}
+                                  className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                                  title="Descargar archivo"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-red-600 text-sm flex items-center gap-1">
                             <AlertCircle className="w-4 h-4" />
@@ -577,13 +606,36 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                       <div className="flex items-center justify-between">
                         <span className="text-gray-700 text-sm font-medium">Aprobación Gerencia:</span>
                         {archivoAprobacionExistente ? (
-                          <button
-                            onClick={() => handleVerDocumento(archivoAprobacionExistente)}
-                            className="text-green-600 text-sm flex items-center gap-1 hover:underline"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            {archivoAprobacionExistente.filename}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <div className="text-green-600 text-sm flex items-center gap-1">
+                              <CheckCircle className="w-4 h-4" />
+                              {archivoAprobacionExistente.filename}
+                            </div>
+                            {archivoAprobacionExistente.storage_path && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handlePreviewFile(archivoAprobacionExistente)}
+                                  style={{color: '#00829a'}}
+                                  className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Vista previa"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDownloadFile(
+                                    archivoAprobacionExistente.storage_provider || 's3',
+                                    archivoAprobacionExistente.storage_path || '',
+                                    archivoAprobacionExistente.filename
+                                  )}
+                                  style={{color: '#00829a'}}
+                                  className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                                  title="Descargar archivo"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-red-600 text-sm flex items-center gap-1">
                             <AlertCircle className="w-4 h-4" />
@@ -594,13 +646,36 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                       {requiereInventario && archivoInventarioExistente && (
                         <div className="flex items-center justify-between">
                           <span className="text-gray-700 text-sm font-medium">Soporte Inventario:</span>
-                          <button
-                            onClick={() => handleVerDocumento(archivoInventarioExistente)}
-                            className="text-green-600 text-sm flex items-center gap-1 hover:underline"
-                          >
-                            <CheckCircle className="w-4 h-4" />
-                            {archivoInventarioExistente.filename}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <div className="text-green-600 text-sm flex items-center gap-1">
+                              <CheckCircle className="w-4 h-4" />
+                              {archivoInventarioExistente.filename}
+                            </div>
+                            {archivoInventarioExistente.storage_path && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handlePreviewFile(archivoInventarioExistente)}
+                                  style={{color: '#00829a'}}
+                                  className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                                  title="Vista previa"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDownloadFile(
+                                    archivoInventarioExistente.storage_provider || 's3',
+                                    archivoInventarioExistente.storage_path || '',
+                                    archivoInventarioExistente.filename
+                                  )}
+                                  style={{color: '#00829a'}}
+                                  className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                                  title="Descargar archivo"
+                                >
+                                  <Download className="w-4 h-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </>
@@ -610,7 +685,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
 
               {/* Soporte de Pago (Factura PDF) */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Soporte de Pago</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Soporte de Pago</h4>
                 {loadingArchivos ? (
                   <div className="text-sm text-gray-500">Cargando archivos...</div>
                 ) : soportePagoFiles.length > 0 ? (
@@ -690,7 +765,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
 
               {/* Distribución CC/CO */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Distribución de Centros de Costo / Operación</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Distribución de Centros de Costo / Operación</h4>
                 {loadingDistribucion ? (
                   <div className="text-sm text-gray-500">Cargando distribución...</div>
                 ) : distribuciones.length > 0 ? (
@@ -746,8 +821,8 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-                    <p className="text-yellow-700 text-sm">No hay distribución configurada para esta factura</p>
+                  <div style={{backgroundColor: '#e0f5f7', borderColor: '#00829a'}} className="border rounded-lg p-4 text-center">
+                    <p style={{color: '#00829a', fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-sm">No hay distribución configurada para esta factura</p>
                   </div>
                 )}
               </div>
@@ -755,7 +830,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
               {/* Inventarios */}
               {requiereInventario && (
                 <div>
-                  <h4 className="text-gray-900 font-semibold mb-3">Inventarios</h4>
+                  <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Inventarios</h4>
                   <div className="bg-gray-50 rounded-lg p-4 space-y-4">
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium text-gray-700">Tipo de Ingreso:</span>
@@ -834,7 +909,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
               {/* Novedad */}
               {tieneNovedad && (
                 <div>
-                  <h4 className="text-gray-900 font-semibold mb-3">Producto Incorrecto / Novedad</h4>
+                  <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Producto Incorrecto / Novedad</h4>
                   <div className="bg-gray-50 rounded-lg p-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Número de Nota Crédito (NP)
@@ -849,42 +924,10 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                 </div>
               )}
 
-              {/* Anticipo e Intervalo */}
-              <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Anticipo e Intervalo de Entrega</h4>
-                <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-                  {tieneAnticipo && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Porcentaje de Anticipo
-                      </label>
-                      <input
-                        type="text"
-                        value={`${porcentajeAnticipo}%`}
-                        disabled
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Intervalo de Entrega a Contabilidad
-                    </label>
-                    <input
-                      type="text"
-                      value={getIntervaloLabel(intervaloEntrega)}
-                      disabled
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                    />
-                  </div>
-                </div>
-              </div>
-
               {/* Documentos de Tesorería (AL MENOS UNO OBLIGATORIO) */}
-              <div className="border-t-2 border-blue-200 pt-6">
-                <h4 className="text-gray-900 font-semibold mb-2 flex items-center gap-2">
-                  <Upload className="w-5 h-5 text-blue-600" />
+              <div className="border-t-2 pt-6" style={{borderColor: '#14aab8'}}>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-2 flex items-center gap-2">
+                  <Upload className="w-5 h-5" style={{color: '#00829a'}} />
                   Documentos de Tesorería
                 </h4>
                 <p className="text-sm text-gray-600 mb-4">
@@ -900,134 +943,279 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                   </div>
                 )}
                 
-                <div className="space-y-4">
-                  {/* PEC */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      PEC (Planilla de Egresos de Caja)
-                    </label>
-                    
-                    {!archivoPECExistente ? (
+                {/* Dropdown para seleccionar tipo de documento */}
+                <div className="mb-4">
+                  <label style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="block text-sm font-medium text-gray-700 mb-2">
+                    Seleccione el tipo de documento a cargar
+                  </label>
+                  <select
+                    value={tipoDocumentoSeleccionado}
+                    onChange={(e) => setTipoDocumentoSeleccionado(e.target.value)}
+                    style={{
+                      fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                      borderColor: '#00829a',
+                      borderWidth: '2px'
+                    }}
+                    onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(0, 130, 154, 0.2)'}
+                    onBlur={(e) => e.target.style.boxShadow = 'none'}
+                    className="w-full px-4 py-2 rounded-lg bg-white"
+                  >
+                    <option value="">-- Seleccione una opción --</option>
+                    <option value="pec">PEC (Planilla de Egresos de Caja)</option>
+                    <option value="ec">EC (Egreso de Caja)</option>
+                    <option value="pce">PCE (Presupuesto de Caja y Egresos)</option>
+                    <option value="ped">PED (Presupuesto de Egresos y Desembolsos)</option>
+                  </select>
+                </div>
+
+                {/* Botón de carga según selección */}
+                {tipoDocumentoSeleccionado && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    {tipoDocumentoSeleccionado === 'pec' && !archivoPECExistente && (
                       <button
                         onClick={() => handleFileUpload('pec')}
                         disabled={uploadingPEC}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
-                          uploadingPEC
-                            ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
+                        style={{
+                          fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                          backgroundColor: uploadingPEC ? '#f3f4f6' : 'transparent',
+                          borderColor: uploadingPEC ? '#d1d5db' : '#00829a',
+                          borderWidth: '2px',
+                          color: uploadingPEC ? '#9ca3af' : '#00829a',
+                          transition: 'all 0.2s',
+                          cursor: uploadingPEC ? 'not-allowed' : 'pointer'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!uploadingPEC) {
+                            e.currentTarget.style.backgroundColor = 'rgba(0, 130, 154, 0.05)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!uploadingPEC) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg"
                       >
                         <Upload className="w-4 h-4" />
                         {uploadingPEC ? 'Subiendo...' : 'Subir PEC (PDF)'}
                       </button>
-                    ) : (
-                      <div className="flex items-center justify-between bg-white border border-green-300 rounded-lg p-3">
-                        <button
-                          onClick={() => handleVerDocumento(archivoPECExistente)}
-                          className="text-green-700 text-sm flex items-center gap-2 hover:underline"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          {archivoPECExistente.filename}
-                        </button>
-                      </div>
                     )}
-                  </div>
-
-                  {/* EC */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      EC (Egreso de Caja)
-                    </label>
-                    
-                    {!archivoECExistente ? (
+                    {tipoDocumentoSeleccionado === 'ec' && !archivoECExistente && (
                       <button
                         onClick={() => handleFileUpload('ec')}
                         disabled={uploadingEC}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
-                          uploadingEC
-                            ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
+                        style={{
+                          fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                          backgroundColor: uploadingEC ? '#f3f4f6' : 'transparent',
+                          borderColor: uploadingEC ? '#d1d5db' : '#00829a',
+                          borderWidth: '2px',
+                          color: uploadingEC ? '#9ca3af' : '#00829a',
+                          transition: 'all 0.2s',
+                          cursor: uploadingEC ? 'not-allowed' : 'pointer'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!uploadingEC) {
+                            e.currentTarget.style.backgroundColor = 'rgba(0, 130, 154, 0.05)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!uploadingEC) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg"
                       >
                         <Upload className="w-4 h-4" />
                         {uploadingEC ? 'Subiendo...' : 'Subir EC (PDF)'}
                       </button>
-                    ) : (
-                      <div className="flex items-center justify-between bg-white border border-green-300 rounded-lg p-3">
-                        <button
-                          onClick={() => handleVerDocumento(archivoECExistente)}
-                          className="text-green-700 text-sm flex items-center gap-2 hover:underline"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          {archivoECExistente.filename}
-                        </button>
-                      </div>
                     )}
-                  </div>
-
-                  {/* PCE */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      PCE (Presupuesto de Caja y Egresos)
-                    </label>
-                    
-                    {!archivoPCEExistente ? (
+                    {tipoDocumentoSeleccionado === 'pce' && !archivoPCEExistente && (
                       <button
                         onClick={() => handleFileUpload('pce')}
                         disabled={uploadingPCE}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
-                          uploadingPCE
-                            ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
+                        style={{
+                          fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                          backgroundColor: uploadingPCE ? '#f3f4f6' : 'transparent',
+                          borderColor: uploadingPCE ? '#d1d5db' : '#00829a',
+                          borderWidth: '2px',
+                          color: uploadingPCE ? '#9ca3af' : '#00829a',
+                          transition: 'all 0.2s',
+                          cursor: uploadingPCE ? 'not-allowed' : 'pointer'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!uploadingPCE) {
+                            e.currentTarget.style.backgroundColor = 'rgba(0, 130, 154, 0.05)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!uploadingPCE) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg"
                       >
                         <Upload className="w-4 h-4" />
                         {uploadingPCE ? 'Subiendo...' : 'Subir PCE (PDF)'}
                       </button>
-                    ) : (
-                      <div className="flex items-center justify-between bg-white border border-green-300 rounded-lg p-3">
-                        <button
-                          onClick={() => handleVerDocumento(archivoPCEExistente)}
-                          className="text-green-700 text-sm flex items-center gap-2 hover:underline"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          {archivoPCEExistente.filename}
-                        </button>
-                      </div>
                     )}
-                  </div>
-
-                  {/* PED */}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-900 mb-2">
-                      PED (Presupuesto de Egresos y Desembolsos)
-                    </label>
-                    
-                    {!archivoPEDExistente ? (
+                    {tipoDocumentoSeleccionado === 'ped' && !archivoPEDExistente && (
                       <button
                         onClick={() => handleFileUpload('ped')}
                         disabled={uploadingPED}
-                        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
-                          uploadingPED
-                            ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700'
-                        }`}
+                        style={{
+                          fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                          backgroundColor: uploadingPED ? '#f3f4f6' : 'transparent',
+                          borderColor: uploadingPED ? '#d1d5db' : '#00829a',
+                          borderWidth: '2px',
+                          color: uploadingPED ? '#9ca3af' : '#00829a',
+                          transition: 'all 0.2s',
+                          cursor: uploadingPED ? 'not-allowed' : 'pointer'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!uploadingPED) {
+                            e.currentTarget.style.backgroundColor = 'rgba(0, 130, 154, 0.05)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!uploadingPED) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg"
                       >
                         <Upload className="w-4 h-4" />
                         {uploadingPED ? 'Subiendo...' : 'Subir PED (PDF)'}
                       </button>
-                    ) : (
-                      <div className="flex items-center justify-between bg-white border border-green-300 rounded-lg p-3">
-                        <button
-                          onClick={() => handleVerDocumento(archivoPEDExistente)}
-                          className="text-green-700 text-sm flex items-center gap-2 hover:underline"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          {archivoPEDExistente.filename}
-                        </button>
-                      </div>
                     )}
                   </div>
+                )}
+
+                {/* Documentos ya cargados */}
+                <div className="space-y-3">
+                  {archivoPECExistente && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">PEC (Planilla de Egresos de Caja)</span>
+                        <div className="flex items-center gap-2">
+                          <div className="text-green-700 text-sm flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            {archivoPECExistente.filename}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handlePreviewFile(archivoPECExistente)}
+                              style={{color: '#00829a'}}
+                              className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Vista previa"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDownloadById(archivoPECExistente)}
+                              style={{color: '#00829a'}}
+                              className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                              title="Descargar archivo"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {archivoECExistente && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">EC (Egreso de Caja)</span>
+                        <div className="flex items-center gap-2">
+                          <div className="text-green-700 text-sm flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            {archivoECExistente.filename}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handlePreviewFile(archivoECExistente)}
+                              style={{color: '#00829a'}}
+                              className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Vista previa"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDownloadById(archivoECExistente)}
+                              style={{color: '#00829a'}}
+                              className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                              title="Descargar archivo"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {archivoPCEExistente && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">PCE (Presupuesto de Caja y Egresos)</span>
+                        <div className="flex items-center gap-2">
+                          <div className="text-green-700 text-sm flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            {archivoPCEExistente.filename}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handlePreviewFile(archivoPCEExistente)}
+                              style={{color: '#00829a'}}
+                              className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Vista previa"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDownloadById(archivoPCEExistente)}
+                              style={{color: '#00829a'}}
+                              className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                              title="Descargar archivo"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {archivoPEDExistente && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">PED (Presupuesto de Egresos y Desembolsos)</span>
+                        <div className="flex items-center gap-2">
+                          <div className="text-green-700 text-sm flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            {archivoPEDExistente.filename}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handlePreviewFile(archivoPEDExistente)}
+                              style={{color: '#00829a'}}
+                              className="p-1.5 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Vista previa"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDownloadById(archivoPEDExistente)}
+                              style={{color: '#00829a'}}
+                              className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                              title="Descargar archivo"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1037,18 +1225,43 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
             <div className="border-t border-gray-200 p-6 flex gap-3 justify-end bg-gray-50 rounded-b-lg">
               <button
                 onClick={onClose}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                style={{
+                  fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg"
               >
                 Cerrar
               </button>
               <button
                 onClick={handleFinalizar}
                 disabled={procesando}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                  !procesando
-                    ? 'bg-blue-600 text-white hover:bg-blue-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
+                style={{
+                  fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                  backgroundColor: procesando ? '#f3f4f6' : '#00829a',
+                  color: procesando ? '#9ca3af' : 'white',
+                  transition: 'all 0.2s',
+                  cursor: procesando ? 'not-allowed' : 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  if (!procesando) {
+                    e.currentTarget.style.backgroundColor = '#14aab8';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!procesando) {
+                    e.currentTarget.style.backgroundColor = '#00829a';
+                  }
+                }}
+                onFocus={(e) => {
+                  if (!procesando) {
+                    e.currentTarget.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)';
+                  }
+                }}
+                onBlur={(e) => e.currentTarget.style.boxShadow = 'none'}
+                className="px-6 py-2 rounded-lg font-medium"
               >
                 {procesando ? 'Procesando...' : 'Finalizar y Cerrar Factura'}
               </button>

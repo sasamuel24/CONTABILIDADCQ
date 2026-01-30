@@ -114,8 +114,8 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
         {/* Logo */}
         <div className="p-6 border-b border-gray-200">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-            <span className="text-white">R</span>
+          <div className="w-15 h-10 rounded-lg flex items-center justify-center" style={{backgroundColor: '#00829a'}}>
+            <span className="text-white font-bold" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Sistema Facturación</span>
           </div>
         </div>
 
@@ -123,11 +123,18 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
         <nav className="flex-1 p-4">
           <button
             onClick={() => setActiveSection('dashboard')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2 ${
-              activeSection === 'dashboard'
-                ? 'bg-blue-50 text-blue-600'
-                : 'text-gray-700 hover:bg-gray-50'
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2`}
+            style={{
+              backgroundColor: activeSection === 'dashboard' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
+              color: activeSection === 'dashboard' ? '#00829a' : '#374151',
+              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+            }}
+            onMouseEnter={(e) => {
+              if (activeSection !== 'dashboard') e.currentTarget.style.backgroundColor = '#f9fafb';
+            }}
+            onMouseLeave={(e) => {
+              if (activeSection !== 'dashboard') e.currentTarget.style.backgroundColor = 'transparent';
+            }}
           >
             <LayoutDashboard className="w-5 h-5" />
             <span>Dashboard</span>
@@ -135,11 +142,18 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
 
           <button
             onClick={() => setActiveSection('inbox')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              activeSection === 'inbox'
-                ? 'bg-blue-50 text-blue-600'
-                : 'text-gray-700 hover:bg-gray-50'
-            }`}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors`}
+            style={{
+              backgroundColor: activeSection === 'inbox' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
+              color: activeSection === 'inbox' ? '#00829a' : '#374151',
+              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+            }}
+            onMouseEnter={(e) => {
+              if (activeSection !== 'inbox') e.currentTarget.style.backgroundColor = '#f9fafb';
+            }}
+            onMouseLeave={(e) => {
+              if (activeSection !== 'inbox') e.currentTarget.style.backgroundColor = 'transparent';
+            }}
           >
             <Inbox className="w-5 h-5" />
             <span>Inbox</span>
@@ -148,6 +162,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
           <button
             onClick={onLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-700 hover:bg-gray-50"
+            style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
           >
             <LogOut className="w-5 h-5" />
             <span>Logout</span>
@@ -233,34 +248,61 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                       placeholder="Buscar por número de factura, proveedor o responsable..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+                      onBlur={(e) => e.target.style.boxShadow = ''}
                     />
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                     {/* Areas Sidebar */}
                     <div className="lg:col-span-1">
-                      <div className="mb-4">
-                        <button
-                          onClick={() => {
-                            setSelectedArea('Todas');
-                            setCurrentPage(1);
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${
-                            selectedArea === 'Todas'
-                              ? 'bg-blue-50 text-blue-600'
-                              : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span>Todas las áreas</span>
-                            <span className="text-gray-500">{facturas.length}</span>
-                          </div>
-                        </button>
-                      </div>
+                      {/* Contenedor con scroll */}
+                      <div className="border border-gray-200 rounded-lg bg-white h-[600px] flex flex-col">
+                        <style>{`
+                          .areas-scrollbar::-webkit-scrollbar {
+                            width: 8px;
+                          }
+                          .areas-scrollbar::-webkit-scrollbar-track {
+                            background: #f3f4f6;
+                            border-radius: 10px;
+                          }
+                          .areas-scrollbar::-webkit-scrollbar-thumb {
+                            background: #14aab8;
+                            border-radius: 10px;
+                          }
+                          .areas-scrollbar::-webkit-scrollbar-thumb:hover {
+                            background: #00829a;
+                          }
+                        `}</style>
+                        <div className="overflow-y-auto areas-scrollbar p-3 flex-1">
+                          <button
+                            onClick={() => {
+                              setSelectedArea('Todas');
+                              setCurrentPage(1);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg transition-colors mb-4`}
+                            style={{
+                              backgroundColor: selectedArea === 'Todas' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
+                              color: selectedArea === 'Todas' ? '#00829a' : '#374151',
+                              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                            }}
+                            onMouseEnter={(e) => {
+                              if (selectedArea !== 'Todas') e.currentTarget.style.backgroundColor = '#f9fafb';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (selectedArea !== 'Todas') e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>Todas las áreas</span>
+                              <span className="text-gray-500">{facturas.length}</span>
+                            </div>
+                          </button>
 
-                      <div>
-                        <p className="px-3 mb-2 text-gray-600">ÁREAS</p>
+                          <p className="px-3 mb-2 text-gray-600 text-sm font-medium">ÁREAS</p>
+                        
                         {areas.map((area) => (
                           <button
                             key={area.id}
@@ -268,11 +310,18 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                               setSelectedArea(area.nombre);
                               setCurrentPage(1);
                             }}
-                            className={`w-full text-left px-3 py-2 rounded-lg transition-colors mb-1 ${
-                              selectedArea === area.nombre
-                                ? 'bg-blue-50 text-blue-600'
-                                : 'text-gray-700 hover:bg-gray-50'
-                            }`}
+                            className={`w-full text-left px-3 py-2 rounded-lg transition-colors mb-1`}
+                            style={{
+                              backgroundColor: selectedArea === area.nombre ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
+                              color: selectedArea === area.nombre ? '#00829a' : '#374151',
+                              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                            }}
+                            onMouseEnter={(e) => {
+                              if (selectedArea !== area.nombre) e.currentTarget.style.backgroundColor = '#f9fafb';
+                            }}
+                            onMouseLeave={(e) => {
+                              if (selectedArea !== area.nombre) e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
                           >
                             <div className="flex items-center justify-between">
                               <span>{area.nombre}</span>
@@ -280,6 +329,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                             </div>
                           </button>
                         ))}
+                        </div>
                       </div>
                     </div>
 
@@ -363,17 +413,31 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                             <button
                               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                               disabled={currentPage === 1}
-                              className="px-3 py-1 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="px-3 py-1 border border-gray-300 rounded-lg text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                              onMouseEnter={(e) => {
+                                if (currentPage !== 1) e.currentTarget.style.backgroundColor = '#f9fafb';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                              }}
                             >
                               Anterior
                             </button>
-                            <span className="text-gray-600">
+                            <span className="text-gray-600" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
                               Página {currentPage} de {totalPages}
                             </span>
                             <button
                               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                               disabled={currentPage === totalPages}
-                              className="px-3 py-1 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="px-3 py-1 border border-gray-300 rounded-lg text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                              onMouseEnter={(e) => {
+                                if (currentPage !== totalPages) e.currentTarget.style.backgroundColor = '#f9fafb';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                              }}
                             >
                               Siguiente
                             </button>

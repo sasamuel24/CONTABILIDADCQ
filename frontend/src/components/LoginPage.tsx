@@ -72,18 +72,26 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-8">
+    <div 
+      className="min-h-screen flex items-center justify-center p-8"
+      style={{
+        fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+        backgroundImage: `url('/fonts/plameras beige.jpg')`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center'
+      }}
+    >
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="mb-12">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold">R</span>
+          <div className="w-60 h-10 rounded-lg flex items-center justify-center" style={{backgroundColor: '#00829a'}}>
+            <span className="text-white font-bold">SISTEMA DE FACTURAS CAFÉ QUINDÍO</span>
           </div>
         </div>
 
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-gray-900 mb-2">Welcome back!</h1>
+          <h1 className="text-gray-900 mb-2">¡Bienvenido!</h1>
         </div>
 
         {/* Form */}
@@ -100,10 +108,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <div>
             <input
               type="email"
-              placeholder="Email address"
+              placeholder="Correo electrónico"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent"
+              onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+              onBlur={(e) => e.target.style.boxShadow = ''}
               required
               disabled={isLoading}
             />
@@ -113,17 +123,24 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
-              placeholder="Password"
+              placeholder="Contraseña"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent pr-12"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent pr-12"
+              onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+              onBlur={(e) => e.target.style.boxShadow = ''}
               required
               disabled={isLoading}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 transition-colors"
+              style={{
+                color: showPassword ? '#00829a' : undefined
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#00829a'}
+              onMouseLeave={(e) => e.currentTarget.style.color = showPassword ? '#00829a' : '#6b7280'}
               disabled={isLoading}
             >
               {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
@@ -137,17 +154,27 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+                className="w-4 h-4 rounded border-gray-300"
+                style={{accentColor: '#14aab8'}}
                 disabled={isLoading}
               />
-              <span className="text-gray-700">Remember me</span>
+              <span className="text-gray-700">Recordarme</span>
             </label>
           </div>
 
           {/* Login Button */}
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full text-white py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            style={{
+              backgroundColor: '#00829a'
+            }}
+            onMouseEnter={(e) => {
+              if (!isLoading) e.currentTarget.style.backgroundColor = '#14aab8';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#00829a';
+            }}
             disabled={isLoading}
           >
             {isLoading ? (
@@ -156,10 +183,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span>Logging in...</span>
+                <span>Iniciando sesión...</span>
               </>
             ) : (
-              'Log in'
+              'Iniciar Sesión'
             )}
           </button>
         </form>

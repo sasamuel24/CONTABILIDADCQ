@@ -178,17 +178,20 @@ export function DistribucionCCCOTable({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-gray-900 font-semibold text-lg">Distribución CC/CO</h4>
-        <span className={`text-sm font-medium px-3 py-1 rounded-full ${
-          totalValido && totalPorcentaje > 0
-            ? 'bg-green-100 text-green-700'
-            : 'bg-yellow-100 text-yellow-700'
-        }`}>
+        <h4 className="text-gray-900 font-semibold text-lg" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Distribución CC/CO</h4>
+        <span 
+          className="text-sm font-medium px-3 py-1 rounded-full"
+          style={{
+            backgroundColor: totalValido && totalPorcentaje > 0 ? 'rgba(20, 170, 184, 0.1)' : '#fef3c7',
+            color: totalValido && totalPorcentaje > 0 ? '#00829a' : '#92400e',
+            fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+          }}
+        >
           Total: {totalPorcentaje.toFixed(2)}%
         </span>
       </div>
 
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-gray-600" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
         Divide esta factura en múltiples clasificaciones contables con porcentajes. Los porcentajes deben sumar 100%.
       </p>
 
@@ -196,12 +199,12 @@ export function DistribucionCCCOTable({
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">CC</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">CO</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">UN</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">CA</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 w-24">%</th>
-              <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 w-16">Acciones</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>CC</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>CO</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>UN</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>CA</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 w-24" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>%</th>
+              <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 w-16" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -216,9 +219,12 @@ export function DistribucionCCCOTable({
                     <select
                       value={row.centro_costo_id}
                       onChange={(e) => actualizarFila(row.tempId, 'centro_costo_id', e.target.value)}
-                      className={`w-full px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500 ${
+                      className={`w-full px-2 py-1 text-sm border rounded focus:outline-none ${
                         errores[`${row.tempId}_cc`] ? 'border-red-500' : 'border-gray-300'
                       }`}
+                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+                      onBlur={(e) => e.target.style.boxShadow = ''}
                     >
                       <option value="">Seleccionar</option>
                       {centrosCosto.map(cc => (
@@ -233,9 +239,12 @@ export function DistribucionCCCOTable({
                       value={row.centro_operacion_id}
                       onChange={(e) => actualizarFila(row.tempId, 'centro_operacion_id', e.target.value)}
                       disabled={!row.centro_costo_id}
-                      className={`w-full px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500 ${
+                      className={`w-full px-2 py-1 text-sm border rounded focus:outline-none ${
                         errores[`${row.tempId}_co`] ? 'border-red-500' : 'border-gray-300'
                       } ${!row.centro_costo_id ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+                      onBlur={(e) => e.target.style.boxShadow = ''}
                     >
                       <option value="">Seleccionar</option>
                       {cosDisponibles.map(co => (
@@ -249,7 +258,10 @@ export function DistribucionCCCOTable({
                     <select
                       value={row.unidad_negocio_id}
                       onChange={(e) => actualizarFila(row.tempId, 'unidad_negocio_id', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none"
+                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+                      onBlur={(e) => e.target.style.boxShadow = ''}
                     >
                       <option value="">Opcional</option>
                       {unidadesNegocio.map(un => (
@@ -263,7 +275,10 @@ export function DistribucionCCCOTable({
                     <select
                       value={row.cuenta_auxiliar_id}
                       onChange={(e) => actualizarFila(row.tempId, 'cuenta_auxiliar_id', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none"
+                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+                      onBlur={(e) => e.target.style.boxShadow = ''}
                     >
                       <option value="">Opcional</option>
                       {cuentasAuxiliares.map(ca => (
@@ -281,9 +296,12 @@ export function DistribucionCCCOTable({
                       step="0.01"
                       value={row.porcentaje}
                       onChange={(e) => actualizarFila(row.tempId, 'porcentaje', e.target.value)}
-                      className={`w-full px-2 py-1 text-sm border rounded focus:ring-1 focus:ring-blue-500 ${
+                      className={`w-full px-2 py-1 text-sm border rounded focus:outline-none ${
                         errores[`${row.tempId}_porcentaje`] ? 'border-red-500' : 'border-gray-300'
                       }`}
+                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+                      onBlur={(e) => e.target.style.boxShadow = ''}
                       placeholder="0.00"
                     />
                   </td>
@@ -317,7 +335,22 @@ export function DistribucionCCCOTable({
       <div className="flex gap-3">
         <button
           onClick={agregarFila}
-          className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors"
+          style={{
+            borderColor: '#d1d5db',
+            color: '#374151',
+            fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(20, 170, 184, 0.1)';
+            e.currentTarget.style.borderColor = '#00829a';
+            e.currentTarget.style.color = '#00829a';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.borderColor = '#d1d5db';
+            e.currentTarget.style.color = '#374151';
+          }}
         >
           <Plus className="w-4 h-4" />
           Agregar línea
@@ -326,20 +359,37 @@ export function DistribucionCCCOTable({
         <button
           onClick={validarYGuardar}
           disabled={saving || rows.length === 0}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all shadow-md ${
-            saving || rows.length === 0
-              ? 'bg-gray-400 cursor-not-allowed text-gray-700'
-              : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg text-white'
-          }`}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-all border-2"
+          style={{
+            backgroundColor: saving || rows.length === 0 ? '#f3f4f6' : 'transparent',
+            borderColor: saving || rows.length === 0 ? '#d1d5db' : '#00829a',
+            color: saving || rows.length === 0 ? '#9ca3af' : '#00829a',
+            cursor: saving || rows.length === 0 ? 'not-allowed' : 'pointer',
+            fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+            fontSize: '0.875rem',
+            fontWeight: '600'
+          }}
+          onMouseEnter={(e) => {
+            if (!saving && rows.length > 0) {
+              e.currentTarget.style.backgroundColor = 'rgba(20, 170, 184, 0.05)';
+              e.currentTarget.style.borderColor = '#14aab8';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!saving && rows.length > 0) {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.borderColor = '#00829a';
+            }
+          }}
         >
           {saving ? (
             <>
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
               Guardando...
             </>
           ) : (
             <>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               Guardar Distribución

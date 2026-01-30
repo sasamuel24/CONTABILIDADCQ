@@ -501,6 +501,102 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     }
   };
 
+  // Guardar todos los cambios de una vez
+  const handleGuardarCambios = async () => {
+    try {
+      // Validaciones previas
+      const erroresValidacion: string[] = [];
+
+      // Validar inventarios si está activado
+      if (requiereInventario) {
+        if (!tipoIngreso) {
+          erroresValidacion.push('Debe seleccionar el tipo de ingreso (Tienda o Almacén)');
+        }
+        if (tipoIngreso === 'tienda' && (!oct || !ect || !fpcTienda)) {
+          erroresValidacion.push('Debe completar todos los campos de Tienda (OCT, ECT, FPC)');
+        }
+        if (tipoIngreso === 'almacen' && (!occ || !edo || !fpcAlmacen)) {
+          erroresValidacion.push('Debe completar todos los campos de Almacén (OCC, EDO, FPC)');
+        }
+      }
+
+      // Validar novedad
+      if (tieneNovedad && !numeroNotaCredito) {
+        erroresValidacion.push('Debe ingresar el número de Nota de Crédito (NP)');
+      }
+
+      // Validar anticipo
+      if (tieneAnticipo) {
+        const porcentaje = parseFloat(porcentajeAnticipo);
+        if (!porcentajeAnticipo || isNaN(porcentaje) || porcentaje < 0 || porcentaje > 100) {
+          erroresValidacion.push('El porcentaje de anticipo debe estar entre 0 y 100');
+        }
+      }
+
+      if (erroresValidacion.length > 0) {
+        alert('❌ Errores de validación:\n\n' + erroresValidacion.join('\n'));
+        return;
+      }
+
+      // Iniciar guardado
+      setSavingInventarios(true);
+      setSavingNovedad(true);
+      setSavingAnticipo(true);
+      setSavingIntervalo(true);
+
+      // 1. Guardar Inventarios
+      const codigosInventario = [];
+      if (requiereInventario) {
+        if (tipoIngreso === 'tienda') {
+          codigosInventario.push(
+            { codigo: 'OCT', valor: oct },
+            { codigo: 'ECT', valor: ect },
+            { codigo: 'FPC', valor: fpcTienda }
+          );
+        } else if (tipoIngreso === 'almacen') {
+          codigosInventario.push(
+            { codigo: 'OCC', valor: occ },
+            { codigo: 'EDO', valor: edo },
+            { codigo: 'FPC', valor: fpcAlmacen }
+          );
+        }
+      }
+
+      // Si tiene novedad, agregar código NP
+      if (tieneNovedad && numeroNotaCredito) {
+        codigosInventario.push({ codigo: 'NP', valor: numeroNotaCredito });
+      }
+
+      await updateFacturaInventarios(factura.id, {
+        requiere_entrada_inventarios: requiereInventario,
+        destino_inventarios: requiereInventario 
+          ? (tipoIngreso === 'tienda' ? 'TIENDA' : tipoIngreso === 'almacen' ? 'ALMACEN' : null)
+          : null,
+        presenta_novedad: tieneNovedad,
+        codigos: codigosInventario.length > 0 ? codigosInventario : undefined
+      });
+
+      // 2. Guardar Anticipo e Intervalo
+      const porcentaje = tieneAnticipo && porcentajeAnticipo ? parseFloat(porcentajeAnticipo) : null;
+      await updateFacturaAnticipo(factura.id, {
+        tiene_anticipo: tieneAnticipo,
+        porcentaje_anticipo: porcentaje,
+        intervalo_entrega_contabilidad: intervaloEntrega
+      });
+
+      alert('✅ Todos los cambios se guardaron correctamente');
+
+    } catch (error: any) {
+      console.error('Error guardando cambios:', error);
+      alert(`❌ Error al guardar cambios: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setSavingInventarios(false);
+      setSavingNovedad(false);
+      setSavingAnticipo(false);
+      setSavingIntervalo(false);
+    }
+  };
+
   // Guardar inventarios
   const handleGuardarInventarios = async () => {
     if (!requiereInventario) {
@@ -858,14 +954,17 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         <div className="flex min-h-full items-center justify-center p-6">
           <div className="w-full max-w-3xl bg-white shadow-2xl rounded-lg border border-gray-200 my-8">
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-lg">
+            <div className="text-white p-6 rounded-t-lg" style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}}>
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1 mt-2">
-                  <h3 className="text-white mb-2 text-xl font-semibold">Detalle de Factura</h3>
+                  <h3 className="text-white mb-2 text-xl font-semibold" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Detalle de Factura</h3>
                 </div>
                 <button 
                   onClick={onClose}
-                  className="p-2 hover:bg-blue-500 rounded-lg transition-colors"
+                  className="p-2 rounded-lg transition-colors"
+                  style={{backgroundColor: 'transparent'}}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(20, 170, 184, 0.3)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1025,7 +1124,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                         onChange={(e) => handleToggleEsGastoAdm(e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:bg-blue-600 peer-focus:ring-4 peer-focus:ring-blue-300 transition-colors"></div>
+                      <div className="w-11 h-6 bg-gray-300 rounded-full peer transition-colors" style={{backgroundColor: esGastoAdm ? '#00829a' : '#d1d5db'}}></div>
                       <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
                     </div>
                     <div>
@@ -1037,7 +1136,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   </label>
                 </div>
                 {esGastoAdm && (
-                  <span className="flex-shrink-0 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
+                  <span className="flex-shrink-0 px-2 py-1 text-xs font-medium rounded-full" style={{backgroundColor: 'rgba(20, 170, 184, 0.1)', color: '#00829a'}}>
                     Activado
                   </span>
                 )}
@@ -1097,11 +1196,27 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   <button
                     onClick={() => handleFileUpload('oc')}
                     disabled={uploadingOC}
-                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
-                      uploadingOC 
-                        ? 'bg-gray-400 cursor-not-allowed' 
-                        : 'bg-blue-600 hover:bg-blue-700'
-                    } text-white`}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-all border-2"
+                    style={{
+                      backgroundColor: uploadingOC ? '#f3f4f6' : 'transparent',
+                      borderColor: uploadingOC ? '#d1d5db' : '#00829a',
+                      color: uploadingOC ? '#9ca3af' : '#00829a',
+                      cursor: uploadingOC ? 'not-allowed' : 'pointer',
+                      fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                      fontSize: '0.875rem'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!uploadingOC) {
+                        e.currentTarget.style.backgroundColor = 'rgba(20, 170, 184, 0.05)';
+                        e.currentTarget.style.borderColor = '#14aab8';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!uploadingOC) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.borderColor = '#00829a';
+                      }
+                    }}
                   >
                     <Upload className="w-4 h-4" />
                     {uploadingOC ? 'Subiendo...' : 'Subir OC / OS'}
@@ -1176,11 +1291,27 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   <button
                     onClick={() => handleFileUpload('aprobacion')}
                     disabled={uploadingAprobacion}
-                    className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors ${
-                      uploadingAprobacion 
-                        ? 'bg-gray-400 cursor-not-allowed' 
-                        : 'bg-blue-600 hover:bg-blue-700'
-                    } text-white`}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-all border-2"
+                    style={{
+                      backgroundColor: uploadingAprobacion ? '#f3f4f6' : 'transparent',
+                      borderColor: uploadingAprobacion ? '#d1d5db' : '#00829a',
+                      color: uploadingAprobacion ? '#9ca3af' : '#00829a',
+                      cursor: uploadingAprobacion ? 'not-allowed' : 'pointer',
+                      fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                      fontSize: '0.875rem'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!uploadingAprobacion) {
+                        e.currentTarget.style.backgroundColor = 'rgba(20, 170, 184, 0.05)';
+                        e.currentTarget.style.borderColor = '#14aab8';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!uploadingAprobacion) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.borderColor = '#00829a';
+                      }
+                    }}
                   >
                     <Upload className="w-4 h-4" />
                     {uploadingAprobacion ? 'Subiendo...' : 'Subir Aprobación'}
@@ -1234,11 +1365,18 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                     onClick={() => {
                       setRequiereInventario(true);
                     }}
-                    className={`px-8 py-2 rounded-lg font-medium transition-colors ${
-                      requiereInventario 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
+                    className={`px-8 py-2 rounded-lg font-medium transition-colors`}
+                    style={{
+                      backgroundColor: requiereInventario ? '#00829a' : '#e5e7eb',
+                      color: requiereInventario ? 'white' : '#374151',
+                      fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!requiereInventario) e.currentTarget.style.backgroundColor = '#d1d5db';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!requiereInventario) e.currentTarget.style.backgroundColor = '#e5e7eb';
+                    }}
                   >
                     Sí
                   </button>
@@ -1255,11 +1393,18 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                       setFpcAlmacen('');
                       setArchivoInventario('');
                     }}
-                    className={`px-8 py-2 rounded-lg font-medium transition-colors ${
-                      !requiereInventario 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
+                    className={`px-8 py-2 rounded-lg font-medium transition-colors`}
+                    style={{
+                      backgroundColor: !requiereInventario ? '#00829a' : '#e5e7eb',
+                      color: !requiereInventario ? 'white' : '#374151',
+                      fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (requiereInventario) e.currentTarget.style.backgroundColor = '#d1d5db';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (requiereInventario) e.currentTarget.style.backgroundColor = '#e5e7eb';
+                    }}
                   >
                     No
                   </button>
@@ -1425,33 +1570,6 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                       </div>
                     </div>
                   )}
-                  
-                  {/* Botón para guardar inventarios */}
-                  <div className="pt-3 border-t border-gray-200 mt-4">
-                    <button
-                      onClick={handleGuardarInventarios}
-                      disabled={savingInventarios}
-                      className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all shadow-md ${
-                        savingInventarios
-                          ? 'bg-gray-400 cursor-not-allowed text-gray-700' 
-                          : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg text-white'
-                      }`}
-                    >
-                      {savingInventarios ? (
-                        <>
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Guardando...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Guardar Datos de Inventarios
-                        </>
-                      )}
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
@@ -1467,11 +1585,18 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                     onClick={() => {
                       setTieneNovedad(true);
                     }}
-                    className={`px-8 py-2 rounded-lg font-medium transition-colors ${
-                      tieneNovedad 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
+                    className={`px-8 py-2 rounded-lg font-medium transition-colors`}
+                    style={{
+                      backgroundColor: tieneNovedad ? '#00829a' : '#e5e7eb',
+                      color: tieneNovedad ? 'white' : '#374151',
+                      fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!tieneNovedad) e.currentTarget.style.backgroundColor = '#d1d5db';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!tieneNovedad) e.currentTarget.style.backgroundColor = '#e5e7eb';
+                    }}
                   >
                     Sí
                   </button>
@@ -1481,11 +1606,18 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                       setNumeroNotaCredito('');
                       setArchivoNotaCredito('');
                     }}
-                    className={`px-8 py-2 rounded-lg font-medium transition-colors ${
-                      !tieneNovedad 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
+                    className={`px-8 py-2 rounded-lg font-medium transition-colors`}
+                    style={{
+                      backgroundColor: !tieneNovedad ? '#00829a' : '#e5e7eb',
+                      color: !tieneNovedad ? 'white' : '#374151',
+                      fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (tieneNovedad) e.currentTarget.style.backgroundColor = '#d1d5db';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (tieneNovedad) e.currentTarget.style.backgroundColor = '#e5e7eb';
+                    }}
                   >
                     No
                   </button>
@@ -1517,32 +1649,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                     )}
                   </div>
                   
-                  {/* Botón para guardar novedad */}
-                  <div className="pt-3">
-                    <button
-                      onClick={handleGuardarNovedad}
-                      disabled={savingNovedad}
-                      className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all shadow-md ${
-                        savingNovedad
-                          ? 'bg-gray-400 cursor-not-allowed text-gray-700' 
-                          : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg text-white'
-                      }`}
-                    >
-                      {savingNovedad ? (
-                        <>
-                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Guardando...
-                        </>
-                      ) : (
-                        <>
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Guardar Novedad
-                        </>
-                      )}
-                    </button>
-                  </div>
+
                 </div>
               )}
             </div>
@@ -1558,11 +1665,18 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                     onClick={() => {
                       setTieneAnticipo(true);
                     }}
-                    className={`px-8 py-2 rounded-lg font-medium transition-colors ${
-                      tieneAnticipo 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
+                    className={`px-8 py-2 rounded-lg font-medium transition-colors`}
+                    style={{
+                      backgroundColor: tieneAnticipo ? '#00829a' : '#e5e7eb',
+                      color: tieneAnticipo ? 'white' : '#374151',
+                      fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!tieneAnticipo) e.currentTarget.style.backgroundColor = '#d1d5db';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!tieneAnticipo) e.currentTarget.style.backgroundColor = '#e5e7eb';
+                    }}
                   >
                     Sí
                   </button>
@@ -1571,11 +1685,18 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                       setTieneAnticipo(false);
                       setPorcentajeAnticipo('');
                     }}
-                    className={`px-8 py-2 rounded-lg font-medium transition-colors ${
-                      !tieneAnticipo 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
+                    className={`px-8 py-2 rounded-lg font-medium transition-colors`}
+                    style={{
+                      backgroundColor: !tieneAnticipo ? '#00829a' : '#e5e7eb',
+                      color: !tieneAnticipo ? 'white' : '#374151',
+                      fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                    }}
+                    onMouseEnter={(e) => {
+                      if (tieneAnticipo) e.currentTarget.style.backgroundColor = '#d1d5db';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (tieneAnticipo) e.currentTarget.style.backgroundColor = '#e5e7eb';
+                    }}
                   >
                     No
                   </button>
@@ -1606,78 +1727,50 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   )}
                 </div>
               )}
+            </div>
 
-              {/* Botón Guardar Anticipo */}
-              <div className="mt-4">
-                <button
-                  onClick={handleGuardarAnticipo}
-                  disabled={savingAnticipo}
-                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all shadow-md ${
-                    savingAnticipo
-                      ? 'bg-gray-400 cursor-not-allowed text-gray-700' 
-                      : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg text-white'
-                  }`}
-                >
-                  {savingAnticipo ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Guardar Anticipo
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Intervalo de entrega (siempre visible) */}
-              <div className="mb-4 mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Intervalo entrega a contabilidad
-                </label>
-                <select
-                  value={intervaloEntrega}
-                  onChange={(e) => setIntervaloEntrega(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {INTERVALOS_ENTREGA.map(intervalo => (
-                    <option key={intervalo.value} value={intervalo.value}>
-                      {intervalo.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Botón Guardar Intervalo */}
-              <div className="mt-4">
-                <button
-                  onClick={handleGuardarIntervalo}
-                  disabled={savingIntervalo}
-                  className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all shadow-md ${
-                    savingIntervalo
-                      ? 'bg-gray-400 cursor-not-allowed text-gray-700' 
-                      : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg text-white'
-                  }`}
-                >
-                  {savingIntervalo ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Guardar Intervalo
-                    </>
-                  )}
-                </button>
-              </div>
+            {/* Botón Unificado de Guardar Cambios */}
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-t border-b border-gray-200 p-6">
+              <button
+                onClick={handleGuardarCambios}
+                disabled={savingInventarios || savingNovedad || savingAnticipo || savingIntervalo}
+                className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-lg font-bold text-lg transition-all shadow-lg"
+                style={{
+                  backgroundColor: (savingInventarios || savingNovedad || savingAnticipo || savingIntervalo) ? '#9ca3af' : '#00829a',
+                  color: 'white',
+                  cursor: (savingInventarios || savingNovedad || savingAnticipo || savingIntervalo) ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                }}
+                onMouseEnter={(e) => {
+                  if (!(savingInventarios || savingNovedad || savingAnticipo || savingIntervalo)) {
+                    e.currentTarget.style.backgroundColor = '#14aab8';
+                    e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(20, 170, 184, 0.5)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!(savingInventarios || savingNovedad || savingAnticipo || savingIntervalo)) {
+                    e.currentTarget.style.backgroundColor = '#00829a';
+                    e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+                  }
+                }}
+              >
+                {(savingInventarios || savingNovedad || savingAnticipo || savingIntervalo) ? (
+                  <>
+                    <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Guardando cambios...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Guardar Todos los Cambios
+                  </>
+                )}
+              </button>
+              <p className="text-xs text-gray-600 text-center mt-3" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                Guarda: Inventarios, Novedad y Anticipo
+              </p>
             </div>
           </div>
 
@@ -1699,11 +1792,19 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               <button
                 onClick={handleEnviarContabilidad}
                 disabled={enviandoContabilidad}
-                className={`px-6 py-2 rounded-lg transition-colors font-medium ${
-                  enviandoContabilidad
-                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
+                className={`px-6 py-2 rounded-lg transition-colors font-medium`}
+                style={{
+                  backgroundColor: enviandoContabilidad ? '#9ca3af' : '#00829a',
+                  color: enviandoContabilidad ? '#e5e7eb' : 'white',
+                  cursor: enviandoContabilidad ? 'not-allowed' : 'pointer',
+                  fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                }}
+                onMouseEnter={(e) => {
+                  if (!enviandoContabilidad) e.currentTarget.style.backgroundColor = '#14aab8';
+                }}
+                onMouseLeave={(e) => {
+                  if (!enviandoContabilidad) e.currentTarget.style.backgroundColor = '#00829a';
+                }}
               >
                 {enviandoContabilidad ? (
                   <div className="flex items-center gap-2">
@@ -1726,36 +1827,41 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
           style={{ zIndex: 9999, position: 'fixed' }}
         >
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full" style={{ position: 'relative', zIndex: 10000 }}>
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Devolver a Facturación</h3>
-              <p className="text-sm text-gray-600 mt-1">
+            {/* Header con gradiente turquesa */}
+            <div className="p-6 border-b border-gray-200 rounded-t-lg" style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}}>
+              <h3 className="text-lg font-semibold text-white" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Devolver a Facturación</h3>
+              <p className="text-sm mt-1" style={{color: 'rgba(255, 255, 255, 0.9)', fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
                 La factura será devuelta al área de Facturación para correcciones
               </p>
             </div>
             
             <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
                 Motivo de devolución <span className="text-red-600">*</span>
               </label>
               <textarea
                 value={motivoDevolucion}
                 onChange={(e) => setMotivoDevolucion(e.target.value)}
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none resize-none"
+                style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(220, 38, 38, 0.5)'}
+                onBlur={(e) => e.target.style.boxShadow = ''}
                 placeholder="Describa el motivo de la devolución (mínimo 10 caracteres)..."
                 disabled={enviandoDevolucion}
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 mt-1" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
                 {motivoDevolucion.length}/1000 caracteres (mínimo 10)
               </p>
               {motivoDevolucion.length > 0 && motivoDevolucion.length < 10 && (
-                <p className="text-xs text-red-600 mt-1">
-                  ⚠️ El motivo debe tener al menos 10 caracteres
+                <p className="text-xs text-red-600 mt-1 flex items-center gap-1" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                  <AlertCircle className="w-3 h-3" />
+                  El motivo debe tener al menos 10 caracteres
                 </p>
               )}
             </div>
 
-            <div className="p-6 border-t border-gray-200 flex gap-3 justify-end bg-gray-50">
+            <div className="p-6 border-t border-gray-200 flex gap-3 justify-end bg-gray-50 rounded-b-lg">
               <button
                 onClick={() => {
                   setMostrarModalDevolucion(false);
@@ -1763,20 +1869,31 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 }}
                 disabled={enviandoDevolucion}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
               >
                 Cancelar
               </button>
-              <button
-                onClick={handleDevolverAFacturacion}
-                disabled={enviandoDevolucion || motivoDevolucion.trim().length < 10}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  enviandoDevolucion || motivoDevolucion.trim().length < 10
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-red-600 text-white hover:bg-red-700'
-                }`}
-              >
-                {enviandoDevolucion ? 'Devolviendo...' : 'Confirmar Devolución'}
-              </button>
+              {motivoDevolucion.trim().length >= 10 && (
+                <button
+                  onClick={handleDevolverAFacturacion}
+                  disabled={enviandoDevolucion}
+                  className="px-4 py-2 rounded-lg font-medium transition-colors"
+                  style={{
+                    backgroundColor: enviandoDevolucion ? '#9ca3af' : '#dc2626',
+                    color: 'white',
+                    cursor: enviandoDevolucion ? 'not-allowed' : 'pointer',
+                    fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!enviandoDevolucion) e.currentTarget.style.backgroundColor = '#b91c1c';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!enviandoDevolucion) e.currentTarget.style.backgroundColor = '#dc2626';
+                  }}
+                >
+                  {enviandoDevolucion ? 'Devolviendo...' : 'Confirmar Devolución'}
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -407,27 +407,30 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
         <div className="flex min-h-full items-center justify-center p-6">
           <div className="w-full max-w-3xl bg-white shadow-2xl rounded-lg border border-gray-200 my-8">
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-lg">
+            <div style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}} className="text-white p-6 rounded-t-lg">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex-1 mt-2">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-white text-xl font-semibold">Detalle de Factura</h3>
-                    <span className="px-3 py-1 bg-blue-500 bg-opacity-50 text-white text-xs font-medium rounded-full border border-blue-400">
+                    <h3 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="text-white text-xl font-semibold">Detalle de Factura</h3>
+                    <span style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', backgroundColor: 'rgba(255, 255, 255, 0.2)', borderColor: 'rgba(255, 255, 255, 0.3)'}} className="px-3 py-1 text-white text-xs font-medium rounded-full border">
                       MODO AUDITORÍA
                     </span>
                   </div>
                 </div>
                 <button 
                   onClick={onClose}
-                  className="p-2 hover:bg-blue-500 rounded-lg transition-colors"
+                  style={{transition: 'background-color 0.2s'}}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  className="p-2 rounded-lg"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
               
               <div className="flex items-center gap-3">
-                <span className="font-mono text-white text-lg">{factura.numero_factura}</span>
-                <span className="text-blue-200">•</span>
+                <span style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="font-mono text-white text-lg">{factura.numero_factura}</span>
+                <span className="text-white" style={{opacity: 0.7}}>•</span>
                 <span className={`px-3 py-1 rounded-full border text-sm ${statusConfig[factura.estado]?.bgColor || 'bg-gray-100 border-gray-200'} ${statusConfig[factura.estado]?.color || 'text-gray-700'}`}>
                   {factura.estado}
                 </span>
@@ -439,7 +442,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
               
               {/* Información de la Factura */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Información de la Factura</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Información de la Factura</h4>
                 <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Proveedor</span>
@@ -470,7 +473,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
 
               {/* Adjuntos del Responsable */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Documentos Adjuntos</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Documentos Adjuntos</h4>
                 <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                   {loadingArchivos ? (
                     <div className="text-sm text-gray-500">Cargando archivos...</div>
@@ -583,7 +586,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
 
               {/* Soporte de Pago (Factura PDF) */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Soporte de Pago</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Soporte de Pago</h4>
                 {loadingArchivos ? (
                   <div className="text-sm text-gray-500">Cargando archivos...</div>
                 ) : soportePagoFiles.length > 0 ? (
@@ -663,7 +666,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
 
               {/* Distribución CC/CO */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Distribución de Centros de Costo / Operación</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Distribución de Centros de Costo / Operación</h4>
                 {loadingDistribucion ? (
                   <div className="text-sm text-gray-500">Cargando distribución...</div>
                 ) : distribuciones.length > 0 ? (
@@ -719,15 +722,15 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-                    <p className="text-yellow-700 text-sm">No hay distribución configurada para esta factura</p>
+                  <div style={{backgroundColor: '#e0f5f7', borderColor: '#00829a'}} className="border rounded-lg p-4 text-center">
+                    <p style={{color: '#00829a', fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-sm">No hay distribución configurada para esta factura</p>
                   </div>
                 )}
               </div>
 
               {/* Inventarios */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Inventarios</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Inventarios</h4>
                 <div className="bg-gray-50 rounded-lg p-4 space-y-4">
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-gray-700">¿Requiere entrada a inventarios?</span>
@@ -821,7 +824,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
 
               {/* Novedad / Nota de Crédito */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Producto Incorrecto / Novedad</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Producto Incorrecto / Novedad</h4>
                 <div className="bg-gray-50 rounded-lg p-4 space-y-3">
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-gray-700">¿Presenta novedad?</span>
@@ -850,9 +853,9 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                 </div>
               </div>
 
-              {/* Anticipo e Intervalo */}
+              {/* Anticipo */}
               <div>
-                <h4 className="text-gray-900 font-semibold mb-3">Anticipo e Intervalo de Entrega</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Anticipo</h4>
                 <div className="bg-gray-50 rounded-lg p-4 space-y-4">
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-gray-700">¿Tiene anticipo?</span>
@@ -878,18 +881,6 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                       />
                     </div>
                   )}
-
-                  <div className="pt-3 border-t border-gray-200">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Intervalo de Entrega a Contabilidad
-                    </label>
-                    <input
-                      type="text"
-                      value={getIntervaloLabel(intervaloEntrega)}
-                      disabled
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -899,25 +890,69 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
             <div className="border-t border-gray-200 p-6 flex gap-3 justify-end bg-gray-50 rounded-b-lg">
               <button
                 onClick={onClose}
-                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                style={{
+                  fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg"
               >
                 Cerrar
               </button>
               <button
                 onClick={() => setMostrarModalDevolucion(true)}
                 disabled={procesando}
-                className="px-6 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors"
+                style={{
+                  fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                  backgroundColor: procesando ? '#f3f4f6' : 'transparent',
+                  borderColor: procesando ? '#d1d5db' : '#dc2626',
+                  color: procesando ? '#9ca3af' : '#dc2626',
+                  borderWidth: '2px',
+                  transition: 'all 0.2s',
+                  cursor: procesando ? 'not-allowed' : 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  if (!procesando) {
+                    e.currentTarget.style.backgroundColor = 'rgba(220, 38, 38, 0.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!procesando) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }
+                }}
+                className="px-6 py-2 rounded-lg"
               >
                 Devolver a Responsable
               </button>
               <button
                 onClick={handleAprobar}
                 disabled={procesando}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                  procesando
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
+                style={{
+                  fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                  backgroundColor: procesando ? '#f3f4f6' : '#00829a',
+                  color: procesando ? '#9ca3af' : 'white',
+                  transition: 'all 0.2s',
+                  cursor: procesando ? 'not-allowed' : 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  if (!procesando) {
+                    e.currentTarget.style.backgroundColor = '#14aab8';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!procesando) {
+                    e.currentTarget.style.backgroundColor = '#00829a';
+                  }
+                }}
+                onFocus={(e) => {
+                  if (!procesando) {
+                    e.currentTarget.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)';
+                  }
+                }}
+                onBlur={(e) => e.currentTarget.style.boxShadow = 'none'}
+                className="px-6 py-2 rounded-lg font-medium"
               >
                 {procesando ? 'Procesando...' : 'Aprobar y Enviar a Tesorería'}
               </button>
@@ -930,57 +965,87 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
       {mostrarModalDevolucion && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900">Devolver a Responsable</h3>
-              <p className="text-sm text-gray-600 mt-1">
+            <div style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}} className="p-6 border-b border-gray-200 rounded-t-lg">
+              <h3 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="text-lg font-semibold text-white">Devolver a Responsable</h3>
+              <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif', opacity: 0.9}} className="text-sm text-white mt-1">
                 La factura será devuelta al área responsable para correcciones
               </p>
             </div>
             
             <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="block text-sm font-medium text-gray-700 mb-2">
                 Motivo de devolución <span className="text-red-600">*</span>
               </label>
               <textarea
                 value={motivoDevolucion}
                 onChange={(e) => setMotivoDevolucion(e.target.value)}
                 rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 resize-none"
+                style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}}
+                onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(220, 38, 38, 0.5)'}
+                onBlur={(e) => e.target.style.boxShadow = 'none'}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
                 placeholder="Describa el motivo de la devolución (mínimo 10 caracteres)..."
                 disabled={enviandoDevolucion}
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-xs text-gray-500 mt-1">
                 {motivoDevolucion.length}/1000 caracteres (mínimo 10)
               </p>
               {motivoDevolucion.length > 0 && motivoDevolucion.length < 10 && (
-                <p className="text-xs text-red-600 mt-1">
+                <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-xs text-red-600 mt-1">
                   ⚠️ El motivo debe tener al menos 10 caracteres
                 </p>
               )}
             </div>
 
-            <div className="p-6 border-t border-gray-200 flex gap-3 justify-end bg-gray-50">
+            <div className="p-6 border-t border-gray-200 flex gap-3 justify-end bg-gray-50 rounded-b-lg">
               <button
                 onClick={() => {
                   setMostrarModalDevolucion(false);
                   setMotivoDevolucion('');
                 }}
                 disabled={enviandoDevolucion}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
+                style={{
+                  fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => !enviandoDevolucion && (e.currentTarget.style.backgroundColor = '#f3f4f6')}
+                onMouseLeave={(e) => !enviandoDevolucion && (e.currentTarget.style.backgroundColor = 'white')}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg"
               >
                 Cancelar
               </button>
-              <button
-                onClick={handleDevolverAResponsable}
-                disabled={enviandoDevolucion || motivoDevolucion.trim().length < 10}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  enviandoDevolucion || motivoDevolucion.trim().length < 10
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-red-600 text-white hover:bg-red-700'
-                }`}
-              >
-                {enviandoDevolucion ? 'Devolviendo...' : 'Confirmar Devolución'}
-              </button>
+              {motivoDevolucion.trim().length >= 10 && (
+                <button
+                  onClick={handleDevolverAResponsable}
+                  disabled={enviandoDevolucion}
+                  style={{
+                    fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                    backgroundColor: enviandoDevolucion ? '#f3f4f6' : '#dc2626',
+                    color: enviandoDevolucion ? '#9ca3af' : 'white',
+                    transition: 'all 0.2s',
+                    cursor: enviandoDevolucion ? 'not-allowed' : 'pointer'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!enviandoDevolucion) {
+                      e.currentTarget.style.backgroundColor = '#b91c1c';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!enviandoDevolucion) {
+                      e.currentTarget.style.backgroundColor = '#dc2626';
+                    }
+                  }}
+                  onFocus={(e) => {
+                    if (!enviandoDevolucion) {
+                      e.currentTarget.style.boxShadow = '0 0 0 2px rgba(220, 38, 38, 0.5)';
+                    }
+                  }}
+                  onBlur={(e) => e.currentTarget.style.boxShadow = 'none'}
+                  className="px-4 py-2 rounded-lg font-medium"
+                >
+                  {enviandoDevolucion ? 'Devolviendo...' : 'Confirmar Devolución'}
+                </button>
+              )}
             </div>
           </div>
         </div>

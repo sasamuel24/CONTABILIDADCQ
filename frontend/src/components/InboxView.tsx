@@ -226,7 +226,7 @@ export function InboxView() {
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
               <p className="text-gray-600 mb-1">Recibidas</p>
-              <p className="text-blue-600">{statusCounts['Recibida'] || 0}</p>
+              <p style={{color: '#14aab8', fontWeight: '600'}}>{statusCounts['Recibida'] || 0}</p>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
               <p className="text-gray-600 mb-1">Cerradas</p>
@@ -247,7 +247,10 @@ export function InboxView() {
               placeholder="Buscar por proveedor o número de factura..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+              style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+              onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+              onBlur={(e) => e.target.style.boxShadow = ''}
             />
           </div>
 
@@ -257,7 +260,10 @@ export function InboxView() {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+              style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+              onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+              onBlur={(e) => e.target.style.boxShadow = ''}
             >
               <option value="Todos">Todos ({statusCounts.Todos})</option>
               {Object.entries(statusCounts).filter(([key]) => key !== 'Todos').map(([estado, count]) => (
@@ -449,34 +455,40 @@ export function InboxView() {
               {/* Overlay - Fondo blanco que cubre toda la app */}
               <div className="fixed inset-0 bg-white z-40" />
               
-              {/* Drawer Panel - Centrado */}
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-                <div className="w-full max-w-2xl bg-white shadow-2xl rounded-lg flex flex-col max-h-[90vh] border border-gray-200">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1 mt-2">
-                  <h3 className="text-white mb-2">Detalle de Factura</h3>
-                </div>
-                <button 
-                  onClick={closeDrawer}
-                  className="p-2 hover:bg-blue-500 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-white">{selectedFactura.numero_factura}</span>
-                <span className="text-blue-200">•</span>
-                <span className={`px-3 py-1 rounded-full border text-sm ${statusConfig[selectedFactura.estado]?.bgColor || 'bg-gray-100 border-gray-200'} ${statusConfig[selectedFactura.estado]?.color || 'text-gray-700'}`}>
-                  {selectedFactura.estado}
-                </span>
-              </div>
-            </div>
+              {/* Drawer Panel - Centrado y optimizado para scroll */}
+              <div className="fixed inset-0 z-50 overflow-y-auto">
+                <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
+                  <div className="w-full max-w-2xl bg-white shadow-2xl rounded-lg border border-gray-200 my-8">
+                    {/* Header - Sticky para que siempre sea visible */}
+                    <div className="sticky top-0 z-10 text-white rounded-t-lg" style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}}>
+                      <div className="p-4 sm:p-6">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1 mt-2">
+                            <h3 className="text-white mb-2 text-lg sm:text-xl font-semibold" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Detalle de Factura</h3>
+                          </div>
+                          <button 
+                            onClick={closeDrawer}
+                            className="p-2 rounded-lg transition-colors flex-shrink-0"
+                            style={{backgroundColor: 'transparent'}}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(20, 170, 184, 0.3)'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                        
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <span className="font-mono text-white text-sm sm:text-base">{selectedFactura.numero_factura}</span>
+                          <span style={{color: 'rgba(144, 205, 227, 0.7)'}}>•</span>
+                          <span className={`px-3 py-1 rounded-full border text-xs sm:text-sm ${statusConfig[selectedFactura.estado]?.bgColor || 'bg-gray-100 border-gray-200'} ${statusConfig[selectedFactura.estado]?.color || 'text-gray-700'}`}>
+                            {selectedFactura.estado}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {/* Content - Scrollable */}
+                    <div className="p-4 sm:p-6 space-y-6">
               {/* Alerta de Devolución (si existe motivo) */}
               {selectedFactura.motivo_devolucion && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -597,10 +609,12 @@ export function InboxView() {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handlePreviewFile(file)}
-                              className="p-2 hover:bg-blue-50 rounded-lg transition-colors"
+                              className="p-2 rounded-lg transition-colors"
                               title="Vista previa"
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(20, 170, 184, 0.1)'}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
-                              <Eye className="w-4 h-4 text-blue-600" />
+                              <Eye className="w-4 h-4" style={{color: '#00829a'}} />
                             </button>
                             {file.storage_path ? (
                               <button
@@ -642,7 +656,10 @@ export function InboxView() {
                     <select
                       value={areaSeleccionada}
                       onChange={(e) => setAreaSeleccionada(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
+                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+                      onBlur={(e) => e.target.style.boxShadow = ''}
                     >
                       <option value="">Seleccionar área...</option>
                       {areas.map(area => (
@@ -653,25 +670,47 @@ export function InboxView() {
                   <button
                     onClick={() => areaSeleccionada && handleAreaChange(selectedFactura.id, areaSeleccionada)}
                     disabled={!areaSeleccionada || areaSeleccionada === areas.find(a => a.nombre === selectedFactura.area)?.id}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
+                    className="w-full px-4 py-2.5 rounded-lg transition-all border-2"
+                    style={{
+                      backgroundColor: (!areaSeleccionada || areaSeleccionada === areas.find(a => a.nombre === selectedFactura.area)?.id) ? '#f3f4f6' : 'transparent',
+                      borderColor: (!areaSeleccionada || areaSeleccionada === areas.find(a => a.nombre === selectedFactura.area)?.id) ? '#d1d5db' : '#00829a',
+                      color: (!areaSeleccionada || areaSeleccionada === areas.find(a => a.nombre === selectedFactura.area)?.id) ? '#9ca3af' : '#00829a',
+                      cursor: (!areaSeleccionada || areaSeleccionada === areas.find(a => a.nombre === selectedFactura.area)?.id) ? 'not-allowed' : 'pointer',
+                      fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                      fontSize: '0.875rem'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!e.currentTarget.disabled) {
+                        e.currentTarget.style.backgroundColor = 'rgba(20, 170, 184, 0.05)';
+                        e.currentTarget.style.borderColor = '#14aab8';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!e.currentTarget.disabled) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.borderColor = '#00829a';
+                      }
+                    }}
                   >
                     Actualizar Área
                   </button>
                 </div>
               </div>
-            </div>
+                    </div>
 
-            {/* Footer */}
-            <div className="border-t border-gray-200 p-6 bg-gray-50">
-              <button
-                onClick={closeDrawer}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-              >
-                Cerrar
-              </button>
-            </div>
-            </div>
-          </div>
+                    {/* Footer */}
+                    <div className="border-t border-gray-200 p-4 sm:p-6 bg-gray-50 rounded-b-lg">
+                      <button
+                        onClick={closeDrawer}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+                        style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </>

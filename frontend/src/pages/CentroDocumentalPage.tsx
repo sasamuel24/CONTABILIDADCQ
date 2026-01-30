@@ -196,27 +196,30 @@ export function CentroDocumentalPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <header style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}} className="border-b border-gray-200 sticky top-0 z-10">
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <FileBarChart className="w-8 h-8 text-blue-600" />
+              <FileBarChart className="w-8 h-8 text-white" />
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Centro Documental</h1>
-                <p className="text-sm text-gray-500">Directora Contabilidad</p>
+                <h1 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="text-xl font-bold text-white">Centro Documental</h1>
+                <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif', opacity: 0.9}} className="text-sm text-white">Directora Contabilidad</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <p className="text-sm font-medium text-gray-700">{user?.nombre}</p>
-                <p className="text-xs text-gray-500">{user?.role}</p>
+                <p style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm font-medium text-white">{user?.nombre}</p>
+                <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif', opacity: 0.9}} className="text-xs text-white">{user?.role}</p>
               </div>
               <button
                 onClick={handleLogout}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                style={{transition: 'background-color 0.2s'}}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                className="p-2 rounded-lg"
                 title="Cerrar sesión"
               >
-                <LogOut className="w-5 h-5 text-gray-600" />
+                <LogOut className="w-5 h-5 text-white" />
               </button>
             </div>
           </div>
@@ -240,18 +243,18 @@ export function CentroDocumentalPage() {
               {/* Filtros */}
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">Filtros</h2>
+                  <h2 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-lg font-semibold text-gray-900">Filtros</h2>
                   {selectedCarpeta && (
-                    <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg">
-                      <FolderInput className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-medium text-blue-900">{selectedCarpeta.nombre}</span>
+                    <div style={{backgroundColor: '#e0f5f7', borderColor: '#00829a'}} className="flex items-center gap-2 px-3 py-1 border rounded-lg">
+                      <FolderInput className="w-4 h-4" style={{color: '#00829a'}} />
+                      <span style={{color: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm font-medium">{selectedCarpeta.nombre}</span>
                     </div>
                   )}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                   {/* Búsqueda */}
                   <div className="lg:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="block text-sm font-medium text-gray-700 mb-1">
                       Buscar
                     </label>
                     <div className="relative">
@@ -268,7 +271,7 @@ export function CentroDocumentalPage() {
 
                   {/* Filtro por área */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="block text-sm font-medium text-gray-700 mb-1">
                       Área
                     </label>
                     <select
@@ -285,7 +288,7 @@ export function CentroDocumentalPage() {
 
                   {/* Filtro por estado */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="block text-sm font-medium text-gray-700 mb-1">
                       Estado
                     </label>
                     <select
@@ -302,7 +305,7 @@ export function CentroDocumentalPage() {
 
                   {/* Fecha desde */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="block text-sm font-medium text-gray-700 mb-1">
                       Fecha desde
                     </label>
                     <input
@@ -315,7 +318,7 @@ export function CentroDocumentalPage() {
 
                   {/* Fecha hasta */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="block text-sm font-medium text-gray-700 mb-1">
                       Fecha hasta
                     </label>
                     <input
@@ -338,7 +341,14 @@ export function CentroDocumentalPage() {
                         setFechaDesde('');
                         setFechaHasta('');
                       }}
-                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                      style={{
+                        fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                        color: '#00829a',
+                        transition: 'color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = '#14aab8'}
+                      onMouseLeave={(e) => e.currentTarget.style.color = '#00829a'}
+                      className="text-sm font-medium"
                     >
                       Limpiar filtros
                     </button>
@@ -350,7 +360,7 @@ export function CentroDocumentalPage() {
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 {/* Header de la tabla con contador */}
                 <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900">
+                  <h2 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-lg font-semibold text-gray-900">
                     Facturas ({sortedFacturas.length})
                   </h2>
                   <div className="text-sm text-gray-500">
@@ -498,11 +508,7 @@ export function CentroDocumentalPage() {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-center">
                                   <div className="flex justify-center" title={factura.carpeta ? `Archivado en: ${factura.carpeta.nombre}` : 'Sin archivar'}>
-                                    <FolderInput className={`w-5 h-5 ${
-                                      factura.carpeta 
-                                        ? 'text-green-600' 
-                                        : 'text-red-500'
-                                    }`} />
+                                    <FolderInput style={{color: factura.carpeta ? '#00829a' : '#ef4444'}} className="w-5 h-5" />
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -513,7 +519,14 @@ export function CentroDocumentalPage() {
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <button
                                     onClick={() => handleAsignarCarpeta(factura)}
-                                    className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                    style={{
+                                      fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                                      backgroundColor: '#00829a',
+                                      transition: 'background-color 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#14aab8'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#00829a'}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg"
                                     title="Asignar a carpeta"
                                   >
                                     <FolderInput className="w-3.5 h-3.5" />

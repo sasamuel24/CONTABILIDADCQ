@@ -1,3 +1,44 @@
+/* Fuentes Neutra Text */
+@font-face {
+  font-family: 'Neutra Text';
+  src: local('Neutra Text Light'), local('NeutraText-Light');
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Neutra Text';
+  src: local('Neutra Text Book'), local('NeutraText-Book');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Neutra Text';
+  src: local('Neutra Text Demi'), local('NeutraText-Demi');
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Neutra Text';
+  src: local('Neutra Text Bold'), local('NeutraText-Bold');
+  font-weight: 700;
+  font-style: normal;
+}
+
+/* Variables de colores Café Quindío */
+:root {
+  --cq-primary: #14aab8;
+  --cq-dark: #00829a;
+  --cq-light: #90cde3;
+  --cq-cyan: #00a3b4;
+}
+
+body {
+  font-family: 'Neutra Text', 'Montserrat', system-ui, sans-serif;
+}
+
 /*! tailwindcss v4.1.3 | MIT License | https://tailwindcss.com */
 @layer properties {
   @supports (((-webkit-hyphens: none)) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color: rgb(from red r g b)))) {

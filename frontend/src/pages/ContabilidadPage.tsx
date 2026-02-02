@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Inbox, LogOut } from 'lucide-react';
+import { Inbox, LogOut, FolderInput } from 'lucide-react';
 import { InboxView } from '../components/InboxView';
+import { CarpetasView } from '../components/CarpetasView';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export function ContabilidadPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [activeView, setActiveView] = useState<'inbox' | 'carpetas'>('inbox');
 
   const handleLogout = () => {
     logout();
@@ -26,15 +28,55 @@ export function ContabilidadPage() {
         {/* Navigation */}
         <nav className="flex-1 p-4">
           <button 
+            onClick={() => setActiveView('inbox')}
             style={{
               fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
-              backgroundColor: '#e0f5f7',
-              color: '#00829a'
+              backgroundColor: activeView === 'inbox' ? '#e0f5f7' : 'transparent',
+              color: activeView === 'inbox' ? '#00829a' : '#6b7280',
+              transition: 'all 0.2s'
             }}
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg"
+            onMouseEnter={(e) => {
+              if (activeView !== 'inbox') {
+                e.currentTarget.style.backgroundColor = '#f3f4f6';
+                e.currentTarget.style.color = '#00829a';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeView !== 'inbox') {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = '#6b7280';
+              }
+            }}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg mb-2"
           >
             <Inbox className="w-5 h-5" />
             Bandeja de Entrada
+          </button>
+          
+          <button 
+            onClick={() => setActiveView('carpetas')}
+            style={{
+              fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+              backgroundColor: activeView === 'carpetas' ? '#e0f5f7' : 'transparent',
+              color: activeView === 'carpetas' ? '#00829a' : '#6b7280',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (activeView !== 'carpetas') {
+                e.currentTarget.style.backgroundColor = '#f3f4f6';
+                e.currentTarget.style.color = '#00829a';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeView !== 'carpetas') {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = '#6b7280';
+              }
+            }}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg"
+          >
+            <FolderInput className="w-5 h-5" />
+            Carpetas
           </button>
         </nav>
 
@@ -77,7 +119,7 @@ export function ContabilidadPage() {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        <InboxView />
+        {activeView === 'inbox' ? <InboxView /> : <CarpetasView />}
       </div>
     </div>
   );

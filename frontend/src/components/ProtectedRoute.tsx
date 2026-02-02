@@ -26,7 +26,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   if (allowedRoles && allowedRoles.length > 0) {
     const userRole = user.role;
     
-    if (!userRole || !allowedRoles.includes(userRole)) {
+    // Comparación case-insensitive de roles
+    const normalizedUserRole = userRole?.toLowerCase();
+    const normalizedAllowedRoles = allowedRoles.map(r => r.toLowerCase());
+    
+    if (!normalizedUserRole || !normalizedAllowedRoles.includes(normalizedUserRole)) {
       return <Navigate to="/no-autorizado" replace />;
     }
   }

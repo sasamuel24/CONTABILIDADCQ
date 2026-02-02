@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { CarpetasPanel } from '../components/CarpetasPanel';
 import { AsignarCarpetaModal } from '../components/AsignarCarpetaModal';
+import { CentroDocumentalFacturaDetail } from '../components/CentroDocumentalFacturaDetail';
 
 export function CentroDocumentalPage() {
   const { user, logout } = useAuth();
@@ -27,6 +28,9 @@ export function CentroDocumentalPage() {
   const [selectedCarpeta, setSelectedCarpeta] = useState<Carpeta | null>(null);
   const [showAsignarModal, setShowAsignarModal] = useState(false);
   const [facturaToAssign, setFacturaToAssign] = useState<FacturaListItem | null>(null);
+  
+  // Detalle de factura
+  const [selectedFactura, setSelectedFactura] = useState<FacturaListItem | null>(null);
   
   // Ordenamiento
   const [sortColumn, setSortColumn] = useState<keyof FacturaListItem>('fecha_emision');
@@ -158,9 +162,14 @@ export function CentroDocumentalPage() {
     setCurrentPage(1);
   }, [searchQuery, selectedArea, selectedEstado, fechaDesde, fechaHasta, sortColumn, sortDirection, selectedCarpeta]);
 
-  const handleAsignarCarpeta = (factura: FacturaListItem) => {
+  const handleAsignarCarpeta = (factura: FacturaListItem, e: React.MouseEvent) => {
+    e.stopPropagation(); // Evitar que se abra el detalle al hacer clic en el botón
     setFacturaToAssign(factura);
     setShowAsignarModal(true);
+  };
+
+  const handleVerDetalle = (factura: FacturaListItem) => {
+    setSelectedFactura(factura);
   };
 
   const handleAsignarSuccess = async () => {
@@ -482,7 +491,11 @@ export function CentroDocumentalPage() {
                             const procesoColor = getProcesoColor(proceso);
                             
                             return (
-                              <tr key={factura.id} className="hover:bg-gray-50 transition-colors">
+                              <tr 
+                                key={factura.id} 
+                                onClick={() => handleVerDetalle(factura)}
+                                className="hover:bg-gray-50 transition-colors cursor-pointer"
+                              >
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <span className="font-mono text-sm font-medium text-gray-900">
                                     {factura.numero_factura}
@@ -518,7 +531,7 @@ export function CentroDocumentalPage() {
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <button
-                                    onClick={() => handleAsignarCarpeta(factura)}
+                                    onClick={(e) => handleAsignarCarpeta(factura, e)}
                                     style={{
                                       fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
                                       backgroundColor: '#00829a',
@@ -584,6 +597,14 @@ export function CentroDocumentalPage() {
           }}
           factura={facturaToAssign}
           onSuccess={handleAsignarSuccess}
+        />
+      )}
+
+      {/* Modal de detalle de factura */}
+      {selectedFactura && (
+        <CentroDocumentalFacturaDetail
+          factura={selectedFactura}
+          onClose={() => setSelectedFactura(null)}
         />
       )}
     </div>

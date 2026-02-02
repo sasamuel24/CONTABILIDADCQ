@@ -174,11 +174,20 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
 
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50" onClick={onClose} />
+      {/* Backdrop con blur elegante */}
+      <div 
+        className="fixed inset-0 z-50 backdrop-blur-lg" 
+        style={{backgroundColor: 'rgba(55, 65, 81, 0.75)'}}
+        onClick={onClose} 
+      />
       
       <div className="fixed inset-0 z-50 overflow-y-auto">
         <div className="flex min-h-full items-center justify-center p-6">
-          <div className="w-full max-w-6xl bg-white shadow-2xl rounded-lg border border-gray-200 my-8" onClick={(e) => e.stopPropagation()}>
+          <div 
+            className="w-full max-w-6xl bg-white shadow-2xl rounded-lg border border-gray-200 my-8 relative" 
+            style={{boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'}}
+            onClick={(e) => e.stopPropagation()}
+          >
             
             {/* Header */}
             <div style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}} className="text-white p-6 rounded-t-lg">

@@ -20,6 +20,7 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
   const [archivoAprobacion, setArchivoAprobacion] = useState<FileMiniOut | null>(null);
   const [archivoInventario, setArchivoInventario] = useState<FileMiniOut | null>(null);
   const [soportePago, setSoportePago] = useState<FileMiniOut[]>([]);
+  const [facturaPrincipal, setFacturaPrincipal] = useState<FileMiniOut | null>(null);
   const [loadingArchivos, setLoadingArchivos] = useState(true);
   const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
 
@@ -29,7 +30,6 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
     const steps: ProcessStep[] = [
       { name: 'Recibida', status: 'completed', date: factura.fecha_emision || undefined },
       { name: 'Asignada', status: 'pending' },
-      { name: 'En Curso', status: 'pending' },
       { name: 'Revisión Contabilidad', status: 'pending' },
       { name: 'Aprobada Tesorería', status: 'pending' },
       { name: 'Cerrada', status: 'pending' },
@@ -39,10 +39,13 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
       'Recibida': 0,
       'Pendiente': 0,
       'Asignada': 1,
-      'En Curso': 2,
-      'En Revisión Contabilidad': 3,
-      'Aprobada Tesorería': 4,
-      'Cerrada': 5,
+      'Asignada a responsable': 1,
+      'En Revisión Contabilidad': 2,
+      'Pendiente en contabilidad': 2,
+      'Aprobada Tesorería': 3,
+      'Pendiente en Tesoreria': 3,
+      'Pendiente en tesoreria': 3,
+      'Cerrada': 4,
       'Rechazada': -1,
     };
 
@@ -52,6 +55,14 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
       return steps.map((step, i) => ({
         ...step,
         status: i === 0 ? 'completed' : 'pending',
+      }));
+    }
+
+    // Si está cerrada, todas las etapas están completadas
+    if (estado === 'Cerrada') {
+      return steps.map((step) => ({
+        ...step,
+        status: 'completed' as const,
       }));
     }
 
@@ -70,19 +81,55 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
       try {
         setLoadingArchivos(true);
 
-        const [oc, aprobacion, inventario, pago] = await Promise.all([
-          getFacturaFilesByDocType(factura.id, 'OC,OS,OCT,ECT,OCC,EDO'),
-          getFacturaFilesByDocType(factura.id, 'APROBACION_GERENCIA'),
-          getFacturaFilesByDocType(factura.id, 'PEC,EC,PCE,PED'),
-          getFacturaFilesByDocType(factura.id, 'FACTURA_PDF,SOPORTE_PAGO'),
-        ]);
+        // Intentar cargar desde la API primero
+        try {
+          const [oc, aprobacion, inventario, pago, facturaPdf] = await Promise.all([
+            getFacturaFilesByDocType(factura.id, 'OC'),
+            getFacturaFilesByDocType(factura.id, 'APROBACION_GERENCIA'),
+            getFacturaFilesByDocType(factura.id, 'PEC'),
+            getFacturaFilesByDocType(factura.id, 'SOPORTE_PAGO'),
+            getFacturaFilesByDocType(factura.id, 'FACTURA_PDF'),
+          ]);
 
-        setArchivosOC(oc);
-        setArchivoAprobacion(aprobacion[0] || null);
-        setArchivoInventario(inventario[0] || null);
-        setSoportePago(pago);
+          console.log('Archivos cargados desde API:');
+          console.log('- OC/OS:', oc);
+          console.log('- Aprobación:', aprobacion);
+          console.log('- Inventario:', inventario);
+          console.log('- Soporte Pago:', pago);
+          console.log('- Factura PDF:', facturaPdf);
+
+          setArchivosOC(oc);
+          setArchivoAprobacion(aprobacion[0] || null);
+          setArchivoInventario(inventario[0] || null);
+          setSoportePago(pago);
+          setFacturaPrincipal(facturaPdf[0] || null);
+        } catch (apiError) {
+          console.error('Error cargando desde API, intentando con factura.files:', apiError);
+          
+          // Fallback: usar factura.files si la API falla
+          const tiposOC = ['OC', 'OS', 'OCT', 'ECT', 'OCC', 'EDO'];
+          const tiposInventario = ['PEC', 'EC', 'PCE', 'PED'];
+          const tiposPago = ['SOPORTE_PAGO'];
+
+          const oc = factura.files.filter(f => f.doc_type && tiposOC.includes(f.doc_type));
+          const aprobacion = factura.files.filter(f => f.doc_type === 'APROBACION_GERENCIA');
+          const inventario = factura.files.filter(f => f.doc_type && tiposInventario.includes(f.doc_type));
+          const pago = factura.files.filter(f => f.doc_type && tiposPago.includes(f.doc_type));
+          const facturaPdf = factura.files.find(f => f.doc_type === 'FACTURA_PDF') || null;
+
+          setArchivosOC(oc);
+          setArchivoAprobacion(aprobacion[0] || null);
+          setArchivoInventario(inventario[0] || null);
+          setSoportePago(pago);
+          setFacturaPrincipal(facturaPdf);
+        }
       } catch (error) {
-        console.error('Error cargando archivos:', error);
+        console.error('Error general cargando archivos:', error);
+        setArchivosOC([]);
+        setArchivoAprobacion(null);
+        setArchivoInventario(null);
+        setSoportePago([]);
+        setFacturaPrincipal(null);
       } finally {
         setLoadingArchivos(false);
       }
@@ -305,6 +352,63 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
                   {/* Columna Derecha - Documentos */}
                   <div className="space-y-6">
                     
+                    {/* Factura Principal */}
+                    <div>
+                      <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3 flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-gray-600" />
+                        Factura Principal
+                      </h4>
+                      {loadingArchivos ? (
+                        <div className="bg-gray-50 rounded-lg p-8 text-center">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                        </div>
+                      ) : facturaPrincipal ? (
+                        <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4 hover:bg-blue-100 transition-colors">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <FileText className="w-6 h-6 text-blue-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-blue-900 font-semibold truncate">{facturaPrincipal.filename}</p>
+                                <p className="text-xs text-blue-700 mt-1">Documento principal de la factura</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 ml-2">
+                              <button
+                                onClick={() => handlePreviewFile(facturaPrincipal)}
+                                style={{
+                                  fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                                  backgroundColor: '#2563eb',
+                                  transition: 'background-color 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1d4ed8'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#2563eb'}
+                                className="flex items-center gap-1 px-3 py-2 text-sm text-white rounded-lg"
+                                title="Vista previa"
+                              >
+                                <Eye className="w-4 h-4" />
+                                <span>Ver</span>
+                              </button>
+                              <button
+                                onClick={() => handleDownloadById(facturaPrincipal)}
+                                className="p-2 hover:bg-blue-200 rounded-lg transition-colors"
+                                title="Descargar"
+                              >
+                                <Download className="w-5 h-5 text-blue-700" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border-2 border-dashed border-red-300 bg-red-50 rounded-lg p-8 text-center">
+                          <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-2" />
+                          <p className="text-sm font-medium text-red-700">Factura principal no cargada</p>
+                          <p className="text-xs text-red-600 mt-1">Por favor, sube el PDF de la factura</p>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Soporte de Pago */}
                     <div>
                       <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3 flex items-center gap-2">

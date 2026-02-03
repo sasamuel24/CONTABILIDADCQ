@@ -23,6 +23,7 @@ export interface UserMe {
   nombre: string;
   email: string;
   role: string;
+  must_change_password: boolean;
   area: AreaInfo | null;
 }
 
@@ -283,6 +284,22 @@ export async function logout(): Promise<void> {
   clearTokens();
   // Si el backend tiene endpoint de logout, llamarlo aquí
   // await fetchAPI('/auth/logout', { method: 'POST' });
+}
+
+/**
+ * Cambiar contraseña del usuario
+ */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  await fetchAPI('/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  });
 }
 
 /**

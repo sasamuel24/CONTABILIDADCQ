@@ -48,8 +48,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refetchUser = async () => {
-    setLoading(true);
-    await fetchUser();
+    // No cambiar el estado de loading para refetch
+    try {
+      const userData = await getMe();
+      setUser(userData);
+    } catch (error) {
+      console.error('Error al refetch usuario:', error);
+    }
   };
 
   return (

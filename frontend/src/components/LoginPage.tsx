@@ -30,6 +30,12 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       const user = await getMe();
       setUserAuth(user);
       
+      // Si debe cambiar contraseña, forzar recarga completa
+      if (user.must_change_password) {
+        window.location.href = '/change-password';
+        return;
+      }
+      
       // Redirigir según el rol del usuario
       const userRole = user.role;
       

@@ -7,10 +7,22 @@ import { ContabilidadPage } from './pages/ContabilidadPage';
 import { TesoreriaPage } from './pages/TesoreriaPage';
 import { CentroDocumentalPage } from './pages/CentroDocumentalPage';
 import { NoAutorizadoPage } from './pages/NoAutorizadoPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
+  const currentPath = window.location.pathname;
+
+  // Permitir acceso a change-password sin esperar loading
+  if (currentPath === '/change-password') {
+    return (
+      <Routes>
+        <Route path="/change-password" element={<ChangePasswordPage />} />
+        <Route path="*" element={<Navigate to="/change-password" replace />} />
+      </Routes>
+    );
+  }
 
   if (loading) {
     return (
@@ -26,10 +38,18 @@ function AppRoutes() {
     );
   }
 
+  // Redirigir a cambio de contraseña si es obligatorio
+  if (user && user.must_change_password && currentPath !== '/change-password' && currentPath !== '/login') {
+    return <Navigate to="/change-password" replace />;
+  }
+
   return (
     <Routes>
       {/* Ruta de login */}
       <Route path="/login" element={<LoginPage onLogin={() => {}} />} />
+      
+      {/* Ruta de cambio de contraseña obligatorio */}
+      <Route path="/change-password" element={<ChangePasswordPage />} />
       
       {/* Ruta de acceso no autorizado */}
       <Route path="/no-autorizado" element={<NoAutorizadoPage />} />

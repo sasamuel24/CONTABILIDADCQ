@@ -116,6 +116,7 @@ class User(Base, TimestampMixin):
         nullable=True
     )
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     
     # Relación con roles
     role_id: Mapped[uuid.UUID] = mapped_column(

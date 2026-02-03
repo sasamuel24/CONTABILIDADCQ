@@ -27,3 +27,11 @@ class AuthRepository:
             select(User).where(User.id == user_id, User.is_active == True)
         )
         return result.scalar_one_or_none()
+    
+    async def update_password(self, user_id: UUID, new_password_hash: str, must_change: bool = False) -> None:
+        """Actualiza la contraseña del usuario."""
+        user = await self.get_user_by_id(user_id)
+        if user:
+            user.password_hash = new_password_hash
+            user.must_change_password = must_change
+            await self.db.commit()

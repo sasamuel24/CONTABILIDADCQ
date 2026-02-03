@@ -3,7 +3,7 @@ Servicio para lógica de negocio de autenticación.
 """
 from modules.auth.repository import AuthRepository
 from modules.auth.schemas import TokenResponse, UserMeResponse
-from core.security import verify_password, create_access_token, create_refresh_token, decode_token
+from core.security import verify_password, create_access_token, create_refresh_token, decode_token, hash_password
 from fastapi import HTTPException, status
 from core.logging import logger
 from uuid import UUID
@@ -96,5 +96,28 @@ class AuthService:
             nombre=user.nombre,
             email=user.email,
             role=user.role.code,
+            must_change_password=user.must_change_password,
             area=user.area
         )
+    
+    async def change_password(self, user_id: UUID, current_password: str, new_password: str) -> None:
+        """Cambiar contraseña del usuario."""
+        user = await self.repository.get_user_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuario no encontrado"
+            )
+        
+        # Verificar contraseña actual
+        if not verify_password(current_password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Contraseña actual incorrecta"
+            )
+        
+        # Actualizar contraseña y marcar que ya no necesita cambiarla
+        new_password_hash = hash_password(new_password)
+        await self.repository.update_password(user_id, new_password_hash, must_change=False)
+        
+        logger.info(f"Contraseña cambiada exitosamente para usuario: {user.email}")

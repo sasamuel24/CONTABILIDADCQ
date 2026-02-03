@@ -14,7 +14,8 @@ from modules.auth.schemas import (
     TokenResponse,
     RefreshRequest,
     LogoutRequest,
-    UserMeResponse
+    UserMeResponse,
+    ChangePasswordRequest
 )
 from core.security import decode_token
 
@@ -86,3 +87,14 @@ async def get_me(
 ):
     """Obtener información del usuario autenticado."""
     return await service.get_current_user(user_id)
+
+
+@router.post("/change-password")
+async def change_password(
+    request: ChangePasswordRequest,
+    user_id: UUID = Depends(get_current_user_id),
+    service: AuthService = Depends(get_auth_service)
+):
+    """Cambiar contraseña del usuario autenticado."""
+    await service.change_password(user_id, request.current_password, request.new_password)
+    return {"message": "Contraseña cambiada exitosamente"}

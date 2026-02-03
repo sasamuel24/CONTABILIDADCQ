@@ -50,6 +50,13 @@ class UserMeResponse(BaseModel):
     nombre: str
     email: str
     role: str
+    must_change_password: bool
     area: Optional[AreaInfo] = None
     
     model_config = {"from_attributes": True}
+
+
+class ChangePasswordRequest(BaseModel):
+    """Request para cambiar contraseña."""
+    current_password: str
+    new_password: str

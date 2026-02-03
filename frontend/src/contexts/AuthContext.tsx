@@ -25,17 +25,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const userData = await getMe();
       setUser(userData);
+      setLoading(false);
     } catch (error) {
       console.error('Error al obtener usuario:', error);
       setUser(null);
       clearTokens();
-    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchUser();
+    
+    // Timeout de seguridad: si después de 5 segundos sigue loading, forzar false
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.warn('Loading timeout - forzando carga de página');
+        setLoading(false);
+      }
+    }, 5000);
+    
+    return () => clearTimeout(timeout);
   }, []);
 
   const login = (userData: UserMe) => {

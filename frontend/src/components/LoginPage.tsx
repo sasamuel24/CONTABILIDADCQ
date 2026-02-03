@@ -30,9 +30,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       const user = await getMe();
       setUserAuth(user);
       
-      // Si debe cambiar contraseña, forzar recarga completa
+      // Si debe cambiar contraseña, navegar normalmente
       if (user.must_change_password) {
-        window.location.href = '/change-password';
+        navigate('/change-password', { replace: true });
         return;
       }
       

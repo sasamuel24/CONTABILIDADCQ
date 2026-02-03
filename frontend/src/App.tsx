@@ -12,6 +12,16 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
+  const currentPath = window.location.pathname;
+
+  // Si estamos en /change-password, renderizar directamente sin esperar
+  if (currentPath === '/change-password') {
+    return (
+      <Routes>
+        <Route path="/change-password" element={<ChangePasswordPage />} />
+      </Routes>
+    );
+  }
 
   if (loading) {
     return (
@@ -28,7 +38,6 @@ function AppRoutes() {
   }
 
   // Redirigir a cambio de contraseña si es obligatorio
-  const currentPath = window.location.pathname;
   if (user && user.must_change_password && currentPath !== '/change-password' && currentPath !== '/login') {
     return <Navigate to="/change-password" replace />;
   }

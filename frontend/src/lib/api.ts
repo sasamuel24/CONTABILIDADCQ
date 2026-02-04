@@ -440,7 +440,7 @@ export async function downloadFacturaFile(
 
   const encodedKey = encodeURIComponent(key);
   const response = await fetch(
-    `${API_BASE_URL}/api/v1/facturas/${facturaId}/files/download?key=${encodedKey}`,
+    `${API_BASE_URL}/facturas/${facturaId}/files/download?key=${encodedKey}`,
     {
       method: 'GET',
       headers: {
@@ -467,7 +467,7 @@ export async function downloadFileById(fileId: string): Promise<Blob> {
   }
 
   const response = await fetch(
-    `${API_BASE_URL}/api/v1/files/${fileId}`,
+    `${API_BASE_URL}/files/${fileId}`,
     {
       method: 'GET',
       headers: {
@@ -488,7 +488,7 @@ export async function downloadFileById(fileId: string): Promise<Blob> {
  * Obtener URL de vista previa de un archivo por ID
  */
 export function getFilePreviewUrl(fileId: string): string {
-  return `${API_BASE_URL}/api/v1/files/${fileId}/preview`;
+  return `${API_BASE_URL}/files/${fileId}/preview`;
 }
 
 // ============================================

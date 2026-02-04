@@ -23,8 +23,8 @@ export function FilePreviewModal({
   // Si el ID es el UUID vacío y tenemos storage_path, usar el endpoint de S3
   const isTemporaryId = fileId === '00000000-0000-0000-0000-000000000000';
   const baseUrl = isTemporaryId && storagePath && facturaId
-    ? `${API_BASE_URL}/api/v1/facturas/${facturaId}/files/download?key=${encodeURIComponent(storagePath)}&inline=true`
-    : `${API_BASE_URL}/api/v1/files/${fileId}/preview`;
+    ? `${API_BASE_URL}/facturas/${facturaId}/files/download?key=${encodeURIComponent(storagePath)}&inline=true`
+    : `${API_BASE_URL}/files/${fileId}/preview`;
 
   const isPDF = contentType === 'application/pdf';
   const isImage = contentType?.startsWith('image/');

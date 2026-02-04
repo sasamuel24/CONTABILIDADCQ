@@ -100,7 +100,75 @@ export function InboxView() {
       if (selectedFactura?.id === facturaId) {
         setSelectedFactura({ ...selectedFactura, area: updated.area });
       }
-      alert('✅ Área actualizada correctamente');
+      
+      // Mostrar modal de éxito
+      const modalDiv = document.createElement('div');
+      modalDiv.innerHTML = `
+        <div style="
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: white;
+          padding: 24px 32px;
+          border-radius: 12px;
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+          z-index: 10000;
+          min-width: 300px;
+          max-width: 400px;
+          font-family: 'Neutra Text', 'Montserrat', sans-serif;
+        ">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+            <div style="
+              width: 40px;
+              height: 40px;
+              background: #dcfce7;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 24px;
+              flex-shrink: 0;
+            ">✓</div>
+            <div>
+              <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 600; color: #111827;">Sistema de facturación dice:</h3>
+              <p style="margin: 0; font-size: 14px; color: #4b5563; line-height: 1.5;">Área actualizada correctamente</p>
+            </div>
+          </div>
+          <button onclick="this.closest('div').parentElement.remove()" style="
+            width: 100%;
+            padding: 10px;
+            background: #00829a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: 'Neutra Text', 'Montserrat', sans-serif;
+          " onmouseover="this.style.background='#14aab8'" onmouseout="this.style.background='#00829a'">
+            Aceptar
+          </button>
+        </div>
+      `;
+      
+      const backdrop = document.createElement('div');
+      backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+      `;
+      backdrop.onclick = () => backdrop.remove();
+      
+      document.body.appendChild(backdrop);
+      backdrop.appendChild(modalDiv);
+      
+      setTimeout(() => backdrop.remove(), 3000);
+      
     } catch (err) {
       console.error('Error al actualizar área:', err);
       alert('Error al actualizar el área de la factura');

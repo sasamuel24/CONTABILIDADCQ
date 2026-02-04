@@ -991,3 +991,84 @@ export async function deleteDistribucionCCCO(facturaId: string): Promise<void> {
     method: 'DELETE',
   });
 }
+
+// ============================================================================
+// Tipos y funciones para Comentarios de Facturas
+// ============================================================================
+
+export interface UserInfo {
+  id: string;
+  email: string;
+  nombre: string;
+}
+
+export interface ComentarioFactura {
+  id: string;
+  factura_id: string;
+  user_id: string;
+  user: UserInfo;
+  contenido: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComentarioListResponse {
+  comentarios: ComentarioFactura[];
+  total: number;
+}
+
+export interface ComentarioCreate {
+  contenido: string;
+}
+
+export interface ComentarioUpdate {
+  contenido: string;
+}
+
+/**
+ * Obtener comentarios de una factura
+ */
+export async function getComentariosByFactura(
+  facturaId: string,
+  skip: number = 0,
+  limit: number = 100
+): Promise<ComentarioListResponse> {
+  return fetchAPI<ComentarioListResponse>(
+    `/facturas/${facturaId}/comentarios?skip=${skip}&limit=${limit}`
+  );
+}
+
+/**
+ * Crear un nuevo comentario en una factura
+ */
+export async function createComentario(
+  facturaId: string,
+  data: ComentarioCreate
+): Promise<ComentarioFactura> {
+  return fetchAPI<ComentarioFactura>(`/facturas/${facturaId}/comentarios`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Actualizar un comentario existente
+ */
+export async function updateComentario(
+  comentarioId: string,
+  data: ComentarioUpdate
+): Promise<ComentarioFactura> {
+  return fetchAPI<ComentarioFactura>(`/comentarios/${comentarioId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Eliminar un comentario
+ */
+export async function deleteComentario(comentarioId: string): Promise<void> {
+  return fetchAPI<void>(`/comentarios/${comentarioId}`, {
+    method: 'DELETE',
+  });
+}

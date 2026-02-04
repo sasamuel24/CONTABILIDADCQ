@@ -4,6 +4,8 @@ import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, Distri
 import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, uploadFacturaFile, updateFacturaEstado, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares, downloadFileById } from '../lib/api';
 import { FilePreviewModal } from './FilePreviewModal';
 import { ConfirmModal } from './ConfirmModal';
+import { ComentariosFactura } from './ComentariosFactura';
+import { useAuth } from '../contexts/AuthContext';
 
 interface TesoreriaFacturaDetailProps {
   factura: FacturaListItem;
@@ -27,6 +29,7 @@ const INTERVALOS_ENTREGA = [
 ];
 
 export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDetailProps) {
+  const { user } = useAuth();
   // Estados para archivos previos
   const [archivosOCExistentes, setArchivosOCExistentes] = useState<FileMiniOut[]>([]);
   const [archivoAprobacionExistente, setArchivoAprobacionExistente] = useState<FileMiniOut | null>(null);
@@ -1254,6 +1257,16 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                 </div>
               </div>
 
+            </div>
+
+            {/* Sección de Comentarios */}
+            <div className="p-6 border-t border-gray-200 bg-white">
+              {user && (
+                <ComentariosFactura 
+                  facturaId={factura.id} 
+                  currentUserId={user.id}
+                />
+              )}
             </div>
 
             {/* Footer */}

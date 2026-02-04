@@ -28,6 +28,7 @@ from modules.carpetas.router import router as carpetas_router
 from modules.unidades_negocio.router import router as unidades_negocio_router
 from modules.cuentas_auxiliares.router import router as cuentas_auxiliares_router
 from modules.distribucion_ccco.router import router as distribucion_ccco_router
+from modules.comentarios.router import router as comentarios_router
 
 
 # Crear instancia de FastAPI
@@ -67,6 +68,7 @@ app.include_router(carpetas_router, prefix="/api/v1")
 app.include_router(unidades_negocio_router, prefix="/api/v1")
 app.include_router(cuentas_auxiliares_router, prefix="/api/v1")
 app.include_router(distribucion_ccco_router, prefix="/api/v1")
+app.include_router(comentarios_router, prefix="/api/v1")
 
 
 # Endpoints personalizados para documentación con CORS habilitado

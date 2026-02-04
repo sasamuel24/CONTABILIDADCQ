@@ -4,6 +4,8 @@ import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, Distri
 import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares, downloadFileById } from '../lib/api';
 import { FilePreviewModal } from './FilePreviewModal';
 import { ConfirmModal } from './ConfirmModal';
+import { ComentariosFactura } from './ComentariosFactura';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ContabilidadFacturaDetailProps {
   factura: FacturaListItem;
@@ -33,6 +35,7 @@ interface ChecklistItem {
 }
 
 export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFacturaDetailProps) {
+  const { user } = useAuth();
   const [procesando, setProcesando] = useState(false);
   
   // Estados para modal de devolución
@@ -931,6 +934,16 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                 </div>
               </div>
 
+            </div>
+
+            {/* Sección de Comentarios */}
+            <div className="p-6 border-t border-gray-200 bg-white">
+              {user && (
+                <ComentariosFactura 
+                  facturaId={factura.id} 
+                  currentUserId={user.id}
+                />
+              )}
             </div>
 
             {/* Footer */}

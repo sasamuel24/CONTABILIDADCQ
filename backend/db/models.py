@@ -587,6 +587,13 @@ class Factura(Base, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin"
     )
+    comentarios: Mapped[List["ComentarioFactura"]] = relationship(
+        "ComentarioFactura",
+        back_populates="factura",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="ComentarioFactura.created_at.desc()"
+    )
     carpeta: Mapped[Optional["Carpeta"]] = relationship(
         "Carpeta",
         foreign_keys=[carpeta_id],
@@ -874,3 +881,47 @@ class FacturaDistribucionCCCO(Base, TimestampMixin):
     
     def __repr__(self):
         return f"<FacturaDistribucionCCCO(id={self.id}, factura_id={self.factura_id}, porcentaje={self.porcentaje})>"
+
+
+class ComentarioFactura(Base, TimestampMixin):
+    """
+    Modelo para gestionar comentarios en facturas con trazabilidad completa.
+    Registra quién comentó, cuándo y el contenido del comentario.
+    """
+    __tablename__ = "comentarios_factura"
+    
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    factura_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facturas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=False,
+        index=True
+    )
+    contenido: Mapped[str] = mapped_column(
+        Text,
+        nullable=False
+    )
+    
+    # Relaciones
+    factura: Mapped["Factura"] = relationship(
+        "Factura",
+        back_populates="comentarios",
+        lazy="selectin"
+    )
+    user: Mapped["User"] = relationship(
+        "User",
+        lazy="selectin"
+    )
+    
+    def __repr__(self):
+        return f"<ComentarioFactura(id={self.id}, factura_id={self.factura_id}, user_id={self.user_id})>"

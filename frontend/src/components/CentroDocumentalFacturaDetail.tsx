@@ -3,6 +3,8 @@ import { X, FileText, Calendar, DollarSign, Building2, CheckCircle, Clock, Alert
 import type { FacturaListItem, FileMiniOut } from '../lib/api';
 import { getFacturaFilesByDocType, downloadFileById } from '../lib/api';
 import { FilePreviewModal } from './FilePreviewModal';
+import { ComentariosFactura } from './ComentariosFactura';
+import { useAuth } from '../contexts/AuthContext';
 
 interface CentroDocumentalFacturaDetailProps {
   factura: FacturaListItem;
@@ -16,6 +18,7 @@ interface ProcessStep {
 }
 
 export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocumentalFacturaDetailProps) {
+  const { user } = useAuth();
   const [archivosOC, setArchivosOC] = useState<FileMiniOut[]>([]);
   const [archivoAprobacion, setArchivoAprobacion] = useState<FileMiniOut | null>(null);
   const [archivoInventario, setArchivoInventario] = useState<FileMiniOut | null>(null);
@@ -578,6 +581,16 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Sección de Comentarios */}
+            <div className="p-6 border-t border-gray-200 bg-white">
+              {user && (
+                <ComentariosFactura 
+                  facturaId={factura.id} 
+                  currentUserId={user.id}
+                />
+              )}
             </div>
 
             {/* Footer */}

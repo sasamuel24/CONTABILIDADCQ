@@ -25,6 +25,8 @@ import {
 import { DistribucionCCCOTable } from './DistribucionCCCOTable';
 import { FilePreviewModal } from './FilePreviewModal';
 import { ConfirmModal } from './ConfirmModal';
+import { ComentariosFactura } from './ComentariosFactura';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ResponsableFacturaDetailProps {
   factura: FacturaListItem;
@@ -50,6 +52,7 @@ const INTERVALOS_ENTREGA = [
 ];
 
 export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFacturaDetailProps) {
+  const { user } = useAuth();
   // Estados para modal de devolución a Facturación
   const [mostrarModalDevolucion, setMostrarModalDevolucion] = useState(false);
   const [motivoDevolucion, setMotivoDevolucion] = useState('');
@@ -386,9 +389,77 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     try {
       await updateFactura(factura.id, { es_gasto_adm: nuevoValor });
       setEsGastoAdm(nuevoValor);
-      alert(nuevoValor 
-        ? '✅ Marcado como gasto administrativo. OC y Aprobación ya no son obligatorios.' 
-        : '✅ Desmarcado como gasto administrativo. OC y Aprobación son obligatorios.');
+      
+      // Mostrar modal de éxito
+      const mensaje = nuevoValor 
+        ? 'Marcado como gasto administrativo. OC y Aprobación ya no son obligatorios.' 
+        : 'Desmarcado como gasto administrativo. OC y Aprobación son obligatorios.';
+      
+      const modalDiv = document.createElement('div');
+      modalDiv.innerHTML = `
+        <div style="
+          position: fixed;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background: white;
+          padding: 24px 32px;
+          border-radius: 12px;
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+          z-index: 10000;
+          min-width: 350px;
+          max-width: 500px;
+          font-family: 'Neutra Text', 'Montserrat', sans-serif;
+        ">
+          <div style="display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px;">
+            <div style="
+              width: 40px;
+              height: 40px;
+              background: #dcfce7;
+              border-radius: 50%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-size: 24px;
+              flex-shrink: 0;
+            ">✓</div>
+            <div>
+              <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 600; color: #111827;">Sistema de facturación dice:</h3>
+              <p style="margin: 0; font-size: 14px; color: #4b5563; line-height: 1.5;">${mensaje}</p>
+            </div>
+          </div>
+          <button onclick="this.closest('div').parentElement.remove()" style="
+            width: 100%;
+            padding: 10px;
+            background: #00829a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: 'Neutra Text', 'Montserrat', sans-serif;
+          " onmouseover="this.style.background='#14aab8'" onmouseout="this.style.background='#00829a'">
+            Aceptar
+          </button>
+        </div>
+      `;
+      
+      const backdrop = document.createElement('div');
+      backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 9999;
+      `;
+      backdrop.onclick = () => backdrop.remove();
+      
+      document.body.appendChild(backdrop);
+      backdrop.appendChild(modalDiv);
+      
     } catch (error: any) {
       console.error('Error actualizando es_gasto_adm:', error);
       alert(`❌ Error al actualizar: ${error.message || 'Error desconocido'}`);
@@ -1813,6 +1884,16 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               </p>
             </div>
           </div>
+
+            {/* Sección de Comentarios */}
+            <div className="p-6 border-t border-gray-200 bg-white">
+              {user && (
+                <ComentariosFactura 
+                  facturaId={factura.id} 
+                  currentUserId={user.id}
+                />
+              )}
+            </div>
 
             {/* Footer con acciones */}
             <div className="border-t border-gray-200 p-6 flex gap-3 justify-end bg-gray-50 rounded-b-lg">

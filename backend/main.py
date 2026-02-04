@@ -25,6 +25,7 @@ from modules.centros_operacion.router import router as centros_operacion_router
 from modules.users.router import router as users_router
 from modules.roles.router import router as roles_router
 from modules.carpetas.router import router as carpetas_router
+from modules.carpetas_tesoreria.router import router as carpetas_tesoreria_router
 from modules.unidades_negocio.router import router as unidades_negocio_router
 from modules.cuentas_auxiliares.router import router as cuentas_auxiliares_router
 from modules.distribucion_ccco.router import router as distribucion_ccco_router
@@ -45,8 +46,14 @@ app = FastAPI(
 # Configurar CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "*"
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
@@ -65,6 +72,7 @@ app.include_router(centros_operacion_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(roles_router, prefix="/api/v1")
 app.include_router(carpetas_router, prefix="/api/v1")
+app.include_router(carpetas_tesoreria_router, prefix="/api/v1")
 app.include_router(unidades_negocio_router, prefix="/api/v1")
 app.include_router(cuentas_auxiliares_router, prefix="/api/v1")
 app.include_router(distribucion_ccco_router, prefix="/api/v1")

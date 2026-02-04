@@ -18,7 +18,8 @@ from modules.facturas.schemas import (
     SubmitErrorDetail,
     CentrosPatchIn,
     CentrosOut,
-    AsignarCarpetaResponse
+    AsignarCarpetaResponse,
+    AsignarCarpetaTesoreriaResponse
 )
 from typing import List, Optional, Set, Dict
 from core.logging import logger
@@ -279,6 +280,58 @@ class FacturaService:
             )
         
         return AsignarCarpetaResponse(
+            id=factura_actualizada.id,
+            numero_factura=factura_actualizada.numero_factura,
+            carpeta_id=carpeta_id,
+            carpeta_nombre=carpeta.nombre if carpeta else "N/A",
+            updated_at=factura_actualizada.updated_at
+        )
+    
+    async def asignar_carpeta_tesoreria(
+        self,
+        factura_id: UUID,
+        carpeta_id: UUID
+    ) -> AsignarCarpetaTesoreriaResponse:
+        """Asigna una factura a una carpeta de tesorería."""
+        logger.info(f"Asignando factura {factura_id} a carpeta de tesorería {carpeta_id}")
+        
+        # Verificar que la factura existe
+        factura = await self.repository.get_by_id(factura_id)
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        
+        # Verificar que la carpeta de tesorería existe
+        if self.db:
+            from db.models import CarpetaTesoreria
+            from sqlalchemy import select
+            
+            result = await self.db.execute(
+                select(CarpetaTesoreria).where(CarpetaTesoreria.id == carpeta_id)
+            )
+            carpeta = result.scalar_one_or_none()
+            
+            if not carpeta:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Carpeta de tesorería con ID {carpeta_id} no encontrada"
+                )
+        
+        # Actualizar carpeta_tesoreria_id en la factura
+        factura_actualizada = await self.repository.update(
+            factura_id,
+            {"carpeta_tesoreria_id": carpeta_id}
+        )
+        
+        if not factura_actualizada:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al asignar carpeta de tesorería a factura"
+            )
+        
+        return AsignarCarpetaTesoreriaResponse(
             id=factura_actualizada.id,
             numero_factura=factura_actualizada.numero_factura,
             carpeta_id=carpeta_id,

@@ -72,6 +72,20 @@ class AsignarCarpetaResponse(BaseModel):
     updated_at: datetime
 
 
+class AsignarCarpetaTesoreriaRequest(BaseModel):
+    """Request para asignar factura a carpeta de tesorería."""
+    carpeta_id: UUID = Field(..., description="ID de la carpeta de tesorería donde se asignará la factura")
+
+
+class AsignarCarpetaTesoreriaResponse(BaseModel):
+    """Response de asignación de carpeta de tesorería."""
+    id: UUID
+    numero_factura: str
+    carpeta_id: UUID
+    carpeta_nombre: str
+    updated_at: datetime
+
+
 class EstadoUpdateRequest(BaseModel):
     """Request para actualizar estado de factura."""
     estado_id: int = Field(..., description="ID del nuevo estado")
@@ -119,6 +133,8 @@ class FacturaListItem(BaseModel):
     files: List[FileMiniOut] = []
     carpeta_id: Optional[UUID] = None
     carpeta: Optional[CarpetaEnFactura] = None
+    carpeta_tesoreria_id: Optional[UUID] = None
+    carpeta_tesoreria: Optional[CarpetaEnFactura] = None
     unidad_negocio_id: Optional[UUID] = None
     unidad_negocio: Optional[str] = None
     cuenta_auxiliar_id: Optional[UUID] = None

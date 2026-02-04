@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { X, Folder, Check, ChevronRight, ChevronDown, FolderOpen } from 'lucide-react';
-import { getCarpetas, asignarFacturaACarpeta, type Carpeta, type FacturaListItem } from '../lib/api';
+import { getCarpetasTesoreria, asignarFacturaACarpetaTesoreria, type CarpetaTesoreria, type FacturaListItem } from '../lib/api';
 
-interface AsignarCarpetaModalProps {
+interface AsignarCarpetaTesoreriaModalProps {
   isOpen: boolean;
   onClose: () => void;
   factura: FacturaListItem;
   onSuccess: () => void;
 }
 
-export function AsignarCarpetaModal({ isOpen, onClose, factura, onSuccess }: AsignarCarpetaModalProps) {
-  const [carpetas, setCarpetas] = useState<Carpeta[]>([]);
+export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSuccess }: AsignarCarpetaTesoreriaModalProps) {
+  const [carpetas, setCarpetas] = useState<CarpetaTesoreria[]>([]);
   const [selectedCarpetaId, setSelectedCarpetaId] = useState<string>('');
   const [selectedCarpetaNombre, setSelectedCarpetaNombre] = useState<string>('');
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -29,7 +29,7 @@ export function AsignarCarpetaModal({ isOpen, onClose, factura, onSuccess }: Asi
   const loadCarpetas = async () => {
     try {
       setIsLoading(true);
-      const data = await getCarpetas();
+      const data = await getCarpetasTesoreria();
       setCarpetas(data);
     } catch (err) {
       console.error('Error loading carpetas:', err);
@@ -44,7 +44,7 @@ export function AsignarCarpetaModal({ isOpen, onClose, factura, onSuccess }: Asi
 
     try {
       setIsSubmitting(true);
-      await asignarFacturaACarpeta(factura.id, { carpeta_id: selectedCarpetaId });
+      await asignarFacturaACarpetaTesoreria(factura.id, { carpeta_id: selectedCarpetaId });
       onSuccess();
       onClose();
     } catch (err) {
@@ -65,12 +65,12 @@ export function AsignarCarpetaModal({ isOpen, onClose, factura, onSuccess }: Asi
     setExpandedFolders(newExpanded);
   };
 
-  const handleSelectCarpeta = (carpeta: Carpeta) => {
+  const handleSelectCarpeta = (carpeta: CarpetaTesoreria) => {
     setSelectedCarpetaId(carpeta.id);
     setSelectedCarpetaNombre(carpeta.nombre);
   };
 
-  const renderCarpeta = (carpeta: Carpeta, level: number = 0): React.ReactElement => {
+  const renderCarpeta = (carpeta: CarpetaTesoreria, level: number = 0): React.ReactElement => {
     const isExpanded = expandedFolders.has(carpeta.id);
     const hasChildren = carpeta.children && carpeta.children.length > 0;
     const isSelected = selectedCarpetaId === carpeta.id;

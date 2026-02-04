@@ -28,7 +28,9 @@ from modules.facturas.schemas import (
     DevolverAFacturacionIn,
     DevolverAFacturacionOut,
     AsignarCarpetaRequest,
-    AsignarCarpetaResponse
+    AsignarCarpetaResponse,
+    AsignarCarpetaTesoreriaRequest,
+    AsignarCarpetaTesoreriaResponse
 )
 from core.auth import require_api_key
 
@@ -141,6 +143,32 @@ async def asignar_factura_a_carpeta(
     - updated_at: Fecha de actualización
     """
     return await service.asignar_carpeta(factura_id, request.carpeta_id)
+
+
+@router.post("/{factura_id}/carpeta-tesoreria", response_model=AsignarCarpetaTesoreriaResponse, status_code=status.HTTP_200_OK)
+async def asignar_factura_a_carpeta_tesoreria(
+    factura_id: UUID,
+    request: AsignarCarpetaTesoreriaRequest,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """
+    Asigna una factura a una carpeta de tesorería específica.
+    
+    - **factura_id**: ID de la factura a asignar
+    - **carpeta_id**: ID de la carpeta de tesorería donde se guardará la factura
+    
+    **Validaciones:**
+    - 404 si la factura no existe
+    - 404 si la carpeta de tesorería no existe
+    
+    **Retorna:**
+    - id: ID de la factura
+    - numero_factura: Número de la factura
+    - carpeta_id: ID de la carpeta asignada
+    - carpeta_nombre: Nombre de la carpeta
+    - updated_at: Fecha de actualización
+    """
+    return await service.asignar_carpeta_tesoreria(factura_id, request.carpeta_id)
 
 
 @router.get("/{factura_id}/inventarios", response_model=InventariosOut)

@@ -23,7 +23,9 @@ class FacturaRepository:
             selectinload(Factura.files),
             selectinload(Factura.inventario_codigos),
             selectinload(Factura.unidad_negocio),
-            selectinload(Factura.cuenta_auxiliar)
+            selectinload(Factura.cuenta_auxiliar),
+            selectinload(Factura.carpeta),
+            selectinload(Factura.carpeta_tesoreria)
         )
         count_query = select(func.count(Factura.id))
         

@@ -3,7 +3,7 @@
  */
 
 // Variables de entorno de Vite - definidas en vite-env.d.ts
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1';
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string | undefined) || 'https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1/api/v1';
 
 // Tipos de respuesta del backend
 export interface LoginResponse {
@@ -90,6 +90,8 @@ export interface FacturaListItem {
   files: FileMiniOut[];
   carpeta_id: string | null;
   carpeta: CarpetaEnFactura | null;
+  carpeta_tesoreria_id: string | null;
+  carpeta_tesoreria: CarpetaEnFactura | null;
   unidad_negocio_id: string | null;
   unidad_negocio: string | null;
   cuenta_auxiliar_id: string | null;
@@ -191,7 +193,7 @@ async function fetchAPI<T>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const url = `${API_BASE_URL}/api/v1${endpoint}`;
+  const url = `${API_BASE_URL}${endpoint}`;
 
   try {
     const response = await fetch(url, {
@@ -957,6 +959,106 @@ export async function asignarFacturaACarpeta(
   data: AsignarFacturaCarpetaRequest
 ): Promise<AsignarFacturaCarpetaResponse> {
   return fetchAPI<AsignarFacturaCarpetaResponse>(`/facturas/${facturaId}/carpeta`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// ==================== CARPETAS TESORERÍA ====================
+
+export interface CarpetaTesoreria {
+  id: string;
+  nombre: string;
+  parent_id: string | null;
+  factura_id: string | null;
+  created_at: string;
+  updated_at: string;
+  children: CarpetaTesoreria[];
+  facturas: FacturaEnCarpeta[];
+}
+
+export interface CarpetaTesoreriaCreate {
+  nombre: string;
+  parent_id?: string | null;
+}
+
+export interface CarpetaTesoreriaUpdate {
+  nombre?: string;
+  parent_id?: string | null;
+  factura_id?: string | null;
+}
+
+export interface AsignarFacturaCarpetaTesoreriaRequest {
+  carpeta_id: string;
+}
+
+export interface AsignarFacturaCarpetaTesoreriaResponse {
+  factura_id: string;
+  carpeta_id: string;
+  carpeta_nombre: string;
+}
+
+/**
+ * Obtener todas las carpetas de tesorería raíz con su jerarquía completa
+ */
+export async function getCarpetasTesoreria(): Promise<CarpetaTesoreria[]> {
+  return fetchAPI<CarpetaTesoreria[]>('/carpetas-tesoreria/');
+}
+
+/**
+ * Obtener una carpeta de tesorería específica por ID con sus subcarpetas
+ */
+export async function getCarpetaTesoreriaById(carpetaId: string): Promise<CarpetaTesoreria> {
+  return fetchAPI<CarpetaTesoreria>(`/carpetas-tesoreria/${carpetaId}`);
+}
+
+/**
+ * Obtener subcarpetas de una carpeta de tesorería específica
+ */
+export async function getCarpetasTesoreriaByParent(parentId: string): Promise<CarpetaTesoreria[]> {
+  return fetchAPI<CarpetaTesoreria[]>(`/carpetas-tesoreria/parent/${parentId}`);
+}
+
+/**
+ * Crear una nueva carpeta de tesorería
+ */
+export async function createCarpetaTesoreria(data: CarpetaTesoreriaCreate): Promise<CarpetaTesoreria> {
+  return fetchAPI<CarpetaTesoreria>('/carpetas-tesoreria/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Actualizar una carpeta de tesorería existente
+ */
+export async function updateCarpetaTesoreria(
+  carpetaId: string,
+  data: CarpetaTesoreriaUpdate
+): Promise<CarpetaTesoreria> {
+  return fetchAPI<CarpetaTesoreria>(`/carpetas-tesoreria/${carpetaId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Eliminar una carpeta de tesorería
+ */
+export async function deleteCarpetaTesoreria(carpetaId: string): Promise<void> {
+  return fetchAPI<void>(`/carpetas-tesoreria/${carpetaId}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Asignar una factura a una carpeta de tesorería
+ */
+export async function asignarFacturaACarpetaTesoreria(
+  facturaId: string,
+  data: AsignarFacturaCarpetaTesoreriaRequest
+): Promise<AsignarFacturaCarpetaTesoreriaResponse> {
+  return fetchAPI<AsignarFacturaCarpetaTesoreriaResponse>(`/facturas/${facturaId}/carpeta-tesoreria`, {
     method: 'POST',
     body: JSON.stringify(data),
   });

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Upload, AlertCircle, Eye, Download, FileText, CheckCircle, Loader2 } from 'lucide-react';
+import { X, Upload, AlertCircle, Eye, Download, FileText, CheckCircle, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, InventariosData, UnidadNegocio, CuentaAuxiliar, DistribucionCCCO } from '../lib/api';
 import { 
@@ -21,7 +21,8 @@ import {
   updateDistribucionCCCO,
   API_BASE_URL,
   downloadFileById,
-  devolverAFacturacion
+  devolverAFacturacion,
+  deleteFacturaFile
 } from '../lib/api';
 import { DistribucionCCCOTable } from './DistribucionCCCOTable';
 import { FilePreviewModal } from './FilePreviewModal';
@@ -75,6 +76,9 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [uploadingOC, setUploadingOC] = useState(false);
   const [uploadingAprobacion, setUploadingAprobacion] = useState(false);
   const [uploadingInventario, setUploadingInventario] = useState(false);
+  
+  // Estados de loading para eliminación
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
   // Estados para Centro de Costo y Operación (obligatorios)
   // Inicializar con los valores de la factura si existen
@@ -821,6 +825,38 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     }
   };
 
+  const handleDeleteFile = async (fileId: string, tipo: 'oc' | 'aprobacion') => {
+    const tipoTexto = tipo === 'oc' ? 'OC/OS' : 'Aprobación de Gerencia';
+    
+    setConfirmModalConfig({
+      title: 'Eliminar Archivo',
+      message: `¿Está seguro de que desea eliminar este archivo de ${tipoTexto}?\n\nEsta acción no se puede deshacer.`,
+      type: 'warning',
+      showCancel: true,
+      onConfirm: async () => {
+        try {
+          setDeletingFileId(fileId);
+          await deleteFacturaFile(fileId);
+          
+          // Actualizar el estado según el tipo
+          if (tipo === 'oc') {
+            setArchivosOCExistentes(prev => prev.filter(f => f.id !== fileId));
+            toast.success('Archivo OC/OS eliminado correctamente');
+          } else if (tipo === 'aprobacion') {
+            setArchivoAprobacionExistente(null);
+            toast.success('Archivo de Aprobación eliminado correctamente');
+          }
+        } catch (error: any) {
+          console.error('Error eliminando archivo:', error);
+          toast.error(`Error al eliminar archivo: ${error.message || 'Error desconocido'}`);
+        } finally {
+          setDeletingFileId(null);
+        }
+      }
+    });
+    setShowConfirmModal(true);
+  };
+
   const handleFileUpload = async (tipo: 'oc' | 'aprobacion' | 'inventario' | 'notacredito') => {
     // Crear input file temporal
     const input = document.createElement('input');
@@ -1047,8 +1083,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     }
   };
 
-  return (
-    <>
+  return (<>
       {/* Overlay */}
       <div className="fixed inset-0 bg-white z-40" />
       
@@ -1087,16 +1122,16 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
             
             {/* Alerta de Devolución (si existe motivo) */}
             {factura.motivo_devolucion && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="border border-red-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <h4 className="text-red-900 font-semibold mb-1">Factura Devuelta por Contabilidad</h4>
-                    <p className="text-red-700 text-sm mb-2">
+                    <h4 className="font-semibold mb-1">Factura Devuelta por Contabilidad</h4>
+                    <p className=" text-sm mb-3">
                       Esta factura fue devuelta para correcciones. Por favor revise y corrija antes de reenviar.
                     </p>
                     <div className="bg-white border border-red-200 rounded p-3">
-                      <p className="text-xs font-semibold text-red-900 mb-1">MOTIVO DE DEVOLUCIÓN:</p>
+                      <p className="text-xs font-semibold text-red-900 mb-2">MOTIVO DE DEVOLUCIÓN:</p>
                       <p className="text-sm text-gray-800">{factura.motivo_devolucion}</p>
                     </div>
                   </div>
@@ -1216,7 +1251,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
             </div>
 
             {/* Toggle: ¿Es Gasto Administrativo? */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <div className="flex-1">
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -1300,6 +1335,25 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                               title="Descargar archivo"
                             >
                               <Download className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteFile(archivo.id, 'oc')}
+                              disabled={deletingFileId === archivo.id}
+                              className="p-2 rounded-lg transition-colors"
+                              style={{color: deletingFileId === archivo.id ? '#9ca3af' : '#dc2626'}}
+                              onMouseEnter={(e) => {
+                                if (deletingFileId !== archivo.id) {
+                                  e.currentTarget.style.backgroundColor = 'rgba(220, 38, 38, 0.1)';
+                                }
+                              }}
+                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              title="Eliminar archivo"
+                            >
+                              {deletingFileId === archivo.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
                             </button>
                           </div>
                         </div>
@@ -1394,6 +1448,18 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                         title="Descargar archivo"
                       >
                         <Download className="w-4 h-4 text-green-600" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteFile(archivoAprobacionExistente.id, 'aprobacion')}
+                        disabled={deletingFileId === archivoAprobacionExistente.id}
+                        className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Eliminar archivo"
+                      >
+                        {deletingFileId === archivoAprobacionExistente.id ? (
+                          <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4 text-red-600" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -1841,6 +1907,16 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               )}
             </div>
 
+            {/* Sección de Comentarios */}
+            <div className="p-6 border-t border-gray-200 bg-white">
+              {user && (
+                <ComentariosFactura 
+                  facturaId={factura.id} 
+                  currentUserId={user.id}
+                />
+              )}
+            </div>
+
             {/* Botón Unificado de Guardar Cambios */}
             <div className="bg-gradient-to-r from-gray-50 to-gray-100 border-t border-b border-gray-200 p-6">
               <button
@@ -1883,17 +1959,6 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               <p className="text-xs text-gray-600 text-center mt-3" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
                 Guarda: Inventarios, Novedad y Anticipo
               </p>
-            </div>
-          </div>
-
-            {/* Sección de Comentarios */}
-            <div className="p-6 border-t border-gray-200 bg-white">
-              {user && (
-                <ComentariosFactura 
-                  facturaId={factura.id} 
-                  currentUserId={user.id}
-                />
-              )}
             </div>
 
             {/* Footer con acciones */}
@@ -1938,6 +2003,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 )}
               </button>
             </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1955,8 +2021,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto" onClick={(e) => e.stopPropagation()}>
-            {/* Header con gradiente turquesa */}
-            <div className="p-6 border-b border-gray-200 rounded-t-lg" style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}}>
+            {/* Header con gradiente verde */}
+            <div className="p-6 border-b border-gray-200 rounded-t-lg" style={{background: 'linear-gradient(to right, #059669, #10b981)'}}>
               <h3 className="text-lg font-semibold text-white" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Devolver a Facturación</h3>
               <p className="text-sm mt-1" style={{color: 'rgba(255, 255, 255, 0.9)', fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
                 La factura será devuelta al área de Facturación para correcciones

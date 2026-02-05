@@ -539,3 +539,50 @@ class FileService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail={"code": "internal_error", "message": "Error al guardar el archivo"}
             )
+    
+    async def delete_file(self, file_id: UUID) -> None:
+        """
+        Elimina un archivo por su ID.
+        
+        Args:
+            file_id: UUID del archivo a eliminar
+            
+        Raises:
+            HTTPException: 404 si el archivo no existe, 500 si hay error al eliminar
+        """
+        logger.info(f"Eliminando archivo {file_id}")
+        
+        try:
+            # Obtener el archivo de la BD
+            db_file = await self.repository.get_by_id(file_id)
+            
+            if not db_file:
+                logger.warning(f"Archivo {file_id} no encontrado")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Archivo con ID {file_id} no encontrado"
+                )
+            
+            # Eliminar archivo físico si es storage local
+            if db_file.storage_provider == "local" and db_file.storage_path:
+                file_path = Path(db_file.storage_path)
+                if file_path.exists():
+                    try:
+                        file_path.unlink()
+                        logger.info(f"Archivo físico eliminado: {file_path}")
+                    except Exception as e:
+                        logger.error(f"Error eliminando archivo físico: {e}")
+                        # Continuar con eliminación de BD aunque falle el archivo físico
+            
+            # Eliminar registro de la BD
+            await self.repository.delete(file_id)
+            logger.info(f"Registro de archivo {file_id} eliminado de BD")
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error eliminando archivo {file_id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al eliminar el archivo"
+            )

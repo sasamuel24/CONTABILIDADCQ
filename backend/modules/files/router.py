@@ -280,3 +280,40 @@ async def download_file_by_key(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al descargar el archivo"
         )
+
+
+@router.delete("/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_file(
+    file_id: UUID,
+    service: FileService = Depends(get_file_service)
+):
+    """
+    Elimina un archivo por su ID.
+    
+    **Validaciones:**
+    - El archivo debe existir
+    - Se elimina el archivo físico del storage
+    - Se elimina el registro de la base de datos
+    
+    **Parámetros:**
+    - file_id: UUID del archivo a eliminar
+    
+    **Respuestas:**
+    - 204: Archivo eliminado exitosamente
+    - 404: Archivo no encontrado
+    - 500: Error al eliminar
+    """
+    logger.info(f"Solicitud de eliminación de archivo {file_id}")
+    
+    try:
+        await service.delete_file(file_id)
+        logger.info(f"Archivo {file_id} eliminado exitosamente")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error eliminando archivo {file_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al eliminar el archivo"
+        )

@@ -485,6 +485,15 @@ export async function downloadFileById(fileId: string): Promise<Blob> {
 }
 
 /**
+ * Eliminar archivo por ID
+ */
+export async function deleteFacturaFile(fileId: string): Promise<void> {
+  await fetchAPI(`/files/${fileId}`, {
+    method: 'DELETE',
+  });
+}
+
+/**
  * Obtener URL de vista previa de un archivo por ID
  */
 export function getFilePreviewUrl(fileId: string): string {

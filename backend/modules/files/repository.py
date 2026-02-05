@@ -74,3 +74,15 @@ class FileRepository:
             )
         )
         return result.scalar_one_or_none()
+    
+    async def delete(self, file_id: UUID) -> None:
+        """
+        Elimina un archivo de la base de datos.
+        
+        Args:
+            file_id: UUID del archivo a eliminar
+        """
+        file = await self.get_by_id(file_id)
+        if file:
+            await self.db.delete(file)
+            await self.db.flush()

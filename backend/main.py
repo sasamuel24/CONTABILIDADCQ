@@ -31,7 +31,8 @@ from modules.cuentas_auxiliares.router import router as cuentas_auxiliares_route
 from modules.distribucion_ccco.router import router as distribucion_ccco_router
 from modules.comentarios.router import router as comentarios_router
 
-
+# Configuración central.
+# Aquí deshabilitas los docs por defecto para crear tus endpoints personalizados.
 # Crear instancia de FastAPI
 app = FastAPI(
     title=settings.app_name,
@@ -43,7 +44,7 @@ app = FastAPI(
     openapi_url=None  # Deshabilitamos openapi por defecto
 )
 
-# Configurar CORS
+# Configurar CORS , Controla quien puede llamar a app desde el navegador.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -59,7 +60,7 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
-# Registrar routers bajo /api/v1
+# Registrar routers bajo /api/v1 , Cada modulo debe tener un llamado en MAIN para ser registrado en la construcción de la API.
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(areas_router, prefix="/api/v1")

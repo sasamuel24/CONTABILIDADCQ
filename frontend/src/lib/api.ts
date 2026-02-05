@@ -410,7 +410,7 @@ export async function uploadFacturaFile(
   formData.append('file', file);
   formData.append('doc_type', docType);
 
-  const response = await fetch(`${API_BASE_URL}/api/v1/facturas/${facturaId}/files/upload`, {
+  const response = await fetch(`${API_BASE_URL}/facturas/${facturaId}/files/upload`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,

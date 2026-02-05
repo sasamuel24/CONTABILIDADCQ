@@ -401,7 +401,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
         const finalFilename = filename;
         
         // Usar endpoint proxy del backend para archivos S3
-        const downloadUrl = `${API_BASE_URL}/api/v1/facturas/${factura.id}/files/download?key=${encodeURIComponent(storagePath)}`;
+        const downloadUrl = `${API_BASE_URL}/facturas/${factura.id}/files/download?key=${encodeURIComponent(storagePath)}`;
         const link = document.createElement('a');
         link.href = downloadUrl;
         link.download = finalFilename;

@@ -9,6 +9,7 @@ import { CentroDocumentalPage } from './pages/CentroDocumentalPage';
 import { NoAutorizadoPage } from './pages/NoAutorizadoPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { Toaster } from './components/ui/sonner';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -136,6 +137,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <AppRoutes />
+        <Toaster position="top-right" richColors />
       </AuthProvider>
     </BrowserRouter>
   );

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, AlertCircle, Eye, Download, FileText, CheckCircle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, InventariosData, UnidadNegocio, CuentaAuxiliar, DistribucionCCCO } from '../lib/api';
 import { 
   uploadFacturaFile, 
@@ -192,7 +193,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         setCentrosCosto(centros);
       } catch (error) {
         console.error('Error cargando centros de costo:', error);
-        alert('Error al cargar centros de costo');
+        toast.error('Error al cargar centros de costo');
       } finally {
         setLoadingCentros(false);
       }
@@ -210,7 +211,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         setUnidadesNegocio(unidades);
       } catch (error) {
         console.error('Error cargando unidades de negocio:', error);
-        alert('Error al cargar unidades de negocio');
+        toast.error('Error al cargar unidades de negocio');
       } finally {
         setLoadingUnidades(false);
       }
@@ -228,7 +229,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         setCuentasAuxiliares(cuentas);
       } catch (error) {
         console.error('Error cargando cuentas auxiliares:', error);
-        alert('Error al cargar cuentas auxiliares');
+        toast.error('Error al cargar cuentas auxiliares');
       } finally {
         setLoadingCuentas(false);
       }
@@ -351,7 +352,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   // Guardar todos los campos de clasificación (CC, CO, UN, CA)
   const handleGuardarClasificacion = async () => {
     if (!centroCosto || !centroOperacion) {
-      alert('Debe seleccionar Centro de Costo y Centro de Operación');
+      toast.warning('Debe seleccionar Centro de Costo y Centro de Operación');
       return;
     }
 
@@ -372,11 +373,11 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       // Guardar cuenta auxiliar (opcional)
       await updateFacturaCuentaAuxiliar(factura.id, cuentaAuxiliar || null);
 
-      alert('✅ Clasificación actualizada correctamente');
+      toast.success('Clasificación actualizada correctamente');
       
     } catch (error: any) {
       console.error('Error guardando clasificación:', error);
-      alert(`❌ Error al guardar: ${error.message || 'Error desconocido'}`);
+      toast.error(`Error al guardar: ${error.message || 'Error desconocido'}`);
     } finally {
       setSavingCentros(false);
       setSavingUnidad(false);
@@ -470,7 +471,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const handleGuardarNovedad = async () => {
     // Validar que si tiene novedad, tenga el número de nota de crédito
     if (tieneNovedad && !numeroNotaCredito) {
-      alert('❌ Debe ingresar el número de Nota de Crédito (NP)');
+      toast.warning('Debe ingresar el número de Nota de Crédito (NP)');
       return;
     }
 
@@ -502,10 +503,10 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         codigos: codigos.length > 0 ? codigos : undefined
       });
       
-      alert('✅ Novedad actualizada correctamente');
+      toast.success('Novedad actualizada correctamente');
     } catch (error: any) {
       console.error('Error guardando novedad:', error);
-      alert(`❌ Error al guardar novedad: ${error.message || 'Error desconocido'}`);
+      toast.error(`Error al guardar novedad: ${error.message || 'Error desconocido'}`);
     } finally {
       setSavingNovedad(false);
     }
@@ -515,14 +516,14 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const handleGuardarAnticipo = async () => {
     // Validar que si tiene anticipo, tenga el porcentaje
     if (tieneAnticipo && !porcentajeAnticipo) {
-      alert('❌ Debe ingresar el porcentaje de anticipo');
+      toast.warning('Debe ingresar el porcentaje de anticipo');
       return;
     }
 
     // Validar rango de porcentaje
     const porcentaje = parseFloat(porcentajeAnticipo);
     if (tieneAnticipo && (isNaN(porcentaje) || porcentaje < 0 || porcentaje > 100)) {
-      alert('❌ El porcentaje de anticipo debe estar entre 0 y 100');
+      toast.warning('El porcentaje de anticipo debe estar entre 0 y 100');
       return;
     }
 
@@ -535,10 +536,10 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         intervalo_entrega_contabilidad: intervaloEntrega
       });
       
-      alert('✅ Anticipo actualizado correctamente');
+      toast.success('Anticipo actualizado correctamente');
     } catch (error: any) {
       console.error('Error guardando anticipo:', error);
-      alert(`❌ Error al guardar anticipo: ${error.message || 'Error desconocido'}`);
+      toast.error(`Error al guardar anticipo: ${error.message || 'Error desconocido'}`);
     } finally {
       setSavingAnticipo(false);
     }
@@ -555,10 +556,10 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         intervalo_entrega_contabilidad: intervaloEntrega
       });
       
-      alert('✅ Intervalo de entrega actualizado correctamente');
+      toast.success('Intervalo de entrega actualizado correctamente');
     } catch (error: any) {
       console.error('Error guardando intervalo:', error);
-      alert(`❌ Error al guardar intervalo: ${error.message || 'Error desconocido'}`);
+      toast.error(`Error al guardar intervalo: ${error.message || 'Error desconocido'}`);
     } finally {
       setSavingIntervalo(false);
     }
@@ -572,10 +573,10 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         distribuciones
       });
       setDistribuciones(distribucionesActualizadas);
-      alert('✅ Distribución CC/CO actualizada correctamente');
+      toast.success('Distribución CC/CO actualizada correctamente');
     } catch (error: any) {
       console.error('Error guardando distribución:', error);
-      alert(`❌ Error al guardar distribución: ${error.message || 'Error desconocido'}`);
+      toast.error(`Error al guardar distribución: ${error.message || 'Error desconocido'}`);
       throw error;
     } finally {
       setSavingDistribucion(false);
@@ -1027,20 +1028,20 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
   const handleDevolverAFacturacion = async () => {
     if (motivoDevolucion.trim().length < 10) {
-      alert('❌ El motivo debe tener al menos 10 caracteres');
+      toast.warning('El motivo debe tener al menos 10 caracteres');
       return;
     }
 
     try {
       setEnviandoDevolucion(true);
       await devolverAFacturacion(factura.id, motivoDevolucion.trim());
-      alert('✅ Factura devuelta a Facturación correctamente');
+      toast.success('Factura devuelta a Facturación correctamente');
       setMostrarModalDevolucion(false);
       setMotivoDevolucion('');
       onClose(); // Cerrar modal después de devolver
     } catch (error: any) {
       console.error('Error devolviendo factura:', error);
-      alert(`❌ Error al devolver factura: ${error.message || 'Error desconocido'}`);
+      toast.error(`Error al devolver factura: ${error.message || 'Error desconocido'}`);
     } finally {
       setEnviandoDevolucion(false);
     }
@@ -1943,11 +1944,17 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
       {/* Modal de Devolución a Facturación */}
       {mostrarModalDevolucion && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
-          style={{ zIndex: 9999, position: 'fixed' }}
-        >
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full" style={{ position: 'relative', zIndex: 10000 }}>
+        <>
+          <div 
+            className="fixed inset-0 z-50 backdrop-blur-lg" 
+            style={{backgroundColor: 'rgba(55, 65, 81, 0.75)'}}
+            onClick={() => {
+              setMostrarModalDevolucion(false);
+              setMotivoDevolucion('');
+            }}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto" onClick={(e) => e.stopPropagation()}>
             {/* Header con gradiente turquesa */}
             <div className="p-6 border-b border-gray-200 rounded-t-lg" style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}}>
               <h3 className="text-lg font-semibold text-white" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Devolver a Facturación</h3>
@@ -2017,7 +2024,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               )}
             </div>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Modal de vista previa */}

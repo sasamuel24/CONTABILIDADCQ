@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Upload, CheckCircle, AlertCircle, Trash2, Download, FileText, Eye } from 'lucide-react';
+import { toast } from 'sonner';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, DistribucionCCCO, UnidadNegocio, CuentaAuxiliar } from '../lib/api';
 import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, uploadFacturaFile, updateFacturaEstado, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares, downloadFileById } from '../lib/api';
 import { FilePreviewModal } from './FilePreviewModal';
@@ -381,7 +382,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
         nuevosErrores[tipo] = error.message || 'Error al subir el archivo';
         setErrores(nuevosErrores);
         
-        alert(`Error al subir archivo: ${error.message || 'Error desconocido'}`);
+        toast.error(`Error al subir archivo: ${error.message || 'Error desconocido'}`);
       } finally {
         setLoading(false);
       }
@@ -484,7 +485,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Error descargando archivo:', error);
-      alert('Error al descargar el archivo');
+      toast.error('Error al descargar el archivo');
     }
   };
 
@@ -511,7 +512,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
     })
     .catch(error => {
       console.error('Error al abrir documento:', error);
-      alert('Error al abrir el documento');
+      toast.error('Error al abrir el documento');
     });
   };
 

@@ -1023,8 +1023,17 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
 
       {/* Modal de Devolución a Responsable */}
       {mostrarModalDevolucion && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+        <>
+          <div 
+            className="fixed inset-0 z-50 backdrop-blur-lg" 
+            style={{backgroundColor: 'rgba(55, 65, 81, 0.75)'}}
+            onClick={() => {
+              setMostrarModalDevolucion(false);
+              setMotivoDevolucion('');
+            }}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto" onClick={(e) => e.stopPropagation()}>
             <div style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}} className="p-6 border-b border-gray-200 rounded-t-lg">
               <h3 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="text-lg font-semibold text-white">Devolver a Responsable</h3>
               <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif', opacity: 0.9}} className="text-sm text-white mt-1">
@@ -1080,19 +1089,19 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                   disabled={enviandoDevolucion}
                   style={{
                     fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
-                    backgroundColor: enviandoDevolucion ? '#f3f4f6' : '#dc2626',
+                    backgroundColor: enviandoDevolucion ? '#9ca3af' : '#0d9488',
                     color: enviandoDevolucion ? '#9ca3af' : 'white',
                     transition: 'all 0.2s',
                     cursor: enviandoDevolucion ? 'not-allowed' : 'pointer'
                   }}
                   onMouseEnter={(e) => {
                     if (!enviandoDevolucion) {
-                      e.currentTarget.style.backgroundColor = '#b91c1c';
+                      e.currentTarget.style.backgroundColor = '#0f766e';
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!enviandoDevolucion) {
-                      e.currentTarget.style.backgroundColor = '#dc2626';
+                      e.currentTarget.style.backgroundColor = '#0d9488';
                     }
                   }}
                   onFocus={(e) => {
@@ -1108,7 +1117,8 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
               )}
             </div>
           </div>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Modal de vista previa */}

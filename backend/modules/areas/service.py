@@ -2,7 +2,7 @@
 Servicio para lógica de negocio de áreas.
 """
 from modules.areas.repository import AreaRepository
-from modules.areas.schemas import AreaResponse, AreaCreate
+from modules.areas.schemas import AreaResponse, AreaCreate, AreaUpdate
 from typing import List
 from uuid import UUID
 from core.logging import logger
@@ -82,4 +82,43 @@ class AreaService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error al eliminar área: {str(e)}"
+            )
+
+    async def update_area(self, area_id: UUID, area_data: AreaUpdate) -> AreaResponse:
+        """Actualiza un área existente con los campos provistos."""
+        logger.info(f"Actualizando área {area_id} con {area_data}")
+
+        existing = await self.repository.get_by_id(area_id)
+        if not existing:
+            logger.warning(f"Área con ID {area_id} no encontrada para actualizar")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Área con ID {area_id} no encontrada"
+            )
+
+        data = area_data.model_dump(exclude_none=True)
+        if not data:
+            # No hay cambios; retornar la entidad actual
+            return AreaResponse.model_validate(existing)
+
+        try:
+            area = await self.repository.update(area_id, data)
+            if not area:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Área con ID {area_id} no encontrada"
+                )
+            logger.info(f"Área actualizada exitosamente: {area.id}")
+            return AreaResponse.model_validate(area)
+        except Exception as e:
+            logger.error(f"Error al actualizar área: {str(e)}")
+            if "duplicate key value" in str(e).lower() or "unicidad" in str(e).lower():
+                field = "código" if "code" in str(e).lower() else "nombre"
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"El {field} del área ya existe"
+                )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al actualizar área: {str(e)}"
             )

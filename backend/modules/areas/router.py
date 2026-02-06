@@ -9,7 +9,7 @@ from uuid import UUID
 from db.session import get_db
 from modules.areas.repository import AreaRepository
 from modules.areas.service import AreaService
-from modules.areas.schemas import AreaResponse, AreaCreate
+from modules.areas.schemas import AreaResponse, AreaCreate, AreaUpdate
 
 
 router = APIRouter(prefix="/areas", tags=["Áreas"])
@@ -62,3 +62,23 @@ async def delete_area(
     """
     await service.delete_area(area_id)
     return None
+
+
+@router.put("/{area_id}", response_model=AreaResponse)
+async def update_area(
+    area_id: UUID,
+    area_data: AreaUpdate,
+    service: AreaService = Depends(get_area_service)
+):
+    """
+    Actualiza un área existente.
+
+    - **area_id**: ID del área a actualizar
+    - **code**: Nuevo código (opcional)
+    - **nombre**: Nuevo nombre (opcional)
+
+    **Errores**:
+    - 404: Área no encontrada
+    - 409: Código o nombre duplicado
+    """
+    return await service.update_area(area_id, area_data)

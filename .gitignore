@@ -45,3 +45,9 @@ Thumbs.db
 
 # Storage local
 storage/
+
+#CLAUDE
+.claude
+CLAUDE.md
+BUG_REPORT.md
+ARQUITECTURA_ANALISIS_IMPACTO.md

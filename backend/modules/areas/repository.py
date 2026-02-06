@@ -40,3 +40,20 @@ class AreaRepository:
             await self.db.commit()
             return True
         return False
+
+    async def update(self, area_id: UUID, update_data: dict):
+        """Actualiza los campos de un área existente y retorna el área actualizada.
+
+        Si el área no existe retorna `None`.
+        """
+        area = await self.get_by_id(area_id)
+        if not area:
+            return None
+
+        for key, value in update_data.items():
+            if hasattr(area, key):
+                setattr(area, key, value)
+
+        await self.db.commit()
+        await self.db.refresh(area)
+        return area

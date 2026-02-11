@@ -123,7 +123,9 @@ from core.config import settings
 import sys
 
 try:
-    engine = create_engine(settings.database_url_sync)
+    # Convertir URL async a sync
+    db_url = str(settings.database_url).replace('postgresql+asyncpg://', 'postgresql://')
+    engine = create_engine(db_url)
     with engine.connect() as conn:
         result = conn.execute(text('''
             SELECT column_name, data_type, is_nullable 

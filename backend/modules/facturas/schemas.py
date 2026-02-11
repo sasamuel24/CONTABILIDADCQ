@@ -15,6 +15,7 @@ class FacturaBase(BaseModel):
     proveedor: str = Field(..., description="Nombre del proveedor")
     numero_factura: str = Field(..., description="Número de factura")
     fecha_emision: Optional[date] = Field(None, description="Fecha de emisión")
+    fecha_vencimiento: Optional[date] = Field(None, description="Fecha de vencimiento")
     area_id: UUID = Field(..., description="ID del área asignada")
     total: float = Field(..., gt=0, description="Monto total de la factura")
     estado_id: int = Field(..., description="ID del estado")
@@ -27,6 +28,7 @@ class FacturaCreate(BaseModel):
     proveedor: str = Field(..., description="Nombre del proveedor")
     numero_factura: str = Field(..., description="Número de factura")
     fecha_emision: Optional[date] = Field(None, description="Fecha de emisión")
+    fecha_vencimiento: Optional[date] = Field(None, description="Fecha de vencimiento")
     total: float = Field(..., gt=0, description="Monto total de la factura")
     area_id: UUID = Field(
         default=UUID("498e9fdb-25f5-42f9-beb8-92564ab6bdf4"),
@@ -113,6 +115,7 @@ class FacturaListItem(BaseModel):
     proveedor: str
     numero_factura: str
     fecha_emision: Optional[date]
+    fecha_vencimiento: Optional[date]
     area: str
     area_origen_id: Optional[UUID] = None
     total: float
@@ -323,6 +326,7 @@ class SubmitResponsableOut(BaseModel):
     proveedor: str
     numero_factura: str
     fecha_emision: Optional[date]
+    fecha_vencimiento: Optional[date]
     total: float
     
     # Centro de Costo y Operación

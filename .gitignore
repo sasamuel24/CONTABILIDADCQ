@@ -45,9 +45,15 @@ Thumbs.db
 
 # Storage local
 storage/
+scripts/
 
 #CLAUDE
 .claude
 CLAUDE.md
 BUG_REPORT.md
 ARQUITECTURA_ANALISIS_IMPACTO.md
+
+#BACKEND IGNORE RDS
+start-tunnel.ps1
+query-rds.ps1
+.env.rds

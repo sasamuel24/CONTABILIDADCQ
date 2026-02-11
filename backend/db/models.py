@@ -490,6 +490,7 @@ class Factura(Base, TimestampMixin):
     proveedor: Mapped[str] = mapped_column(Text, nullable=False)
     numero_factura: Mapped[str] = mapped_column(Text, nullable=False)
     fecha_emision: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    fecha_vencimiento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     area_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("areas.id", ondelete="RESTRICT"),

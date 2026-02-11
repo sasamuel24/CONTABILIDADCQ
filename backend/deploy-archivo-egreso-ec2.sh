@@ -56,12 +56,22 @@ echo ""
 # 2. Activar entorno virtual
 echo "🐍 2. Activando entorno virtual..."
 cd "$BACKEND_DIR" || exit 1
-source .venv/bin/activate
-if [ $? -eq 0 ]; then
-    print_success "Entorno virtual activado"
+
+# Intentar diferentes ubicaciones del entorno virtual
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+    print_success "Entorno virtual activado (.venv)"
+elif [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+    print_success "Entorno virtual activado (venv)"
+elif [ -f "../venv/bin/activate" ]; then
+    source ../venv/bin/activate
+    print_success "Entorno virtual activado (../venv)"
 else
-    print_error "Error al activar entorno virtual"
-    exit 1
+    print_warning "No se encontró entorno virtual, creando uno nuevo..."
+    python3 -m venv .venv
+    source .venv/bin/activate
+    print_success "Entorno virtual creado y activado"
 fi
 echo ""
 

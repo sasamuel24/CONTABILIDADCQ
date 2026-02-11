@@ -39,7 +39,11 @@ export function CarpetasTesoreriaView() {
         setError(null);
 
         const facturasResponse = await getFacturas(0, 10000);
-        setFacturas(facturasResponse.items);
+        // Filtrar solo facturas cerradas (procesadas por tesorería)
+        const facturasCerradas = facturasResponse.items.filter(
+          f => f.estado === 'Cerrada'
+        );
+        setFacturas(facturasCerradas);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al cargar datos';
         setError(message);
@@ -155,7 +159,11 @@ export function CarpetasTesoreriaView() {
     // Recargar facturas después de asignar
     try {
       const facturasResponse = await getFacturas(0, 10000);
-      setFacturas(facturasResponse.items);
+      // Filtrar solo facturas cerradas (procesadas por tesorería)
+      const facturasCerradas = facturasResponse.items.filter(
+        f => f.estado === 'Cerrada'
+      );
+      setFacturas(facturasCerradas);
     } catch (err) {
       console.error('Error reloading facturas:', err);
     }

@@ -77,9 +77,14 @@ export function InboxView() {
       ]);
       
       // Filtrar facturas por área del usuario
-      const facturasDelArea = facturasData.items.filter(
+      let facturasDelArea = facturasData.items.filter(
         f => f.area === user.area?.nombre
       );
+      
+      // Si el usuario es de tesorería, excluir facturas cerradas (van a carpetas)
+      if (user.role === 'tesoreria') {
+        facturasDelArea = facturasDelArea.filter(f => f.estado !== 'Cerrada');
+      }
       
       setFacturas(facturasDelArea);
       setAreas(areasData);

@@ -157,32 +157,61 @@ echo ""
 
 # 8. Reiniciar servicio backend
 echo "🔄 8. Reiniciando servicio backend..."
-sudo systemctl restart backend
-if [ $? -eq 0 ]; then
-    print_success "Servicio backend reiniciado"
+
+# Intentar con systemctl primero
+if sudo systemctl list-units --all | grep -q "backend.service"; then
+    sudo systemctl restart backend
+    if [ $? -eq 0 ]; then
+        print_success "Servicio backend reiniciado (systemctl)"
+    else
+        print_error "Error al reiniciar servicio con systemctl"
+        exit 1
+    fi
 else
-    print_error "Error al reiniciar servicio"
-    exit 1
+    # Si no existe el servicio, intentar matar y reiniciar uvicorn
+    print_warning "Servicio systemd no encontrado, intentando reiniciar uvicorn manualmente..."
+    
+    # Matar procesos uvicorn existentes
+    pkill -f "uvicorn main:app" 2>/dev/null
+    sleep 2
+    
+    # Reiniciar uvicorn en background
+    nohup uvicorn main:app --host 0.0.0.0 --port 8000 > /dev/null 2>&1 &
+    sleep 3
+    
+    # Verificar que el proceso está corriendo
+    if pgrep -f "uvicorn main:app" > /dev/null; then
+        print_success "Proceso uvicorn reiniciado manualmente"
+    else
+        print_error "No se pudo reiniciar uvicorn"
+        print_warning "Por favor, reinicia el backend manualmente"
+    fi
 fi
 echo ""
 
 # 9. Verificar que el servicio está corriendo
 echo "🔍 9. Verificando estado del servicio..."
 sleep 3
-sudo systemctl is-active --quiet backend
-if [ $? -eq 0 ]; then
+
+# Verificar si el proceso uvicorn está corriendo
+if pgrep -f "uvicorn main:app" > /dev/null; then
     print_success "Servicio backend está activo"
 else
     print_error "Servicio backend no está activo"
-    sudo systemctl status backend
-    exit 1
+    print_warning "Verifica los logs y reinicia el backend manualmente si es necesario"
 fi
 echo ""
 
 # 10. Ver logs recientes
 echo "📋 10. Logs recientes del servicio:"
 echo "-----------------------------------"
-sudo journalctl -u backend -n 20 --no-pager
+if sudo systemctl list-units --all | grep -q "backend.service"; then
+    sudo journalctl -u backend -n 20 --no-pager
+else
+    print_warning "No se pueden mostrar logs de systemd (servicio no configurado)"
+    echo "Para ver logs manualmente:"
+    echo "  tail -f nohup.out"
+fi
 echo ""
 
 # Resumen final

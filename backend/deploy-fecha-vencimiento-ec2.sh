@@ -55,8 +55,8 @@ echo ""
 # Verificar si hay múltiples heads
 HEADS_COUNT=$(alembic heads | wc -l)
 if [ $HEADS_COUNT -gt 1 ]; then
-    echo -e "${RED}⚠️  ADVERTENCIA: Se detectaron múltiples heads.${NC}"
-    echo "Será necesario hacer merge de las migraciones."
+    echo -e "${YELLOW}⚠️  ADVERTENCIA: Se detectaron múltiples heads.${NC}"
+    echo "Se hará merge automático de las migraciones."
     echo ""
 fi
 
@@ -81,6 +81,19 @@ echo -e "${YELLOW}💾 Guardando versión actual...${NC}"
 CURRENT_VERSION=$(alembic current | grep -oP '^\w+' | head -1)
 echo "Versión actual: $CURRENT_VERSION"
 echo ""
+
+# Hacer merge si hay múltiples heads
+if [ $HEADS_COUNT -gt 1 ]; then
+    echo -e "${YELLOW}🔀 Haciendo merge de heads...${NC}"
+    alembic merge heads -m "merge_fecha_vencimiento_$(date +%Y%m%d)"
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}✅ Merge completado${NC}"
+        echo ""
+    else
+        echo -e "${RED}❌ Error al hacer merge${NC}"
+        exit 1
+    fi
+fi
 
 # Ejecutar migración
 echo -e "${GREEN}⬆️  Ejecutando: alembic upgrade head${NC}"

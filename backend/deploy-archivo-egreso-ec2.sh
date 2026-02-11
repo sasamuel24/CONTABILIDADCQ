@@ -117,6 +117,7 @@ echo ""
 
 # 7. Verificar que la columna se creó
 echo "🔍 7. Verificando columna en base de datos..."
+pip install psycopg2-binary > /dev/null 2>&1
 python -c "
 from sqlalchemy import create_engine, inspect, text
 from core.config import settings

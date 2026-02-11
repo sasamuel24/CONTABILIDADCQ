@@ -448,6 +448,11 @@ class CarpetaTesoreria(Base, TimestampMixin):
         nullable=True,
         index=True
     )
+    archivo_egreso_url: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+        comment="URL del archivo PDF de control de egresos"
+    )
     
     # Relaciones
     parent: Mapped[Optional["CarpetaTesoreria"]] = relationship(

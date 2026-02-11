@@ -981,6 +981,7 @@ export interface CarpetaTesoreria {
   nombre: string;
   parent_id: string | null;
   factura_id: string | null;
+  archivo_egreso_url: string | null;
   created_at: string;
   updated_at: string;
   children: CarpetaTesoreria[];
@@ -990,12 +991,14 @@ export interface CarpetaTesoreria {
 export interface CarpetaTesoreriaCreate {
   nombre: string;
   parent_id?: string | null;
+  archivo_egreso_url?: string | null;
 }
 
 export interface CarpetaTesoreriaUpdate {
   nombre?: string;
   parent_id?: string | null;
   factura_id?: string | null;
+  archivo_egreso_url?: string | null;
 }
 
 export interface AsignarFacturaCarpetaTesoreriaRequest {
@@ -1059,6 +1062,49 @@ export async function deleteCarpetaTesoreria(carpetaId: string): Promise<void> {
   return fetchAPI<void>(`/carpetas-tesoreria/${carpetaId}`, {
     method: 'DELETE',
   });
+}
+
+/**
+ * Subir archivo PDF de control de egresos a una carpeta de tesorería
+ */
+export async function uploadArchivoEgresoCarpeta(
+  carpetaId: string,
+  file: File
+): Promise<CarpetaTesoreria> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const token = getAccessToken();
+  const response = await fetch(`${API_BASE_URL}/carpetas-tesoreria/${carpetaId}/archivo-egreso`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Error al subir archivo' }));
+    throw new Error(error.detail || `Error HTTP: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * Eliminar archivo PDF de control de egresos de una carpeta de tesorería
+ */
+export async function deleteArchivoEgresoCarpeta(carpetaId: string): Promise<CarpetaTesoreria> {
+  return fetchAPI<CarpetaTesoreria>(`/carpetas-tesoreria/${carpetaId}/archivo-egreso`, {
+    method: 'DELETE',
+  });
+}
+
+/**
+ * Obtener URL prefirmada para descargar archivo PDF de control de egresos
+ */
+export async function getArchivoEgresoUrl(carpetaId: string): Promise<{ download_url: string }> {
+  return fetchAPI<{ download_url: string }>(`/carpetas-tesoreria/${carpetaId}/archivo-egreso-url`);
 }
 
 /**

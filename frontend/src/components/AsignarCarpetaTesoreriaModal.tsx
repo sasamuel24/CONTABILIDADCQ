@@ -45,8 +45,8 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSucce
     try {
       setIsSubmitting(true);
       await asignarFacturaACarpetaTesoreria(factura.id, { carpeta_id: selectedCarpetaId });
+      // Solo llamar a onSuccess, que manejará el cierre del modal y la recarga
       onSuccess();
-      onClose();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al asignar carpeta';
       alert(message);

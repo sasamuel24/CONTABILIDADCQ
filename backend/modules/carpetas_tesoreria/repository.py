@@ -86,9 +86,15 @@ class CarpetaTesoreriaRepository:
         self,
         carpeta_id: UUID,
         nombre: Optional[str] = None,
-        parent_id: Optional[UUID] = None
+        parent_id: Optional[UUID] = None,
+        archivo_egreso_url: Optional[str] = None,
+        update_archivo: bool = False
     ) -> Optional[CarpetaTesoreria]:
-        """Actualiza una carpeta existente."""
+        """Actualiza una carpeta existente.
+        
+        Args:
+            update_archivo: Si es True, actualiza archivo_egreso_url incluso si es None
+        """
         carpeta = await self.get_by_id(carpeta_id)
         if not carpeta:
             return None
@@ -97,10 +103,14 @@ class CarpetaTesoreriaRepository:
             carpeta.nombre = nombre
         if parent_id is not None:
             carpeta.parent_id = parent_id
+        if update_archivo:
+            carpeta.archivo_egreso_url = archivo_egreso_url
         
         await self.db.commit()
         await self.db.refresh(carpeta)
-        return await self.get_by_id(carpeta.id)
+        
+        # Retornar sin recargar relaciones completamente
+        return carpeta
     
     async def delete(self, carpeta_id: UUID) -> bool:
         """Elimina una carpeta y sus hijos en cascada."""

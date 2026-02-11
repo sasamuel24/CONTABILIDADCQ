@@ -116,6 +116,15 @@ class FacturaService:
                     parent_id=f.carpeta.parent_id
                 )
             
+            # Mapear carpeta de tesorería si existe
+            carpeta_tesoreria_out = None
+            if f.carpeta_tesoreria:
+                carpeta_tesoreria_out = CarpetaEnFactura(
+                    id=f.carpeta_tesoreria.id,
+                    nombre=f.carpeta_tesoreria.nombre,
+                    parent_id=f.carpeta_tesoreria.parent_id
+                )
+            
             items.append(FacturaListItem(
                 id=f.id,
                 proveedor=f.proveedor,
@@ -142,6 +151,8 @@ class FacturaService:
                 files=files_out,
                 carpeta_id=f.carpeta_id,
                 carpeta=carpeta_out,
+                carpeta_tesoreria_id=f.carpeta_tesoreria_id,
+                carpeta_tesoreria=carpeta_tesoreria_out,
                 unidad_negocio_id=f.unidad_negocio_id,
                 unidad_negocio=f.unidad_negocio.codigo if f.unidad_negocio else None,
                 cuenta_auxiliar_id=f.cuenta_auxiliar_id,

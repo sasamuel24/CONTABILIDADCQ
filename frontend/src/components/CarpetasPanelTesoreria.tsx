@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Folder, 
   FolderPlus, 
@@ -9,13 +9,19 @@ import {
   Trash2, 
   FileText,
   X,
-  Check
+  Check,
+  Upload,
+  FilePlus
 } from 'lucide-react';
 import { 
   getCarpetasTesoreria, 
   createCarpetaTesoreria, 
   updateCarpetaTesoreria, 
   deleteCarpetaTesoreria,
+  uploadArchivoEgresoCarpeta,
+  deleteArchivoEgresoCarpeta,
+  getArchivoEgresoUrl,
+  API_BASE_URL,
   type CarpetaTesoreria 
 } from '../lib/api';
 
@@ -33,6 +39,8 @@ export function CarpetasPanelTesoreria({ onSelectCarpeta, selectedCarpeta }: Car
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newFolderName, setNewFolderName] = useState('');
   const [parentForNew, setParentForNew] = useState<string | null>(null);
+  const [uploadingFileFor, setUploadingFileFor] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadCarpetas();
@@ -111,6 +119,81 @@ export function CarpetasPanelTesoreria({ onSelectCarpeta, selectedCarpeta }: Car
     }
   };
 
+  const handleFileSelect = async (carpetaId: string, file: File) => {
+    if (!file) return;
+
+    // Validar que sea PDF
+    if (file.type !== 'application/pdf') {
+      alert('Solo se permiten archivos PDF');
+      return;
+    }
+
+    // Validar tamaño (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('El archivo no puede ser mayor a 10MB');
+      return;
+    }
+
+    try {
+      setUploadingFileFor(carpetaId);
+      await uploadArchivoEgresoCarpeta(carpetaId, file);
+      await loadCarpetas();
+      alert('Archivo PDF subido exitosamente');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al subir archivo';
+      alert(message);
+    } finally {
+      setUploadingFileFor(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteFile = async (carpetaId: string, carpetaNombre: string) => {
+    if (!confirm(`¿Eliminar el archivo PDF de la carpeta "${carpetaNombre}"?`)) {
+      return;
+    }
+
+    try {
+      await deleteArchivoEgresoCarpeta(carpetaId);
+      await loadCarpetas();
+      alert('Archivo PDF eliminado exitosamente');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al eliminar archivo';
+      alert(message);
+    }
+  };
+
+  const handleUploadClick = (carpetaId: string) => {
+    setUploadingFileFor(carpetaId);
+    fileInputRef.current?.click();
+  };
+
+  const handleViewPdf = async (carpetaId: string) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const url = `${API_BASE_URL}/carpetas-tesoreria/${carpetaId}/archivo-egreso-download`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al descargar el archivo');
+      }
+      
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al abrir el archivo PDF';
+      alert(message);
+    }
+  };
+
   const renderCarpeta = (carpeta: CarpetaTesoreria, level: number = 0) => {
     const isExpanded = expandedFolders.has(carpeta.id);
     const hasChildren = carpeta.children && carpeta.children.length > 0;
@@ -183,6 +266,19 @@ export function CarpetasPanelTesoreria({ onSelectCarpeta, selectedCarpeta }: Car
             ) : (
               <>
                 <span style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm font-medium text-gray-900">{carpeta.nombre}</span>
+                {carpeta.archivo_egreso_url && (
+                  <span 
+                    className="text-xs text-green-700 bg-green-50 px-2 py-0.5 rounded-full flex items-center gap-1 cursor-pointer hover:bg-green-100"
+                    title="Ver archivo PDF adjunto"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewPdf(carpeta.id);
+                    }}
+                  >
+                    <FileText className="w-3 h-3" />
+                    PDF
+                  </span>
+                )}
                 {facturaCount > 0 && (
                   <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                     {facturaCount}
@@ -225,6 +321,34 @@ export function CarpetasPanelTesoreria({ onSelectCarpeta, selectedCarpeta }: Car
               >
                 <Trash2 className="w-3.5 h-3.5 text-red-600" />
               </button>
+              {carpeta.archivo_egreso_url ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteFile(carpeta.id, carpeta.nombre);
+                  }}
+                  className="p-1 hover:bg-orange-100 rounded"
+                  title="Eliminar archivo PDF"
+                >
+                  <FileText className="w-3.5 h-3.5 text-orange-600" />
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleUploadClick(carpeta.id);
+                  }}
+                  className="p-1 hover:bg-green-100 rounded"
+                  title="Subir archivo PDF de egresos"
+                  disabled={uploadingFileFor === carpeta.id}
+                >
+                  {uploadingFileFor === carpeta.id ? (
+                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b border-green-600"></div>
+                  ) : (
+                    <Upload className="w-3.5 h-3.5 text-green-600" />
+                  )}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -377,6 +501,20 @@ export function CarpetasPanelTesoreria({ onSelectCarpeta, selectedCarpeta }: Car
           </div>
         )}
       </div>
+
+      {/* Input file oculto para subir archivos PDF */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file && uploadingFileFor) {
+            handleFileSelect(uploadingFileFor, file);
+          }
+        }}
+      />
     </div>
   );
 }

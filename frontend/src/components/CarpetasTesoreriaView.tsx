@@ -164,6 +164,15 @@ export function CarpetasTesoreriaView() {
         f => f.estado === 'Cerrada'
       );
       setFacturas(facturasCerradas);
+      
+      // Si estamos en vista sin archivar, resetear selección
+      if (vistaActual === 'sin-archivar') {
+        setCurrentPage(1); // Volver a la primera página
+      }
+      
+      // Cerrar el modal
+      setShowAsignarModal(false);
+      setFacturaToAssign(null);
     } catch (err) {
       console.error('Error reloading facturas:', err);
     }

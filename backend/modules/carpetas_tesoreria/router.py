@@ -1,10 +1,12 @@
 """
 Router para endpoints de carpetas de tesorería.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from uuid import UUID
+from io import BytesIO
 
 from db.session import get_db
 from core.auth import get_current_user
@@ -13,6 +15,7 @@ from .schemas import (
     CarpetaTesoreriaCreate,
     CarpetaTesoreriaUpdate,
     CarpetaTesoreriaResponse,
+    CarpetaTesoreriaSimple,
     CarpetaTesoreriaWithChildren,
     FacturaEnCarpetaTesoreria
 )
@@ -128,3 +131,87 @@ async def asignar_factura_a_carpeta(
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{carpeta_id}/archivo-egreso", response_model=CarpetaTesoreriaSimple)
+async def upload_archivo_egreso(
+    carpeta_id: UUID,
+    file: UploadFile = File(..., description="Archivo PDF de control de egresos"),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Sube un archivo PDF de control de egresos a una carpeta de tesorería."""
+    service = CarpetaTesoreriaService(db)
+    try:
+        carpeta = await service.upload_archivo_egreso(carpeta_id, file)
+        if not carpeta:
+            raise HTTPException(status_code=404, detail="Carpeta no encontrada")
+        return carpeta
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al subir archivo: {str(e)}")
+
+
+@router.delete("/{carpeta_id}/archivo-egreso", response_model=CarpetaTesoreriaSimple)
+async def delete_archivo_egreso(
+    carpeta_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Elimina el archivo PDF de control de egresos de una carpeta de tesorería."""
+    service = CarpetaTesoreriaService(db)
+    try:
+        carpeta = await service.delete_archivo_egreso(carpeta_id)
+        if not carpeta:
+            raise HTTPException(status_code=404, detail="Carpeta no encontrada")
+        return carpeta
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al eliminar archivo: {str(e)}")
+
+
+@router.get("/{carpeta_id}/archivo-egreso-url")
+async def get_archivo_egreso_url(
+    carpeta_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Obtiene la URL prefirmada para descargar el archivo PDF de control de egresos."""
+    service = CarpetaTesoreriaService(db)
+    try:
+        url = await service.get_archivo_egreso_url(carpeta_id)
+        if not url:
+            raise HTTPException(status_code=404, detail="Carpeta no encontrada o sin archivo PDF")
+        return {"download_url": url}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener URL: {str(e)}")
+
+
+@router.get("/{carpeta_id}/archivo-egreso-download")
+async def download_archivo_egreso(
+    carpeta_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """Descarga directamente el archivo PDF de control de egresos."""
+    service = CarpetaTesoreriaService(db)
+    try:
+        file_content = await service.download_archivo_egreso(carpeta_id)
+        if not file_content:
+            raise HTTPException(status_code=404, detail="Carpeta no encontrada o sin archivo PDF")
+        
+        # Retornar como streaming response
+        return StreamingResponse(
+            BytesIO(file_content),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"inline; filename=archivo-egreso-{carpeta_id}.pdf"
+            }
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al descargar archivo: {str(e)}")
+

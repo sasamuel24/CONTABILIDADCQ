@@ -11,12 +11,14 @@ class CarpetaTesoreriaBase(BaseModel):
     """Esquema base para carpetas de tesorería."""
     nombre: str
     parent_id: Optional[UUID] = None
+    archivo_egreso_url: Optional[str] = None
 
 
 class CarpetaTesoreriaCreate(BaseModel):
     """Esquema para crear una carpeta de tesorería nueva."""
     nombre: str
     parent_id: Optional[UUID] = None
+    archivo_egreso_url: Optional[str] = None
 
 
 class CarpetaTesoreriaUpdate(BaseModel):
@@ -24,6 +26,7 @@ class CarpetaTesoreriaUpdate(BaseModel):
     nombre: Optional[str] = None
     parent_id: Optional[UUID] = None
     factura_id: Optional[UUID] = None
+    archivo_egreso_url: Optional[str] = None
 
 
 class CarpetaTesoreriaSimple(BaseModel):
@@ -32,6 +35,7 @@ class CarpetaTesoreriaSimple(BaseModel):
     nombre: str
     parent_id: Optional[UUID] = None
     factura_id: Optional[UUID] = None
+    archivo_egreso_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     
@@ -55,6 +59,7 @@ class CarpetaTesoreriaResponse(BaseModel):
     nombre: str
     parent_id: Optional[UUID] = None
     factura_id: Optional[UUID] = None
+    archivo_egreso_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     parent: Optional["CarpetaTesoreriaSimple"] = None
@@ -70,6 +75,7 @@ class CarpetaTesoreriaWithChildren(BaseModel):
     nombre: str
     parent_id: Optional[UUID] = None
     factura_id: Optional[UUID] = None
+    archivo_egreso_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     children: List["CarpetaTesoreriaWithChildren"] = []

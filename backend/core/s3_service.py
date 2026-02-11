@@ -282,6 +282,41 @@ class S3Service:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Error al listar archivos"
             )
+    
+    def delete_file(self, key: str) -> bool:
+        """
+        Elimina un archivo de S3.
+        
+        Args:
+            key: Ruta del objeto en S3 a eliminar
+            
+        Returns:
+            bool: True si se eliminó exitosamente, False si no existía
+            
+        Raises:
+            HTTPException: Si falla la operación
+        """
+        try:
+            self.s3_client.delete_object(
+                Bucket=self.bucket,
+                Key=key
+            )
+            logger.info(f"Archivo eliminado de S3: {key}")
+            return True
+            
+        except ClientError as e:
+            error_msg = e.response.get('Error', {}).get('Message', 'Error desconocido')
+            logger.error(f"Error eliminando archivo de S3: {error_msg}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al eliminar archivo: {error_msg}"
+            )
+        except Exception as e:
+            logger.error(f"Error inesperado eliminando archivo de S3: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al eliminar archivo"
+            )
 
 
 # Instancia global del servicio S3

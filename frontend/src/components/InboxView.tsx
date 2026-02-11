@@ -372,6 +372,12 @@ export function InboxView() {
                     <ChevronDown className="w-4 h-4" />
                   </div>
                 </th>
+                <th className="text-left px-6 py-3 text-gray-600">
+                  <div className="flex items-center gap-1">
+                    Fecha Vencimiento
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </th>
                 <th className="text-right px-6 py-3 text-gray-600">
                   <div className="flex items-center justify-end gap-1">
                     Total a Pagar
@@ -392,6 +398,7 @@ export function InboxView() {
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
                     <td className="px-6 py-4 text-right"><div className="h-4 bg-gray-200 rounded w-16 ml-auto"></div></td>
                     <td className="px-6 py-4"><div className="h-6 bg-gray-200 rounded-full w-20"></div></td>
                     <td className="px-6 py-4 text-center"><div className="h-8 w-8 bg-gray-200 rounded mx-auto"></div></td>
@@ -400,7 +407,7 @@ export function InboxView() {
               ) : currentFacturas.length === 0 ? (
                 // Empty state
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
+                  <td colSpan={8} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center text-gray-500">
                       <FileText className="w-12 h-12 mb-3 text-gray-400" />
                       <p className="text-lg font-medium text-gray-700 mb-1">
@@ -431,6 +438,15 @@ export function InboxView() {
                     <td className="px-6 py-4">
                       <div className="text-gray-700">
                         {factura.fecha_emision ? new Date(factura.fecha_emision).toLocaleDateString('es-ES', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        }) : '-'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-gray-700">
+                        {factura.fecha_vencimiento ? new Date(factura.fecha_vencimiento).toLocaleDateString('es-ES', {
                           day: '2-digit',
                           month: 'short',
                           year: 'numeric'

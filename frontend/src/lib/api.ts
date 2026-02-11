@@ -70,6 +70,7 @@ export interface FacturaListItem {
   proveedor: string;
   numero_factura: string;
   fecha_emision: string | null;
+  fecha_vencimiento: string | null;
   area: string;
   total: number;
   estado: string;

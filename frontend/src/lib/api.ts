@@ -339,7 +339,7 @@ export async function getAreas(): Promise<Area[]> {
  * Obtener lista de estados
  */
 export async function getEstados(): Promise<Estado[]> {
-  return fetchAPI<Estado[]>('/estados');
+  return fetchAPI<Estado[]>('/estados/');
 }
 
 /**

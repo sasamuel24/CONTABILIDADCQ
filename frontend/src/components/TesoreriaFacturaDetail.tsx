@@ -392,35 +392,12 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
   };
 
   const validarFormulario = (): boolean => {
-    const nuevosErrores: Record<string, string> = {};
-
-    // Validar que al menos uno de los documentos esté cargado
-    const tieneAlMenosUnDocumento = 
-      archivoPECExistente || archivoPEC ||
-      archivoECExistente || archivoEC ||
-      archivoPCEExistente || archivoPCE ||
-      archivoPEDExistente || archivoPED;
-
-    if (!tieneAlMenosUnDocumento) {
-      nuevosErrores.general = 'Debe cargar al menos uno de los documentos de Tesorería (PEC, EC, PCE o PED)';
-    }
-
-    setErrores(nuevosErrores);
-    return Object.keys(nuevosErrores).length === 0;
+    // Ya no se requiere archivo adjunto obligatorio para cerrar
+    return true;
   };
 
   const handleFinalizar = async () => {
     setMostrarValidacion(true);
-    
-    if (!validarFormulario()) {
-      setConfirmModalConfig({
-        title: 'Documentos Pendientes',
-        message: 'Debe cargar al menos uno de los documentos de Tesorería (PEC, EC, PCE o PED) antes de finalizar.',
-        type: 'warning'
-      });
-      setShowConfirmModal(true);
-      return;
-    }
 
     try {
       setProcesando(true);
@@ -428,16 +405,20 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
       // Actualizar estado a "Cerrada" (id: 5)
       await updateFacturaEstado(factura.id, 5);
       
-      // Construir mensaje con documentos cargados
+      // Construir mensaje con documentos cargados (si los hay)
       const documentosCargados = [];
       if (archivoPEC || archivoPECExistente) documentosCargados.push(`• PEC: ${archivoPEC || archivoPECExistente?.filename}`);
       if (archivoEC || archivoECExistente) documentosCargados.push(`• EC: ${archivoEC || archivoECExistente?.filename}`);
       if (archivoPCE || archivoPCEExistente) documentosCargados.push(`• PCE: ${archivoPCE || archivoPCEExistente?.filename}`);
       if (archivoPED || archivoPEDExistente) documentosCargados.push(`• PED: ${archivoPED || archivoPEDExistente?.filename}`);
       
+      const docMsg = documentosCargados.length > 0 
+        ? `\n\nDocumentos de Tesorería registrados:\n${documentosCargados.join('\n')}` 
+        : '';
+      
       setConfirmModalConfig({
         title: 'Factura Cerrada',
-        message: `La factura ha sido finalizada y cerrada exitosamente.\n\nDocumentos de Tesorería registrados:\n${documentosCargados.join('\n')}`,
+        message: `La factura ha sido finalizada y cerrada exitosamente.${docMsg}`,
         type: 'success',
         onConfirm: () => onClose()
       });

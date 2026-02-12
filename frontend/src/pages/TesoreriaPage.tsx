@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Inbox, FolderOpen, LogOut } from 'lucide-react';
-import { InboxView } from '../components/InboxView';
+import { Inbox, FolderOpen, LogOut, FolderTree } from 'lucide-react';
+import { ExploradorArchivosTesoreria } from '../components/ExploradorArchivosTesoreria';
 import { CarpetasTesoreriaView } from '../components/CarpetasTesoreriaView';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 export function TesoreriaPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'inbox' | 'carpetas'>('carpetas');
+  const [activeView, setActiveView] = useState<'inbox' | 'carpetas'>('inbox');
 
   const handleLogout = () => {
     logout();
@@ -47,8 +47,8 @@ export function TesoreriaPage() {
             }}
             className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg"
           >
-            <Inbox className="w-5 h-5" />
-            Bandeja de Entrada
+            <FolderTree className="w-5 h-5" />
+            Explorador de Archivos
           </button>
 
           <button 
@@ -72,7 +72,7 @@ export function TesoreriaPage() {
             className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg"
           >
             <FolderOpen className="w-5 h-5" />
-            Carpetas
+            Carpetas programación de pagos
           </button>
         </nav>
 
@@ -115,7 +115,7 @@ export function TesoreriaPage() {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        {activeView === 'inbox' ? <InboxView /> : <CarpetasTesoreriaView />}
+        {activeView === 'inbox' ? <ExploradorArchivosTesoreria /> : <CarpetasTesoreriaView />}
       </div>
     </div>
   );

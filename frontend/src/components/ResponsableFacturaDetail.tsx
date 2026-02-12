@@ -956,8 +956,16 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     input.click();
   };
 
-  const validarFormulario = (): boolean => {
+  const validarFormulario = (): { valido: boolean; errores: Record<string, string> } => {
     const nuevosErrores: Record<string, string> = {};
+
+    // Log para debugging
+    console.log('🔍 Validando formulario:', {
+      distribuciones: distribuciones.length,
+      esGastoAdm,
+      archivosOC: archivosOCExistentes.length,
+      archivoAprobacion: archivoAprobacionExistente ? 'Sí' : 'No'
+    });
 
     // Validar OC y APROBACIÓN solo si NO es gasto administrativo
     if (!esGastoAdm) {
@@ -1003,23 +1011,55 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       }
     }
 
+    // Validar Distribución CC/CO (OBLIGATORIO)
+    if (distribuciones.length === 0) {
+      nuevosErrores.distribucion = 'Debe guardar al menos una distribución de CC/CO';
+      console.log('❌ ERROR: No hay distribuciones guardadas');
+    } else {
+      // Validar que la suma de porcentajes sea 100%
+      const sumaPorcentajes = distribuciones.reduce((sum, d) => sum + d.porcentaje, 0);
+      console.log(`📊 Suma de porcentajes: ${sumaPorcentajes}%`);
+      if (Math.abs(sumaPorcentajes - 100) > 0.01) { // Tolerancia de 0.01 para decimales
+        nuevosErrores.distribucion = `La suma de porcentajes debe ser 100% (actualmente: ${sumaPorcentajes.toFixed(2)}%)`;
+        console.log(`❌ ERROR: Suma de porcentajes incorrecta: ${sumaPorcentajes}%`);
+      }
+    }
+
     setErrores(nuevosErrores);
-    return Object.keys(nuevosErrores).length === 0;
+    const valido = Object.keys(nuevosErrores).length === 0;
+    console.log('✅ Validación resultado:', { valido, erroresCount: Object.keys(nuevosErrores).length });
+    return { valido, errores: nuevosErrores };
   };
 
   const handleEnviarContabilidad = async () => {
     setMostrarValidacion(true);
     
-    if (!validarFormulario()) {
+    const { valido, errores: nuevosErrores } = validarFormulario();
+    
+    if (!valido) {
       // Crear mensaje más descriptivo
       const mensajesError = [];
-      if (!esGastoAdm && (errores.oc || errores.aprobacion)) {
-        mensajesError.push('OC y Aprobación');
+      if (!esGastoAdm && (nuevosErrores.oc || nuevosErrores.aprobacion)) {
+        mensajesError.push('• OC y Aprobación');
+      }
+      if (nuevosErrores.distribucion) {
+        mensajesError.push(`• Distribución CC/CO: ${nuevosErrores.distribucion}`);
+      }
+      if (nuevosErrores.tipoIngreso || nuevosErrores.oct || nuevosErrores.ect || nuevosErrores.fpcTienda || nuevosErrores.occ || nuevosErrores.edo || nuevosErrores.fpcAlmacen) {
+        mensajesError.push('• Datos de Inventarios');
+      }
+      if (nuevosErrores.numeroNotaCredito) {
+        mensajesError.push('• Número de Nota de Crédito');
+      }
+      if (nuevosErrores.porcentajeAnticipo) {
+        mensajesError.push('• Porcentaje de Anticipo');
       }
       
       const mensaje = mensajesError.length > 0 
         ? `Faltan campos obligatorios:\n\n${mensajesError.join('\n')}`
         : 'Por favor complete todos los campos obligatorios antes de enviar.';
+      
+      console.log('⚠️ Formulario inválido, mostrando modal:', mensajesError);
       
       setConfirmModalConfig({
         title: 'Validación Pendiente',
@@ -1029,6 +1069,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       setShowConfirmModal(true);
       return;
     }
+
+    console.log('✅ Formulario válido, enviando a contabilidad');
 
     try {
       setEnviandoContabilidad(true);

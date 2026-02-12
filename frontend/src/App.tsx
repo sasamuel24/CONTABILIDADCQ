@@ -5,6 +5,7 @@ import { GlobalPage } from './pages/GlobalPage';
 import { ResponsablePage } from './pages/ResponsablePage';
 import { ContabilidadPage } from './pages/ContabilidadPage';
 import { TesoreriaPage } from './pages/TesoreriaPage';
+import { GerenciaPage } from './pages/GerenciaPage';
 import { CentroDocumentalPage } from './pages/CentroDocumentalPage';
 import { NoAutorizadoPage } from './pages/NoAutorizadoPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
@@ -94,6 +95,16 @@ function AppRoutes() {
         }
       />
       
+      {/* Ruta gerencia financiera (auditor de pagos) */}
+      <Route
+        path="/gerencia"
+        element={
+          <ProtectedRoute allowedRoles={['Gerencia']}>
+            <GerenciaPage />
+          </ProtectedRoute>
+        }
+      />
+      
       {/* Ruta centro documental (Directora Contabilidad) */}
       <Route
         path="/centro-documental"
@@ -115,6 +126,7 @@ function AppRoutes() {
                 user.role === 'responsable' ? '/responsable' :
                 user.role === 'contabilidad' ? '/contabilidad' :
                 user.role === 'tesoreria' ? '/tesoreria' :
+                user.role === 'Gerencia' ? '/gerencia' :
                 user.role === 'direccion' ? '/centro-documental' :
                 '/no-autorizado'
               }

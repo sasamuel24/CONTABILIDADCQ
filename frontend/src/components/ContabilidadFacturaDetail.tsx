@@ -5,6 +5,7 @@ import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignar
 import { FilePreviewModal } from './FilePreviewModal';
 import { ConfirmModal } from './ConfirmModal';
 import { ComentariosFactura } from './ComentariosFactura';
+import { AsignarCarpetaModal } from './AsignarCarpetaModal';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ContabilidadFacturaDetailProps {
@@ -42,6 +43,9 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   const [mostrarModalDevolucion, setMostrarModalDevolucion] = useState(false);
   const [motivoDevolucion, setMotivoDevolucion] = useState('');
   const [enviandoDevolucion, setEnviandoDevolucion] = useState(false);
+  
+  // Estados para modal de asignación de carpeta
+  const [mostrarModalCarpeta, setMostrarModalCarpeta] = useState(false);
   
   // Estados para archivos
   const [archivosOCExistentes, setArchivosOCExistentes] = useState<FileMiniOut[]>([]);
@@ -301,6 +305,16 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   const checklist = calcularChecklist();
   const todasValidacionesPasadas = checklist.every(item => item.isValid);
 
+  const handleIniciarAprobacion = () => {
+    // Abrir modal de carpetas antes de aprobar
+    setMostrarModalCarpeta(true);
+  };
+
+  const handleCarpetaAsignada = async () => {
+    // Después de asignar la carpeta exitosamente, proceder con la aprobación
+    await handleAprobar();
+  };
+
   const handleAprobar = async () => {
     setProcesando(true);
     
@@ -316,7 +330,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
       
       setConfirmModalConfig({
         title: 'Factura Aprobada',
-        message: 'La factura ha sido aprobada exitosamente y enviada a Tesorería para su procesamiento.',
+        message: 'La factura ha sido archivada y enviada exitosamente a Tesorería para su procesamiento.',
         type: 'success',
         onConfirm: () => onClose()
       });
@@ -987,7 +1001,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                 Devolver a Responsable
               </button>
               <button
-                onClick={handleAprobar}
+                onClick={handleIniciarAprobacion}
                 disabled={procesando}
                 style={{
                   fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
@@ -1131,6 +1145,16 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
           facturaId={factura.id}
           onClose={() => setPreviewFile(null)}
           onDownload={() => handleDownloadById(previewFile)}
+        />
+      )}
+      
+      {/* Modal de asignación de carpeta */}
+      {mostrarModalCarpeta && (
+        <AsignarCarpetaModal
+          isOpen={mostrarModalCarpeta}
+          onClose={() => setMostrarModalCarpeta(false)}
+          factura={factura}
+          onSuccess={handleCarpetaAsignada}
         />
       )}
       

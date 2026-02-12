@@ -76,7 +76,7 @@ export function ContabilidadPage() {
             className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg"
           >
             <FolderInput className="w-5 h-5" />
-            Carpetas
+            Trazabilidad Facturas
           </button>
         </nav>
 

@@ -39,6 +39,15 @@ export interface Area {
   nombre: string;
 }
 
+export interface Estado {
+  id: number;
+  code: string;
+  label: string;
+  order: number;
+  is_final: boolean;
+  is_active: boolean;
+}
+
 export interface FacturaAsignada {
   numero_factura: string;
   proveedor: string;
@@ -324,6 +333,13 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
  */
 export async function getAreas(): Promise<Area[]> {
   return fetchAPI<Area[]>('/areas/');
+}
+
+/**
+ * Obtener lista de estados
+ */
+export async function getEstados(): Promise<Estado[]> {
+  return fetchAPI<Estado[]>('/estados');
 }
 
 /**

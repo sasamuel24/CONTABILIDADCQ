@@ -8,7 +8,6 @@ from uuid import UUID
 
 from db.session import get_db
 from core.auth import get_current_user
-from db.models import User
 from .service import CuentaAuxiliarService
 from .schemas import (
     CuentaAuxiliarCreate,
@@ -27,7 +26,7 @@ router = APIRouter(
 async def get_cuentas_auxiliares(
     activas_only: bool = Query(False, description="Filtrar solo cuentas activas"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """
     Obtiene todas las cuentas auxiliares.
@@ -42,7 +41,7 @@ async def get_cuentas_auxiliares(
 async def get_cuenta_auxiliar(
     cuenta_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Obtiene una cuenta auxiliar por su ID."""
     service = CuentaAuxiliarService(db)
@@ -53,7 +52,7 @@ async def get_cuenta_auxiliar(
 async def create_cuenta_auxiliar(
     cuenta_data: CuentaAuxiliarCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Crea una nueva cuenta auxiliar."""
     service = CuentaAuxiliarService(db)
@@ -65,7 +64,7 @@ async def update_cuenta_auxiliar(
     cuenta_id: UUID,
     cuenta_data: CuentaAuxiliarUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Actualiza una cuenta auxiliar existente."""
     service = CuentaAuxiliarService(db)
@@ -76,7 +75,7 @@ async def update_cuenta_auxiliar(
 async def delete_cuenta_auxiliar(
     cuenta_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Elimina una cuenta auxiliar."""
     service = CuentaAuxiliarService(db)

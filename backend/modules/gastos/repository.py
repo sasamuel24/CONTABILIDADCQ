@@ -24,7 +24,7 @@ class PaqueteRepository:
                 selectinload(PaqueteGasto.tecnico),
                 selectinload(PaqueteGasto.area),
                 selectinload(PaqueteGasto.revisado_por),
-                selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.archivo),
+                selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.archivos),
                 selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.centro_costo),
                 selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.centro_operacion),
                 selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.cuenta_auxiliar),
@@ -123,7 +123,7 @@ class GastoRepository:
         result = await self.db.execute(
             select(GastoLegalizacion)
             .options(
-                selectinload(GastoLegalizacion.archivo),
+                selectinload(GastoLegalizacion.archivos),
                 selectinload(GastoLegalizacion.centro_costo),
                 selectinload(GastoLegalizacion.centro_operacion),
                 selectinload(GastoLegalizacion.cuenta_auxiliar),

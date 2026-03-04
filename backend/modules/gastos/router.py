@@ -18,7 +18,7 @@ from modules.gastos.schemas import (
 
 router = APIRouter(tags=["Gastos"])
 
-ROLES_ADMIN = {"admin", "contabilidad", "tesoreria", "gerencia"}
+ROLES_ADMIN = {"admin", "contabilidad", "tesoreria", "gerencia", "responsable"}
 
 
 async def _get_user_db(
@@ -197,7 +197,8 @@ async def editar_gasto(
     svc: GastosService = Depends(_svc),
     user: User = Depends(_get_user_db),
 ):
-    return await svc.editar_gasto(paquete_id, gasto_id, user.id, data)
+    role = user.role.code.lower() if user.role else ""
+    return await svc.editar_gasto(paquete_id, gasto_id, user.id, data, user_role=role)
 
 
 @router.delete(
@@ -219,7 +220,7 @@ async def eliminar_gasto(
 # =============================================================================
 
 @router.post(
-    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/archivo",
+    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/archivos",
     response_model=ArchivoGastoOut,
     status_code=status.HTTP_201_CREATED,
     summary="Subir soporte adjunto para un gasto",
@@ -236,29 +237,64 @@ async def subir_archivo(
 
 
 @router.delete(
-    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/archivo",
+    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/archivos/{archivo_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Eliminar soporte adjunto de un gasto",
 )
 async def eliminar_archivo(
     paquete_id: UUID,
     gasto_id: UUID,
+    archivo_id: UUID,
     svc: GastosService = Depends(_svc),
     user: User = Depends(_get_user_db),
 ):
-    await svc.eliminar_archivo(paquete_id, gasto_id, user.id)
+    await svc.eliminar_archivo(paquete_id, gasto_id, archivo_id, user.id)
 
 
 @router.get(
-    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/archivo/download",
+    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/archivos/{archivo_id}/download",
     summary="URL prefirmada para descargar el soporte de un gasto",
 )
 async def download_archivo(
     paquete_id: UUID,
     gasto_id: UUID,
+    archivo_id: UUID,
     svc: GastosService = Depends(_svc),
     user: User = Depends(_get_user_db),
 ):
     role = user.role.code.lower() if user.role else ""
-    url = await svc.get_download_url(paquete_id, gasto_id, user.id, role)
+    url = await svc.get_download_url(paquete_id, gasto_id, archivo_id, user.id, role)
+    return {"download_url": url}
+
+
+# =============================================================================
+# APROBACION DE GERENCIA (nivel paquete)
+# =============================================================================
+
+@router.post(
+    "/gastos/paquetes/{paquete_id}/aprobacion",
+    response_model=PaqueteOut,
+    summary="Subir aprobación de gerencia para un paquete",
+)
+async def subir_aprobacion_gerencia(
+    paquete_id: UUID,
+    file: UploadFile = File(...),
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    return await svc.subir_aprobacion_gerencia(paquete_id, user.id, role, file)
+
+
+@router.get(
+    "/gastos/paquetes/{paquete_id}/aprobacion/download",
+    summary="URL prefirmada para descargar la aprobación de gerencia",
+)
+async def download_aprobacion_gerencia(
+    paquete_id: UUID,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    url = await svc.get_aprobacion_gerencia_download_url(paquete_id, user.id, role)
     return {"download_url": url}

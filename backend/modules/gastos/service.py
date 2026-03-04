@@ -2,6 +2,7 @@
 import io
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, Tuple, List
@@ -72,14 +73,21 @@ class GastosService:
             fecha_fin=fecha_fin,
             estado="borrador",
         )
-        await self.paquete_repo.create(paquete)
-        await self.historial_repo.create(HistorialEstadoPaquete(
-            paquete_id=paquete.id,
-            user_id=user_id,
-            estado_anterior=None,
-            estado_nuevo="borrador",
-        ))
-        await self.db.commit()
+        try:
+            await self.paquete_repo.create(paquete)
+            await self.historial_repo.create(HistorialEstadoPaquete(
+                paquete_id=paquete.id,
+                user_id=user_id,
+                estado_anterior=None,
+                estado_nuevo="borrador",
+            ))
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Ya existe un paquete para la semana {data.semana}. Solo puedes tener un paquete por semana.",
+            )
         paquete = await self.paquete_repo.get_by_id(paquete.id)
         return PaqueteOut.model_validate(paquete)
 
@@ -210,10 +218,11 @@ class GastosService:
         return GastoOut.model_validate(gasto)
 
     async def editar_gasto(
-        self, paquete_id: UUID, gasto_id: UUID, user_id: UUID, data: GastoUpdate
+        self, paquete_id: UUID, gasto_id: UUID, user_id: UUID, data: GastoUpdate,
+        user_role: str = ""
     ) -> GastoOut:
         paquete = await self._get_paquete_or_404(paquete_id)
-        self._check_editable(paquete, user_id)
+        self._check_editable(paquete, user_id, user_role=user_role)
         gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
 
         for field, value in data.model_dump(exclude_none=True).items():
@@ -230,8 +239,11 @@ class GastosService:
         self._check_editable(paquete, user_id)
         gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
 
-        if gasto.archivo:
-            s3_service.delete_file(gasto.archivo.s3_key)
+        for archivo in gasto.archivos:
+            try:
+                s3_service.delete_file(archivo.s3_key)
+            except Exception:
+                logger.warning(f"No se pudo eliminar de S3: {archivo.s3_key}")
 
         await self.gasto_repo.delete(gasto)
         await self.paquete_repo.recalculate_totals(paquete_id)
@@ -253,12 +265,17 @@ class GastosService:
         self._check_editable(paquete, user_id)
         gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
 
+        if len(gasto.archivos) >= 2:
+            raise HTTPException(
+                status_code=400,
+                detail="Máximo 2 archivos por gasto."
+            )
+
         if categoria not in CATEGORIAS_VALIDAS:
             raise HTTPException(
                 status_code=400,
                 detail=f"Categoría inválida. Válidas: {sorted(CATEGORIAS_VALIDAS)}"
             )
-        # Inferir content_type desde extensión si el browser no lo envía
         content_type = file.content_type or ""
         nombre_lower = (file.filename or "").lower()
         if not content_type or content_type == "application/octet-stream":
@@ -273,15 +290,6 @@ class GastosService:
                 status_code=400,
                 detail="Solo se aceptan archivos PDF o imágenes (JPEG/PNG)."
             )
-
-        # Si ya existe, eliminar registro de BD (S3 puede carecer de permiso DeleteObject)
-        if gasto.archivo:
-            try:
-                s3_service.delete_file(gasto.archivo.s3_key)
-            except Exception:
-                logger.warning(f"No se pudo eliminar de S3: {gasto.archivo.s3_key}")
-            await self.archivo_repo.delete(gasto.archivo)
-            await self.db.flush()
 
         s3_key = _s3_key(paquete_id, gasto_id, file.filename)
         file_content = await file.read()
@@ -310,34 +318,84 @@ class GastosService:
         return out
 
     async def eliminar_archivo(
-        self, paquete_id: UUID, gasto_id: UUID, user_id: UUID
+        self, paquete_id: UUID, gasto_id: UUID, archivo_id: UUID, user_id: UUID
     ) -> None:
         paquete = await self._get_paquete_or_404(paquete_id)
         self._check_editable(paquete, user_id)
         gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
 
-        if not gasto.archivo:
-            raise HTTPException(status_code=404, detail="Este gasto no tiene archivo adjunto.")
+        archivo = next((a for a in gasto.archivos if a.id == archivo_id), None)
+        if not archivo:
+            raise HTTPException(status_code=404, detail="Archivo no encontrado en este gasto.")
 
         try:
-            s3_service.delete_file(gasto.archivo.s3_key)
+            s3_service.delete_file(archivo.s3_key)
         except Exception:
-            logger.warning(f"No se pudo eliminar de S3: {gasto.archivo.s3_key}")
-        await self.archivo_repo.delete(gasto.archivo)
+            logger.warning(f"No se pudo eliminar de S3: {archivo.s3_key}")
+        await self.archivo_repo.delete(archivo)
         await self.paquete_repo.recalculate_totals(paquete_id)
         await self.db.commit()
 
     async def get_download_url(
-        self, paquete_id: UUID, gasto_id: UUID, user_id: UUID, user_role: str
+        self, paquete_id: UUID, gasto_id: UUID, archivo_id: UUID, user_id: UUID, user_role: str
     ) -> str:
         paquete = await self._get_paquete_or_404(paquete_id)
         self._check_access(paquete, user_id, user_role)
         gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
 
-        if not gasto.archivo:
-            raise HTTPException(status_code=404, detail="Este gasto no tiene archivo adjunto.")
+        archivo = next((a for a in gasto.archivos if a.id == archivo_id), None)
+        if not archivo:
+            raise HTTPException(status_code=404, detail="Archivo no encontrado en este gasto.")
 
-        return s3_service.presign_get_url(gasto.archivo.s3_key)
+        return s3_service.presign_get_url(archivo.s3_key)
+
+    async def subir_aprobacion_gerencia(
+        self, paquete_id: UUID, user_id: UUID, user_role: str, file: UploadFile
+    ) -> PaqueteOut:
+        paquete = await self._get_paquete_or_404(paquete_id)
+        self._check_access(paquete, user_id, user_role)
+        if paquete.estado not in {"en_revision", "borrador", "devuelto"}:
+            raise HTTPException(
+                status_code=400,
+                detail="Solo se puede subir la aprobación cuando el paquete está en revisión."
+            )
+
+        content_type = file.content_type or ""
+        nombre_lower = (file.filename or "").lower()
+        if not content_type or content_type == "application/octet-stream":
+            if nombre_lower.endswith(".pdf"):
+                content_type = "application/pdf"
+            elif nombre_lower.endswith((".jpg", ".jpeg")):
+                content_type = "image/jpeg"
+            elif nombre_lower.endswith(".png"):
+                content_type = "image/png"
+        if content_type not in TIPOS_ARCHIVO:
+            raise HTTPException(status_code=400, detail="Solo se aceptan archivos PDF o imágenes (JPEG/PNG).")
+
+        s3_key = f"dev/facturas/gastos/{paquete_id}/aprobacion_gerencia/{file.filename}"
+        if paquete.aprobacion_gerencia_s3_key:
+            try:
+                s3_service.delete_file(paquete.aprobacion_gerencia_s3_key)
+            except Exception:
+                logger.warning(f"No se pudo eliminar de S3: {paquete.aprobacion_gerencia_s3_key}")
+
+        file_content = await file.read()
+        s3_service.upload_fileobj(io.BytesIO(file_content), s3_key, content_type)
+
+        paquete.aprobacion_gerencia_s3_key = s3_key
+        paquete.aprobacion_gerencia_filename = file.filename
+        await self.paquete_repo.save(paquete)
+        await self.db.commit()
+        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+
+    async def get_aprobacion_gerencia_download_url(
+        self, paquete_id: UUID, user_id: UUID, user_role: str
+    ) -> str:
+        paquete = await self._get_paquete_or_404(paquete_id)
+        self._check_access(paquete, user_id, user_role)
+        if not paquete.aprobacion_gerencia_s3_key:
+            raise HTTPException(status_code=404, detail="Este paquete no tiene aprobación de gerencia adjunta.")
+        return s3_service.presign_get_url(paquete.aprobacion_gerencia_s3_key)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -356,11 +414,20 @@ class GastosService:
         return gasto
 
     def _check_access(self, paquete: PaqueteGasto, user_id: UUID, user_role: str) -> None:
-        roles_admin = {"admin", "contabilidad", "tesoreria", "gerencia"}
+        roles_admin = {"admin", "contabilidad", "tesoreria", "gerencia", "responsable"}
         if user_role.lower() not in roles_admin and paquete.user_id != user_id:
             raise HTTPException(status_code=403, detail="No tienes acceso a este paquete.")
 
-    def _check_editable(self, paquete: PaqueteGasto, user_id: UUID) -> None:
+    def _check_editable(self, paquete: PaqueteGasto, user_id: UUID, user_role: str = "") -> None:
+        # Responsable puede editar asignaciones (CC/CO/CA) en paquetes en_revision
+        roles_supervisor = {"responsable", "admin", "contabilidad"}
+        if user_role.lower() in roles_supervisor:
+            if paquete.estado in ESTADOS_EDITABLE or paquete.estado == "en_revision":
+                return
+            raise HTTPException(
+                status_code=400,
+                detail=f"El paquete está en estado '{paquete.estado}' y no puede modificarse."
+            )
         if paquete.estado not in ESTADOS_EDITABLE:
             raise HTTPException(
                 status_code=400,

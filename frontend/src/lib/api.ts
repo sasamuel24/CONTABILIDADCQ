@@ -1291,7 +1291,7 @@ export interface GastoOut {
   cuenta_auxiliar: { id: string; codigo: string; descripcion: string } | null;
   valor_pagado: number;
   orden: number;
-  archivo: ArchivoGastoOut | null;
+  archivos: ArchivoGastoOut[];
   created_at: string;
   updated_at: string;
 }
@@ -1330,6 +1330,8 @@ export interface PaqueteOut {
   gastos: GastoOut[];
   comentarios: ComentarioPaqueteOut[];
   historial_estados: HistorialEstadoOut[];
+  aprobacion_gerencia_filename: string | null;
+  aprobacion_gerencia_s3_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1476,28 +1478,54 @@ export async function subirArchivoGasto(
   formData.append('categoria', categoria);
   formData.append('file', file);
   return fetchAPI<ArchivoGastoOut>(
-    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/archivo`,
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/archivos`,
     { method: 'POST', body: formData }
   );
 }
 
-/** Eliminar soporte de un gasto */
+/** Eliminar soporte de un gasto por archivoId */
 export async function eliminarArchivoGasto(
   paqueteId: string,
-  gastoId: string
+  gastoId: string,
+  archivoId: string
 ): Promise<void> {
   return fetchAPI<void>(
-    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/archivo`,
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/archivos/${archivoId}`,
     { method: 'DELETE' }
   );
 }
 
-/** Obtener URL de descarga del soporte */
+/** Obtener URL de descarga del soporte por archivoId */
 export async function getDownloadUrlArchivoGasto(
   paqueteId: string,
-  gastoId: string
+  gastoId: string,
+  archivoId: string
 ): Promise<{ download_url: string }> {
   return fetchAPI<{ download_url: string }>(
-    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/archivo/download`
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/archivos/${archivoId}/download`
+  );
+}
+
+// --- Aprobación de gerencia (nivel paquete) ----------------------------------
+
+/** Subir aprobación de gerencia para un paquete */
+export async function subirAprobacionGerencia(
+  paqueteId: string,
+  file: File
+): Promise<PaqueteOut> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return fetchAPI<PaqueteOut>(
+    `/gastos/paquetes/${paqueteId}/aprobacion`,
+    { method: 'POST', body: formData }
+  );
+}
+
+/** Obtener URL de descarga de la aprobación de gerencia */
+export async function getAprobacionGerenciaDownloadUrl(
+  paqueteId: string
+): Promise<{ download_url: string }> {
+  return fetchAPI<{ download_url: string }>(
+    `/gastos/paquetes/${paqueteId}/aprobacion/download`
   );
 }

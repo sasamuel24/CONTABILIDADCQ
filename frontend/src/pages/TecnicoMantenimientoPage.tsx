@@ -30,6 +30,7 @@ import {
   GastoOut,
   PaqueteOut,
   PaqueteListItem,
+  ArchivoGastoOut,
   listPaquetesGastos,
   getPaqueteGasto,
   createPaqueteGasto,
@@ -40,6 +41,12 @@ import {
   subirArchivoGasto,
   eliminarArchivoGasto,
   getDownloadUrlArchivoGasto,
+  getCentrosCosto,
+  getCentrosOperacion,
+  getCuentasAuxiliares,
+  CentroCosto,
+  CentroOperacion,
+  CuentaAuxiliar,
 } from '../lib/api';
 
 // ============================================================
@@ -55,12 +62,11 @@ type GastoLocal = {
   concepto: string;
   noRecibo: string;
   valorPagado: string;
-  archivoId?: string;
-  archivoNombre?: string;
-  archivoCategoria?: string;
-  pendingFile?: File;
-  pendingCategoria: CategoriaGasto;
-  pendingDeleteFile: boolean;
+  centroCostoId: string;
+  centroOperacionId: string;
+  cuentaAuxiliarId: string;
+  archivos: ArchivoGastoOut[];
+  pendingFiles: { localKey: string; file: File; categoria: CategoriaGasto }[];
   isDirty: boolean;
 };
 
@@ -128,12 +134,11 @@ function gastoOutToLocal(g: GastoOut, idx: number): GastoLocal {
     concepto: g.concepto,
     noRecibo: g.no_recibo ?? '',
     valorPagado: String(g.valor_pagado),
-    archivoId: g.archivo?.id,
-    archivoNombre: g.archivo?.filename,
-    archivoCategoria: g.archivo?.categoria,
-    pendingFile: undefined,
-    pendingCategoria: 'Otro',
-    pendingDeleteFile: false,
+    centroCostoId: g.centro_costo_id ?? '',
+    centroOperacionId: g.centro_operacion_id ?? '',
+    cuentaAuxiliarId: g.cuenta_auxiliar_id ?? '',
+    archivos: g.archivos,
+    pendingFiles: [],
     isDirty: false,
   };
 }
@@ -148,12 +153,11 @@ function filaVaciaLocal(): GastoLocal {
     concepto: '',
     noRecibo: '',
     valorPagado: '',
-    archivoId: undefined,
-    archivoNombre: undefined,
-    archivoCategoria: undefined,
-    pendingFile: undefined,
-    pendingCategoria: 'Otro',
-    pendingDeleteFile: false,
+    centroCostoId: '',
+    centroOperacionId: '',
+    cuentaAuxiliarId: '',
+    archivos: [],
+    pendingFiles: [],
     isDirty: false,
   };
 }
@@ -275,23 +279,31 @@ interface TablaGastosProps {
   filas: GastoLocal[];
   bloqueado: boolean;
   saving: boolean;
+  centrosCosto: CentroCosto[];
+  centrosOperacion: CentroOperacion[];
+  cuentasAuxiliares: CuentaAuxiliar[];
   onCampo: (localId: string, campo: keyof GastoLocal, valor: string) => void;
   onAgregarFila: () => void;
   onEliminarFila: (localId: string) => void;
   onAdjuntar: (localId: string, file: File, categoria: CategoriaGasto) => void;
-  onQuitarArchivo: (localId: string) => void;
-  onVerArchivo: (localId: string) => void;
+  onQuitarArchivoGuardado: (localId: string, archivoId: string) => void;
+  onQuitarArchivoPendiente: (localId: string, localKey: string) => void;
+  onVerArchivo: (localId: string, archivoId: string) => void;
 }
 
 function TablaGastos({
   filas,
   bloqueado,
   saving,
+  centrosCosto,
+  centrosOperacion,
+  cuentasAuxiliares,
   onCampo,
   onAgregarFila,
   onEliminarFila,
   onAdjuntar,
-  onQuitarArchivo,
+  onQuitarArchivoGuardado,
+  onQuitarArchivoPendiente,
   onVerArchivo,
 }: TablaGastosProps) {
   const inputCls = (editable: boolean) =>
@@ -432,32 +444,73 @@ function TablaGastos({
                     style={{ minWidth: 80 }}
                   />
                 </td>
-                {/* CENTRO COSTOS (solo lectura — backend asigna) */}
+                {/* CENTRO COSTOS */}
                 <td className="px-1 py-1">
-                  <span
-                    className="block px-1.5 py-1 text-xs text-gray-400"
-                    style={{ minWidth: 120 }}
-                  >
-                    —
-                  </span>
+                  {bloqueado ? (
+                    <span className="block px-1.5 py-1 text-xs text-gray-600" style={{ minWidth: 130 }}>
+                      {centrosCosto.find(c => c.id === fila.centroCostoId)?.nombre || '—'}
+                    </span>
+                  ) : (
+                    <select
+                      value={fila.centroCostoId}
+                      onChange={(e) => {
+                        onCampo(fila.localId, 'centroCostoId', e.target.value);
+                        onCampo(fila.localId, 'centroOperacionId', '');
+                      }}
+                      className="w-full rounded px-1.5 py-1 text-xs text-gray-800 border border-transparent hover:border-gray-200 focus:border-gray-300 focus:bg-white focus:outline-none bg-transparent"
+                      style={{ minWidth: 130 }}
+                    >
+                      <option value="">-- Seleccionar --</option>
+                      {centrosCosto.map(c => (
+                        <option key={c.id} value={c.id}>{c.nombre}</option>
+                      ))}
+                    </select>
+                  )}
                 </td>
-                {/* CENTRO OPERACION (solo lectura) */}
+                {/* CENTRO OPERACION */}
                 <td className="px-1 py-1">
-                  <span
-                    className="block px-1.5 py-1 text-xs text-gray-400"
-                    style={{ minWidth: 140 }}
-                  >
-                    —
-                  </span>
+                  {bloqueado ? (
+                    <span className="block px-1.5 py-1 text-xs text-gray-600" style={{ minWidth: 140 }}>
+                      {centrosOperacion.find(c => c.id === fila.centroOperacionId)?.nombre || '—'}
+                    </span>
+                  ) : (
+                    <select
+                      value={fila.centroOperacionId}
+                      onChange={(e) => onCampo(fila.localId, 'centroOperacionId', e.target.value)}
+                      disabled={!fila.centroCostoId}
+                      className="w-full rounded px-1.5 py-1 text-xs text-gray-800 border border-transparent hover:border-gray-200 focus:border-gray-300 focus:bg-white focus:outline-none bg-transparent disabled:opacity-50"
+                      style={{ minWidth: 140 }}
+                    >
+                      <option value="">-- Seleccionar --</option>
+                      {centrosOperacion
+                        .filter(c => !fila.centroCostoId || c.centro_costo_id === fila.centroCostoId)
+                        .map(c => (
+                          <option key={c.id} value={c.id}>{c.nombre}</option>
+                        ))}
+                    </select>
+                  )}
                 </td>
-                {/* CUENTA CONTABLE (solo lectura) */}
+                {/* CUENTA CONTABLE */}
                 <td className="px-1 py-1">
-                  <span
-                    className="block px-1.5 py-1 text-xs text-gray-400"
-                    style={{ minWidth: 90 }}
-                  >
-                    —
-                  </span>
+                  {bloqueado ? (
+                    <span className="block px-1.5 py-1 text-xs text-gray-600" style={{ minWidth: 130 }}>
+                      {cuentasAuxiliares.find(c => c.id === fila.cuentaAuxiliarId)
+                        ? `${cuentasAuxiliares.find(c => c.id === fila.cuentaAuxiliarId)!.codigo} - ${cuentasAuxiliares.find(c => c.id === fila.cuentaAuxiliarId)!.descripcion}`
+                        : '—'}
+                    </span>
+                  ) : (
+                    <select
+                      value={fila.cuentaAuxiliarId}
+                      onChange={(e) => onCampo(fila.localId, 'cuentaAuxiliarId', e.target.value)}
+                      className="w-full rounded px-1.5 py-1 text-xs text-gray-800 border border-transparent hover:border-gray-200 focus:border-gray-300 focus:bg-white focus:outline-none bg-transparent"
+                      style={{ minWidth: 130 }}
+                    >
+                      <option value="">-- Seleccionar --</option>
+                      {cuentasAuxiliares.map(c => (
+                        <option key={c.id} value={c.id}>{c.codigo} - {c.descripcion}</option>
+                      ))}
+                    </select>
+                  )}
                 </td>
                 {/* VALOR PAGADO */}
                 <td className="px-1 py-1">
@@ -475,92 +528,83 @@ function TablaGastos({
                   </div>
                 </td>
                 {/* SOPORTE */}
-                <td className="px-2 py-1" style={{ minWidth: 200, maxWidth: 230 }}>
-                  {fila.pendingFile ? (
-                    <div className="flex items-center gap-2 w-full min-w-0">
-                      <div
-                        className="flex items-center gap-1.5 px-2 py-1 rounded min-w-0 flex-1 overflow-hidden"
-                        style={{
-                          backgroundColor: '#fef3c7',
-                          color: '#92400e',
-                          fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
-                        }}
-                        title={fila.pendingFile.name}
-                      >
-                        {fila.pendingFile.name.toLowerCase().endsWith('.pdf')
-                          ? <FileText className="w-3.5 h-3.5 shrink-0" />
-                          : <FileImage className="w-3.5 h-3.5 shrink-0" />}
-                        <span className="truncate text-xs">{fila.pendingFile.name}</span>
+                <td className="px-2 py-1" style={{ minWidth: 220 }}>
+                  <div className="flex flex-col gap-1">
+                    {/* Archivos guardados en BD */}
+                    {fila.archivos.map((arch) => (
+                      <div key={arch.id} className="flex items-center gap-1 w-full min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => onVerArchivo(fila.localId, arch.id)}
+                          className="flex items-center gap-1.5 px-2 py-1 rounded min-w-0 flex-1 overflow-hidden hover:opacity-80 transition-opacity"
+                          style={{ backgroundColor: '#e0f5f7', color: '#00829a', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                          title={arch.filename}
+                        >
+                          {arch.filename.toLowerCase().endsWith('.pdf')
+                            ? <FileText className="w-3.5 h-3.5 shrink-0" />
+                            : <FileImage className="w-3.5 h-3.5 shrink-0" />}
+                          <span className="truncate text-xs">{arch.filename}</span>
+                        </button>
+                        {!bloqueado && (
+                          <button
+                            type="button"
+                            onClick={() => onQuitarArchivoGuardado(fila.localId, arch.id)}
+                            className="shrink-0 p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
-                      {!bloqueado && (
+                    ))}
+                    {/* Archivos pendientes de subir */}
+                    {fila.pendingFiles.map((pf) => (
+                      <div key={pf.localKey} className="flex items-center gap-1 w-full min-w-0">
+                        <div
+                          className="flex items-center gap-1.5 px-2 py-1 rounded min-w-0 flex-1 overflow-hidden"
+                          style={{ backgroundColor: '#fef3c7', color: '#92400e', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                          title={pf.file.name}
+                        >
+                          {pf.file.name.toLowerCase().endsWith('.pdf')
+                            ? <FileText className="w-3.5 h-3.5 shrink-0" />
+                            : <FileImage className="w-3.5 h-3.5 shrink-0" />}
+                          <span className="truncate text-xs">{pf.file.name}</span>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => onQuitarArchivo(fila.localId)}
+                          onClick={() => onQuitarArchivoPendiente(fila.localId, pf.localKey)}
                           className="shrink-0 p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                    </div>
-                  ) : fila.archivoNombre ? (
-                    <div className="flex items-center gap-2 w-full min-w-0">
-                      <button
-                        type="button"
-                        onClick={() => onVerArchivo(fila.localId)}
-                        className="flex items-center gap-1.5 px-2 py-1 rounded min-w-0 flex-1 overflow-hidden hover:opacity-80 transition-opacity"
-                        style={{
-                          backgroundColor: '#e0f5f7',
-                          color: '#00829a',
-                          fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
-                        }}
-                        title={fila.archivoNombre}
+                      </div>
+                    ))}
+                    {/* Boton adjuntar — maximo 2 archivos en total */}
+                    {!bloqueado && (fila.archivos.length + fila.pendingFiles.length) < 2 && (
+                      <label
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded cursor-pointer hover:opacity-80 whitespace-nowrap text-xs font-semibold"
+                        style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', position: 'relative' }}
                       >
-                        {fila.archivoNombre.toLowerCase().endsWith('.pdf')
-                          ? <FileText className="w-3.5 h-3.5 shrink-0" />
-                          : <FileImage className="w-3.5 h-3.5 shrink-0" />}
-                        <span className="truncate text-xs">{fila.archivoNombre}</span>
-                      </button>
-                      {!bloqueado && (
-                        <button
-                          type="button"
-                          onClick={() => onQuitarArchivo(fila.localId)}
-                          className="shrink-0 p-1 rounded text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ) : bloqueado ? (
-                    <span
-                      className="text-xs text-gray-300 italic"
-                      style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
-                    >
-                      Sin soporte
-                    </span>
-                  ) : (
-                    <label
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded cursor-pointer hover:opacity-80 whitespace-nowrap text-xs font-semibold"
-                      style={{
-                        backgroundColor: '#f3f4f6',
-                        color: '#6b7280',
-                        fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
-                        position: 'relative',
-                      }}
-                    >
-                      <Upload className="w-3 h-3" />
-                      Adjuntar
-                      <input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        style={{ position: 'absolute', width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) onAdjuntar(fila.localId, f, 'Otro');
-                          e.target.value = '';
-                        }}
-                      />
-                    </label>
-                  )}
+                        <Upload className="w-3 h-3" />
+                        Adjuntar
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          style={{ position: 'absolute', width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) onAdjuntar(fila.localId, f, 'Otro');
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    )}
+                    {/* Sin soporte (bloqueado y sin archivos) */}
+                    {bloqueado && fila.archivos.length === 0 && (
+                      <span className="text-xs text-gray-300 italic" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                        Sin soporte
+                      </span>
+                    )}
+                  </div>
                 </td>
                 {/* Eliminar fila */}
                 {!bloqueado && (
@@ -617,6 +661,21 @@ function DetallePaquete({
   const [gastos, setGastos] = useState<GastoLocal[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
+  const [centrosOperacion, setCentrosOperacion] = useState<CentroOperacion[]>([]);
+  const [cuentasAuxiliares, setCuentasAuxiliares] = useState<CuentaAuxiliar[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      getCentrosCosto(),
+      getCentrosOperacion(),
+      getCuentasAuxiliares(),
+    ]).then(([cc, co, ca]) => {
+      setCentrosCosto(cc);
+      setCentrosOperacion(co);
+      setCuentasAuxiliares(ca);
+    }).catch(() => {});
+  }, []);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -699,53 +758,54 @@ function DetallePaquete({
 
   const handleAdjuntar = (localId: string, file: File, categoria: CategoriaGasto) => {
     setGastos((prev) =>
-      prev.map((f) =>
-        f.localId === localId
-          ? { ...f, pendingFile: file, pendingCategoria: categoria, pendingDeleteFile: false, isDirty: true }
-          : f
-      )
+      prev.map((f) => {
+        if (f.localId !== localId) return f;
+        if (f.archivos.length + f.pendingFiles.length >= 2) return f;
+        return {
+          ...f,
+          pendingFiles: [...f.pendingFiles, { localKey: `${Date.now()}-${Math.random()}`, file, categoria }],
+          isDirty: true,
+        };
+      })
     );
   };
 
-  const handleQuitarArchivo = async (localId: string) => {
-    const fila = gastos.find((f) => f.localId === localId);
-    if (!fila) return;
-
-    // Si hay archivo en BD, eliminarlo inmediatamente
-    if (fila.archivoId && fila.id) {
-      try {
-        setSaving(true);
-        await eliminarArchivoGasto(paqueteId, fila.id);
-        toast.success('Soporte eliminado');
-      } catch {
-        toast.error('Error al eliminar el soporte');
-        return;
-      } finally {
-        setSaving(false);
-      }
-    }
-
-    setGastos((prev) =>
-      prev.map((f) =>
-        f.localId === localId
-          ? {
-              ...f,
-              archivoId: undefined,
-              archivoNombre: undefined,
-              archivoCategoria: undefined,
-              pendingFile: undefined,
-              pendingDeleteFile: false,
-            }
-          : f
-      )
-    );
-  };
-
-  const handleVerArchivo = async (localId: string) => {
+  const handleQuitarArchivoGuardado = async (localId: string, archivoId: string) => {
     const fila = gastos.find((f) => f.localId === localId);
     if (!fila?.id) return;
     try {
-      const { download_url } = await getDownloadUrlArchivoGasto(paqueteId, fila.id);
+      setSaving(true);
+      await eliminarArchivoGasto(paqueteId, fila.id, archivoId);
+      setGastos((prev) =>
+        prev.map((f) =>
+          f.localId === localId
+            ? { ...f, archivos: f.archivos.filter((a) => a.id !== archivoId) }
+            : f
+        )
+      );
+      toast.success('Soporte eliminado');
+    } catch {
+      toast.error('Error al eliminar el soporte');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleQuitarArchivoPendiente = (localId: string, localKey: string) => {
+    setGastos((prev) =>
+      prev.map((f) =>
+        f.localId === localId
+          ? { ...f, pendingFiles: f.pendingFiles.filter((pf) => pf.localKey !== localKey) }
+          : f
+      )
+    );
+  };
+
+  const handleVerArchivo = async (localId: string, archivoId: string) => {
+    const fila = gastos.find((f) => f.localId === localId);
+    if (!fila?.id) return;
+    try {
+      const { download_url } = await getDownloadUrlArchivoGasto(paqueteId, fila.id, archivoId);
       window.open(download_url, '_blank');
     } catch {
       toast.error('Error al obtener el archivo');
@@ -773,6 +833,9 @@ function DetallePaquete({
           concepto: fila.concepto,
           no_recibo: fila.noRecibo || undefined,
           valor_pagado: parseFloat(fila.valorPagado) || 0,
+          centro_costo_id: fila.centroCostoId || undefined,
+          centro_operacion_id: fila.centroOperacionId || undefined,
+          cuenta_auxiliar_id: fila.cuentaAuxiliarId || undefined,
         });
         gastoId = creado.id;
       } else if (!esNueva && fila.isDirty && gastoId) {
@@ -784,12 +847,17 @@ function DetallePaquete({
           concepto: fila.concepto || undefined,
           no_recibo: fila.noRecibo || undefined,
           valor_pagado: parseFloat(fila.valorPagado) || undefined,
+          centro_costo_id: fila.centroCostoId || undefined,
+          centro_operacion_id: fila.centroOperacionId || undefined,
+          cuenta_auxiliar_id: fila.cuentaAuxiliarId || undefined,
         });
       }
 
-      // Subir archivo pendiente
-      if (fila.pendingFile && gastoId) {
-        await subirArchivoGasto(paqueteId, gastoId, fila.pendingCategoria, fila.pendingFile);
+      // Subir archivos pendientes
+      for (const pf of fila.pendingFiles) {
+        if (gastoId) {
+          await subirArchivoGasto(paqueteId, gastoId, pf.categoria, pf.file);
+        }
       }
     }
   };
@@ -816,11 +884,10 @@ function DetallePaquete({
     try {
       await persistirCambios();
       await enviarPaquete(paqueteId);
-      toast.success('Paquete enviado para revision');
-      await cargar();
+      toast.success('Paquete enviado al responsable de area para revision');
+      onCerrar();
     } catch {
       toast.error('Error al enviar el paquete');
-    } finally {
       setSaving(false);
     }
   };
@@ -977,11 +1044,15 @@ function DetallePaquete({
           filas={gastos}
           bloqueado={bloqueado}
           saving={saving}
+          centrosCosto={centrosCosto}
+          centrosOperacion={centrosOperacion}
+          cuentasAuxiliares={cuentasAuxiliares}
           onCampo={handleCampo}
           onAgregarFila={handleAgregarFila}
           onEliminarFila={handleEliminarFila}
           onAdjuntar={handleAdjuntar}
-          onQuitarArchivo={handleQuitarArchivo}
+          onQuitarArchivoGuardado={handleQuitarArchivoGuardado}
+          onQuitarArchivoPendiente={handleQuitarArchivoPendiente}
           onVerArchivo={handleVerArchivo}
         />
       </div>
@@ -1003,6 +1074,21 @@ function NuevoPaqueteForm({
   const [semana, setSemana] = useState('');
   const [filas, setFilas] = useState<GastoLocal[]>([filaVaciaLocal()]);
   const [saving, setSaving] = useState(false);
+  const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
+  const [centrosOperacion, setCentrosOperacion] = useState<CentroOperacion[]>([]);
+  const [cuentasAuxiliares, setCuentasAuxiliares] = useState<CuentaAuxiliar[]>([]);
+
+  useEffect(() => {
+    Promise.all([
+      getCentrosCosto(),
+      getCentrosOperacion(),
+      getCuentasAuxiliares(),
+    ]).then(([cc, co, ca]) => {
+      setCentrosCosto(cc);
+      setCentrosOperacion(co);
+      setCuentasAuxiliares(ca);
+    }).catch(() => {});
+  }, []);
 
   const handleCampo = (localId: string, campo: keyof GastoLocal, valor: string) => {
     setFilas((prev) =>
@@ -1021,26 +1107,37 @@ function NuevoPaqueteForm({
 
   const handleAdjuntar = (localId: string, file: File, categoria: CategoriaGasto) => {
     setFilas((prev) =>
-      prev.map((f) =>
-        f.localId === localId
-          ? { ...f, pendingFile: file, pendingCategoria: categoria }
-          : f
-      )
+      prev.map((f) => {
+        if (f.localId !== localId) return f;
+        if (f.archivos.length + f.pendingFiles.length >= 2) return f;
+        return {
+          ...f,
+          pendingFiles: [...f.pendingFiles, { localKey: `${Date.now()}-${Math.random()}`, file, categoria }],
+        };
+      })
     );
   };
 
-  const handleQuitarArchivo = (localId: string) => {
+  const handleQuitarArchivoGuardado = (localId: string, archivoId: string) => {
+    // En nuevo paquete no hay archivos guardados, pero por consistencia:
     setFilas((prev) =>
       prev.map((f) =>
         f.localId === localId
-          ? { ...f, pendingFile: undefined, archivoNombre: undefined }
+          ? { ...f, archivos: f.archivos.filter((a) => a.id !== archivoId) }
           : f
       )
     );
   };
 
-  // En el form nuevo no hay archivos ya guardados, esta funcion no se usa
-  const handleVerArchivo = (_localId: string) => {};
+  const handleQuitarArchivoPendiente = (localId: string, localKey: string) => {
+    setFilas((prev) =>
+      prev.map((f) =>
+        f.localId === localId
+          ? { ...f, pendingFiles: f.pendingFiles.filter((pf) => pf.localKey !== localKey) }
+          : f
+      )
+    );
+  };
 
   const handleGuardar = async () => {
     if (!semana) {
@@ -1070,18 +1167,22 @@ function NuevoPaqueteForm({
           concepto: fila.concepto,
           no_recibo: fila.noRecibo || undefined,
           valor_pagado: parseFloat(fila.valorPagado) || 0,
+          centro_costo_id: fila.centroCostoId || undefined,
+          centro_operacion_id: fila.centroOperacionId || undefined,
+          cuenta_auxiliar_id: fila.cuentaAuxiliarId || undefined,
         });
 
-        // Subir archivo pendiente si existe
-        if (fila.pendingFile) {
-          await subirArchivoGasto(paquete.id, creado.id, fila.pendingCategoria, fila.pendingFile);
+        // Subir archivos pendientes si existen
+        for (const pf of fila.pendingFiles) {
+          await subirArchivoGasto(paquete.id, creado.id, pf.categoria, pf.file);
         }
       }
 
       toast.success('Paquete creado correctamente');
       onCreado(paquete.id);
-    } catch {
-      toast.error('Error al crear el paquete');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al crear el paquete';
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -1149,12 +1250,16 @@ function NuevoPaqueteForm({
           filas={filas}
           bloqueado={false}
           saving={saving}
+          centrosCosto={centrosCosto}
+          centrosOperacion={centrosOperacion}
+          cuentasAuxiliares={cuentasAuxiliares}
           onCampo={handleCampo}
           onAgregarFila={handleAgregarFila}
           onEliminarFila={handleEliminarFila}
           onAdjuntar={handleAdjuntar}
-          onQuitarArchivo={handleQuitarArchivo}
-          onVerArchivo={handleVerArchivo}
+          onQuitarArchivoGuardado={handleQuitarArchivoGuardado}
+          onQuitarArchivoPendiente={handleQuitarArchivoPendiente}
+          onVerArchivo={() => {}}
         />
 
         {totalCalculado > 0 && (

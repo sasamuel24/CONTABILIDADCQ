@@ -1049,6 +1049,12 @@ class PaqueteGasto(Base, TimestampMixin):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True
     )
+    aprobacion_gerencia_s3_key: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )
+    aprobacion_gerencia_filename: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
 
     # Relaciones
     tecnico: Mapped["User"] = relationship("User", foreign_keys=[user_id], lazy="selectin")
@@ -1123,9 +1129,9 @@ class GastoLegalizacion(Base, TimestampMixin):
     centro_costo: Mapped[Optional["CentroCosto"]] = relationship("CentroCosto", lazy="selectin")
     centro_operacion: Mapped[Optional["CentroOperacion"]] = relationship("CentroOperacion", lazy="selectin")
     cuenta_auxiliar: Mapped[Optional["CuentaAuxiliar"]] = relationship("CuentaAuxiliar", lazy="selectin")
-    archivo: Mapped[Optional["ArchivoGasto"]] = relationship(
+    archivos: Mapped[List["ArchivoGasto"]] = relationship(
         "ArchivoGasto", back_populates="gasto",
-        cascade="all, delete-orphan", uselist=False, lazy="selectin"
+        cascade="all, delete-orphan", lazy="selectin"
     )
 
     __table_args__ = (
@@ -1151,7 +1157,7 @@ class ArchivoGasto(Base, TimestampMixin):
     gasto_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("gastos_legalizacion.id", ondelete="CASCADE"),
-        nullable=False, unique=True, index=True     # 1 soporte por gasto
+        nullable=False, index=True
     )
     filename: Mapped[str] = mapped_column(Text, nullable=False)
     s3_key: Mapped[str] = mapped_column(Text, nullable=False)
@@ -1166,7 +1172,7 @@ class ArchivoGasto(Base, TimestampMixin):
 
     # Relaciones
     gasto: Mapped["GastoLegalizacion"] = relationship(
-        "GastoLegalizacion", back_populates="archivo", lazy="selectin"
+        "GastoLegalizacion", back_populates="archivos", lazy="selectin"
     )
     uploaded_by: Mapped[Optional["User"]] = relationship("User", lazy="selectin")
 

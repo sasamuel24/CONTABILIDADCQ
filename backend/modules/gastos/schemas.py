@@ -106,7 +106,7 @@ class GastoOut(BaseModel):
     cuenta_auxiliar: Optional[CuentaAuxiliarBrief]
     valor_pagado: Decimal
     orden: int
-    archivo: Optional[ArchivoGastoOut]
+    archivos: List[ArchivoGastoOut] = []
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}
@@ -174,6 +174,8 @@ class PaqueteOut(BaseModel):
     historial_estados: List[HistorialEstadoOut] = []
     created_at: datetime
     updated_at: datetime
+    aprobacion_gerencia_filename: Optional[str] = None
+    aprobacion_gerencia_s3_key: Optional[str] = None
     model_config = {"from_attributes": True}
 
 

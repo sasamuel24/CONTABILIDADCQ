@@ -1004,3 +1004,252 @@ class ComentarioFactura(Base, TimestampMixin):
     
     def __repr__(self):
         return f"<ComentarioFactura(id={self.id}, factura_id={self.factura_id}, user_id={self.user_id})>"
+
+
+# =============================================================================
+# MÓDULO GASTOS / LEGALIZACIÓN DE TÉCNICOS DE MANTENIMIENTO
+# =============================================================================
+
+class PaqueteGasto(Base, TimestampMixin):
+    """Paquete semanal de gastos de un técnico de mantenimiento."""
+    __tablename__ = "paquetes_gastos"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False, index=True
+    )
+    area_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("areas.id", ondelete="RESTRICT"),
+        nullable=False, index=True
+    )
+    semana: Mapped[str] = mapped_column(String(10), nullable=False)        # Ej: "2026-W09"
+    fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
+    fecha_fin: Mapped[date] = mapped_column(Date, nullable=False)
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="borrador", index=True
+    )
+    monto_total: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    total_documentos: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
+    fecha_envio: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    fecha_aprobacion: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    fecha_pago: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    revisado_por_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    # Relaciones
+    tecnico: Mapped["User"] = relationship("User", foreign_keys=[user_id], lazy="selectin")
+    area: Mapped["Area"] = relationship("Area", lazy="selectin")
+    revisado_por: Mapped[Optional["User"]] = relationship(
+        "User", foreign_keys=[revisado_por_user_id], lazy="selectin"
+    )
+    gastos: Mapped[List["GastoLegalizacion"]] = relationship(
+        "GastoLegalizacion", back_populates="paquete",
+        cascade="all, delete-orphan", lazy="selectin"
+    )
+    comentarios: Mapped[List["ComentarioPaquete"]] = relationship(
+        "ComentarioPaquete", back_populates="paquete",
+        cascade="all, delete-orphan", lazy="selectin"
+    )
+    historial_estados: Mapped[List["HistorialEstadoPaquete"]] = relationship(
+        "HistorialEstadoPaquete", back_populates="paquete",
+        cascade="all, delete-orphan", lazy="selectin"
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "estado IN ('borrador','en_revision','devuelto','aprobado','pagado')",
+            name="check_estado_paquete_valid"
+        ),
+        UniqueConstraint("user_id", "semana", name="uq_paquete_user_semana"),
+    )
+
+    def __repr__(self):
+        return f"<PaqueteGasto(id={self.id}, semana={self.semana}, estado={self.estado})>"
+
+
+class GastoLegalizacion(Base, TimestampMixin):
+    """Línea de detalle de un gasto dentro de un paquete semanal."""
+    __tablename__ = "gastos_legalizacion"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    paquete_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("paquetes_gastos.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    fecha: Mapped[date] = mapped_column(Date, nullable=False)
+    no_identificacion: Mapped[str] = mapped_column(String(30), nullable=False)   # NIT / CC
+    pagado_a: Mapped[str] = mapped_column(String(200), nullable=False)
+    concepto: Mapped[str] = mapped_column(String(300), nullable=False)
+    no_recibo: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    centro_costo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("centros_costo.id", ondelete="SET NULL"),
+        nullable=True, index=True
+    )
+    centro_operacion_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("centros_operacion.id", ondelete="SET NULL"),
+        nullable=True, index=True
+    )
+    cuenta_auxiliar_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("cuentas_auxiliares.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    valor_pagado: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    orden: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
+
+    # Relaciones
+    paquete: Mapped["PaqueteGasto"] = relationship(
+        "PaqueteGasto", back_populates="gastos", lazy="selectin"
+    )
+    centro_costo: Mapped[Optional["CentroCosto"]] = relationship("CentroCosto", lazy="selectin")
+    centro_operacion: Mapped[Optional["CentroOperacion"]] = relationship("CentroOperacion", lazy="selectin")
+    cuenta_auxiliar: Mapped[Optional["CuentaAuxiliar"]] = relationship("CuentaAuxiliar", lazy="selectin")
+    archivo: Mapped[Optional["ArchivoGasto"]] = relationship(
+        "ArchivoGasto", back_populates="gasto",
+        cascade="all, delete-orphan", uselist=False, lazy="selectin"
+    )
+
+    __table_args__ = (
+        CheckConstraint("valor_pagado > 0", name="check_valor_gasto_positivo"),
+    )
+
+    def __repr__(self):
+        return f"<GastoLegalizacion(id={self.id}, pagado_a={self.pagado_a}, valor={self.valor_pagado})>"
+
+
+class ArchivoGasto(Base, TimestampMixin):
+    """Soporte adjunto (PDF o imagen) para una línea de gasto. Almacenado en S3."""
+    __tablename__ = "archivos_gasto"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    paquete_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("paquetes_gastos.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    gasto_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("gastos_legalizacion.id", ondelete="CASCADE"),
+        nullable=False, unique=True, index=True     # 1 soporte por gasto
+    )
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    s3_key: Mapped[str] = mapped_column(Text, nullable=False)
+    categoria: Mapped[str] = mapped_column(String(50), nullable=False)
+    content_type: Mapped[str] = mapped_column(Text, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    uploaded_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    # Relaciones
+    gasto: Mapped["GastoLegalizacion"] = relationship(
+        "GastoLegalizacion", back_populates="archivo", lazy="selectin"
+    )
+    uploaded_by: Mapped[Optional["User"]] = relationship("User", lazy="selectin")
+
+    __table_args__ = (
+        CheckConstraint("size_bytes > 0", name="check_size_archivo_gasto_positivo"),
+        CheckConstraint(
+            "categoria IN ('Combustible','Hospedaje','Alimentacion','Viaticos / Casetas','Materiales','Otro')",
+            name="check_categoria_archivo_gasto_valid"
+        ),
+    )
+
+    def __repr__(self):
+        return f"<ArchivoGasto(id={self.id}, gasto_id={self.gasto_id}, filename={self.filename})>"
+
+
+class ComentarioPaquete(Base):
+    """Comentario/observación del revisor sobre un paquete de gastos."""
+    __tablename__ = "comentarios_paquete"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    paquete_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("paquetes_gastos.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    texto: Mapped[str] = mapped_column(Text, nullable=False)
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False, default="observacion")
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow, nullable=False
+    )
+
+    # Relaciones
+    paquete: Mapped["PaqueteGasto"] = relationship(
+        "PaqueteGasto", back_populates="comentarios", lazy="selectin"
+    )
+    user: Mapped[Optional["User"]] = relationship("User", lazy="selectin")
+
+    __table_args__ = (
+        CheckConstraint(
+            "tipo IN ('observacion','devolucion','aprobacion','pago')",
+            name="check_tipo_comentario_paquete_valid"
+        ),
+    )
+
+    def __repr__(self):
+        return f"<ComentarioPaquete(id={self.id}, paquete_id={self.paquete_id}, tipo={self.tipo})>"
+
+
+class HistorialEstadoPaquete(Base):
+    """Auditoría inmutable de cambios de estado en paquetes de gastos."""
+    __tablename__ = "historial_estados_paquete"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    paquete_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("paquetes_gastos.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    estado_anterior: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    estado_nuevo: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), default=datetime.utcnow, nullable=False
+    )
+
+    # Relaciones
+    paquete: Mapped["PaqueteGasto"] = relationship(
+        "PaqueteGasto", back_populates="historial_estados", lazy="selectin"
+    )
+    user: Mapped[Optional["User"]] = relationship("User", lazy="selectin")
+
+    def __repr__(self):
+        return f"<HistorialEstadoPaquete(paquete={self.paquete_id}, {self.estado_anterior}→{self.estado_nuevo})>"

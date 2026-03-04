@@ -193,8 +193,9 @@ async function fetchAPI<T>(
 ): Promise<T> {
   const token = getAccessToken();
   
+  const isFormData = options.body instanceof FormData;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers as Record<string, string>),
   };
 
@@ -1245,4 +1246,258 @@ export async function deleteComentario(comentarioId: string): Promise<void> {
   return fetchAPI<void>(`/comentarios/${comentarioId}`, {
     method: 'DELETE',
   });
+}
+
+// ============================================================================
+// MÓDULO GASTOS / LEGALIZACIÓN DE TÉCNICOS DE MANTENIMIENTO
+// ============================================================================
+
+export type EstadoPaquete = 'borrador' | 'en_revision' | 'devuelto' | 'aprobado' | 'pagado';
+
+export type CategoriaGasto =
+  | 'Combustible'
+  | 'Hospedaje'
+  | 'Alimentacion'
+  | 'Viaticos / Casetas'
+  | 'Materiales'
+  | 'Otro';
+
+export interface ArchivoGastoOut {
+  id: string;
+  gasto_id: string;
+  paquete_id: string;
+  filename: string;
+  s3_key: string;
+  categoria: CategoriaGasto;
+  content_type: string;
+  size_bytes: number;
+  download_url?: string;
+  created_at: string;
+}
+
+export interface GastoOut {
+  id: string;
+  paquete_id: string;
+  fecha: string;
+  no_identificacion: string;
+  pagado_a: string;
+  concepto: string;
+  no_recibo: string | null;
+  centro_costo_id: string | null;
+  centro_operacion_id: string | null;
+  cuenta_auxiliar_id: string | null;
+  centro_costo: { id: string; nombre: string } | null;
+  centro_operacion: { id: string; nombre: string } | null;
+  cuenta_auxiliar: { id: string; codigo: string; descripcion: string } | null;
+  valor_pagado: number;
+  orden: number;
+  archivo: ArchivoGastoOut | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ComentarioPaqueteOut {
+  id: string;
+  paquete_id: string;
+  user: { id: string; nombre: string; email: string } | null;
+  texto: string;
+  tipo: 'observacion' | 'devolucion' | 'aprobacion' | 'pago';
+  created_at: string;
+}
+
+export interface HistorialEstadoOut {
+  id: string;
+  estado_anterior: string | null;
+  estado_nuevo: string;
+  user: { id: string; nombre: string; email: string } | null;
+  created_at: string;
+}
+
+export interface PaqueteOut {
+  id: string;
+  semana: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  estado: EstadoPaquete;
+  monto_total: number;
+  total_documentos: number;
+  fecha_envio: string | null;
+  fecha_aprobacion: string | null;
+  fecha_pago: string | null;
+  tecnico: { id: string; nombre: string; email: string };
+  area: { id: string; nombre: string };
+  revisado_por: { id: string; nombre: string; email: string } | null;
+  gastos: GastoOut[];
+  comentarios: ComentarioPaqueteOut[];
+  historial_estados: HistorialEstadoOut[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaqueteListItem {
+  id: string;
+  semana: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  estado: EstadoPaquete;
+  monto_total: number;
+  total_documentos: number;
+  fecha_envio: string | null;
+  comentario_devolucion: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaqueteListResponse {
+  paquetes: PaqueteListItem[];
+  total: number;
+}
+
+export interface GastoCreate {
+  fecha: string;
+  no_identificacion: string;
+  pagado_a: string;
+  concepto: string;
+  no_recibo?: string;
+  centro_costo_id?: string;
+  centro_operacion_id?: string;
+  cuenta_auxiliar_id?: string;
+  valor_pagado: number;
+  orden?: number;
+}
+
+export interface GastoUpdate {
+  fecha?: string;
+  no_identificacion?: string;
+  pagado_a?: string;
+  concepto?: string;
+  no_recibo?: string;
+  centro_costo_id?: string;
+  centro_operacion_id?: string;
+  cuenta_auxiliar_id?: string;
+  valor_pagado?: number;
+  orden?: number;
+}
+
+// --- Paquetes ---------------------------------------------------------------
+
+/** Listar paquetes (técnico ve los suyos; admin ve todos) */
+export async function listPaquetesGastos(
+  params: { skip?: number; limit?: number; estado?: EstadoPaquete } = {}
+): Promise<PaqueteListResponse> {
+  const q = new URLSearchParams();
+  if (params.skip !== undefined) q.set('skip', String(params.skip));
+  if (params.limit !== undefined) q.set('limit', String(params.limit));
+  if (params.estado) q.set('estado', params.estado);
+  return fetchAPI<PaqueteListResponse>(`/gastos/paquetes?${q.toString()}`);
+}
+
+/** Obtener detalle completo de un paquete */
+export async function getPaqueteGasto(paqueteId: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}`);
+}
+
+/** Crear nuevo paquete semanal */
+export async function createPaqueteGasto(semana: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>('/gastos/paquetes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ semana }),
+  });
+}
+
+// --- Workflow ---------------------------------------------------------------
+
+/** Técnico envía el paquete para revisión */
+export async function enviarPaquete(paqueteId: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/enviar`, { method: 'POST' });
+}
+
+/** Admin aprueba el paquete */
+export async function aprobarPaquete(paqueteId: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/aprobar`, { method: 'POST' });
+}
+
+/** Admin devuelve el paquete con un motivo */
+export async function devolverPaquete(paqueteId: string, motivo: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/devolver`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ motivo }),
+  });
+}
+
+/** Tesorería marca el paquete como pagado */
+export async function pagarPaquete(paqueteId: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/pagar`, { method: 'POST' });
+}
+
+// --- Gastos (líneas de detalle) ---------------------------------------------
+
+/** Agregar línea de gasto */
+export async function agregarGasto(paqueteId: string, data: GastoCreate): Promise<GastoOut> {
+  return fetchAPI<GastoOut>(`/gastos/paquetes/${paqueteId}/gastos`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+/** Editar línea de gasto */
+export async function editarGasto(
+  paqueteId: string,
+  gastoId: string,
+  data: GastoUpdate
+): Promise<GastoOut> {
+  return fetchAPI<GastoOut>(`/gastos/paquetes/${paqueteId}/gastos/${gastoId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+/** Eliminar línea de gasto */
+export async function eliminarGasto(paqueteId: string, gastoId: string): Promise<void> {
+  return fetchAPI<void>(`/gastos/paquetes/${paqueteId}/gastos/${gastoId}`, {
+    method: 'DELETE',
+  });
+}
+
+// --- Archivos soporte -------------------------------------------------------
+
+/** Subir soporte (PDF o imagen) para un gasto */
+export async function subirArchivoGasto(
+  paqueteId: string,
+  gastoId: string,
+  categoria: CategoriaGasto,
+  file: File
+): Promise<ArchivoGastoOut> {
+  const formData = new FormData();
+  formData.append('categoria', categoria);
+  formData.append('file', file);
+  return fetchAPI<ArchivoGastoOut>(
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/archivo`,
+    { method: 'POST', body: formData }
+  );
+}
+
+/** Eliminar soporte de un gasto */
+export async function eliminarArchivoGasto(
+  paqueteId: string,
+  gastoId: string
+): Promise<void> {
+  return fetchAPI<void>(
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/archivo`,
+    { method: 'DELETE' }
+  );
+}
+
+/** Obtener URL de descarga del soporte */
+export async function getDownloadUrlArchivoGasto(
+  paqueteId: string,
+  gastoId: string
+): Promise<{ download_url: string }> {
+  return fetchAPI<{ download_url: string }>(
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/archivo/download`
+  );
 }

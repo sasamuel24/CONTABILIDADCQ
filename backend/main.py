@@ -30,6 +30,7 @@ from modules.unidades_negocio.router import router as unidades_negocio_router
 from modules.cuentas_auxiliares.router import router as cuentas_auxiliares_router
 from modules.distribucion_ccco.router import router as distribucion_ccco_router
 from modules.comentarios.router import router as comentarios_router
+from modules.gastos.router import router as gastos_router
 
 # Configuración central.
 # Aquí deshabilitas los docs por defecto para crear tus endpoints personalizados.
@@ -78,6 +79,7 @@ app.include_router(unidades_negocio_router, prefix="/api/v1")
 app.include_router(cuentas_auxiliares_router, prefix="/api/v1")
 app.include_router(distribucion_ccco_router, prefix="/api/v1")
 app.include_router(comentarios_router, prefix="/api/v1")
+app.include_router(gastos_router, prefix="/api/v1")
 
 
 # Endpoints personalizados para documentación con CORS habilitado

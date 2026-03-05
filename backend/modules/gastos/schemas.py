@@ -143,7 +143,7 @@ class HistorialEstadoOut(BaseModel):
 # PaqueteGasto
 # ---------------------------------------------------------------------------
 
-ESTADOS_VALIDOS = {"borrador", "en_revision", "devuelto", "aprobado", "pagado"}
+ESTADOS_VALIDOS = {"borrador", "en_revision", "devuelto", "aprobado", "en_tesoreria", "pagado"}
 
 
 class PaqueteCreate(BaseModel):
@@ -188,7 +188,8 @@ class PaqueteListItem(BaseModel):
     monto_total: Decimal
     total_documentos: int
     fecha_envio: Optional[datetime]
-    comentario_devolucion: Optional[str] = None   # último comentario tipo devolucion
+    comentario_devolucion: Optional[str] = None
+    tecnico: Optional[UserBrief] = None
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}

@@ -8,6 +8,8 @@ import {
   getPaqueteGasto,
   aprobarPaquete,
   devolverPaquete,
+  pagarPaquete,
+  enviarATesoreria,
   editarGasto,
   getDownloadUrlArchivoGasto,
   subirAprobacionGerencia,
@@ -23,6 +25,7 @@ import {
   CentroOperacion,
   CuentaAuxiliar,
 } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -41,6 +44,8 @@ import {
   Save,
   Paperclip,
   Upload,
+  Wallet,
+  Send,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -80,11 +85,12 @@ type EstadoUI = {
 };
 
 const ESTADO_MAP: Record<EstadoPaquete, EstadoUI> = {
-  borrador:    { label: 'Borrador',      bg: '#f3f4f6', color: '#6b7280', dot: '#9ca3af' },
-  en_revision: { label: 'En revisión',   bg: '#fffbeb', color: '#b45309', dot: '#f59e0b' },
-  devuelto:    { label: 'Devuelto',      bg: '#fef2f2', color: '#dc2626', dot: '#ef4444' },
-  aprobado:    { label: 'Aprobado',      bg: '#f0fdf4', color: '#15803d', dot: '#22c55e' },
-  pagado:      { label: 'Pagado',        bg: '#eff6ff', color: '#1d4ed8', dot: '#3b82f6' },
+  borrador:      { label: 'Borrador',          bg: '#f3f4f6', color: '#6b7280', dot: '#9ca3af' },
+  en_revision:   { label: 'En revisión',       bg: '#fffbeb', color: '#b45309', dot: '#f59e0b' },
+  devuelto:      { label: 'Devuelto',           bg: '#fef2f2', color: '#dc2626', dot: '#ef4444' },
+  aprobado:      { label: 'Pendiente',          bg: '#fff7ed', color: '#c2410c', dot: '#f97316' },
+  en_tesoreria:  { label: 'En Tesorería',      bg: '#eff6ff', color: '#1d4ed8', dot: '#3b82f6' },
+  pagado:        { label: 'Pagado',             bg: '#f0fdf4', color: '#0e7490', dot: '#06b6d4' },
 };
 
 function EstadoBadge({ estado }: { estado: EstadoPaquete }) {
@@ -185,12 +191,18 @@ function DetallePaqueteResponsable({
   onAccion: () => void;
 }) {
   const [paquete, setPaquete] = useState<PaqueteOut | null>(null);
+  const { user } = useAuth();
+  const rolActual = user?.role?.toLowerCase() ?? '';
+  const areaActual = user?.area?.code?.toLowerCase() ?? '';
+
   const [loading, setLoading] = useState(true);
   const [loadingAprobar, setLoadingAprobar] = useState(false);
   const [showDevolver, setShowDevolver] = useState(false);
   const [loadingDevolver, setLoadingDevolver] = useState(false);
   const [savingAsignaciones, setSavingAsignaciones] = useState(false);
   const [uploadingAprobacion, setUploadingAprobacion] = useState(false);
+  const [loadingPagar, setLoadingPagar] = useState(false);
+  const [loadingEnviarTes, setLoadingEnviarTes] = useState(false);
 
   // Catálogos
   const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
@@ -313,6 +325,22 @@ function DetallePaqueteResponsable({
     }
   };
 
+  const handleEnviarTesoreria = async () => {
+    if (!paquete) return;
+    setLoadingEnviarTes(true);
+    try {
+      const updated = await enviarATesoreria(paquete.id);
+      setPaquete(updated);
+      toast.success('Paquete enviado a Tesorería');
+      onAccion();
+    } catch (e: unknown) {
+      const msg = (e as { detail?: string })?.detail ?? 'Error al enviar a Tesorería';
+      toast.error(msg);
+    } finally {
+      setLoadingEnviarTes(false);
+    }
+  };
+
   const handleDescargar = async (gastoId: string, archivoId: string) => {
     try {
       const { download_url } = await getDownloadUrlArchivoGasto(paqueteId, gastoId, archivoId);
@@ -360,8 +388,18 @@ function DetallePaqueteResponsable({
 
   if (!paquete) return null;
 
-  const puedeActuar = paquete.estado === 'en_revision';
+  // Responsable de Mantenimiento aprueba/devuelve paquetes en revisión
+  const esResponsable = ['admin', 'responsable'].includes(rolActual) || ['admin', 'responsable', 'mant'].includes(areaActual);
+  // Facturación envía paquetes aprobados a Tesorería
+  const esFact = ['admin', 'fact'].includes(rolActual) || ['admin', 'fact'].includes(areaActual);
+  const esTes = ['admin', 'tesoreria', 'tes'].includes(rolActual) || ['admin', 'tesoreria', 'tes'].includes(areaActual);
+
+  const puedeActuar = paquete.estado === 'en_revision' && esResponsable;
+  const puedeEnviarTesoreria = paquete.estado === 'aprobado' && esFact;
+  // Cualquier rol puede subir documentos mientras está en revisión
+  const puedeSubirDocs = paquete.estado === 'en_revision';
   const puedeEditarAsignaciones = paquete.estado === 'en_revision';
+  const puedeMarcarPagado = paquete.estado === 'en_tesoreria' && esTes;
 
   return (
     <>
@@ -463,7 +501,7 @@ function DetallePaqueteResponsable({
                       <Download className="w-3.5 h-3.5" />
                       {paquete.aprobacion_gerencia_filename}
                     </button>
-                    {puedeActuar && (
+                    {puedeSubirDocs && (
                       <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-colors"
                         style={{ color: '#6b7280', borderColor: '#e5e7eb', backgroundColor: '#f9fafb', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
                       >
@@ -474,7 +512,7 @@ function DetallePaqueteResponsable({
                     )}
                   </>
                 ) : (
-                  puedeActuar ? (
+                  puedeSubirDocs ? (
                     <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-colors"
                       style={{ color: '#b45309', borderColor: '#fcd34d', backgroundColor: '#fffbeb', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
                     >
@@ -490,7 +528,7 @@ function DetallePaqueteResponsable({
             </div>
           </div>
 
-          {/* Botones de acción */}
+          {/* Botones de acción — En revisión */}
           {puedeActuar && (
             <div className="flex gap-3 mt-6 pt-5 border-t border-gray-100 flex-wrap">
               {hayAsignacionesDirty && (
@@ -511,7 +549,7 @@ function DetallePaqueteResponsable({
                 style={{ backgroundColor: '#16a34a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
               >
                 {loadingAprobar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                Aprobar paquete
+                Aprobar
               </button>
               <button
                 onClick={() => setShowDevolver(true)}
@@ -521,6 +559,65 @@ function DetallePaqueteResponsable({
               >
                 <RotateCcw className="w-4 h-4" />
                 Devolver
+              </button>
+            </div>
+          )}
+
+          {/* Botones de acción — Aprobado: enviar a Tesorería */}
+          {puedeEnviarTesoreria && (
+            <div className="flex gap-3 mt-6 pt-5 border-t border-gray-100 flex-wrap items-center">
+              <div className="flex-1">
+                <p
+                  className="text-xs text-gray-500"
+                  style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                >
+                  El paquete fue aprobado. Envíalo a Tesorería para procesar el pago.
+                </p>
+              </div>
+              <button
+                onClick={handleEnviarTesoreria}
+                disabled={loadingEnviarTes}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#1d4ed8', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+              >
+                {loadingEnviarTes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Enviar a Tesorería
+              </button>
+            </div>
+          )}
+
+          {/* Botones de acción — En Tesorería: marca como pagado */}
+          {puedeMarcarPagado && (
+            <div className="flex gap-3 mt-6 pt-5 border-t border-gray-100 flex-wrap items-center">
+              <div className="flex-1">
+                <p
+                  className="text-xs text-gray-500"
+                  style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                >
+                  El paquete está pendiente de pago por parte de Tesorería.
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  setLoadingPagar(true);
+                  try {
+                    const updated = await pagarPaquete(paquete.id);
+                    setPaquete(updated);
+                    toast.success('Paquete marcado como pagado');
+                    onAccion();
+                  } catch (e: unknown) {
+                    const msg = (e as { detail?: string })?.detail ?? 'Error al marcar como pagado';
+                    toast.error(msg);
+                  } finally {
+                    setLoadingPagar(false);
+                  }
+                }}
+                disabled={loadingPagar}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#1d4ed8', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+              >
+                {loadingPagar ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wallet className="w-4 h-4" />}
+                Marcar como pagado
               </button>
             </div>
           )}
@@ -753,6 +850,11 @@ export function ResponsablePaquetesView({
 }: {
   onVistaChange?: (v: 'lista' | 'detalle') => void;
 }) {
+  const { user } = useAuth();
+  const rolLista = user?.role?.toLowerCase() ?? '';
+  const areaLista = user?.area?.code?.toLowerCase() ?? '';
+  const esFact = ['admin', 'fact'].includes(rolLista) || ['admin', 'fact'].includes(areaLista);
+
   const [vista, setVista] = useState<Vista>('lista');
   const [paqueteActivo, setPaqueteActivo] = useState<string | null>(null);
   const [paquetes, setPaquetes] = useState<PaqueteListItem[]>([]);
@@ -781,20 +883,25 @@ export function ResponsablePaquetesView({
     onVistaChange?.('lista');
   };
 
-  // Solo mostrar paquetes que han sido enviados (excluir borradores)
   const paquetesEnviados = paquetes.filter((p) => p.estado !== 'borrador');
 
-  const paquetesFiltrados =
-    filtro === 'todos' ? paquetesEnviados : paquetesEnviados.filter((p) => p.estado === filtro);
+  // Para facturación: "En revisión" muestra los aprobados por responsable (pendientes de enviar a tesorería)
+  // Para responsable: "En revisión" muestra los enviados por el técnico (pendientes de aprobar)
+  const estadoRevision: EstadoPaquete = esFact ? 'aprobado' : 'en_revision';
 
-  const pendientes = paquetesEnviados.filter((p) => p.estado === 'en_revision').length;
+  const paquetesFiltrados =
+    filtro === 'todos'
+      ? paquetesEnviados
+      : paquetesEnviados.filter((p) => p.estado === (filtro === 'en_revision' ? estadoRevision : filtro));
+
+  const pendientes = paquetes.filter((p) => p.estado === estadoRevision).length;
 
   const FILTROS: { value: Filtro; label: string }[] = [
-    { value: 'en_revision', label: 'En revisión' },
-    { value: 'aprobado',    label: 'Aprobados' },
-    { value: 'devuelto',    label: 'Devueltos' },
-    { value: 'pagado',      label: 'Pagados' },
-    { value: 'todos',       label: 'Todos' },
+    { value: 'en_revision',  label: 'En revisión' },
+    { value: 'en_tesoreria', label: 'En Tesorería' },
+    { value: 'devuelto',     label: 'Devueltos' },
+    { value: 'pagado',       label: 'Pagados' },
+    { value: 'todos',        label: 'Todos' },
   ];
 
   if (vista === 'detalle' && paqueteActivo) {

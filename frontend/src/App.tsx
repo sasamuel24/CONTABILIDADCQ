@@ -90,7 +90,7 @@ function AppRoutes() {
       <Route
         path="/tesoreria"
         element={
-          <ProtectedRoute allowedRoles={['tesoreria']}>
+          <ProtectedRoute allowedRoles={['tesoreria', 'tes']}>
             <TesoreriaPage />
           </ProtectedRoute>
         }
@@ -110,7 +110,7 @@ function AppRoutes() {
       <Route
         path="/tecnico-mantenimiento"
         element={
-          <ProtectedRoute allowedRoles={['tecnico', 'Tecnico']}>
+          <ProtectedRoute allowedRoles={['tecnico', 'Tecnico', 'mant']}>
             <TecnicoMantenimientoPage />
           </ProtectedRoute>
         }
@@ -137,9 +137,9 @@ function AppRoutes() {
                 if (r === 'admin' || r === 'fact') return '/global';
                 if (r === 'responsable') return '/responsable';
                 if (r === 'contabilidad') return '/contabilidad';
-                if (r === 'tesoreria') return '/tesoreria';
+                if (r === 'tesoreria' || r === 'tes') return '/tesoreria';
                 if (r === 'gerencia') return '/gerencia';
-                if (r === 'tecnico') return '/tecnico-mantenimiento';
+                if (r === 'tecnico' || r === 'mant') return '/tecnico-mantenimiento';
                 if (r === 'direccion') return '/centro-documental';
                 return '/no-autorizado';
               })()}

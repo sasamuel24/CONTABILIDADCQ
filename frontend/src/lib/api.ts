@@ -1252,7 +1252,7 @@ export async function deleteComentario(comentarioId: string): Promise<void> {
 // MÓDULO GASTOS / LEGALIZACIÓN DE TÉCNICOS DE MANTENIMIENTO
 // ============================================================================
 
-export type EstadoPaquete = 'borrador' | 'en_revision' | 'devuelto' | 'aprobado' | 'pagado';
+export type EstadoPaquete = 'borrador' | 'en_revision' | 'devuelto' | 'aprobado' | 'en_tesoreria' | 'pagado';
 
 export type CategoriaGasto =
   | 'Combustible'
@@ -1346,6 +1346,7 @@ export interface PaqueteListItem {
   total_documentos: number;
   fecha_envio: string | null;
   comentario_devolucion: string | null;
+  tecnico: { id: string; nombre: string; email: string } | null;
   created_at: string;
   updated_at: string;
 }
@@ -1427,6 +1428,11 @@ export async function devolverPaquete(paqueteId: string, motivo: string): Promis
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ motivo }),
   });
+}
+
+/** Facturación envía el paquete aprobado a Tesorería */
+export async function enviarATesoreria(paqueteId: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/enviar-tesoreria`, { method: 'POST' });
 }
 
 /** Tesorería marca el paquete como pagado */

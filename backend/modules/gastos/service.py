@@ -91,9 +91,9 @@ class GastosService:
         paquete = await self.paquete_repo.get_by_id(paquete.id)
         return PaqueteOut.model_validate(paquete)
 
-    async def get_paquete(self, paquete_id: UUID, user_id: UUID, user_role: str) -> PaqueteOut:
+    async def get_paquete(self, paquete_id: UUID, user_id: UUID, user_role: str, user_area: str = "") -> PaqueteOut:
         paquete = await self._get_paquete_or_404(paquete_id)
-        self._check_access(paquete, user_id, user_role)
+        self._check_access(paquete, user_id, user_role, user_area)
         return self._to_out(paquete)
 
     async def list_paquetes_tecnico(
@@ -141,7 +141,7 @@ class GastosService:
         await self.paquete_repo.save(paquete)
         await self.comentario_repo.create(ComentarioPaquete(
             paquete_id=paquete.id, user_id=user_id,
-            texto="Paquete aprobado.", tipo="aprobacion",
+            texto="Paquete aprobado. Pendiente de envío a Tesorería por Facturación.", tipo="aprobacion",
         ))
         await self.historial_repo.create(HistorialEstadoPaquete(
             paquete_id=paquete.id, user_id=user_id,
@@ -169,10 +169,28 @@ class GastosService:
         await self.db.commit()
         return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
 
-    async def pagar(self, paquete_id: UUID, user_id: UUID) -> PaqueteOut:
+    async def enviar_tesoreria(self, paquete_id: UUID, user_id: UUID) -> PaqueteOut:
         paquete = await self._get_paquete_or_404(paquete_id)
         if paquete.estado != "aprobado":
-            raise HTTPException(status_code=400, detail="Solo paquetes aprobados pueden marcarse como pagados.")
+            raise HTTPException(status_code=400, detail="Solo paquetes aprobados pueden enviarse a tesorería.")
+
+        paquete.estado = "en_tesoreria"
+        await self.paquete_repo.save(paquete)
+        await self.comentario_repo.create(ComentarioPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            texto="Paquete enviado a Tesorería para procesamiento de pago.", tipo="envio_tesoreria",
+        ))
+        await self.historial_repo.create(HistorialEstadoPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            estado_anterior="aprobado", estado_nuevo="en_tesoreria",
+        ))
+        await self.db.commit()
+        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+
+    async def pagar(self, paquete_id: UUID, user_id: UUID) -> PaqueteOut:
+        paquete = await self._get_paquete_or_404(paquete_id)
+        if paquete.estado != "en_tesoreria":
+            raise HTTPException(status_code=400, detail="Solo paquetes enviados a tesorería pueden marcarse como pagados.")
 
         paquete.estado = "pagado"
         paquete.fecha_pago = datetime.utcnow()
@@ -183,7 +201,7 @@ class GastosService:
         ))
         await self.historial_repo.create(HistorialEstadoPaquete(
             paquete_id=paquete.id, user_id=user_id,
-            estado_anterior="aprobado", estado_nuevo="pagado",
+            estado_anterior="en_tesoreria", estado_nuevo="pagado",
         ))
         await self.db.commit()
         return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
@@ -413,9 +431,9 @@ class GastosService:
             raise HTTPException(status_code=404, detail=f"Gasto {gasto_id} no encontrado en este paquete.")
         return gasto
 
-    def _check_access(self, paquete: PaqueteGasto, user_id: UUID, user_role: str) -> None:
-        roles_admin = {"admin", "contabilidad", "tesoreria", "gerencia", "responsable"}
-        if user_role.lower() not in roles_admin and paquete.user_id != user_id:
+    def _check_access(self, paquete: PaqueteGasto, user_id: UUID, user_role: str, user_area: str = "") -> None:
+        roles_admin = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable"}
+        if user_role.lower() not in roles_admin and user_area.lower() not in roles_admin and paquete.user_id != user_id:
             raise HTTPException(status_code=403, detail="No tienes acceso a este paquete.")
 
     def _check_editable(self, paquete: PaqueteGasto, user_id: UUID, user_role: str = "") -> None:

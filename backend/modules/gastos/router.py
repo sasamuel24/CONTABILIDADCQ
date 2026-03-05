@@ -18,7 +18,7 @@ from modules.gastos.schemas import (
 
 router = APIRouter(tags=["Gastos"])
 
-ROLES_ADMIN = {"admin", "contabilidad", "tesoreria", "gerencia", "responsable"}
+ROLES_ADMIN = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable"}
 
 
 async def _get_user_db(
@@ -63,7 +63,8 @@ async def list_paquetes(
     - **Admin / Contabilidad / Tesorería / Gerencia**: devuelve todos.
     """
     role = user.role.code.lower() if user.role else ""
-    if role in ROLES_ADMIN:
+    area = user.area.code.lower() if user.area else ""
+    if role in ROLES_ADMIN or area in ROLES_ADMIN:
         paquetes, total = await svc.list_paquetes_admin(skip, limit, estado)
     else:
         paquetes, total = await svc.list_paquetes_tecnico(user.id, skip, limit)
@@ -97,7 +98,8 @@ async def get_paquete(
     user: User = Depends(_get_user_db),
 ):
     role = user.role.code.lower() if user.role else ""
-    return await svc.get_paquete(paquete_id, user.id, role)
+    area = user.area.code.lower() if user.area else ""
+    return await svc.get_paquete(paquete_id, user.id, role, area)
 
 
 # =============================================================================
@@ -128,9 +130,27 @@ async def aprobar_paquete(
     user: User = Depends(_get_user_db),
 ):
     role = user.role.code.lower() if user.role else ""
-    if role not in ROLES_ADMIN:
-        raise HTTPException(status_code=403, detail="Solo administradores pueden aprobar paquetes.")
+    area = user.area.code.lower() if user.area else ""
+    if role not in {"admin", "responsable"} and area not in {"admin", "responsable", "mant"}:
+        raise HTTPException(status_code=403, detail="Solo el Responsable de Mantenimiento puede aprobar paquetes.")
     return await svc.aprobar(paquete_id, user.id)
+
+
+@router.post(
+    "/gastos/paquetes/{paquete_id}/enviar-tesoreria",
+    response_model=PaqueteOut,
+    summary="Enviar paquete aprobado a Tesorería (facturación/admin)",
+)
+async def enviar_tesoreria(
+    paquete_id: UUID,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    area = user.area.code.lower() if user.area else ""
+    if role not in {"admin", "fact"} and area not in {"admin", "fact"}:
+        raise HTTPException(status_code=403, detail="Solo facturación puede enviar paquetes a tesorería.")
+    return await svc.enviar_tesoreria(paquete_id, user.id)
 
 
 @router.post(
@@ -145,8 +165,9 @@ async def devolver_paquete(
     user: User = Depends(_get_user_db),
 ):
     role = user.role.code.lower() if user.role else ""
-    if role not in ROLES_ADMIN:
-        raise HTTPException(status_code=403, detail="Solo administradores pueden devolver paquetes.")
+    area = user.area.code.lower() if user.area else ""
+    if role not in {"admin", "responsable"} and area not in {"admin", "responsable", "mant"}:
+        raise HTTPException(status_code=403, detail="Solo el Responsable de Mantenimiento puede devolver paquetes.")
     return await svc.devolver(paquete_id, user.id, data)
 
 
@@ -161,8 +182,9 @@ async def pagar_paquete(
     user: User = Depends(_get_user_db),
 ):
     role = user.role.code.lower() if user.role else ""
-    if role not in {"admin", "tesoreria"}:
-        raise HTTPException(status_code=403, detail="Solo tesorería puede marcar como pagado.")
+    area = user.area.code.lower() if user.area else ""
+    if role not in {"admin", "tesoreria", "tes"} and area not in {"admin", "tesoreria", "tes"}:
+        raise HTTPException(status_code=403, detail="Solo Tesorería puede marcar como pagado.")
     return await svc.pagar(paquete_id, user.id)
 
 

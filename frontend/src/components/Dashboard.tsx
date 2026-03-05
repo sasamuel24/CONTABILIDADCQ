@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Search, ChevronDown, TrendingUp, TrendingDown, MoreVertical, Reply, Circle, LayoutDashboard, Inbox, LogOut } from 'lucide-react';
+import { Search, ChevronDown, TrendingUp, TrendingDown, MoreVertical, Reply, Circle, LayoutDashboard, Inbox, LogOut, PackageOpen } from 'lucide-react';
 import { InboxView } from './InboxView';
+import { ResponsablePaquetesView } from './ResponsablePaquetesView';
 import { getDashboardMetrics, getAreas, getFacturas, DashboardMetrics, Area, FacturaListItem } from '../lib/api';
 
 interface DashboardProps {
@@ -26,6 +27,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
   const [selectedArea, setSelectedArea] = useState('Todas');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSection, setActiveSection] = useState('dashboard');
+  const [enDetallePaquetes, setEnDetallePaquetes] = useState(false);
   
   // Estados para datos del backend
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -160,6 +162,25 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
           </button>
 
           <button
+            onClick={() => { setActiveSection('paquetes'); setEnDetallePaquetes(false); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2"
+            style={{
+              backgroundColor: activeSection === 'paquetes' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
+              color: activeSection === 'paquetes' ? '#00829a' : '#374151',
+              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+            }}
+            onMouseEnter={(e) => {
+              if (activeSection !== 'paquetes') e.currentTarget.style.backgroundColor = '#f9fafb';
+            }}
+            onMouseLeave={(e) => {
+              if (activeSection !== 'paquetes') e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            <PackageOpen className="w-5 h-5" />
+            <span>Paquetes de Gastos</span>
+          </button>
+
+          <button
             onClick={onLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-700 hover:bg-gray-50"
             style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
@@ -184,11 +205,36 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
         </header>
 
         {/* Main Content */}
-        <main className="px-8 py-6 flex-1 overflow-auto">
-          {activeSection === 'inbox' ? (
-            <InboxView />
+        <main className="flex-1 overflow-auto">
+          {activeSection === 'paquetes' ? (
+            <div className={enDetallePaquetes ? 'p-4' : 'p-8'}>
+              {!enDetallePaquetes && (
+                <div className="mb-6">
+                  <h2
+                    className="text-2xl font-bold text-gray-900"
+                    style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}
+                  >
+                    Paquetes de Gastos
+                  </h2>
+                  <p
+                    className="text-sm text-gray-400 mt-0.5"
+                    style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                  >
+                    Revisa, aprueba o devuelve los paquetes enviados por los técnicos
+                  </p>
+                </div>
+              )}
+              <ResponsablePaquetesView
+                onVistaChange={(v) => setEnDetallePaquetes(v === 'detalle')}
+              />
+            </div>
+          ) : activeSection === 'inbox' ? (
+            <div className="px-8 py-6">
+              <InboxView />
+            </div>
           ) : (
             <>
+              <div className="px-8 py-6">
               {/* Email Stats Section */}
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-4">
@@ -448,6 +494,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                   </div>
                 </div>
               </div>
+            </div>
             </>
           )}
         </main>

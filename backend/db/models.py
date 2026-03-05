@@ -1077,7 +1077,7 @@ class PaqueteGasto(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint(
-            "estado IN ('borrador','en_revision','devuelto','aprobado','pagado')",
+            "estado IN ('borrador','en_revision','devuelto','aprobado','en_tesoreria','pagado')",
             name="check_estado_paquete_valid"
         ),
         UniqueConstraint("user_id", "semana", name="uq_paquete_user_semana"),
@@ -1219,7 +1219,7 @@ class ComentarioPaquete(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "tipo IN ('observacion','devolucion','aprobacion','pago')",
+            "tipo IN ('observacion','devolucion','aprobacion','pago','envio_tesoreria')",
             name="check_tipo_comentario_paquete_valid"
         ),
     )

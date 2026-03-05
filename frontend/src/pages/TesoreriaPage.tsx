@@ -1,14 +1,15 @@
 import { useState } from 'react';
-import { Inbox, FolderOpen, LogOut, FolderTree } from 'lucide-react';
+import { FolderOpen, LogOut, FolderTree, PackageOpen } from 'lucide-react';
 import { ExploradorArchivosTesoreria } from '../components/ExploradorArchivosTesoreria';
 import { CarpetasTesoreriaView } from '../components/CarpetasTesoreriaView';
+import { TesoreriaPaquetesView } from '../components/TesoreriaPaquetesView';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export function TesoreriaPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'inbox' | 'carpetas'>('inbox');
+  const [activeView, setActiveView] = useState<'inbox' | 'carpetas' | 'paquetes'>('inbox');
 
   const handleLogout = () => {
     logout();
@@ -74,6 +75,30 @@ export function TesoreriaPage() {
             <FolderOpen className="w-5 h-5" />
             Carpetas programación de pagos
           </button>
+
+          <button 
+            onClick={() => setActiveView('paquetes')}
+            style={{
+              fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+              backgroundColor: activeView === 'paquetes' ? '#e0f5f7' : 'transparent',
+              color: activeView === 'paquetes' ? '#00829a' : '#6b7280',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (activeView !== 'paquetes') {
+                e.currentTarget.style.backgroundColor = '#f3f4f6';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeView !== 'paquetes') {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }
+            }}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg"
+          >
+            <PackageOpen className="w-5 h-5" />
+            Paquetes de Gastos
+          </button>
         </nav>
 
         {/* User Menu */}
@@ -115,7 +140,9 @@ export function TesoreriaPage() {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        {activeView === 'inbox' ? <ExploradorArchivosTesoreria /> : <CarpetasTesoreriaView />}
+        {activeView === 'inbox' && <ExploradorArchivosTesoreria />}
+        {activeView === 'carpetas' && <CarpetasTesoreriaView />}
+        {activeView === 'paquetes' && <TesoreriaPaquetesView />}
       </div>
     </div>
   );

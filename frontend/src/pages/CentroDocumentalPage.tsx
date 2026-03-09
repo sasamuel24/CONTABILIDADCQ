@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, LogOut, FileBarChart, FolderInput } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, LogOut, FileBarChart, FolderInput, Download } from 'lucide-react';
 import { getFacturas, getAreas, type FacturaListItem, type Area, type Carpeta } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { CarpetasPanel } from '../components/CarpetasPanel';
 import { AsignarCarpetaModal } from '../components/AsignarCarpetaModal';
 import { CentroDocumentalFacturaDetail } from '../components/CentroDocumentalFacturaDetail';
+import { exportFacturasToExcel } from '../utils/exportToExcel';
 
 export function CentroDocumentalPage() {
   const { user, logout } = useAuth();
@@ -39,6 +40,9 @@ export function CentroDocumentalPage() {
   // Paginación
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
+
+  // Exportación
+  const [isExporting, setIsExporting] = useState(false);
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -187,6 +191,20 @@ export function CentroDocumentalPage() {
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleExportExcel = () => {
+    if (sortedFacturas.length === 0) return;
+    setIsExporting(true);
+    try {
+      let nombre = 'informe_facturas';
+      if (selectedCarpeta) nombre += `_${selectedCarpeta.nombre.replace(/\s+/g, '_')}`;
+      if (selectedArea !== 'Todas') nombre += `_${selectedArea.replace(/\s+/g, '_')}`;
+      if (selectedEstado !== 'Todos') nombre += `_${selectedEstado.replace(/\s+/g, '_')}`;
+      exportFacturasToExcel(sortedFacturas, nombre);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // Estados únicos de las facturas
@@ -372,8 +390,28 @@ export function CentroDocumentalPage() {
                   <h2 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-lg font-semibold text-gray-900">
                     Facturas ({sortedFacturas.length})
                   </h2>
-                  <div className="text-sm text-gray-500">
-                    Mostrando {startIndex + 1}-{Math.min(startIndex + itemsPerPage, sortedFacturas.length)} de {sortedFacturas.length}
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm text-gray-500">
+                      Mostrando {startIndex + 1}–{Math.min(startIndex + itemsPerPage, sortedFacturas.length)} de {sortedFacturas.length}
+                    </div>
+                    {sortedFacturas.length > 0 && (
+                      <button
+                        onClick={handleExportExcel}
+                        disabled={isExporting}
+                        style={{
+                          backgroundColor: isExporting ? '#9ca3af' : '#00829a',
+                          fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={(e) => { if (!isExporting) e.currentTarget.style.backgroundColor = '#14aab8'; }}
+                        onMouseLeave={(e) => { if (!isExporting) e.currentTarget.style.backgroundColor = '#00829a'; }}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-white rounded-lg disabled:cursor-not-allowed"
+                        title="Exportar tabla actual a Excel"
+                      >
+                        <Download className="w-4 h-4" />
+                        {isExporting ? 'Generando...' : 'Exportar Excel'}
+                      </button>
+                    )}
                   </div>
                 </div>
 

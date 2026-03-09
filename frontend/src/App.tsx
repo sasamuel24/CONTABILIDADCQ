@@ -7,6 +7,7 @@ import { ContabilidadPage } from './pages/ContabilidadPage';
 import { TesoreriaPage } from './pages/TesoreriaPage';
 import { GerenciaPage } from './pages/GerenciaPage';
 import { CentroDocumentalPage } from './pages/CentroDocumentalPage';
+import { TecnicoMantenimientoPage } from './pages/TecnicoMantenimientoPage';
 import { NoAutorizadoPage } from './pages/NoAutorizadoPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -89,7 +90,7 @@ function AppRoutes() {
       <Route
         path="/tesoreria"
         element={
-          <ProtectedRoute allowedRoles={['tesoreria']}>
+          <ProtectedRoute allowedRoles={['tesoreria', 'tes']}>
             <TesoreriaPage />
           </ProtectedRoute>
         }
@@ -99,12 +100,22 @@ function AppRoutes() {
       <Route
         path="/gerencia"
         element={
-          <ProtectedRoute allowedRoles={['Gerencia']}>
+          <ProtectedRoute allowedRoles={['gerencia', 'Gerencia']}>
             <GerenciaPage />
           </ProtectedRoute>
         }
       />
       
+      {/* Ruta técnico de mantenimiento */}
+      <Route
+        path="/tecnico-mantenimiento"
+        element={
+          <ProtectedRoute allowedRoles={['tecnico', 'Tecnico', 'mant']}>
+            <TecnicoMantenimientoPage />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Ruta centro documental (Directora Contabilidad) */}
       <Route
         path="/centro-documental"
@@ -121,15 +132,17 @@ function AppRoutes() {
         element={
           user ? (
             <Navigate
-              to={
-                user.role === 'admin' || user.role === 'fact' ? '/global' :
-                user.role === 'responsable' ? '/responsable' :
-                user.role === 'contabilidad' ? '/contabilidad' :
-                user.role === 'tesoreria' ? '/tesoreria' :
-                user.role === 'Gerencia' ? '/gerencia' :
-                user.role === 'direccion' ? '/centro-documental' :
-                '/no-autorizado'
-              }
+              to={(() => {
+                const r = user.role?.toLowerCase();
+                if (r === 'admin' || r === 'fact') return '/global';
+                if (r === 'responsable') return '/responsable';
+                if (r === 'contabilidad') return '/contabilidad';
+                if (r === 'tesoreria' || r === 'tes') return '/tesoreria';
+                if (r === 'gerencia') return '/gerencia';
+                if (r === 'tecnico' || r === 'mant') return '/tecnico-mantenimiento';
+                if (r === 'direccion') return '/centro-documental';
+                return '/no-autorizado';
+              })()}
               replace
             />
           ) : (

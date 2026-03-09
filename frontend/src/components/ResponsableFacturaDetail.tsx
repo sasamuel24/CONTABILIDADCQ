@@ -144,6 +144,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [distribuciones, setDistribuciones] = useState<DistribucionCCCO[]>([]);
   const [loadingDistribucion, setLoadingDistribucion] = useState(true);
   const [savingDistribucion, setSavingDistribucion] = useState(false);
+  const [distribRequerida, setDistribRequerida] = useState(true);
 
   // Estados para vista previa
   const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
@@ -1011,17 +1012,19 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       }
     }
 
-    // Validar Distribución CC/CO (OBLIGATORIO)
-    if (distribuciones.length === 0) {
-      nuevosErrores.distribucion = 'Debe guardar al menos una distribución de CC/CO';
-      console.log('❌ ERROR: No hay distribuciones guardadas');
-    } else {
-      // Validar que la suma de porcentajes sea 100%
-      const sumaPorcentajes = distribuciones.reduce((sum, d) => sum + d.porcentaje, 0);
-      console.log(`📊 Suma de porcentajes: ${sumaPorcentajes}%`);
-      if (Math.abs(sumaPorcentajes - 100) > 0.01) { // Tolerancia de 0.01 para decimales
-        nuevosErrores.distribucion = `La suma de porcentajes debe ser 100% (actualmente: ${sumaPorcentajes.toFixed(2)}%)`;
-        console.log(`❌ ERROR: Suma de porcentajes incorrecta: ${sumaPorcentajes}%`);
+    // Validar Distribución CC/CO (solo si está habilitada)
+    if (distribRequerida) {
+      if (distribuciones.length === 0) {
+        nuevosErrores.distribucion = 'Debe guardar al menos una distribución de CC/CO';
+        console.log('❌ ERROR: No hay distribuciones guardadas');
+      } else {
+        // Validar que la suma de porcentajes sea 100%
+        const sumaPorcentajes = distribuciones.reduce((sum, d) => sum + d.porcentaje, 0);
+        console.log(`📊 Suma de porcentajes: ${sumaPorcentajes}%`);
+        if (Math.abs(sumaPorcentajes - 100) > 0.01) { // Tolerancia de 0.01 para decimales
+          nuevosErrores.distribucion = `La suma de porcentajes debe ser 100% (actualmente: ${sumaPorcentajes.toFixed(2)}%)`;
+          console.log(`❌ ERROR: Suma de porcentajes incorrecta: ${sumaPorcentajes}%`);
+        }
       }
     }
 
@@ -1555,6 +1558,32 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
             {/* Distribución CC/CO */}
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+              {/* Toggle requerida */}
+              <div className="flex items-center justify-end mb-4">
+                <button
+                  onClick={() => setDistribRequerida(prev => !prev)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
+                  style={{
+                    backgroundColor: distribRequerida ? 'rgba(20,170,184,0.1)' : '#f3f4f6',
+                    color: distribRequerida ? '#00829a' : '#6b7280',
+                    border: `1px solid ${distribRequerida ? '#00829a' : '#d1d5db'}`,
+                    fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                  }}
+                  title={distribRequerida ? 'Deshabilitar distribución (no será requisito)' : 'Habilitar distribución (será requisito)'}
+                >
+                  <span
+                    className="inline-block w-8 h-4 rounded-full relative transition-colors"
+                    style={{ backgroundColor: distribRequerida ? '#00829a' : '#d1d5db' }}
+                  >
+                    <span
+                      className="absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all"
+                      style={{ left: distribRequerida ? '17px' : '2px' }}
+                    />
+                  </span>
+                  {distribRequerida ? 'Requerida' : 'No requerida'}
+                </button>
+              </div>
+
               {(loadingDistribucion || loadingCentros || loadingUnidades || loadingCuentas) ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
@@ -1570,6 +1599,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   cuentasAuxiliares={cuentasAuxiliares}
                   onSave={handleGuardarDistribucion}
                   saving={savingDistribucion}
+                  requerida={distribRequerida}
                 />
               )}
             </div>

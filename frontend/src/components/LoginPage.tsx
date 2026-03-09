@@ -37,7 +37,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       }
       
       // Redirigir según el rol del usuario
-      const userRole = user.role;
+      const userRole = user.role?.toLowerCase();
       
       if (userRole === 'admin' || userRole === 'fact') {
         navigate('/global');
@@ -47,6 +47,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         navigate('/contabilidad');
       } else if (userRole === 'tesoreria') {
         navigate('/tesoreria');
+      } else if (userRole === 'gerencia') {
+        navigate('/gerencia');
+      } else if (userRole === 'tecnico') {
+        navigate('/tecnico-mantenimiento');
       } else if (userRole === 'direccion') {
         navigate('/centro-documental');
       } else {

@@ -8,17 +8,21 @@ export function NoAutorizadoPage() {
 
   const handleGoHome = () => {
     // Redirigir según el rol del usuario
-    const userRole = user?.role;
+    const r = user?.role?.toLowerCase();
     
-    if (userRole === 'admin' || userRole === 'fact') {
+    if (r === 'admin' || r === 'fact') {
       navigate('/global');
-    } else if (userRole === 'responsable') {
+    } else if (r === 'responsable') {
       navigate('/responsable');
-    } else if (userRole === 'contabilidad') {
+    } else if (r === 'contabilidad') {
       navigate('/contabilidad');
-    } else if (userRole === 'tesoreria') {
+    } else if (r === 'tesoreria') {
       navigate('/tesoreria');
-    } else if (userRole === 'direccion') {
+    } else if (r === 'gerencia') {
+      navigate('/gerencia');
+    } else if (r === 'tecnico') {
+      navigate('/tecnico-mantenimiento');
+    } else if (r === 'direccion') {
       navigate('/centro-documental');
     } else {
       navigate('/login');

@@ -26,6 +26,7 @@ interface Props {
   cuentasAuxiliares: CuentaAuxiliar[];
   onSave: (distribuciones: Omit<DistribucionCCCO, 'id' | 'factura_id' | 'created_at' | 'updated_at'>[]) => Promise<void>;
   saving: boolean;
+  requerida?: boolean;
 }
 
 export function DistribucionCCCOTable({
@@ -36,7 +37,8 @@ export function DistribucionCCCOTable({
   unidadesNegocio,
   cuentasAuxiliares,
   onSave,
-  saving
+  saving,
+  requerida = true
 }: Props) {
   const [rows, setRows] = useState<DistribucionRow[]>([]);
   const [errores, setErrores] = useState<Record<string, string>>({});
@@ -176,19 +178,28 @@ export function DistribucionCCCOTable({
   const totalValido = Math.abs(totalPorcentaje - 100) < 0.01;
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${!requerida ? 'opacity-50 pointer-events-none select-none' : ''}`}>
       <div className="flex items-center justify-between">
         <h4 className="text-gray-900 font-semibold text-lg" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Distribución CC/CO</h4>
-        <span 
-          className="text-sm font-medium px-3 py-1 rounded-full"
-          style={{
-            backgroundColor: totalValido && totalPorcentaje > 0 ? 'rgba(20, 170, 184, 0.1)' : '#fef3c7',
-            color: totalValido && totalPorcentaje > 0 ? '#00829a' : '#92400e',
-            fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
-          }}
-        >
-          Total: {totalPorcentaje.toFixed(2)}%
-        </span>
+        {requerida ? (
+          <span
+            className="text-sm font-medium px-3 py-1 rounded-full"
+            style={{
+              backgroundColor: totalValido && totalPorcentaje > 0 ? 'rgba(20, 170, 184, 0.1)' : '#fef3c7',
+              color: totalValido && totalPorcentaje > 0 ? '#00829a' : '#92400e',
+              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+            }}
+          >
+            Total: {totalPorcentaje.toFixed(2)}%
+          </span>
+        ) : (
+          <span
+            className="text-sm font-medium px-3 py-1 rounded-full"
+            style={{ backgroundColor: '#f3f4f6', color: '#6b7280', fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+          >
+            No requerida
+          </span>
+        )}
       </div>
 
       <p className="text-sm text-gray-600" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>

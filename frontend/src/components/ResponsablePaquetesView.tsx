@@ -8,12 +8,13 @@ import {
   getPaqueteGasto,
   aprobarPaquete,
   devolverPaquete,
+  devolverGasto,
   pagarPaquete,
   enviarATesoreria,
   editarGasto,
   getDownloadUrlArchivoGasto,
-  subirAprobacionGerencia,
   getAprobacionGerenciaDownloadUrl,
+  reenviarCorreoAprobacion,
   getCentrosCosto,
   getCentrosOperacion,
   getCuentasAuxiliares,
@@ -46,6 +47,8 @@ import {
   Upload,
   Wallet,
   Send,
+  Mail,
+  RefreshCw,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -65,8 +68,9 @@ function fmtFecha(iso: string | null | undefined) {
 
 function formatSemanaLabel(semana: string | null | undefined) {
   if (!semana) return 'Sin semana';
-  const [anio, s] = semana.split('-S');
-  return `Semana ${s} — ${anio}`;
+  const match = semana.match(/^(\d{4})-W(\d+)$/);
+  if (!match) return semana;
+  return `Semana ${parseInt(match[2], 10)} — ${match[1]}`;
 }
 
 function formatRango(inicio: string, fin: string) {
@@ -111,10 +115,14 @@ function EstadoBadge({ estado }: { estado: EstadoPaquete }) {
 // ---------------------------------------------------------------------------
 
 function ModalDevolver({
+  titulo = 'Devolver paquete',
+  descripcion = 'Indica el motivo por el que se devuelve al técnico.',
   onConfirmar,
   onCancelar,
   loading,
 }: {
+  titulo?: string;
+  descripcion?: string;
   onConfirmar: (motivo: string) => void;
   onCancelar: () => void;
   loading: boolean;
@@ -127,13 +135,13 @@ function ModalDevolver({
           style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}
           className="text-lg font-bold text-gray-900 mb-1"
         >
-          Devolver paquete
+          {titulo}
         </h3>
         <p
           style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
           className="text-sm text-gray-500 mb-4"
         >
-          Indica el motivo por el que se devuelve al técnico.
+          {descripcion}
         </p>
         <textarea
           value={motivo}
@@ -185,10 +193,12 @@ function DetallePaqueteResponsable({
   paqueteId,
   onCerrar,
   onAccion,
+  soloDevueltos = false,
 }: {
   paqueteId: string;
   onCerrar: () => void;
   onAccion: () => void;
+  soloDevueltos?: boolean;
 }) {
   const [paquete, setPaquete] = useState<PaqueteOut | null>(null);
   const { user } = useAuth();
@@ -199,10 +209,14 @@ function DetallePaqueteResponsable({
   const [loadingAprobar, setLoadingAprobar] = useState(false);
   const [showDevolver, setShowDevolver] = useState(false);
   const [loadingDevolver, setLoadingDevolver] = useState(false);
+  const [showDevolverGastoId, setShowDevolverGastoId] = useState<string | null>(null);
+  const [loadingDevolverGasto, setLoadingDevolverGasto] = useState(false);
   const [savingAsignaciones, setSavingAsignaciones] = useState(false);
   const [uploadingAprobacion, setUploadingAprobacion] = useState(false);
   const [loadingPagar, setLoadingPagar] = useState(false);
   const [loadingEnviarTes, setLoadingEnviarTes] = useState(false);
+  const [loadingReenviarCorreo, setLoadingReenviarCorreo] = useState(false);
+  const [filtroGastos, setFiltroGastos] = useState<'todos' | 'devueltos'>(soloDevueltos ? 'devueltos' : 'todos');
 
   // Catálogos
   const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
@@ -325,6 +339,24 @@ function DetallePaqueteResponsable({
     }
   };
 
+  const handleDevolverGasto = async (motivo: string) => {
+    if (!paquete || !showDevolverGastoId) return;
+    setLoadingDevolverGasto(true);
+    try {
+      await devolverGasto(paquete.id, showDevolverGastoId, motivo);
+      toast.success('Gasto devuelto al técnico');
+      setShowDevolverGastoId(null);
+      // Recargar paquete
+      const updated = await getPaqueteGasto(paquete.id);
+      setPaquete(updated);
+    } catch (e: unknown) {
+      const msg = (e as { detail?: string })?.detail ?? 'Error al devolver el gasto';
+      toast.error(msg);
+    } finally {
+      setLoadingDevolverGasto(false);
+    }
+  };
+
   const handleEnviarTesoreria = async () => {
     if (!paquete) return;
     setLoadingEnviarTes(true);
@@ -350,19 +382,16 @@ function DetallePaqueteResponsable({
     }
   };
 
-  const handleSubirAprobacion = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !paquete) return;
-    setUploadingAprobacion(true);
+  const handleReenviarCorreo = async () => {
+    if (!paquete) return;
+    setLoadingReenviarCorreo(true);
     try {
-      const updated = await subirAprobacionGerencia(paquete.id, file);
-      setPaquete(updated);
-      toast.success('Aprobación de gerencia adjuntada correctamente');
+      await reenviarCorreoAprobacion(paquete.id);
+      toast.success('Correo de aprobación reenviado al Gerente Administrativo');
     } catch {
-      toast.error('Error al subir la aprobación de gerencia');
+      toast.error('Error al reenviar el correo de aprobación');
     } finally {
-      setUploadingAprobacion(false);
-      e.target.value = '';
+      setLoadingReenviarCorreo(false);
     }
   };
 
@@ -396,6 +425,11 @@ function DetallePaqueteResponsable({
 
   const puedeActuar = paquete.estado === 'en_revision' && esResponsable;
   const puedeEnviarTesoreria = paquete.estado === 'aprobado' && esFact;
+  const puedeDevolverComoFact = paquete.estado === 'aprobado' && esFact;
+
+  const gastosDevueltos = paquete.gastos.filter((g) => g.estado_gasto === 'devuelto');
+  const gastosVisibles = filtroGastos === 'devueltos' ? gastosDevueltos : paquete.gastos;
+  const hayDevueltos = gastosDevueltos.length > 0;
   // Cualquier rol puede subir documentos mientras está en revisión
   const puedeSubirDocs = paquete.estado === 'en_revision';
   const puedeEditarAsignaciones = paquete.estado === 'en_revision';
@@ -408,6 +442,15 @@ function DetallePaqueteResponsable({
           onConfirmar={handleDevolver}
           onCancelar={() => setShowDevolver(false)}
           loading={loadingDevolver}
+        />
+      )}
+      {showDevolverGastoId && (
+        <ModalDevolver
+          titulo="Devolver gasto individual"
+          descripcion="El gasto será devuelto al técnico para corrección. El resto del paquete no se ve afectado."
+          onConfirmar={handleDevolverGasto}
+          onCancelar={() => setShowDevolverGastoId(null)}
+          loading={loadingDevolverGasto}
         />
       )}
 
@@ -429,12 +472,22 @@ function DetallePaqueteResponsable({
         >
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
-              <p
-                style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#00829a' }}
-                className="text-lg font-bold"
-              >
-                {formatSemanaLabel(paquete.semana)}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p
+                  style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#00829a' }}
+                  className="text-lg font-bold"
+                >
+                  {formatSemanaLabel(paquete.semana)}
+                </p>
+                {paquete.folio && (
+                  <span
+                    className="text-xs font-mono px-2 py-0.5 rounded border"
+                    style={{ backgroundColor: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0', fontFamily: 'monospace' }}
+                  >
+                    {paquete.folio}
+                  </span>
+                )}
+              </div>
               <p
                 style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
                 className="text-sm text-gray-400 mt-0.5"
@@ -455,10 +508,27 @@ function DetallePaqueteResponsable({
             </div>
             <div className="flex items-center gap-2 text-gray-600">
               <Banknote className="w-4 h-4 text-gray-400" />
-              <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                <span className="text-gray-400">Total: </span>
-                <span className="font-semibold text-gray-700">{fmtMonto(paquete.monto_total)}</span>
-              </span>
+              {paquete.monto_a_pagar !== null && paquete.monto_a_pagar !== paquete.monto_total ? (
+                <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="flex flex-col gap-0.5">
+                  <span>
+                    <span className="text-gray-400">Total bruto: </span>
+                    <span className="line-through text-gray-400">{fmtMonto(paquete.monto_total)}</span>
+                  </span>
+                  <span>
+                    <span className="text-gray-400">Gastos devueltos: </span>
+                    <span className="font-semibold text-red-500">−{fmtMonto(paquete.monto_total - paquete.monto_a_pagar)}</span>
+                  </span>
+                  <span>
+                    <span className="text-gray-400">A pagar: </span>
+                    <span className="font-bold text-green-600">{fmtMonto(paquete.monto_a_pagar)}</span>
+                  </span>
+                </span>
+              ) : (
+                <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                  <span className="text-gray-400">Total: </span>
+                  <span className="font-semibold text-gray-700">{fmtMonto(paquete.monto_total)}</span>
+                </span>
+              )}
             </div>
             {paquete.fecha_envio && (
               <div className="flex items-center gap-2 text-gray-600">
@@ -478,11 +548,11 @@ function DetallePaqueteResponsable({
             </div>
           </div>
 
-          {/* Aprobación de gerencia */}
+          {/* Aprobación vía correo electrónico */}
           <div className="mt-5 pt-5 border-t border-gray-100">
-            <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-start justify-between flex-wrap gap-3">
               <div className="flex items-center gap-2">
-                <Paperclip className="w-4 h-4 text-gray-400" />
+                <Mail className="w-4 h-4 text-gray-400" />
                 <span
                   className="text-sm font-semibold text-gray-600"
                   style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
@@ -490,41 +560,44 @@ function DetallePaqueteResponsable({
                   Aprobación de Gerencia
                 </span>
               </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                {paquete.aprobacion_gerencia_filename ? (
-                  <>
-                    <button
-                      onClick={handleDescargarAprobacion}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
-                      style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      {paquete.aprobacion_gerencia_filename}
-                    </button>
-                    {puedeSubirDocs && (
-                      <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-colors"
-                        style={{ color: '#6b7280', borderColor: '#e5e7eb', backgroundColor: '#f9fafb', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-                      >
-                        {uploadingAprobacion ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                        Reemplazar
-                        <input type="file" accept=".pdf,image/*" className="hidden" onChange={handleSubirAprobacion} disabled={uploadingAprobacion} />
-                      </label>
-                    )}
-                  </>
-                ) : (
-                  puedeSubirDocs ? (
-                    <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-colors"
-                      style={{ color: '#b45309', borderColor: '#fcd34d', backgroundColor: '#fffbeb', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-                    >
-                      {uploadingAprobacion ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                      Adjuntar aprobación
-                      <input type="file" accept=".pdf,image/*" className="hidden" onChange={handleSubirAprobacion} disabled={uploadingAprobacion} />
-                    </label>
-                  ) : (
-                    <span className="text-xs text-gray-400" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>Sin adjunto</span>
-                  )
-                )}
-              </div>
+
+              {paquete.estado === 'en_revision' ? (
+                <div className="flex flex-col gap-2 items-end">
+                  {/* Info: correo enviado */}
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs border"
+                    style={{ backgroundColor: '#fffbeb', borderColor: '#fcd34d', color: '#92400e', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                  >
+                    <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>Se envió correo al <strong>Gerente Administrativo</strong> con el enlace de aprobación</span>
+                  </div>
+                  {/* Botón reenviar */}
+                  <button
+                    onClick={handleReenviarCorreo}
+                    disabled={loadingReenviarCorreo}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors hover:opacity-90 disabled:opacity-50"
+                    style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    {loadingReenviarCorreo
+                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      : <RefreshCw className="w-3.5 h-3.5" />}
+                    Reenviar correo
+                  </button>
+                </div>
+              ) : paquete.aprobacion_gerencia_filename ? (
+                <button
+                  onClick={handleDescargarAprobacion}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+                  style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {paquete.aprobacion_gerencia_filename}
+                </button>
+              ) : (
+                <span className="text-xs text-gray-400" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                  Aprobada vía correo electrónico
+                </span>
+              )}
             </div>
           </div>
 
@@ -563,20 +636,45 @@ function DetallePaqueteResponsable({
             </div>
           )}
 
-          {/* Botones de acción — Aprobado: enviar a Tesorería */}
+          {/* Botones de acción — Aprobado: enviar a Tesorería o devolver */}
           {puedeEnviarTesoreria && (
             <div className="flex gap-3 mt-6 pt-5 border-t border-gray-100 flex-wrap items-center">
               <div className="flex-1">
-                <p
-                  className="text-xs text-gray-500"
-                  style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
-                >
-                  El paquete fue aprobado. Envíalo a Tesorería para procesar el pago.
-                </p>
+                {hayDevueltos ? (
+                  <div
+                    className="rounded-lg px-3 py-2 text-xs border"
+                    style={{ backgroundColor: '#fffbeb', borderColor: '#fcd34d', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                  >
+                    <p className="font-semibold text-amber-700 mb-1">Resumen de pago</p>
+                    <p className="text-gray-600">
+                      Total bruto: <span className="line-through">{fmtMonto(paquete.monto_total)}</span>
+                    </p>
+                    <p className="text-red-600">
+                      Gastos devueltos: −{fmtMonto(gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0))}
+                      <span className="text-gray-400 ml-1">({gastosDevueltos.length} gasto{gastosDevueltos.length !== 1 ? 's' : ''})</span>
+                    </p>
+                    <p className="font-bold text-green-700 mt-0.5">
+                      A pagar a Tesorería: {fmtMonto(paquete.monto_total - gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0))}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                    El paquete fue aprobado. Envíalo a Tesorería o devuelve gastos con observaciones.
+                  </p>
+                )}
               </div>
               <button
+                onClick={() => setShowDevolver(true)}
+                disabled={loadingEnviarTes || loadingDevolver}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-colors"
+                style={{ color: '#ef4444', borderColor: '#fca5a5', backgroundColor: '#fef2f2', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+              >
+                <RotateCcw className="w-4 h-4" />
+                Devolver paquete
+              </button>
+              <button
                 onClick={handleEnviarTesoreria}
-                disabled={loadingEnviarTes}
+                disabled={loadingEnviarTes || loadingDevolver}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                 style={{ backgroundColor: '#1d4ed8', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
               >
@@ -628,30 +726,64 @@ function DetallePaqueteResponsable({
           className="bg-white rounded-2xl border p-6 mb-4"
           style={{ borderColor: '#e5e7eb', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
         >
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <p
               style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
               className="text-xs text-gray-400 uppercase tracking-wide"
             >
-              Detalle de gastos ({paquete.gastos.length})
+              Detalle de gastos ({gastosVisibles.length}{filtroGastos === 'devueltos' ? ` de ${paquete.gastos.length}` : ''})
             </p>
-            {puedeEditarAsignaciones && (
-              <p style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="text-xs text-gray-400">
-                Puedes asignar Centro Costo, Centro Operación y Cuenta Contable a cada gasto
-              </p>
-            )}
+            <div className="flex items-center gap-2">
+              {hayDevueltos && (
+                <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: '#e5e7eb' }}>
+                  <button
+                    onClick={() => setFiltroGastos('todos')}
+                    className="px-3 py-1 text-xs font-semibold transition-colors"
+                    style={{
+                      fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                      backgroundColor: filtroGastos === 'todos' ? '#00829a' : 'white',
+                      color: filtroGastos === 'todos' ? 'white' : '#6b7280',
+                    }}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    onClick={() => setFiltroGastos('devueltos')}
+                    className="px-3 py-1 text-xs font-semibold transition-colors flex items-center gap-1"
+                    style={{
+                      fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                      backgroundColor: filtroGastos === 'devueltos' ? '#ef4444' : 'white',
+                      color: filtroGastos === 'devueltos' ? 'white' : '#ef4444',
+                    }}
+                  >
+                    <AlertCircle className="w-3 h-3" />
+                    Solo devueltos ({gastosDevueltos.length})
+                  </button>
+                </div>
+              )}
+              {puedeEditarAsignaciones && (
+                <p style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="text-xs text-gray-400">
+                  Puedes asignar CC / CO / Cuenta Contable
+                </p>
+              )}
+            </div>
           </div>
 
-          {paquete.gastos.length === 0 ? (
+          {gastosVisibles.length === 0 ? (
             <p style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="text-sm text-gray-400 text-center py-4">
               Sin gastos registrados
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs" style={{ minWidth: 1100 }}>
+              <table className="w-full text-xs" style={{ minWidth: puedeDevolverComoFact ? 1200 : 1100 }}>
                 <thead>
                   <tr style={{ backgroundColor: '#00829a' }}>
-                    {['Fecha', 'Pagado a', 'Concepto', 'No. Recibo', 'Centro Costo', 'Centro Operación', 'Cuenta Contable', 'Valor', 'Soporte'].map((h) => (
+                    {[
+                      'Fecha', 'Pagado a', 'Concepto', 'No. Recibo',
+                      'Centro Costo', 'Centro Operación', 'Cuenta Contable',
+                      'Valor', 'Soporte',
+                      ...(puedeDevolverComoFact ? ['Acción'] : []),
+                    ].map((h) => (
                       <th
                         key={h}
                         className="px-2 py-2.5 text-left font-semibold text-white whitespace-nowrap"
@@ -663,7 +795,7 @@ function DetallePaqueteResponsable({
                   </tr>
                 </thead>
                 <tbody>
-                  {paquete.gastos.map((g, idx) => {
+                  {gastosVisibles.map((g, idx) => {
                     const asig = asignaciones[g.id] ?? { centroCostoId: '', centroOperacionId: '', cuentaAuxiliarId: '', dirty: false };
                     const coFiltrados = centrosOperacion.filter(
                       (c) => !asig.centroCostoId || c.centro_costo_id === asig.centroCostoId
@@ -774,6 +906,28 @@ function DetallePaqueteResponsable({
                             <span className="text-xs text-gray-300">—</span>
                           )}
                         </td>
+                        {puedeDevolverComoFact && (
+                          <td className="px-2 py-2">
+                            {g.estado_gasto === 'devuelto' ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold"
+                                style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}
+                              >
+                                <AlertCircle className="w-3 h-3" />
+                                Devuelto
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => setShowDevolverGastoId(g.id)}
+                                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border transition-colors hover:bg-red-50 whitespace-nowrap"
+                                style={{ color: '#ef4444', borderColor: '#fca5a5', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                Devolver
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -781,13 +935,26 @@ function DetallePaqueteResponsable({
                 <tfoot>
                   <tr className="border-t-2 border-gray-200">
                     <td colSpan={7} className="py-3 px-2 text-xs font-semibold text-gray-500" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
-                      Total
+                      {filtroGastos === 'devueltos' ? 'Total devueltos' : 'Total'}
                     </td>
-                    <td className="py-3 px-2 font-bold text-sm" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#00829a' }}>
-                      {fmtMonto(paquete.monto_total)}
+                    <td className="py-3 px-2 font-bold text-sm" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: filtroGastos === 'devueltos' ? '#ef4444' : '#00829a' }}>
+                      {fmtMonto(gastosVisibles.reduce((s, g) => s + g.valor_pagado, 0))}
                     </td>
                     <td />
+                    {puedeDevolverComoFact && <td />}
                   </tr>
+                  {filtroGastos === 'devueltos' && paquete.monto_total > gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0) && (
+                    <tr>
+                      <td colSpan={7} className="py-2 px-2 text-xs font-semibold text-green-700" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                        Monto a pagar (sin devueltos)
+                      </td>
+                      <td className="py-2 px-2 font-bold text-sm text-green-700" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
+                        {fmtMonto(paquete.monto_total - gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0))}
+                      </td>
+                      <td />
+                      {puedeDevolverComoFact && <td />}
+                    </tr>
+                  )}
                 </tfoot>
               </table>
             </div>
@@ -857,6 +1024,7 @@ export function ResponsablePaquetesView({
 
   const [vista, setVista] = useState<Vista>('lista');
   const [paqueteActivo, setPaqueteActivo] = useState<string | null>(null);
+  const [abrioDesdeDevueltos, setAbrioDesdeDevueltos] = useState(false);
   const [paquetes, setPaquetes] = useState<PaqueteListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState<Filtro>('en_revision');
@@ -880,6 +1048,7 @@ export function ResponsablePaquetesView({
   const irALista = () => {
     setVista('lista');
     setPaqueteActivo(null);
+    setAbrioDesdeDevueltos(false);
     onVistaChange?.('lista');
   };
 
@@ -892,9 +1061,16 @@ export function ResponsablePaquetesView({
   const paquetesFiltrados =
     filtro === 'todos'
       ? paquetesEnviados
-      : paquetesEnviados.filter((p) => p.estado === (filtro === 'en_revision' ? estadoRevision : filtro));
+      : filtro === 'devuelto'
+        ? paquetesEnviados.filter(
+            (p) => p.estado === 'devuelto' || p.tiene_gastos_devueltos
+          )
+        : paquetesEnviados.filter((p) => p.estado === (filtro === 'en_revision' ? estadoRevision : filtro));
 
   const pendientes = paquetes.filter((p) => p.estado === estadoRevision).length;
+  const devueltosCount = paquetes.filter(
+    (p) => p.estado !== 'borrador' && (p.estado === 'devuelto' || p.tiene_gastos_devueltos)
+  ).length;
 
   const FILTROS: { value: Filtro; label: string }[] = [
     { value: 'en_revision',  label: 'En revisión' },
@@ -909,9 +1085,8 @@ export function ResponsablePaquetesView({
       <DetallePaqueteResponsable
         paqueteId={paqueteActivo}
         onCerrar={irALista}
-        onAccion={() => {
-          irALista();
-        }}
+        onAccion={irALista}
+        soloDevueltos={abrioDesdeDevueltos}
       />
     );
   }
@@ -937,9 +1112,17 @@ export function ResponsablePaquetesView({
             {f.value === 'en_revision' && pendientes > 0 && (
               <span
                 className="w-4 h-4 rounded-full flex items-center justify-center text-xs"
-                style={{ backgroundColor: filtro === 'en_revision' ? 'rgba(255,255,255,0.3)' : '#f59e0b', color: filtro === 'en_revision' ? 'white' : 'white' }}
+                style={{ backgroundColor: filtro === 'en_revision' ? 'rgba(255,255,255,0.3)' : '#f59e0b', color: 'white' }}
               >
                 {pendientes}
+              </span>
+            )}
+            {f.value === 'devuelto' && devueltosCount > 0 && (
+              <span
+                className="w-4 h-4 rounded-full flex items-center justify-center text-xs"
+                style={{ backgroundColor: filtro === 'devuelto' ? 'rgba(255,255,255,0.3)' : '#ef4444', color: 'white' }}
+              >
+                {devueltosCount}
               </span>
             )}
           </button>
@@ -967,18 +1150,42 @@ export function ResponsablePaquetesView({
           {paquetesFiltrados.map((p) => (
             <button
               key={p.id}
-              onClick={() => { setPaqueteActivo(p.id); setVista('detalle'); onVistaChange?.('detalle'); }}
+              onClick={() => {
+                setPaqueteActivo(p.id);
+                setVista('detalle');
+                setAbrioDesdeDevueltos(filtro === 'devuelto' && p.tiene_gastos_devueltos);
+                onVistaChange?.('detalle');
+              }}
               className="w-full text-left bg-white rounded-xl border transition-all p-5 hover:shadow-md"
               style={{ borderColor: '#e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
             >
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div>
-                  <p
-                    style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#00829a' }}
-                    className="text-sm font-bold"
-                  >
-                    {formatSemanaLabel(p.semana)}
-                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p
+                      style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#00829a' }}
+                      className="text-sm font-bold"
+                    >
+                      {formatSemanaLabel(p.semana)}
+                    </p>
+                    {p.folio && (
+                      <span
+                        className="text-xs font-mono px-1.5 py-0.5 rounded border"
+                        style={{ backgroundColor: '#f0fdf4', color: '#15803d', borderColor: '#bbf7d0' }}
+                      >
+                        {p.folio}
+                      </span>
+                    )}
+                    {p.tiene_gastos_devueltos && (
+                      <span
+                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold"
+                        style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}
+                      >
+                        <AlertCircle className="w-3 h-3" />
+                        Gastos devueltos
+                      </span>
+                    )}
+                  </div>
                   <p
                     style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
                     className="text-xs text-gray-400 mt-0.5"

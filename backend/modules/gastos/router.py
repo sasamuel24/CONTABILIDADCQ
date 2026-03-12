@@ -1,5 +1,5 @@
 """Router FastAPI para el módulo de gastos / legalización de técnicos."""
-from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, status, HTTPException
+from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, status, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -13,7 +13,7 @@ from modules.gastos.service import GastosService
 from modules.gastos.schemas import (
     PaqueteCreate, PaqueteOut, PaqueteListResponse,
     GastoCreate, GastoUpdate, GastoOut,
-    ArchivoGastoOut, PaqueteDevolver,
+    ArchivoGastoOut, PaqueteDevolver, GastoDevolverRequest,
 )
 
 router = APIRouter(tags=["Gastos"])
@@ -88,6 +88,25 @@ async def crear_paquete(
 
 
 @router.get(
+    "/gastos/paquetes/aprobar-por-token",
+    response_model=PaqueteOut,
+    summary="Aprobar paquete mediante token de email (público, sin JWT)",
+)
+async def aprobar_por_token_endpoint(
+    token: str = Query(..., description="Token de aprobación recibido por email"),
+    request: Request = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Endpoint público (no requiere JWT).
+    Aprueba un paquete de gastos usando el token enviado por email al aprobador.
+    """
+    svc = GastosService(db)
+    ip = request.client.host if request.client else "unknown"
+    return await svc.aprobar_por_token(token, ip)
+
+
+@router.get(
     "/gastos/paquetes/{paquete_id}",
     response_model=PaqueteOut,
     summary="Detalle de un paquete",
@@ -117,6 +136,23 @@ async def enviar_paquete(
     user: User = Depends(_get_user_db),
 ):
     return await svc.enviar(paquete_id, user.id)
+
+
+@router.post(
+    "/gastos/paquetes/{paquete_id}/reenviar-correo-aprobacion",
+    summary="Reenviar correo de solicitud de aprobación (admin/responsable)",
+)
+async def reenviar_correo_aprobacion(
+    paquete_id: UUID,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    """Genera un nuevo token y reenvía el correo de aprobación al aprobador."""
+    role = user.role.code.lower() if user.role else ""
+    area = user.area.code.lower() if user.area else ""
+    if role not in {"admin", "responsable", "fact"} and area not in {"admin", "responsable", "mant", "fact"}:
+        raise HTTPException(status_code=403, detail="No tienes permisos para reenviar el correo de aprobación.")
+    return await svc.reenviar_correo_aprobacion(paquete_id, user.id)
 
 
 @router.post(
@@ -166,8 +202,8 @@ async def devolver_paquete(
 ):
     role = user.role.code.lower() if user.role else ""
     area = user.area.code.lower() if user.area else ""
-    if role not in {"admin", "responsable"} and area not in {"admin", "responsable", "mant"}:
-        raise HTTPException(status_code=403, detail="Solo el Responsable de Mantenimiento puede devolver paquetes.")
+    if role not in {"admin", "responsable", "fact"} and area not in {"admin", "responsable", "mant", "fact"}:
+        raise HTTPException(status_code=403, detail="Solo el Responsable de Mantenimiento o Facturación puede devolver paquetes.")
     return await svc.devolver(paquete_id, user.id, data)
 
 
@@ -287,6 +323,53 @@ async def download_archivo(
     role = user.role.code.lower() if user.role else ""
     url = await svc.get_download_url(paquete_id, gasto_id, archivo_id, user.id, role)
     return {"download_url": url}
+
+
+# =============================================================================
+# DEVOLUCIÓN INDIVIDUAL DE GASTO (Fase 3)
+# =============================================================================
+
+@router.post(
+    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/devolver",
+    response_model=GastoOut,
+    summary="Devolver un gasto individual con motivo (fact/admin)",
+)
+async def devolver_gasto_individual(
+    paquete_id: UUID,
+    gasto_id: UUID,
+    data: GastoDevolverRequest,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    """
+    Facturación o Admin devuelve un gasto individual al técnico con un motivo.
+    No cambia el estado del paquete completo.
+    """
+    role = user.role.code.lower() if user.role else ""
+    if role not in {"admin", "fact"}:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo Facturación o Admin puede devolver gastos individuales."
+        )
+    return await svc.devolver_gasto_individual(paquete_id, gasto_id, user.id, data.motivo)
+
+
+@router.post(
+    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/reenviar",
+    response_model=GastoOut,
+    summary="Reenviar un gasto devuelto (técnico propietario)",
+)
+async def reenviar_gasto_individual(
+    paquete_id: UUID,
+    gasto_id: UUID,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    """
+    El técnico propietario reenvía un gasto que fue devuelto por Facturación.
+    Limpia el motivo de devolución y regresa el gasto a estado 'pendiente'.
+    """
+    return await svc.reenviar_gasto_individual(paquete_id, gasto_id, user.id)
 
 
 # =============================================================================

@@ -1292,6 +1292,8 @@ export interface GastoOut {
   valor_pagado: number;
   orden: number;
   archivos: ArchivoGastoOut[];
+  estado_gasto: string;
+  motivo_devolucion_gasto?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1320,10 +1322,12 @@ export interface PaqueteOut {
   fecha_fin: string;
   estado: EstadoPaquete;
   monto_total: number;
+  monto_a_pagar: number | null;
   total_documentos: number;
   fecha_envio: string | null;
   fecha_aprobacion: string | null;
   fecha_pago: string | null;
+  folio?: string | null;
   tecnico: { id: string; nombre: string; email: string };
   area: { id: string; nombre: string };
   revisado_por: { id: string; nombre: string; email: string } | null;
@@ -1346,6 +1350,8 @@ export interface PaqueteListItem {
   total_documentos: number;
   fecha_envio: string | null;
   comentario_devolucion: string | null;
+  tiene_gastos_devueltos: boolean;
+  folio?: string | null;
   tecnico: { id: string; nombre: string; email: string } | null;
   created_at: string;
   updated_at: string;
@@ -1534,4 +1540,54 @@ export async function getAprobacionGerenciaDownloadUrl(
   return fetchAPI<{ download_url: string }>(
     `/gastos/paquetes/${paqueteId}/aprobacion/download`
   );
+}
+
+/** Reenviar correo de solicitud de aprobación al aprobador */
+export async function reenviarCorreoAprobacion(
+  paqueteId: string
+): Promise<{ message: string }> {
+  return fetchAPI<{ message: string }>(
+    `/gastos/paquetes/${paqueteId}/reenviar-correo-aprobacion`,
+    { method: 'POST' }
+  );
+}
+
+// --- Devolución individual de gasto (Fase 3) ---------------------------------
+
+/** Facturación devuelve un gasto individual con motivo */
+export async function devolverGasto(
+  paqueteId: string,
+  gastoId: string,
+  motivo: string
+): Promise<GastoOut> {
+  return fetchAPI<GastoOut>(
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/devolver`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ motivo }),
+    }
+  );
+}
+
+/** Técnico reenvía un gasto devuelto después de corregirlo */
+export async function reenviarGasto(
+  paqueteId: string,
+  gastoId: string
+): Promise<GastoOut> {
+  return fetchAPI<GastoOut>(
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/reenviar`,
+    { method: 'POST' }
+  );
+}
+
+/** Aprobar paquete por token (endpoint público, no requiere auth) */
+export async function aprobarPaquetePorToken(token: string): Promise<PaqueteOut> {
+  const API_BASE_URL_PUBLIC = (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
+    'https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1/api/v1';
+  const resp = await fetch(`${API_BASE_URL_PUBLIC}/gastos/paquetes/aprobar-por-token?token=${encodeURIComponent(token)}`);
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: 'Error desconocido' }));
+    throw new Error(err.detail || `Error ${resp.status}`);
+  }
+  return resp.json();
 }

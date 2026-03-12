@@ -23,3 +23,6 @@ boto3==1.42.19
 
 # Utilities
 python-dotenv==1.0.1
+
+# HTTP client (Microsoft Graph API para emails)
+httpx==0.28.1

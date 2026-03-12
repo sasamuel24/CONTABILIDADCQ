@@ -10,12 +10,22 @@ import { CentroDocumentalPage } from './pages/CentroDocumentalPage';
 import { TecnicoMantenimientoPage } from './pages/TecnicoMantenimientoPage';
 import { NoAutorizadoPage } from './pages/NoAutorizadoPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import { AprobarPaquetePage } from './pages/AprobarPaquetePage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Toaster } from './components/ui/sonner';
 
 function AppRoutes() {
   const { user, loading } = useAuth();
   const currentPath = window.location.pathname;
+
+  // Si estamos en /aprobar-paquete, renderizar directamente sin auth
+  if (currentPath === '/aprobar-paquete') {
+    return (
+      <Routes>
+        <Route path="/aprobar-paquete" element={<AprobarPaquetePage />} />
+      </Routes>
+    );
+  }
 
   // Si estamos en /change-password, renderizar directamente sin esperar
   if (currentPath === '/change-password') {
@@ -52,6 +62,9 @@ function AppRoutes() {
       
       {/* Ruta de cambio de contraseña obligatorio */}
       <Route path="/change-password" element={<ChangePasswordPage />} />
+
+      {/* Ruta pública de aprobación por token */}
+      <Route path="/aprobar-paquete" element={<AprobarPaquetePage />} />
       
       {/* Ruta de acceso no autorizado */}
       <Route path="/no-autorizado" element={<NoAutorizadoPage />} />

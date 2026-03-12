@@ -106,10 +106,16 @@ class GastoOut(BaseModel):
     cuenta_auxiliar: Optional[CuentaAuxiliarBrief]
     valor_pagado: Decimal
     orden: int
+    estado_gasto: str = "pendiente"
+    motivo_devolucion_gasto: Optional[str] = None
     archivos: List[ArchivoGastoOut] = []
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}
+
+
+class GastoDevolverRequest(BaseModel):
+    motivo: str
 
 
 # ---------------------------------------------------------------------------
@@ -157,11 +163,13 @@ class PaqueteDevolver(BaseModel):
 
 class PaqueteOut(BaseModel):
     id: UUID
+    folio: Optional[str] = None
     semana: str
     fecha_inicio: date
     fecha_fin: date
     estado: str
     monto_total: Decimal
+    monto_a_pagar: Optional[Decimal] = None
     total_documentos: int
     fecha_envio: Optional[datetime]
     fecha_aprobacion: Optional[datetime]
@@ -181,6 +189,7 @@ class PaqueteOut(BaseModel):
 
 class PaqueteListItem(BaseModel):
     id: UUID
+    folio: Optional[str] = None
     semana: str
     fecha_inicio: date
     fecha_fin: date
@@ -189,6 +198,7 @@ class PaqueteListItem(BaseModel):
     total_documentos: int
     fecha_envio: Optional[datetime]
     comentario_devolucion: Optional[str] = None
+    tiene_gastos_devueltos: bool = False
     tecnico: Optional[UserBrief] = None
     created_at: datetime
     updated_at: datetime

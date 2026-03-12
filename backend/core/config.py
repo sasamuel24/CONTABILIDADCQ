@@ -39,7 +39,15 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = ""
     aws_region: str = "us-east-2"
     s3_bucket: str = "bucket-facturas-contabilidad-cq2026"
-    
+
+    # Azure AD / Microsoft Graph — Email
+    azure_tenant_id: str = ""
+    azure_client_id: str = ""
+    azure_client_secret: str = ""
+    email_from: str = ""
+    email_approver: str = ""
+    frontend_url: str = "http://localhost:3000"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

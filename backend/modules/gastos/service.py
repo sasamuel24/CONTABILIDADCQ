@@ -1,21 +1,24 @@
 """Lógica de negocio para el módulo de gastos / legalización."""
 import io
+import secrets
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.exc import IntegrityError
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, List
 from db.models import (
     PaqueteGasto, GastoLegalizacion, ArchivoGasto,
-    ComentarioPaquete, HistorialEstadoPaquete
+    ComentarioPaquete, HistorialEstadoPaquete, TokenAprobacionPaquete
 )
 from core.s3_service import s3_service
 from core.logging import logger
+from core.config import settings
+from core.email_service import email_service
 from modules.gastos.repository import (
     PaqueteRepository, GastoRepository, ArchivoGastoRepository,
     ComentarioPaqueteRepository, HistorialRepository
 )
+from modules.gastos.token_repository import TokenAprobacionRepository
 from modules.gastos.schemas import (
     PaqueteCreate, GastoCreate, GastoUpdate, PaqueteDevolver,
     PaqueteOut, PaqueteListItem, GastoOut, ArchivoGastoOut, ComentarioPaqueteOut
@@ -58,6 +61,7 @@ class GastosService:
         self.archivo_repo = ArchivoGastoRepository(db)
         self.comentario_repo = ComentarioPaqueteRepository(db)
         self.historial_repo = HistorialRepository(db)
+        self.token_repo = TokenAprobacionRepository(db)
 
     # ------------------------------------------------------------------
     # Paquetes
@@ -65,6 +69,13 @@ class GastosService:
 
     async def crear_paquete(self, user_id: UUID, area_id: UUID, data: PaqueteCreate) -> PaqueteOut:
         fecha_inicio, fecha_fin = _parse_semana(data.semana)
+
+        # Generar folio automático: PKG-{AÑO}-{N:05d}
+        year_str, _ = data.semana.split('-W')
+        year = int(year_str)
+        count = await self.paquete_repo.count_paquetes_by_year(year)
+        folio = f"PKG-{year}-{count + 1:05d}"
+
         paquete = PaqueteGasto(
             user_id=user_id,
             area_id=area_id,
@@ -72,6 +83,7 @@ class GastosService:
             fecha_inicio=fecha_inicio,
             fecha_fin=fecha_fin,
             estado="borrador",
+            folio=folio,
         )
         try:
             await self.paquete_repo.create(paquete)
@@ -82,11 +94,12 @@ class GastosService:
                 estado_nuevo="borrador",
             ))
             await self.db.commit()
-        except IntegrityError:
+        except Exception as e:
             await self.db.rollback()
+            logger.error(f"Error al crear paquete: {e}")
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Ya existe un paquete para la semana {data.semana}. Solo puedes tener un paquete por semana.",
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error al crear el paquete de gastos.",
             )
         paquete = await self.paquete_repo.get_by_id(paquete.id)
         return PaqueteOut.model_validate(paquete)
@@ -127,8 +140,46 @@ class GastosService:
             paquete_id=paquete.id, user_id=user_id,
             estado_anterior=anterior, estado_nuevo="en_revision",
         ))
+
+        # Generar token de aprobación (válido 72 horas)
+        token_str = secrets.token_urlsafe(48)
+        expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=72)
+        token_obj = TokenAprobacionPaquete(
+            paquete_id=paquete.id,
+            token=token_str,
+            usado=False,
+            expires_at=expires_at,
+        )
+        await self.token_repo.create(token_obj)
         await self.db.commit()
-        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+
+        # Enviar email (no bloquea si falla)
+        paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
+        await email_service.enviar_solicitud_aprobacion(paquete_actualizado, token_str)
+
+        return self._to_out(paquete_actualizado)
+
+    async def reenviar_correo_aprobacion(self, paquete_id: UUID, user_id: UUID) -> dict:
+        """Genera un nuevo token y reenvía el correo de solicitud de aprobación."""
+        paquete = await self._get_paquete_or_404(paquete_id)
+        if paquete.estado != "en_revision":
+            raise HTTPException(status_code=400, detail="Solo se puede reenviar el correo cuando el paquete está en revisión.")
+
+        token_str = secrets.token_urlsafe(48)
+        expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=72)
+        token_obj = TokenAprobacionPaquete(
+            paquete_id=paquete.id,
+            token=token_str,
+            usado=False,
+            expires_at=expires_at,
+        )
+        await self.token_repo.create(token_obj)
+        await self.db.commit()
+
+        paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
+        await email_service.enviar_solicitud_aprobacion(paquete_actualizado, token_str)
+        logger.info(f"Correo de aprobación reenviado para paquete {paquete_id} por usuario {user_id}")
+        return {"message": "Correo de aprobación reenviado correctamente."}
 
     async def aprobar(self, paquete_id: UUID, user_id: UUID) -> PaqueteOut:
         paquete = await self._get_paquete_or_404(paquete_id)
@@ -174,11 +225,28 @@ class GastosService:
         if paquete.estado != "aprobado":
             raise HTTPException(status_code=400, detail="Solo paquetes aprobados pueden enviarse a tesorería.")
 
+        # Calcular monto a pagar excluyendo gastos devueltos
+        monto_a_pagar = sum(
+            float(g.valor_pagado) for g in paquete.gastos
+            if getattr(g, "estado_gasto", None) != "devuelto"
+        )
+        devueltos = [g for g in paquete.gastos if getattr(g, "estado_gasto", None) == "devuelto"]
+        monto_devuelto = float(paquete.monto_total) - monto_a_pagar
+
         paquete.estado = "en_tesoreria"
+        paquete.monto_a_pagar = monto_a_pagar
         await self.paquete_repo.save(paquete)
+
+        texto_comentario = "Paquete enviado a Tesorería para procesamiento de pago."
+        if devueltos:
+            nombres = ", ".join(f"{g.pagado_a} (${float(g.valor_pagado):,.0f})" for g in devueltos)
+            texto_comentario += (
+                f" Monto a pagar: ${monto_a_pagar:,.2f} COP"
+                f" (se descontaron ${monto_devuelto:,.2f} COP de gastos devueltos: {nombres})."
+            )
         await self.comentario_repo.create(ComentarioPaquete(
             paquete_id=paquete.id, user_id=user_id,
-            texto="Paquete enviado a Tesorería para procesamiento de pago.", tipo="envio_tesoreria",
+            texto=texto_comentario, tipo="envio_tesoreria",
         ))
         await self.historial_repo.create(HistorialEstadoPaquete(
             paquete_id=paquete.id, user_id=user_id,
@@ -416,6 +484,165 @@ class GastosService:
         return s3_service.presign_get_url(paquete.aprobacion_gerencia_s3_key)
 
     # ------------------------------------------------------------------
+    # Aprobación por token (Fase 2)
+    # ------------------------------------------------------------------
+
+    async def aprobar_por_token(self, token_str: str, ip: str) -> PaqueteOut:
+        """Aprueba un paquete usando el token de aprobación enviado por email."""
+        try:
+            token_obj = await self.token_repo.get_by_token(token_str)
+            if not token_obj:
+                raise HTTPException(status_code=404, detail="Token de aprobación no válido.")
+
+            if token_obj.usado:
+                raise HTTPException(status_code=400, detail="Este token ya fue utilizado.")
+
+            now_utc = datetime.now(tz=timezone.utc)
+            # expires_at puede ser naive o aware; normalizamos
+            expires_at = token_obj.expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if now_utc > expires_at:
+                raise HTTPException(status_code=400, detail="El token de aprobación ha expirado.")
+
+            # Marcar token como usado
+            token_obj.usado = True
+            token_obj.usado_at = now_utc
+            token_obj.usado_por_ip = ip
+            await self.db.flush()
+
+            # Cambiar paquete a aprobado
+            paquete = await self._get_paquete_or_404(token_obj.paquete_id)
+            if paquete.estado != "en_revision":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El paquete está en estado '{paquete.estado}' y no puede aprobarse por este medio."
+                )
+
+            paquete.estado = "aprobado"
+            paquete.fecha_aprobacion = now_utc
+            await self.paquete_repo.save(paquete)
+            await self.comentario_repo.create(ComentarioPaquete(
+                paquete_id=paquete.id,
+                user_id=None,
+                texto="Paquete aprobado vía enlace de email. Pendiente de envío a Tesorería por Facturación.",
+                tipo="aprobacion",
+            ))
+            await self.historial_repo.create(HistorialEstadoPaquete(
+                paquete_id=paquete.id,
+                user_id=None,
+                estado_anterior="en_revision",
+                estado_nuevo="aprobado",
+            ))
+            await self.db.commit()
+
+            # Notificar a Facturación
+            paquete_final = await self.paquete_repo.get_by_id(paquete.id)
+            await email_service.enviar_notificacion_aprobado(paquete_final, settings.email_approver)
+
+            return self._to_out(paquete_final)
+        except HTTPException:
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error al aprobar paquete por token: {e}")
+            raise HTTPException(status_code=500, detail="Error interno al procesar la aprobación.")
+
+    # ------------------------------------------------------------------
+    # Devolución individual de gasto (Fase 3)
+    # ------------------------------------------------------------------
+
+    async def devolver_gasto_individual(
+        self, paquete_id: UUID, gasto_id: UUID, user_id: UUID, motivo: str
+    ) -> GastoOut:
+        """Facturación/Admin devuelve un gasto individual con un motivo."""
+        try:
+            paquete = await self._get_paquete_or_404(paquete_id)
+            gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
+
+            if gasto.estado_gasto == "devuelto":
+                raise HTTPException(status_code=400, detail="Este gasto ya fue devuelto.")
+
+            gasto.estado_gasto = "devuelto"
+            gasto.motivo_devolucion_gasto = motivo
+            gasto.devuelto_por_user_id = user_id
+            gasto.fecha_devolucion_gasto = datetime.now(tz=timezone.utc)
+            await self.gasto_repo.save(gasto)
+
+            # Crear comentario de devolución en el paquete
+            await self.comentario_repo.create(ComentarioPaquete(
+                paquete_id=paquete_id,
+                user_id=user_id,
+                texto=f"Gasto devuelto ({gasto.pagado_a} - ${float(gasto.valor_pagado):,.2f}): {motivo}",
+                tipo="devolucion_gasto",
+            ))
+            await self.db.commit()
+
+            gasto = await self.gasto_repo.get_by_id(gasto_id)
+            return GastoOut.model_validate(gasto)
+        except HTTPException:
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error al devolver gasto individual: {e}")
+            raise HTTPException(status_code=500, detail="Error interno al devolver el gasto.")
+
+    async def reenviar_gasto_individual(
+        self, paquete_id: UUID, gasto_id: UUID, user_id: UUID
+    ) -> GastoOut:
+        """El técnico propietario reenvía un gasto que fue devuelto."""
+        try:
+            paquete = await self._get_paquete_or_404(paquete_id)
+
+            if paquete.user_id != user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Solo el técnico propietario puede reenviar un gasto devuelto."
+                )
+
+            gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
+
+            if gasto.estado_gasto != "devuelto":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El gasto no está devuelto (estado actual: '{gasto.estado_gasto}')."
+                )
+
+            gasto.estado_gasto = "pendiente"
+            gasto.motivo_devolucion_gasto = None
+            gasto.devuelto_por_user_id = None
+            gasto.fecha_devolucion_gasto = None
+            await self.gasto_repo.save(gasto)
+
+            # Verificar si quedan otros gastos devueltos en el paquete
+            gastos_aun_devueltos = [
+                g for g in paquete.gastos
+                if g.id != gasto_id and getattr(g, "estado_gasto", None) == "devuelto"
+            ]
+            if not gastos_aun_devueltos:
+                # Todos los gastos devueltos han sido corregidos — notificar a Facturación
+                await self.comentario_repo.create(ComentarioPaquete(
+                    paquete_id=paquete.id,
+                    user_id=user_id,
+                    texto=(
+                        "Todos los gastos devueltos han sido corregidos por el técnico. "
+                        "El paquete está listo para ser enviado a Tesorería."
+                    ),
+                    tipo="aprobacion",
+                ))
+
+            await self.db.commit()
+
+            gasto = await self.gasto_repo.get_by_id(gasto_id)
+            return GastoOut.model_validate(gasto)
+        except HTTPException:
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error al reenviar gasto individual: {e}")
+            raise HTTPException(status_code=500, detail="Error interno al reenviar el gasto.")
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
@@ -463,6 +690,10 @@ class GastosService:
             if c.tipo == "devolucion":
                 comentario_devolucion = c.texto
                 break
+        tiene_gastos_devueltos = any(
+            getattr(g, "estado_gasto", None) == "devuelto" for g in paquete.gastos
+        )
         item = PaqueteListItem.model_validate(paquete)
         item.comentario_devolucion = comentario_devolucion
+        item.tiene_gastos_devueltos = tiene_gastos_devueltos
         return item

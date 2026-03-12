@@ -1034,6 +1034,7 @@ class PaqueteGasto(Base, TimestampMixin):
         String(20), nullable=False, default="borrador", index=True
     )
     monto_total: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    monto_a_pagar: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     total_documentos: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
     fecha_envio: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
@@ -1074,13 +1075,20 @@ class PaqueteGasto(Base, TimestampMixin):
         "HistorialEstadoPaquete", back_populates="paquete",
         cascade="all, delete-orphan", lazy="selectin"
     )
+    tokens_aprobacion: Mapped[List["TokenAprobacionPaquete"]] = relationship(
+        "TokenAprobacionPaquete", back_populates="paquete",
+        cascade="all, delete-orphan", lazy="selectin"
+    )
+
+    folio: Mapped[Optional[str]] = mapped_column(
+        String(30), nullable=True, unique=True, index=True
+    )
 
     __table_args__ = (
         CheckConstraint(
             "estado IN ('borrador','en_revision','devuelto','aprobado','en_tesoreria','pagado')",
             name="check_estado_paquete_valid"
         ),
-        UniqueConstraint("user_id", "semana", name="uq_paquete_user_semana"),
     )
 
     def __repr__(self):
@@ -1122,6 +1130,20 @@ class GastoLegalizacion(Base, TimestampMixin):
     valor_pagado: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     orden: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
 
+    # Campos para devolución individual (Fase 3)
+    estado_gasto: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pendiente", server_default="pendiente"
+    )
+    motivo_devolucion_gasto: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    devuelto_por_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    fecha_devolucion_gasto: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+
     # Relaciones
     paquete: Mapped["PaqueteGasto"] = relationship(
         "PaqueteGasto", back_populates="gastos", lazy="selectin"
@@ -1129,6 +1151,7 @@ class GastoLegalizacion(Base, TimestampMixin):
     centro_costo: Mapped[Optional["CentroCosto"]] = relationship("CentroCosto", lazy="selectin")
     centro_operacion: Mapped[Optional["CentroOperacion"]] = relationship("CentroOperacion", lazy="selectin")
     cuenta_auxiliar: Mapped[Optional["CuentaAuxiliar"]] = relationship("CuentaAuxiliar", lazy="selectin")
+    devuelto_por: Mapped[Optional["User"]] = relationship("User", foreign_keys=[devuelto_por_user_id], lazy="selectin")
     archivos: Mapped[List["ArchivoGasto"]] = relationship(
         "ArchivoGasto", back_populates="gasto",
         cascade="all, delete-orphan", lazy="selectin"
@@ -1136,6 +1159,10 @@ class GastoLegalizacion(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint("valor_pagado > 0", name="check_valor_gasto_positivo"),
+        CheckConstraint(
+            "estado_gasto IN ('pendiente','devuelto','aceptado')",
+            name="check_estado_gasto_valid"
+        ),
     )
 
     def __repr__(self):
@@ -1219,7 +1246,7 @@ class ComentarioPaquete(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "tipo IN ('observacion','devolucion','aprobacion','pago','envio_tesoreria')",
+            "tipo IN ('observacion','devolucion','aprobacion','pago','envio_tesoreria','devolucion_gasto')",
             name="check_tipo_comentario_paquete_valid"
         ),
     )
@@ -1259,3 +1286,34 @@ class HistorialEstadoPaquete(Base):
 
     def __repr__(self):
         return f"<HistorialEstadoPaquete(paquete={self.paquete_id}, {self.estado_anterior}→{self.estado_nuevo})>"
+
+
+class TokenAprobacionPaquete(Base, TimestampMixin):
+    """Token de un solo uso para aprobación de paquete vía email."""
+    __tablename__ = "tokens_aprobacion_paquetes"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    paquete_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("paquetes_gastos.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    usado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    usado_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    usado_por_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+
+    # Relaciones
+    paquete: Mapped["PaqueteGasto"] = relationship(
+        "PaqueteGasto", back_populates="tokens_aprobacion", lazy="selectin"
+    )
+
+    def __repr__(self):
+        return f"<TokenAprobacionPaquete(paquete={self.paquete_id}, usado={self.usado})>"

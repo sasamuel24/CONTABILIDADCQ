@@ -1,6 +1,6 @@
 """Repositorio para operaciones de base de datos del módulo gastos."""
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, update, delete
+from sqlalchemy import select, func, update, delete, extract
 from sqlalchemy.orm import selectinload
 from typing import Optional, List, Tuple
 from uuid import UUID
@@ -8,7 +8,7 @@ from datetime import datetime
 
 from db.models import (
     PaqueteGasto, GastoLegalizacion, ArchivoGasto,
-    ComentarioPaquete, HistorialEstadoPaquete
+    ComentarioPaquete, HistorialEstadoPaquete, TokenAprobacionPaquete
 )
 
 
@@ -94,6 +94,15 @@ class PaqueteRepository:
         await self.db.flush()
         await self.db.refresh(paquete)
         return paquete
+
+    async def count_paquetes_by_year(self, year: int) -> int:
+        """Cuenta paquetes cuyo folio corresponde al año dado para generar el siguiente número."""
+        result = await self.db.execute(
+            select(func.count(PaqueteGasto.id)).where(
+                PaqueteGasto.folio.like(f"PKG-{year}-%")
+            )
+        )
+        return result.scalar() or 0
 
     async def recalculate_totals(self, paquete_id: UUID) -> None:
         """Actualiza monto_total y total_documentos sumando los gastos."""

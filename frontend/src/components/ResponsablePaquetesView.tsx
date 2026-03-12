@@ -601,37 +601,17 @@ function DetallePaqueteResponsable({
             </div>
           </div>
 
-          {/* Botones de acción — En revisión */}
-          {puedeActuar && (
-            <div className="flex gap-3 mt-6 pt-5 border-t border-gray-100 flex-wrap">
-              {hayAsignacionesDirty && (
-                <button
-                  onClick={handleGuardarAsignaciones}
-                  disabled={savingAsignaciones}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-50 border"
-                  style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-                >
-                  {savingAsignaciones ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Guardar asignaciones
-                </button>
-              )}
+          {/* Botones de acción — En revisión: solo guardar asignaciones si hay cambios */}
+          {puedeActuar && hayAsignacionesDirty && (
+            <div className="flex gap-3 mt-6 pt-5 border-t border-gray-100">
               <button
-                onClick={handleAprobar}
-                disabled={loadingAprobar || savingAsignaciones}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: '#16a34a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                onClick={handleGuardarAsignaciones}
+                disabled={savingAsignaciones}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-50 border"
+                style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
               >
-                {loadingAprobar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                Aprobar
-              </button>
-              <button
-                onClick={() => setShowDevolver(true)}
-                disabled={loadingAprobar || savingAsignaciones}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors border"
-                style={{ color: '#ef4444', borderColor: '#fca5a5', backgroundColor: '#fef2f2', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-              >
-                <RotateCcw className="w-4 h-4" />
-                Devolver
+                {savingAsignaciones ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Guardar asignaciones
               </button>
             </div>
           )}
@@ -663,15 +643,6 @@ function DetallePaqueteResponsable({
                   </p>
                 )}
               </div>
-              <button
-                onClick={() => setShowDevolver(true)}
-                disabled={loadingEnviarTes || loadingDevolver}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold border transition-colors"
-                style={{ color: '#ef4444', borderColor: '#fca5a5', backgroundColor: '#fef2f2', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-              >
-                <RotateCcw className="w-4 h-4" />
-                Devolver paquete
-              </button>
               <button
                 onClick={handleEnviarTesoreria}
                 disabled={loadingEnviarTes || loadingDevolver}

@@ -18,29 +18,14 @@ function AppRoutes() {
   const { user, loading } = useAuth();
   const currentPath = window.location.pathname;
 
-  // Si estamos en /aprobar-paquete, renderizar directamente sin auth
-  if (currentPath === '/aprobar-paquete') {
-    return (
-      <Routes>
-        <Route path="/aprobar-paquete" element={<AprobarPaquetePage />} />
-      </Routes>
-    );
-  }
+  // Rutas públicas que no necesitan auth ni loading
+  const isPublicPath = currentPath === '/aprobar-paquete' || currentPath === '/change-password';
 
-  // Si estamos en /change-password, renderizar directamente sin esperar
-  if (currentPath === '/change-password') {
-    return (
-      <Routes>
-        <Route path="/change-password" element={<ChangePasswordPage />} />
-      </Routes>
-    );
-  }
-
-  if (loading) {
+  if (loading && !isPublicPath) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-4">
-          <div 
+          <div
             className="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin"
             style={{ borderColor: '#14aab8', borderTopColor: 'transparent' }}
           />
@@ -50,122 +35,98 @@ function AppRoutes() {
     );
   }
 
-  // Redirigir a cambio de contraseña si es obligatorio
-  if (user && user.must_change_password && currentPath !== '/change-password' && currentPath !== '/login') {
-    return <Navigate to="/change-password" replace />;
-  }
+  const roleRedirect = () => {
+    const r = user?.role?.toLowerCase();
+    if (r === 'admin' || r === 'fact') return '/global';
+    if (r === 'responsable') return '/responsable';
+    if (r === 'contabilidad') return '/contabilidad';
+    if (r === 'tesoreria' || r === 'tes') return '/tesoreria';
+    if (r === 'gerencia') return '/gerencia';
+    if (r === 'tecnico' || r === 'mant') return '/tecnico-mantenimiento';
+    if (r === 'direccion') return '/centro-documental';
+    return '/no-autorizado';
+  };
 
   return (
     <Routes>
-      {/* Ruta de login */}
+      {/* Rutas públicas — siempre accesibles */}
       <Route path="/login" element={<LoginPage onLogin={() => {}} />} />
-      
-      {/* Ruta de cambio de contraseña obligatorio */}
       <Route path="/change-password" element={<ChangePasswordPage />} />
-
-      {/* Ruta pública de aprobación por token */}
       <Route path="/aprobar-paquete" element={<AprobarPaquetePage />} />
-      
-      {/* Ruta de acceso no autorizado */}
       <Route path="/no-autorizado" element={<NoAutorizadoPage />} />
-      
-      {/* Ruta global (para admin y facturación) */}
-      <Route
-        path="/global"
-        element={
-          <ProtectedRoute allowedRoles={['admin', 'fact']}>
-            <GlobalPage />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Ruta responsable */}
-      <Route
-        path="/responsable"
-        element={
-          <ProtectedRoute allowedRoles={['responsable']}>
-            <ResponsablePage />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Ruta contabilidad */}
-      <Route
-        path="/contabilidad"
-        element={
-          <ProtectedRoute allowedRoles={['contabilidad']}>
-            <ContabilidadPage />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Ruta tesorería */}
-      <Route
-        path="/tesoreria"
-        element={
-          <ProtectedRoute allowedRoles={['tesoreria', 'tes']}>
-            <TesoreriaPage />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Ruta gerencia financiera (auditor de pagos) */}
-      <Route
-        path="/gerencia"
-        element={
-          <ProtectedRoute allowedRoles={['gerencia', 'Gerencia']}>
-            <GerenciaPage />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Ruta técnico de mantenimiento */}
-      <Route
-        path="/tecnico-mantenimiento"
-        element={
-          <ProtectedRoute allowedRoles={['tecnico', 'Tecnico', 'mant']}>
-            <TecnicoMantenimientoPage />
-          </ProtectedRoute>
-        }
-      />
 
-      {/* Ruta centro documental (Directora Contabilidad) */}
-      <Route
-        path="/centro-documental"
-        element={
-          <ProtectedRoute allowedRoles={['direccion']}>
-            <CentroDocumentalPage />
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Redirección raíz: redirigir según rol del usuario */}
-      <Route
-        path="/"
-        element={
-          user ? (
-            <Navigate
-              to={(() => {
-                const r = user.role?.toLowerCase();
-                if (r === 'admin' || r === 'fact') return '/global';
-                if (r === 'responsable') return '/responsable';
-                if (r === 'contabilidad') return '/contabilidad';
-                if (r === 'tesoreria' || r === 'tes') return '/tesoreria';
-                if (r === 'gerencia') return '/gerencia';
-                if (r === 'tecnico' || r === 'mant') return '/tecnico-mantenimiento';
-                if (r === 'direccion') return '/centro-documental';
-                return '/no-autorizado';
-              })()}
-              replace
-            />
-          ) : (
-            <Navigate to="/login" replace />
-          )
-        }
-      />
-      
-      {/* Catch all: redirigir a no autorizado */}
-      <Route path="*" element={<Navigate to="/no-autorizado" replace />} />
+      {/* Redirigir a change-password si es obligatorio */}
+      {user && user.must_change_password ? (
+        <Route path="*" element={<Navigate to="/change-password" replace />} />
+      ) : (
+        <>
+          <Route
+            path="/global"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'fact']}>
+                <GlobalPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/responsable"
+            element={
+              <ProtectedRoute allowedRoles={['responsable']}>
+                <ResponsablePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/contabilidad"
+            element={
+              <ProtectedRoute allowedRoles={['contabilidad']}>
+                <ContabilidadPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tesoreria"
+            element={
+              <ProtectedRoute allowedRoles={['tesoreria', 'tes']}>
+                <TesoreriaPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/gerencia"
+            element={
+              <ProtectedRoute allowedRoles={['gerencia', 'Gerencia']}>
+                <GerenciaPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tecnico-mantenimiento"
+            element={
+              <ProtectedRoute allowedRoles={['tecnico', 'Tecnico', 'mant']}>
+                <TecnicoMantenimientoPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/centro-documental"
+            element={
+              <ProtectedRoute allowedRoles={['direccion']}>
+                <CentroDocumentalPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/"
+            element={
+              user
+                ? <Navigate to={roleRedirect()} replace />
+                : <Navigate to="/login" replace />
+            }
+          />
+          <Route path="*" element={<Navigate to={user ? roleRedirect() : '/login'} replace />} />
+        </>
+      )}
     </Routes>
   );
 }

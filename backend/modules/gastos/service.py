@@ -102,6 +102,7 @@ class GastosService:
                 detail="Error al crear el paquete de gastos.",
             )
         paquete = await self.paquete_repo.get_by_id(paquete.id)
+        await email_service.enviar_confirmacion_creacion_paquete(paquete, paquete.tecnico.email)
         return PaqueteOut.model_validate(paquete)
 
     async def get_paquete(self, paquete_id: UUID, user_id: UUID, user_role: str, user_area: str = "") -> PaqueteOut:
@@ -141,21 +142,13 @@ class GastosService:
             estado_anterior=anterior, estado_nuevo="en_revision",
         ))
 
-        # Generar token de aprobación (válido 72 horas)
-        token_str = secrets.token_urlsafe(48)
-        expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=72)
-        token_obj = TokenAprobacionPaquete(
-            paquete_id=paquete.id,
-            token=token_str,
-            usado=False,
-            expires_at=expires_at,
-        )
-        await self.token_repo.create(token_obj)
         await self.db.commit()
 
-        # Enviar email (no bloquea si falla)
+        # Notificar al responsable para que revise — él decidirá cuándo enviar el link al gerente
         paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
-        await email_service.enviar_solicitud_aprobacion(paquete_actualizado, token_str)
+        await email_service.enviar_notificacion_nuevo_paquete_responsable(
+            paquete_actualizado, settings.email_responsable
+        )
 
         return self._to_out(paquete_actualizado)
 
@@ -199,7 +192,10 @@ class GastosService:
             estado_anterior="en_revision", estado_nuevo="aprobado",
         ))
         await self.db.commit()
-        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+        paquete_aprobado = await self.paquete_repo.get_by_id(paquete_id)
+        await email_service.enviar_notificacion_aprobado(paquete_aprobado, settings.email_approver)
+        await email_service.enviar_notificacion_paquete_aprobado_tecnico(paquete_aprobado, paquete_aprobado.tecnico.email)
+        return self._to_out(paquete_aprobado)
 
     async def devolver(self, paquete_id: UUID, user_id: UUID, data: PaqueteDevolver) -> PaqueteOut:
         paquete = await self._get_paquete_or_404(paquete_id)
@@ -272,7 +268,9 @@ class GastosService:
             estado_anterior="en_tesoreria", estado_nuevo="pagado",
         ))
         await self.db.commit()
-        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+        paquete_pagado = await self.paquete_repo.get_by_id(paquete_id)
+        await email_service.enviar_notificacion_pago_tecnico(paquete_pagado, paquete_pagado.tecnico.email)
+        return self._to_out(paquete_pagado)
 
     # ------------------------------------------------------------------
     # Gastos
@@ -536,9 +534,10 @@ class GastosService:
             ))
             await self.db.commit()
 
-            # Notificar a Facturación
+            # Notificar a Facturación y al técnico
             paquete_final = await self.paquete_repo.get_by_id(paquete.id)
             await email_service.enviar_notificacion_aprobado(paquete_final, settings.email_approver)
+            await email_service.enviar_notificacion_paquete_aprobado_tecnico(paquete_final, paquete_final.tecnico.email)
 
             return self._to_out(paquete_final)
         except HTTPException:

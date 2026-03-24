@@ -165,4 +165,348 @@ class EmailService:
             # No propagamos el error para no bloquear el workflow principal
 
 
+    async def enviar_notificacion_nuevo_paquete_responsable(self, paquete, email_responsable: str) -> None:
+        """
+        Avisa al Responsable de Mantenimiento que un técnico envió un paquete para revisión.
+        NO incluye link de aprobación — el responsable primero revisa en el sistema
+        y luego decide si envía el correo de aprobación al gerente.
+        """
+        try:
+            folio = getattr(paquete, "folio", None) or str(paquete.id)[:8]
+            nombre_tecnico = paquete.tecnico.nombre if paquete.tecnico else "Técnico"
+            semana = paquete.semana
+            fecha_inicio = paquete.fecha_inicio.strftime("%d/%m/%Y")
+            fecha_fin = paquete.fecha_fin.strftime("%d/%m/%Y")
+            monto_total = float(paquete.monto_total)
+            total_gastos = len(paquete.gastos)
+            frontend_url = settings.frontend_url
+
+            filas_gastos = ""
+            for g in paquete.gastos:
+                filas_gastos += (
+                    f"<tr>"
+                    f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.fecha.strftime('%d/%m/%Y')}</td>"
+                    f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.pagado_a}</td>"
+                    f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.concepto}</td>"
+                    f"<td style='padding:6px 10px;border:1px solid #ddd;text-align:right'>"
+                    f"${float(g.valor_pagado):,.2f}</td>"
+                    f"</tr>"
+                )
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:640px;margin:0 auto">
+            <div style="background:#1a3c6e;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">Paquete de Gastos Pendiente de Revisión</h2>
+              <p style="color:#cce0ff;margin:4px 0 0">Sistema de Legalización de Gastos</p>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>El técnico <strong>{nombre_tecnico}</strong> ha enviado un paquete de gastos
+                 para su revisión.</p>
+              <table style="border-collapse:collapse;margin:16px 0;width:100%">
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold;width:160px">Folio:</td>
+                  <td style="padding:8px 14px">{folio}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Técnico:</td>
+                  <td style="padding:8px 14px">{nombre_tecnico}</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Semana:</td>
+                  <td style="padding:8px 14px">{semana} &nbsp;({fecha_inicio} – {fecha_fin})</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">N° de gastos:</td>
+                  <td style="padding:8px 14px">{total_gastos} ítem(s)</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Monto Total:</td>
+                  <td style="padding:8px 14px;font-size:1.1em;font-weight:bold;color:#1a3c6e">
+                    ${monto_total:,.2f} COP
+                  </td>
+                </tr>
+              </table>
+
+              <h4 style="color:#1a3c6e;margin-bottom:6px">Detalle de Gastos</h4>
+              <table style="border-collapse:collapse;width:100%;margin-bottom:20px;font-size:0.9em">
+                <thead>
+                  <tr style="background:#1a3c6e;color:#fff">
+                    <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Fecha</th>
+                    <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Pagado a</th>
+                    <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Concepto</th>
+                    <th style="padding:8px 10px;border:1px solid #ddd;text-align:right">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>{filas_gastos}</tbody>
+              </table>
+
+              <p>Ingrese al sistema para revisar el paquete y, si todo está correcto,
+                 envíe el correo de aprobación al Gerente desde el botón
+                 <em>"Enviar correo de aprobación"</em>.</p>
+              <p>
+                <a href="{frontend_url}"
+                   style="background:#1a3c6e;color:#fff;padding:10px 22px;border-radius:4px;
+                          text-decoration:none;font-weight:bold;display:inline-block">
+                  Revisar Paquete en el Sistema
+                </a>
+              </p>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">
+                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+              </p>
+            </div>
+            </body></html>
+            """
+
+            subject = f"Paquete Pendiente de Revisión - {folio} - {nombre_tecnico}"
+            await self._send_mail(subject, body_html, email_responsable)
+            logger.info(f"Email de aviso enviado al responsable para paquete {folio}")
+        except Exception as e:
+            logger.error(f"Error al enviar email de aviso al responsable: {e}")
+
+    async def enviar_confirmacion_creacion_paquete(self, paquete, email_tecnico: str) -> None:
+        """
+        Envía confirmación al técnico cuando crea un nuevo paquete de gastos.
+        """
+        try:
+            folio = getattr(paquete, "folio", None) or str(paquete.id)[:8]
+            nombre_tecnico = paquete.tecnico.nombre if paquete.tecnico else "Técnico"
+            semana = paquete.semana
+            fecha_inicio = paquete.fecha_inicio.strftime("%d/%m/%Y")
+            fecha_fin = paquete.fecha_fin.strftime("%d/%m/%Y")
+            frontend_url = settings.frontend_url
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto">
+            <div style="background:#1a3c6e;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">Nuevo Paquete Creado</h2>
+              <p style="color:#cce0ff;margin:4px 0 0">Sistema de Legalización de Gastos</p>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>Hola <strong>{nombre_tecnico}</strong>,</p>
+              <p>Tu paquete de gastos ha sido creado exitosamente y está en estado <strong>Borrador</strong>.
+                 Recuerda agregar tus gastos y enviarlo para revisión.</p>
+              <table style="border-collapse:collapse;margin:16px 0;width:100%">
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold;width:140px">Folio:</td>
+                  <td style="padding:8px 14px">{folio}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Semana:</td>
+                  <td style="padding:8px 14px">{semana} &nbsp;({fecha_inicio} – {fecha_fin})</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Estado:</td>
+                  <td style="padding:8px 14px">
+                    <span style="background:#e8f0fe;color:#1a3c6e;padding:2px 10px;border-radius:12px;font-size:0.9em">
+                      Borrador
+                    </span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin-top:20px">
+                <a href="{frontend_url}"
+                   style="background:#1a3c6e;color:#fff;padding:10px 22px;border-radius:4px;
+                          text-decoration:none;font-weight:bold;display:inline-block">
+                  Ir al Sistema
+                </a>
+              </p>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">
+                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+              </p>
+            </div>
+            </body></html>
+            """
+
+            subject = f"Paquete Creado - {folio} - Semana {semana}"
+            await self._send_mail(subject, body_html, email_tecnico)
+            logger.info(f"Email de confirmación de creación enviado al técnico para paquete {folio}")
+        except Exception as e:
+            logger.error(f"Error al enviar email de confirmación de creación: {e}")
+
+    async def enviar_notificacion_paquete_aprobado_tecnico(self, paquete, email_tecnico: str) -> None:
+        """
+        Notifica al técnico que su paquete fue aprobado y está en proceso de pago.
+        """
+        try:
+            folio = getattr(paquete, "folio", None) or str(paquete.id)[:8]
+            nombre_tecnico = paquete.tecnico.nombre if paquete.tecnico else "Técnico"
+            semana = paquete.semana
+            fecha_inicio = paquete.fecha_inicio.strftime("%d/%m/%Y")
+            fecha_fin = paquete.fecha_fin.strftime("%d/%m/%Y")
+            monto_total = float(paquete.monto_total)
+            frontend_url = settings.frontend_url
+
+            filas_gastos = ""
+            for g in paquete.gastos:
+                estado_color = "#e8f5e9" if getattr(g, "estado_gasto", "pendiente") != "devuelto" else "#fdecea"
+                filas_gastos += (
+                    f"<tr style='background:{estado_color}'>"
+                    f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.fecha.strftime('%d/%m/%Y')}</td>"
+                    f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.pagado_a}</td>"
+                    f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.concepto}</td>"
+                    f"<td style='padding:6px 10px;border:1px solid #ddd;text-align:right'>"
+                    f"${float(g.valor_pagado):,.2f}</td>"
+                    f"</tr>"
+                )
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:640px;margin:0 auto">
+            <div style="background:#1a6e3c;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">&#10003; ¡Tu Paquete fue Aprobado!</h2>
+              <p style="color:#c8f7dc;margin:4px 0 0">Sistema de Legalización de Gastos</p>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>Hola <strong>{nombre_tecnico}</strong>,</p>
+              <p>Tu paquete de gastos ha sido <strong>aprobado</strong> y está en proceso de pago por Tesorería.</p>
+              <table style="border-collapse:collapse;margin:16px 0;width:100%">
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold;width:140px">Folio:</td>
+                  <td style="padding:8px 14px">{folio}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Semana:</td>
+                  <td style="padding:8px 14px">{semana} &nbsp;({fecha_inicio} – {fecha_fin})</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Monto Total:</td>
+                  <td style="padding:8px 14px;font-size:1.1em;font-weight:bold;color:#1a6e3c">
+                    ${monto_total:,.2f} COP
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Estado:</td>
+                  <td style="padding:8px 14px">
+                    <span style="background:#e8f5e9;color:#1a6e3c;padding:2px 10px;border-radius:12px;font-size:0.9em">
+                      Aprobado
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <h4 style="color:#1a3c6e;margin-bottom:6px">Detalle de Gastos</h4>
+              <table style="border-collapse:collapse;width:100%;margin-bottom:20px;font-size:0.9em">
+                <thead>
+                  <tr style="background:#1a3c6e;color:#fff">
+                    <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Fecha</th>
+                    <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Pagado a</th>
+                    <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Concepto</th>
+                    <th style="padding:8px 10px;border:1px solid #ddd;text-align:right">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>{filas_gastos}</tbody>
+              </table>
+
+              <p>Pronto recibirás una notificación cuando el pago sea procesado.</p>
+              <p>
+                <a href="{frontend_url}"
+                   style="background:#1a6e3c;color:#fff;padding:10px 22px;border-radius:4px;
+                          text-decoration:none;font-weight:bold;display:inline-block">
+                  Ver Estado del Paquete
+                </a>
+              </p>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">
+                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+              </p>
+            </div>
+            </body></html>
+            """
+
+            subject = f"¡Paquete Aprobado! - {folio} - Semana {semana}"
+            await self._send_mail(subject, body_html, email_tecnico)
+            logger.info(f"Email de aprobación enviado al técnico para paquete {folio}")
+        except Exception as e:
+            logger.error(f"Error al enviar email de aprobación al técnico: {e}")
+
+    async def enviar_notificacion_pago_tecnico(self, paquete, email_tecnico: str) -> None:
+        """
+        Notifica al técnico que su paquete fue pagado y legalizado por Tesorería.
+        """
+        try:
+            folio = getattr(paquete, "folio", None) or str(paquete.id)[:8]
+            nombre_tecnico = paquete.tecnico.nombre if paquete.tecnico else "Técnico"
+            semana = paquete.semana
+            fecha_inicio = paquete.fecha_inicio.strftime("%d/%m/%Y")
+            fecha_fin = paquete.fecha_fin.strftime("%d/%m/%Y")
+            monto_a_pagar = float(paquete.monto_a_pagar or paquete.monto_total)
+            monto_total = float(paquete.monto_total)
+            fecha_pago = paquete.fecha_pago.strftime("%d/%m/%Y %H:%M") if paquete.fecha_pago else "—"
+            frontend_url = settings.frontend_url
+
+            hay_descuento = monto_a_pagar < monto_total
+            fila_descuento = ""
+            if hay_descuento:
+                descuento = monto_total - monto_a_pagar
+                fila_descuento = f"""
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Descuento por devoluciones:</td>
+                  <td style="padding:8px 14px;color:#c0392b">-${descuento:,.2f} COP</td>
+                </tr>"""
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto">
+            <div style="background:#0d47a1;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">&#9989; Pago Procesado</h2>
+              <p style="color:#bbdefb;margin:4px 0 0">Sistema de Legalización de Gastos</p>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>Hola <strong>{nombre_tecnico}</strong>,</p>
+              <p>Tu paquete de gastos ha sido <strong>pagado y legalizado</strong> por Tesorería.</p>
+              <table style="border-collapse:collapse;margin:16px 0;width:100%">
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold;width:200px">Folio:</td>
+                  <td style="padding:8px 14px">{folio}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Semana:</td>
+                  <td style="padding:8px 14px">{semana} &nbsp;({fecha_inicio} – {fecha_fin})</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Monto Total del Paquete:</td>
+                  <td style="padding:8px 14px">${monto_total:,.2f} COP</td>
+                </tr>
+                {fila_descuento}
+                <tr style="background:#e3f2fd">
+                  <td style="padding:8px 14px;font-weight:bold">Monto Pagado:</td>
+                  <td style="padding:8px 14px;font-size:1.15em;font-weight:bold;color:#0d47a1">
+                    ${monto_a_pagar:,.2f} COP
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Fecha de Pago:</td>
+                  <td style="padding:8px 14px">{fecha_pago}</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Estado:</td>
+                  <td style="padding:8px 14px">
+                    <span style="background:#e8f5e9;color:#1a6e3c;padding:2px 10px;border-radius:12px;font-size:0.9em">
+                      Pagado / Legalizado
+                    </span>
+                  </td>
+                </tr>
+              </table>
+              <p>
+                <a href="{frontend_url}"
+                   style="background:#0d47a1;color:#fff;padding:10px 22px;border-radius:4px;
+                          text-decoration:none;font-weight:bold;display:inline-block">
+                  Ver Comprobante
+                </a>
+              </p>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">
+                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+              </p>
+            </div>
+            </body></html>
+            """
+
+            subject = f"Pago Procesado - {folio} - Semana {semana}"
+            await self._send_mail(subject, body_html, email_tecnico)
+            logger.info(f"Email de pago enviado al técnico para paquete {folio}")
+        except Exception as e:
+            logger.error(f"Error al enviar email de pago al técnico: {e}")
+
+
 email_service = EmailService()

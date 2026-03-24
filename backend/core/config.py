@@ -45,7 +45,8 @@ class Settings(BaseSettings):
     azure_client_id: str = ""
     azure_client_secret: str = ""
     email_from: str = ""
-    email_approver: str = ""
+    email_responsable: str = ""   # Responsable de Mantenimiento — recibe aviso cuando técnico envía
+    email_approver: str = ""      # Gerente — recibe el link de aprobación cuando responsable lo decide
     frontend_url: str = "http://localhost:3000"
 
     model_config = SettingsConfigDict(

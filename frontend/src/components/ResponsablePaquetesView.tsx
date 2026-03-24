@@ -216,6 +216,7 @@ function DetallePaqueteResponsable({
   const [loadingPagar, setLoadingPagar] = useState(false);
   const [loadingEnviarTes, setLoadingEnviarTes] = useState(false);
   const [loadingReenviarCorreo, setLoadingReenviarCorreo] = useState(false);
+  const [correoGerEnviado, setCorreoGerEnviado] = useState(false);
   const [filtroGastos, setFiltroGastos] = useState<'todos' | 'devueltos'>(soloDevueltos ? 'devueltos' : 'todos');
 
   // Catálogos
@@ -387,9 +388,10 @@ function DetallePaqueteResponsable({
     setLoadingReenviarCorreo(true);
     try {
       await reenviarCorreoAprobacion(paquete.id);
-      toast.success('Correo de aprobación reenviado al Gerente Administrativo');
+      setCorreoGerEnviado(true);
+      toast.success('Correo de aprobación enviado al Gerente Administrativo');
     } catch {
-      toast.error('Error al reenviar el correo de aprobación');
+      toast.error('Error al enviar el correo de aprobación');
     } finally {
       setLoadingReenviarCorreo(false);
     }
@@ -563,25 +565,32 @@ function DetallePaqueteResponsable({
 
               {paquete.estado === 'en_revision' ? (
                 <div className="flex flex-col gap-2 items-end">
-                  {/* Info: correo enviado */}
-                  <div
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs border"
-                    style={{ backgroundColor: '#fffbeb', borderColor: '#fcd34d', color: '#92400e', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
-                  >
-                    <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>Se envió correo al <strong>Gerente Administrativo</strong> con el enlace de aprobación</span>
-                  </div>
-                  {/* Botón reenviar */}
+                  {correoGerEnviado && (
+                    <div
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs border"
+                      style={{ backgroundColor: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>Correo enviado al <strong>Gerente Administrativo</strong></span>
+                    </div>
+                  )}
                   <button
                     onClick={handleReenviarCorreo}
                     disabled={loadingReenviarCorreo}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors hover:opacity-90 disabled:opacity-50"
-                    style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-colors hover:opacity-90 disabled:opacity-50"
+                    style={{
+                      color: correoGerEnviado ? '#00829a' : '#fff',
+                      borderColor: correoGerEnviado ? '#b2e0e8' : '#1a3c6e',
+                      backgroundColor: correoGerEnviado ? '#e0f5f7' : '#1a3c6e',
+                      fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                    }}
                   >
                     {loadingReenviarCorreo
                       ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      : <RefreshCw className="w-3.5 h-3.5" />}
-                    Reenviar correo
+                      : correoGerEnviado
+                        ? <RefreshCw className="w-3.5 h-3.5" />
+                        : <Send className="w-3.5 h-3.5" />}
+                    {correoGerEnviado ? 'Reenviar correo' : 'Enviar correo al Gerente Administrativo'}
                   </button>
                 </div>
               ) : paquete.aprobacion_gerencia_filename ? (

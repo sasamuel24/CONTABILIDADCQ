@@ -428,3 +428,100 @@ async def download_aprobacion_gerencia(
     role = user.role.code.lower() if user.role else ""
     url = await svc.get_aprobacion_gerencia_download_url(paquete_id, user.id, role)
     return {"download_url": url}
+
+
+# =============================================================================
+# DOCUMENTO CONTABLE GENERAL (nivel paquete) — sube Facturación
+# =============================================================================
+
+@router.post(
+    "/gastos/paquetes/{paquete_id}/doc-contable",
+    response_model=PaqueteOut,
+    summary="Subir documento contable general para un paquete (Facturación)",
+)
+async def subir_doc_contable(
+    paquete_id: UUID,
+    file: UploadFile = File(...),
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    return await svc.subir_doc_contable(paquete_id, user.id, role, file)
+
+
+@router.get(
+    "/gastos/paquetes/{paquete_id}/doc-contable/download",
+    summary="URL prefirmada para descargar el documento contable general",
+)
+async def download_doc_contable(
+    paquete_id: UUID,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    url = await svc.get_doc_contable_download_url(paquete_id, user.id, role)
+    return {"download_url": url}
+
+
+@router.delete(
+    "/gastos/paquetes/{paquete_id}/doc-contable",
+    response_model=PaqueteOut,
+    summary="Eliminar el documento contable general de un paquete",
+)
+async def eliminar_doc_contable(
+    paquete_id: UUID,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    return await svc.eliminar_doc_contable(paquete_id, user.id, role)
+
+
+# =============================================================================
+# CM PDF por gasto individual — sube Facturación
+# =============================================================================
+
+@router.post(
+    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/cm-pdf",
+    response_model=PaqueteOut,
+    summary="Subir CM PDF para un gasto individual (Facturación)",
+)
+async def subir_cm_pdf_gasto(
+    paquete_id: UUID,
+    gasto_id: UUID,
+    file: UploadFile = File(...),
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    return await svc.subir_cm_pdf_gasto(paquete_id, gasto_id, user.id, role, file)
+
+
+@router.get(
+    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/cm-pdf/download",
+    summary="URL prefirmada para descargar el CM PDF de un gasto",
+)
+async def download_cm_pdf_gasto(
+    paquete_id: UUID,
+    gasto_id: UUID,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    url = await svc.get_cm_pdf_gasto_download_url(paquete_id, gasto_id, user.id, role)
+    return {"download_url": url}
+
+
+@router.delete(
+    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/cm-pdf",
+    response_model=PaqueteOut,
+    summary="Eliminar el CM PDF de un gasto individual",
+)
+async def eliminar_cm_pdf_gasto(
+    paquete_id: UUID,
+    gasto_id: UUID,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    return await svc.eliminar_cm_pdf_gasto(paquete_id, gasto_id, user.id, role)

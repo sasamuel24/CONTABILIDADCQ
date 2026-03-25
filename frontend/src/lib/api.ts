@@ -1294,6 +1294,8 @@ export interface GastoOut {
   archivos: ArchivoGastoOut[];
   estado_gasto: string;
   motivo_devolucion_gasto?: string | null;
+  cm_pdf_filename: string | null;
+  cm_pdf_s3_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1336,6 +1338,8 @@ export interface PaqueteOut {
   historial_estados: HistorialEstadoOut[];
   aprobacion_gerencia_filename: string | null;
   aprobacion_gerencia_s3_key: string | null;
+  doc_contable_filename: string | null;
+  doc_contable_s3_key: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1563,6 +1567,77 @@ export async function getAprobacionGerenciaDownloadUrl(
 ): Promise<{ download_url: string }> {
   return fetchAPI<{ download_url: string }>(
     `/gastos/paquetes/${paqueteId}/aprobacion/download`
+  );
+}
+
+// --- Documento Contable General (nivel paquete) ------------------------------
+
+/** Subir documento contable general para un paquete (solo Facturación, estado aprobado) */
+export async function subirDocContable(
+  paqueteId: string,
+  file: File
+): Promise<PaqueteOut> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return fetchAPI<PaqueteOut>(
+    `/gastos/paquetes/${paqueteId}/doc-contable`,
+    { method: 'POST', body: formData }
+  );
+}
+
+/** Obtener URL de descarga del documento contable general */
+export async function getDocContableDownloadUrl(
+  paqueteId: string
+): Promise<{ download_url: string }> {
+  return fetchAPI<{ download_url: string }>(
+    `/gastos/paquetes/${paqueteId}/doc-contable/download`
+  );
+}
+
+/** Eliminar el documento contable general de un paquete */
+export async function eliminarDocContable(
+  paqueteId: string
+): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(
+    `/gastos/paquetes/${paqueteId}/doc-contable`,
+    { method: 'DELETE' }
+  );
+}
+
+// --- CM PDF por gasto individual ---------------------------------------------
+
+/** Subir CM PDF para un gasto individual (solo Facturación, estado aprobado) */
+export async function subirCmPdfGasto(
+  paqueteId: string,
+  gastoId: string,
+  file: File
+): Promise<PaqueteOut> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return fetchAPI<PaqueteOut>(
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/cm-pdf`,
+    { method: 'POST', body: formData }
+  );
+}
+
+/** Obtener URL de descarga del CM PDF de un gasto */
+export async function getCmPdfGastoDownloadUrl(
+  paqueteId: string,
+  gastoId: string
+): Promise<{ download_url: string }> {
+  return fetchAPI<{ download_url: string }>(
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/cm-pdf/download`
+  );
+}
+
+/** Eliminar el CM PDF de un gasto individual */
+export async function eliminarCmPdfGasto(
+  paqueteId: string,
+  gastoId: string
+): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/cm-pdf`,
+    { method: 'DELETE' }
   );
 }
 

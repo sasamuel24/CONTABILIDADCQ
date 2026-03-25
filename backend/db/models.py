@@ -1056,6 +1056,12 @@ class PaqueteGasto(Base, TimestampMixin):
     aprobacion_gerencia_filename: Mapped[Optional[str]] = mapped_column(
         String(255), nullable=True
     )
+    doc_contable_s3_key: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )
+    doc_contable_filename: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
 
     # Relaciones
     tecnico: Mapped["User"] = relationship("User", foreign_keys=[user_id], lazy="selectin")
@@ -1129,6 +1135,13 @@ class GastoLegalizacion(Base, TimestampMixin):
     )
     valor_pagado: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     orden: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
+
+    cm_pdf_s3_key: Mapped[Optional[str]] = mapped_column(
+        Text, nullable=True
+    )
+    cm_pdf_filename: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
 
     # Campos para devolución individual (Fase 3)
     estado_gasto: Mapped[str] = mapped_column(

@@ -109,6 +109,8 @@ class GastoOut(BaseModel):
     estado_gasto: str = "pendiente"
     motivo_devolucion_gasto: Optional[str] = None
     archivos: List[ArchivoGastoOut] = []
+    cm_pdf_filename: Optional[str] = None
+    cm_pdf_s3_key: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}
@@ -184,6 +186,8 @@ class PaqueteOut(BaseModel):
     updated_at: datetime
     aprobacion_gerencia_filename: Optional[str] = None
     aprobacion_gerencia_s3_key: Optional[str] = None
+    doc_contable_filename: Optional[str] = None
+    doc_contable_s3_key: Optional[str] = None
     model_config = {"from_attributes": True}
 
 

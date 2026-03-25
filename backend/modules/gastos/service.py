@@ -486,6 +486,148 @@ class GastosService:
         return s3_service.presign_get_url(paquete.aprobacion_gerencia_s3_key)
 
     # ------------------------------------------------------------------
+    # Documento Contable General (nivel paquete) — sube Facturación
+    # ------------------------------------------------------------------
+
+    async def subir_doc_contable(
+        self, paquete_id: UUID, user_id: UUID, user_role: str, file: UploadFile
+    ) -> PaqueteOut:
+        paquete = await self._get_paquete_or_404(paquete_id)
+        self._check_access(paquete, user_id, user_role)
+        if user_role not in {"admin", "fact"}:
+            raise HTTPException(status_code=403, detail="Solo Facturación puede subir el documento contable.")
+        if paquete.estado not in {"aprobado"}:
+            raise HTTPException(
+                status_code=400,
+                detail="El documento contable solo puede subirse cuando el paquete está aprobado."
+            )
+        content_type = file.content_type or ""
+        nombre_lower = (file.filename or "").lower()
+        if not content_type or content_type == "application/octet-stream":
+            if nombre_lower.endswith(".pdf"):
+                content_type = "application/pdf"
+        if content_type != "application/pdf":
+            raise HTTPException(status_code=400, detail="Solo se acepta un archivo PDF.")
+
+        s3_key = f"dev/facturas/gastos/{paquete_id}/doc_contable/{file.filename}"
+        if paquete.doc_contable_s3_key:
+            try:
+                s3_service.delete_file(paquete.doc_contable_s3_key)
+            except Exception:
+                logger.warning(f"No se pudo eliminar de S3: {paquete.doc_contable_s3_key}")
+
+        file_content = await file.read()
+        s3_service.upload_fileobj(io.BytesIO(file_content), s3_key, content_type)
+
+        paquete.doc_contable_s3_key = s3_key
+        paquete.doc_contable_filename = file.filename
+        await self.paquete_repo.save(paquete)
+        await self.db.commit()
+        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+
+    async def get_doc_contable_download_url(
+        self, paquete_id: UUID, user_id: UUID, user_role: str
+    ) -> str:
+        paquete = await self._get_paquete_or_404(paquete_id)
+        self._check_access(paquete, user_id, user_role)
+        if not paquete.doc_contable_s3_key:
+            raise HTTPException(status_code=404, detail="Este paquete no tiene documento contable adjunto.")
+        return s3_service.presign_get_url(paquete.doc_contable_s3_key)
+
+    async def eliminar_doc_contable(
+        self, paquete_id: UUID, user_id: UUID, user_role: str
+    ) -> PaqueteOut:
+        paquete = await self._get_paquete_or_404(paquete_id)
+        self._check_access(paquete, user_id, user_role)
+        if user_role not in {"admin", "fact"}:
+            raise HTTPException(status_code=403, detail="Solo Facturación puede eliminar el documento contable.")
+        if paquete.estado not in {"aprobado"}:
+            raise HTTPException(status_code=400, detail="Solo se puede eliminar cuando el paquete está aprobado.")
+        if not paquete.doc_contable_s3_key:
+            raise HTTPException(status_code=404, detail="Este paquete no tiene documento contable.")
+        try:
+            s3_service.delete_file(paquete.doc_contable_s3_key)
+        except Exception:
+            logger.warning(f"No se pudo eliminar de S3: {paquete.doc_contable_s3_key}")
+        paquete.doc_contable_s3_key = None
+        paquete.doc_contable_filename = None
+        await self.paquete_repo.save(paquete)
+        await self.db.commit()
+        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+
+    # ------------------------------------------------------------------
+    # CM PDF por gasto individual — sube Facturación
+    # ------------------------------------------------------------------
+
+    async def subir_cm_pdf_gasto(
+        self, paquete_id: UUID, gasto_id: UUID, user_id: UUID, user_role: str, file: UploadFile
+    ) -> PaqueteOut:
+        paquete = await self._get_paquete_or_404(paquete_id)
+        self._check_access(paquete, user_id, user_role)
+        if user_role not in {"admin", "fact"}:
+            raise HTTPException(status_code=403, detail="Solo Facturación puede subir el CM PDF.")
+        if paquete.estado not in {"aprobado"}:
+            raise HTTPException(
+                status_code=400,
+                detail="El CM PDF solo puede subirse cuando el paquete está aprobado."
+            )
+        gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
+
+        content_type = file.content_type or ""
+        nombre_lower = (file.filename or "").lower()
+        if not content_type or content_type == "application/octet-stream":
+            if nombre_lower.endswith(".pdf"):
+                content_type = "application/pdf"
+        if content_type != "application/pdf":
+            raise HTTPException(status_code=400, detail="Solo se acepta un archivo PDF.")
+
+        s3_key = f"dev/facturas/gastos/{paquete_id}/{gasto_id}/cm_pdf/{file.filename}"
+        if gasto.cm_pdf_s3_key:
+            try:
+                s3_service.delete_file(gasto.cm_pdf_s3_key)
+            except Exception:
+                logger.warning(f"No se pudo eliminar de S3: {gasto.cm_pdf_s3_key}")
+
+        file_content = await file.read()
+        s3_service.upload_fileobj(io.BytesIO(file_content), s3_key, content_type)
+
+        gasto.cm_pdf_s3_key = s3_key
+        gasto.cm_pdf_filename = file.filename
+        await self.db.commit()
+        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+
+    async def get_cm_pdf_gasto_download_url(
+        self, paquete_id: UUID, gasto_id: UUID, user_id: UUID, user_role: str
+    ) -> str:
+        paquete = await self._get_paquete_or_404(paquete_id)
+        self._check_access(paquete, user_id, user_role)
+        gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
+        if not gasto.cm_pdf_s3_key:
+            raise HTTPException(status_code=404, detail="Este gasto no tiene CM PDF adjunto.")
+        return s3_service.presign_get_url(gasto.cm_pdf_s3_key)
+
+    async def eliminar_cm_pdf_gasto(
+        self, paquete_id: UUID, gasto_id: UUID, user_id: UUID, user_role: str
+    ) -> PaqueteOut:
+        paquete = await self._get_paquete_or_404(paquete_id)
+        self._check_access(paquete, user_id, user_role)
+        if user_role not in {"admin", "fact"}:
+            raise HTTPException(status_code=403, detail="Solo Facturación puede eliminar el CM PDF.")
+        if paquete.estado not in {"aprobado"}:
+            raise HTTPException(status_code=400, detail="Solo se puede eliminar cuando el paquete está aprobado.")
+        gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
+        if not gasto.cm_pdf_s3_key:
+            raise HTTPException(status_code=404, detail="Este gasto no tiene CM PDF.")
+        try:
+            s3_service.delete_file(gasto.cm_pdf_s3_key)
+        except Exception:
+            logger.warning(f"No se pudo eliminar de S3: {gasto.cm_pdf_s3_key}")
+        gasto.cm_pdf_s3_key = None
+        gasto.cm_pdf_filename = None
+        await self.db.commit()
+        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+
+    # ------------------------------------------------------------------
     # Aprobación por token (Fase 2)
     # ------------------------------------------------------------------
 

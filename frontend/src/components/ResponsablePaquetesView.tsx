@@ -19,6 +19,12 @@ import {
   getCentrosCosto,
   getCentrosOperacion,
   getCuentasAuxiliares,
+  subirDocContable,
+  getDocContableDownloadUrl,
+  eliminarDocContable,
+  subirCmPdfGasto,
+  getCmPdfGastoDownloadUrl,
+  eliminarCmPdfGasto,
   PaqueteListItem,
   PaqueteOut,
   GastoOut,
@@ -52,6 +58,8 @@ import {
   RefreshCw,
   Eye,
   X as XIcon,
+  Trash2,
+  FileCheck,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -222,8 +230,18 @@ function DetallePaqueteResponsable({
   const [correoGerEnviado, setCorreoGerEnviado] = useState(false);
   const [filtroGastos, setFiltroGastos] = useState<'todos' | 'devueltos'>(soloDevueltos ? 'devueltos' : 'todos');
 
-  // Preview de soportes
+  // Documento Contable General
+  const [uploadingDocContable, setUploadingDocContable] = useState(false);
+  const [eliminandoDocContable, setEliminandoDocContable] = useState(false);
+
+  // CM PDF por gasto: gastoId → estado de subida
+  const [uploadingCmPdf, setUploadingCmPdf] = useState<Record<string, boolean>>({});
+  const [eliminandoCmPdf, setEliminandoCmPdf] = useState<Record<string, boolean>>({});
+
+  // Preview de soportes (archivos por gasto)
   const [previewArchivo, setPreviewArchivo] = useState<{ url: string; filename: string; contentType: string; gastoId: string; archivoId: string } | null>(null);
+  // Preview genérico para doc contable y CM PDF (siempre PDF)
+  const [previewDoc, setPreviewDoc] = useState<{ url: string; filename: string } | null>(null);
   // Selección múltiple: "gastoId:archivoId"
   const [selectedArchivos, setSelectedArchivos] = useState<Set<string>>(new Set());
 
@@ -443,6 +461,102 @@ function DetallePaqueteResponsable({
     }
   };
 
+  const handlePreviewDocContable = async () => {
+    if (!paquete?.doc_contable_filename) return;
+    try {
+      const { download_url } = await getDocContableDownloadUrl(paquete.id);
+      setPreviewDoc({ url: download_url, filename: paquete.doc_contable_filename });
+    } catch {
+      toast.error('No se pudo cargar la vista previa');
+    }
+  };
+
+  const handlePreviewCmPdf = async (gastoId: string, filename: string) => {
+    if (!paquete) return;
+    try {
+      const { download_url } = await getCmPdfGastoDownloadUrl(paquete.id, gastoId);
+      setPreviewDoc({ url: download_url, filename });
+    } catch {
+      toast.error('No se pudo cargar la vista previa del CM PDF');
+    }
+  };
+
+  const handleSubirDocContable = async (file: File) => {
+    if (!paquete) return;
+    setUploadingDocContable(true);
+    try {
+      const updated = await subirDocContable(paquete.id, file);
+      setPaquete(updated);
+      toast.success('Documento contable subido correctamente');
+    } catch {
+      toast.error('Error al subir el documento contable');
+    } finally {
+      setUploadingDocContable(false);
+    }
+  };
+
+  const handleDescargarDocContable = async () => {
+    if (!paquete) return;
+    try {
+      const { download_url } = await getDocContableDownloadUrl(paquete.id);
+      window.open(download_url, '_blank');
+    } catch {
+      toast.error('No se pudo obtener el enlace de descarga');
+    }
+  };
+
+  const handleEliminarDocContable = async () => {
+    if (!paquete) return;
+    setEliminandoDocContable(true);
+    try {
+      const updated = await eliminarDocContable(paquete.id);
+      setPaquete(updated);
+      toast.success('Documento contable eliminado');
+    } catch {
+      toast.error('Error al eliminar el documento contable');
+    } finally {
+      setEliminandoDocContable(false);
+    }
+  };
+
+  const handleSubirCmPdf = async (gastoId: string, file: File) => {
+    if (!paquete) return;
+    setUploadingCmPdf((prev) => ({ ...prev, [gastoId]: true }));
+    try {
+      const updated = await subirCmPdfGasto(paquete.id, gastoId, file);
+      setPaquete(updated);
+      toast.success('CM PDF subido correctamente');
+    } catch {
+      toast.error('Error al subir el CM PDF');
+    } finally {
+      setUploadingCmPdf((prev) => ({ ...prev, [gastoId]: false }));
+    }
+  };
+
+  const handleDescargarCmPdf = async (gastoId: string) => {
+    if (!paquete) return;
+    try {
+      const { download_url } = await getCmPdfGastoDownloadUrl(paquete.id, gastoId);
+      window.open(download_url, '_blank');
+    } catch {
+      toast.error('No se pudo obtener el enlace de descarga del CM PDF');
+    }
+  };
+
+  const handleEliminarCmPdf = async (gastoId: string) => {
+    if (!paquete) return;
+    setEliminandoCmPdf((prev) => ({ ...prev, [gastoId]: true }));
+    try {
+      const updated = await eliminarCmPdfGasto(paquete.id, gastoId);
+      setPaquete(updated);
+      toast.success('CM PDF eliminado');
+    } catch {
+      toast.error('Error al eliminar el CM PDF');
+    } finally {
+      setEliminandoCmPdf((prev) => ({ ...prev, [gastoId]: false }));
+    }
+  };
+
   const selectCls = 'w-full rounded px-1.5 py-1 text-xs text-gray-800 border border-transparent hover:border-gray-200 focus:border-gray-300 focus:bg-white focus:outline-none bg-transparent';
 
   if (loading) {
@@ -464,6 +578,12 @@ function DetallePaqueteResponsable({
   const puedeActuar = paquete.estado === 'en_revision' && esResponsable;
   const puedeEnviarTesoreria = paquete.estado === 'aprobado' && esFact;
   const puedeDevolverComoFact = paquete.estado === 'aprobado' && esFact;
+  // Facturación puede gestionar doc contable cuando está aprobado
+  const puedeGestionarDocContable = paquete.estado === 'aprobado' && esFact;
+  // Doc contable visible (para ver/descargar) desde aprobado en adelante
+  const verDocContable = ['aprobado', 'en_tesoreria', 'pagado'].includes(paquete.estado);
+  // CM PDF: facturación puede subir cuando aprobado; todos ven si existe
+  const puedeGestionarCmPdf = paquete.estado === 'aprobado' && esFact;
 
   const gastosDevueltos = paquete.gastos.filter((g) => g.estado_gasto === 'devuelto');
   const gastosVisibles = filtroGastos === 'devueltos' ? gastosDevueltos : paquete.gastos;
@@ -646,6 +766,86 @@ function DetallePaqueteResponsable({
             </div>
           </div>
 
+          {/* Documento Contable General */}
+          {verDocContable && (
+            <div className="mt-5 pt-5 border-t border-gray-100">
+              <div className="flex items-start justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2">
+                  <FileCheck className="w-4 h-4 text-gray-400" />
+                  <span
+                    className="text-sm font-semibold text-gray-600"
+                    style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    Documento Contable General
+                  </span>
+                  <span
+                    className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full"
+                    style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                  >
+                    Facturas electrónicas
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {paquete.doc_contable_filename ? (
+                    <>
+                      <button
+                        onClick={handlePreviewDocContable}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors hover:opacity-80"
+                        style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                        title="Vista previa"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={handleDescargarDocContable}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors hover:opacity-80"
+                        style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        {paquete.doc_contable_filename}
+                      </button>
+                      {puedeGestionarDocContable && (
+                        <button
+                          onClick={handleEliminarDocContable}
+                          disabled={eliminandoDocContable}
+                          className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs border transition-colors hover:bg-red-50 disabled:opacity-50"
+                          style={{ color: '#ef4444', borderColor: '#fca5a5', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                          title="Eliminar documento contable"
+                        >
+                          {eliminandoDocContable ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </>
+                  ) : puedeGestionarDocContable ? (
+                    <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-colors hover:opacity-90"
+                      style={{ color: '#fff', backgroundColor: '#00829a', borderColor: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                      {uploadingDocContable
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : <Upload className="w-3.5 h-3.5" />}
+                      {uploadingDocContable ? 'Subiendo...' : 'Adjuntar PDF contable'}
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        disabled={uploadingDocContable}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleSubirDocContable(f);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  ) : (
+                    <span className="text-xs text-gray-400" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                      Sin documento contable
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Botones de acción — En revisión: solo guardar asignaciones si hay cambios */}
           {puedeActuar && hayAsignacionesDirty && (
             <div className="flex gap-3 mt-6 pt-5 border-t border-gray-100">
@@ -801,13 +1001,13 @@ function DetallePaqueteResponsable({
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs" style={{ minWidth: puedeDevolverComoFact ? 1200 : 1100 }}>
+              <table className="w-full text-xs" style={{ minWidth: puedeDevolverComoFact ? 1350 : 1250 }}>
                 <thead>
                   <tr style={{ backgroundColor: '#00829a' }}>
                     {[
                       'Fecha', 'Pagado a', 'Concepto', 'No. Recibo',
                       'Centro Costo', 'Centro Operación', 'Cuenta Contable',
-                      'Valor', 'Soporte',
+                      'Valor', 'Soporte', 'CM PDF',
                       ...(puedeDevolverComoFact ? ['Acción'] : []),
                     ].map((h) => (
                       <th
@@ -956,6 +1156,65 @@ function DetallePaqueteResponsable({
                             <span className="text-xs text-gray-300">—</span>
                           )}
                         </td>
+                        {/* CM PDF */}
+                        <td className="px-2 py-2" style={{ minWidth: 130 }}>
+                          {g.cm_pdf_filename ? (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <button
+                                onClick={() => handlePreviewCmPdf(g.id, g.cm_pdf_filename!)}
+                                className="flex items-center gap-1 text-xs px-1.5 py-1 rounded-lg border transition-colors hover:opacity-80"
+                                style={{ color: '#7c3aed', borderColor: '#ddd6fe', backgroundColor: '#f5f3ff', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                                title="Vista previa"
+                              >
+                                <Eye className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => handleDescargarCmPdf(g.id)}
+                                className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors hover:opacity-80 max-w-[80px]"
+                                style={{ color: '#7c3aed', borderColor: '#ddd6fe', backgroundColor: '#f5f3ff', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                                title={g.cm_pdf_filename}
+                              >
+                                <Download className="w-3 h-3 shrink-0" />
+                                <span className="truncate max-w-[55px]">{g.cm_pdf_filename}</span>
+                              </button>
+                              {puedeGestionarCmPdf && (
+                                <button
+                                  onClick={() => handleEliminarCmPdf(g.id)}
+                                  disabled={!!eliminandoCmPdf[g.id]}
+                                  className="shrink-0 p-1 rounded transition-colors hover:bg-red-50 disabled:opacity-50"
+                                  style={{ color: '#ef4444' }}
+                                  title="Eliminar CM PDF"
+                                >
+                                  {eliminandoCmPdf[g.id] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                </button>
+                              )}
+                            </div>
+                          ) : puedeGestionarCmPdf ? (
+                            <label
+                              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border cursor-pointer transition-colors hover:opacity-90 whitespace-nowrap"
+                              style={{ color: '#7c3aed', borderColor: '#ddd6fe', backgroundColor: '#f5f3ff', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                            >
+                              {uploadingCmPdf[g.id]
+                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                : <Paperclip className="w-3 h-3" />}
+                              {uploadingCmPdf[g.id] ? 'Subiendo...' : 'CM PDF'}
+                              <input
+                                type="file"
+                                accept="application/pdf"
+                                className="hidden"
+                                disabled={!!uploadingCmPdf[g.id]}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (f) handleSubirCmPdf(g.id, f);
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                          ) : (
+                            <span className="text-gray-300 text-xs">—</span>
+                          )}
+                        </td>
+
                         {puedeDevolverComoFact && (
                           <td className="px-2 py-2">
                             {g.estado_gasto === 'devuelto' ? (
@@ -990,7 +1249,7 @@ function DetallePaqueteResponsable({
                     <td className="py-3 px-2 font-bold text-sm" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: filtroGastos === 'devueltos' ? '#ef4444' : '#00829a' }}>
                       {fmtMonto(gastosVisibles.reduce((s, g) => s + g.valor_pagado, 0))}
                     </td>
-                    <td />
+                    <td /><td />
                     {puedeDevolverComoFact && <td />}
                   </tr>
                   {filtroGastos === 'devueltos' && paquete.monto_total > gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0) && (
@@ -1001,7 +1260,7 @@ function DetallePaqueteResponsable({
                       <td className="py-2 px-2 font-bold text-sm text-green-700" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
                         {fmtMonto(paquete.monto_total - gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0))}
                       </td>
-                      <td />
+                      <td /><td />
                       {puedeDevolverComoFact && <td />}
                     </tr>
                   )}
@@ -1010,6 +1269,37 @@ function DetallePaqueteResponsable({
             </div>
           )}
         </div>
+
+        {/* Modal previsualización doc contable / CM PDF */}
+        {previewDoc && (
+          <div
+            className="fixed inset-0 flex items-center justify-center z-50"
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onClick={() => setPreviewDoc(null)}
+          >
+            <div
+              className="bg-white flex flex-col"
+              style={{ width: 'min(1200px, 95vw)', height: '92vh', borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 border-b border-gray-200 flex-shrink-0" style={{ height: 52 }}>
+                <span className="text-sm font-semibold text-gray-800 truncate" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                  {previewDoc.filename}
+                </span>
+                <button onClick={() => setPreviewDoc(null)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <XIcon className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-hidden bg-gray-50">
+                <iframe
+                  src={`${previewDoc.url}#zoom=page-width`}
+                  className="w-full h-full border-0"
+                  title={previewDoc.filename}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Modal previsualización de soporte */}
         {previewArchivo && (

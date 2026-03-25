@@ -420,17 +420,21 @@ class GastosService:
         await self.paquete_repo.recalculate_totals(paquete_id)
         await self.db.commit()
 
-    async def get_download_url(
+    async def get_archivo_or_404(
         self, paquete_id: UUID, gasto_id: UUID, archivo_id: UUID, user_id: UUID, user_role: str
-    ) -> str:
+    ):
         paquete = await self._get_paquete_or_404(paquete_id)
         self._check_access(paquete, user_id, user_role)
         gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
-
         archivo = next((a for a in gasto.archivos if a.id == archivo_id), None)
         if not archivo:
             raise HTTPException(status_code=404, detail="Archivo no encontrado en este gasto.")
+        return archivo
 
+    async def get_download_url(
+        self, paquete_id: UUID, gasto_id: UUID, archivo_id: UUID, user_id: UUID, user_role: str
+    ) -> str:
+        archivo = await self.get_archivo_or_404(paquete_id, gasto_id, archivo_id, user_id, user_role)
         return s3_service.presign_get_url(archivo.s3_key)
 
     async def subir_aprobacion_gerencia(

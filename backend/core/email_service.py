@@ -140,7 +140,7 @@ class EmailService:
             body_html = f"""
             <html><body style="font-family:Arial,sans-serif;color:#333">
             <h2 style="color:#1a6e3c">Paquete de Gastos Aprobado</h2>
-            <p>El siguiente paquete de gastos ha sido aprobado y está listo para enviar a Tesorería.</p>
+            <p>El siguiente paquete de gastos ha sido aprobado y está listo para ser auditado por Facturación.</p>
             <table style="border-collapse:collapse;margin-bottom:16px">
               <tr><td style="padding:4px 12px;font-weight:bold">Folio:</td><td>{folio}</td></tr>
               <tr><td style="padding:4px 12px;font-weight:bold">Técnico:</td><td>{nombre_tecnico}</td></tr>

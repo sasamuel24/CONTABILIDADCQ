@@ -13,6 +13,7 @@ import {
   enviarATesoreria,
   editarGasto,
   getDownloadUrlArchivoGasto,
+  proxyDownloadArchivoGasto,
   getAprobacionGerenciaDownloadUrl,
   reenviarCorreoAprobacion,
   getCentrosCosto,
@@ -49,6 +50,8 @@ import {
   Send,
   Mail,
   RefreshCw,
+  Eye,
+  X as XIcon,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -219,6 +222,11 @@ function DetallePaqueteResponsable({
   const [correoGerEnviado, setCorreoGerEnviado] = useState(false);
   const [filtroGastos, setFiltroGastos] = useState<'todos' | 'devueltos'>(soloDevueltos ? 'devueltos' : 'todos');
 
+  // Preview de soportes
+  const [previewArchivo, setPreviewArchivo] = useState<{ url: string; filename: string; contentType: string; gastoId: string; archivoId: string } | null>(null);
+  // Selección múltiple: "gastoId:archivoId"
+  const [selectedArchivos, setSelectedArchivos] = useState<Set<string>>(new Set());
+
   // Catálogos
   const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
   const [centrosOperacion, setCentrosOperacion] = useState<CentroOperacion[]>([]);
@@ -374,13 +382,41 @@ function DetallePaqueteResponsable({
     }
   };
 
-  const handleDescargar = async (gastoId: string, archivoId: string) => {
+  const handleDescargar = async (gastoId: string, archivoId: string, filename?: string) => {
     try {
-      const { download_url } = await getDownloadUrlArchivoGasto(paqueteId, gastoId, archivoId);
-      window.open(download_url, '_blank');
+      await proxyDownloadArchivoGasto(paqueteId, gastoId, archivoId, filename ?? archivoId);
     } catch {
-      toast.error('No se pudo obtener el enlace de descarga');
+      toast.error('No se pudo descargar el archivo');
     }
+  };
+
+  const handlePreview = async (gastoId: string, arch: { id: string; filename: string; content_type: string }) => {
+    try {
+      const { download_url } = await getDownloadUrlArchivoGasto(paqueteId, gastoId, arch.id);
+      setPreviewArchivo({ url: download_url, filename: arch.filename, contentType: arch.content_type, gastoId, archivoId: arch.id });
+    } catch {
+      toast.error('No se pudo cargar la vista previa');
+    }
+  };
+
+  const handleDescargarSeleccionados = async () => {
+    if (!paquete) return;
+    for (const key of selectedArchivos) {
+      const [gastoId, archivoId] = key.split(':');
+      const gasto = paquete.gastos.find((g) => g.id === gastoId);
+      const arch = gasto?.archivos.find((a) => a.id === archivoId);
+      await handleDescargar(gastoId, archivoId, arch?.filename);
+    }
+  };
+
+  const toggleArchivo = (gastoId: string, archivoId: string) => {
+    const key = `${gastoId}:${archivoId}`;
+    setSelectedArchivos((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
   const handleReenviarCorreo = async () => {
@@ -741,6 +777,16 @@ function DetallePaqueteResponsable({
                   </button>
                 </div>
               )}
+              {selectedArchivos.size > 0 && (
+                <button
+                  onClick={handleDescargarSeleccionados}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                  style={{ backgroundColor: '#00829a', color: 'white', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Descargar seleccionados ({selectedArchivos.size})
+                </button>
+              )}
               {puedeEditarAsignaciones && (
                 <p style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="text-xs text-gray-400">
                   Puedes asignar CC / CO / Cuenta Contable
@@ -869,18 +915,42 @@ function DetallePaqueteResponsable({
                         <td className="px-2 py-2">
                           {g.archivos.length > 0 ? (
                             <div className="flex flex-col gap-1">
-                              {g.archivos.map((arch) => (
-                                <button
-                                  key={arch.id}
-                                  onClick={() => handleDescargar(g.id, arch.id)}
-                                  className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors hover:bg-gray-50 w-full text-left"
-                                  style={{ color: '#00829a', borderColor: '#b2e0e8', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-                                  title={arch.filename}
-                                >
-                                  <Download className="w-3 h-3 shrink-0" />
-                                  <span className="truncate max-w-[100px]">{arch.filename}</span>
-                                </button>
-                              ))}
+                              {g.archivos.map((arch) => {
+                                const selKey = `${g.id}:${arch.id}`;
+                                const isSelected = selectedArchivos.has(selKey);
+                                return (
+                                  <div
+                                    key={arch.id}
+                                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border transition-colors"
+                                    style={{ borderColor: isSelected ? '#00829a' : '#b2e0e8', backgroundColor: isSelected ? '#e6f7fa' : 'transparent' }}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => toggleArchivo(g.id, arch.id)}
+                                      className="w-3 h-3 shrink-0 cursor-pointer accent-[#00829a]"
+                                      title="Seleccionar para descargar"
+                                    />
+                                    <button
+                                      onClick={() => handlePreview(g.id, arch)}
+                                      className="flex items-center gap-1 flex-1 text-left hover:underline min-w-0"
+                                      style={{ color: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                                      title="Ver previsualización"
+                                    >
+                                      <Eye className="w-3 h-3 shrink-0" />
+                                      <span className="truncate max-w-[90px]">{arch.filename}</span>
+                                    </button>
+                                    <button
+                                      onClick={() => handleDescargar(g.id, arch.id, arch.filename)}
+                                      className="shrink-0 hover:text-[#005f70] transition-colors"
+                                      style={{ color: '#00829a' }}
+                                      title="Descargar"
+                                    >
+                                      <Download className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
                             </div>
                           ) : (
                             <span className="text-xs text-gray-300">—</span>
@@ -940,6 +1010,67 @@ function DetallePaqueteResponsable({
             </div>
           )}
         </div>
+
+        {/* Modal previsualización de soporte */}
+        {previewArchivo && (
+          <div
+            className="fixed inset-0 flex items-center justify-center z-50"
+            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+            onClick={() => setPreviewArchivo(null)}
+          >
+            <div
+              className="bg-white flex flex-col"
+              style={{ width: 'min(1200px, 95vw)', height: '92vh', borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 border-b border-gray-200 flex-shrink-0" style={{ height: 52 }}>
+                <span className="text-sm font-semibold text-gray-800 truncate" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                  {previewArchivo.filename}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={async () => {
+                      if (previewArchivo.gastoId && previewArchivo.archivoId) {
+                        await handleDescargar(previewArchivo.gastoId, previewArchivo.archivoId, previewArchivo.filename);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                    style={{ backgroundColor: '#00829a', color: 'white', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Descargar
+                  </button>
+                  <button onClick={() => setPreviewArchivo(null)} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                    <XIcon className="w-4 h-4 text-gray-600" />
+                  </button>
+                </div>
+              </div>
+              {/* Body */}
+              <div className="flex-1 overflow-hidden bg-gray-50">
+                {previewArchivo.contentType === 'application/pdf' ? (
+                  <iframe
+                    src={`${previewArchivo.url}#zoom=page-width`}
+                    className="w-full h-full border-0"
+                    title={previewArchivo.filename}
+                  />
+                ) : previewArchivo.contentType?.startsWith('image/') ? (
+                  <div className="w-full h-full flex items-center justify-center p-4">
+                    <img
+                      src={previewArchivo.url}
+                      alt={previewArchivo.filename}
+                      className="max-w-full max-h-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <p className="text-sm text-gray-500">Vista previa no disponible para este tipo de archivo.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Comentarios */}
         {paquete.comentarios.length > 0 && (

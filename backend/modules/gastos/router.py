@@ -1,5 +1,6 @@
 """Router FastAPI para el módulo de gastos / legalización de técnicos."""
 from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, status, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -323,6 +324,30 @@ async def download_archivo(
     role = user.role.code.lower() if user.role else ""
     url = await svc.get_download_url(paquete_id, gasto_id, archivo_id, user.id, role)
     return {"download_url": url}
+
+
+@router.get(
+    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/archivos/{archivo_id}/proxy-download",
+    summary="Proxy de descarga del soporte (evita CORS con S3)",
+)
+async def proxy_download_archivo(
+    paquete_id: UUID,
+    gasto_id: UUID,
+    archivo_id: UUID,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    from core.s3_service import s3_service
+    role = user.role.code.lower() if user.role else ""
+    archivo = await svc.get_archivo_or_404(paquete_id, gasto_id, archivo_id, user.id, role)
+    s3_obj = s3_service.get_object(archivo.s3_key)
+    content_type = s3_obj.get("ContentType", "application/octet-stream")
+    filename = archivo.filename
+    return StreamingResponse(
+        s3_obj["Body"],
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # =============================================================================

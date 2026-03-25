@@ -98,6 +98,17 @@ class S3Service:
                 detail="Error al subir archivo a S3"
             )
     
+    def get_object(self, key: str) -> dict:
+        """Obtiene un objeto directamente desde S3 (para proxy de descarga)."""
+        try:
+            return self.s3_client.get_object(Bucket=self.bucket, Key=key)
+        except ClientError as e:
+            error_msg = e.response.get('Error', {}).get('Message', 'Error desconocido')
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Archivo no encontrado en S3: {error_msg}"
+            )
+
     def presign_get_url(self, key: str, expires_in: int = 600) -> str:
         """
         Genera una URL prefirmada para descargar un objeto de S3.

@@ -1518,6 +1518,30 @@ export async function getDownloadUrlArchivoGasto(
   );
 }
 
+/** Descargar soporte de un gasto vía proxy del backend (evita CORS con S3) */
+export async function proxyDownloadArchivoGasto(
+  paqueteId: string,
+  gastoId: string,
+  archivoId: string,
+  filename: string
+): Promise<void> {
+  const token = getAccessToken();
+  const url = `${API_BASE_URL}/gastos/paquetes/${paqueteId}/gastos/${gastoId}/archivos/${archivoId}/proxy-download`;
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) throw new Error('Error al descargar el archivo');
+  const blob = await response.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(blobUrl);
+}
+
 // --- Aprobación de gerencia (nivel paquete) ----------------------------------
 
 /** Subir aprobación de gerencia para un paquete */

@@ -73,8 +73,8 @@ class GastosService:
         # Generar folio automático: PKG-{AÑO}-{N:05d}
         year_str, _ = data.semana.split('-W')
         year = int(year_str)
-        count = await self.paquete_repo.count_paquetes_by_year(year)
-        folio = f"PKG-{year}-{count + 1:05d}"
+        max_num = await self.paquete_repo.max_folio_number_by_year(year)
+        folio = f"PKG-{year}-{max_num + 1:05d}"
 
         paquete = PaqueteGasto(
             user_id=user_id,

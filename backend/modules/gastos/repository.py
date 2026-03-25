@@ -1,5 +1,6 @@
 """Repositorio para operaciones de base de datos del módulo gastos."""
 from sqlalchemy.ext.asyncio import AsyncSession
+import sqlalchemy as sa
 from sqlalchemy import select, func, update, delete, extract
 from sqlalchemy.orm import selectinload
 from typing import Optional, List, Tuple
@@ -95,10 +96,15 @@ class PaqueteRepository:
         await self.db.refresh(paquete)
         return paquete
 
-    async def count_paquetes_by_year(self, year: int) -> int:
-        """Cuenta paquetes cuyo folio corresponde al año dado para generar el siguiente número."""
+    async def max_folio_number_by_year(self, year: int) -> int:
+        """Retorna el número más alto de folio existente para el año dado."""
         result = await self.db.execute(
-            select(func.count(PaqueteGasto.id)).where(
+            select(func.max(
+                func.cast(
+                    func.substr(PaqueteGasto.folio, len(f"PKG-{year}-") + 1),
+                    sa.Integer
+                )
+            )).where(
                 PaqueteGasto.folio.like(f"PKG-{year}-%")
             )
         )

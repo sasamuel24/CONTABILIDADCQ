@@ -211,9 +211,22 @@ function DetalleAuditoriaTes({
               <span className="text-sm font-semibold text-gray-800 truncate" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
                 {previewUrl.filename}
               </span>
-              <button onClick={() => setPreviewUrl(null)} className="px-3 py-1.5 text-xs rounded-lg border text-gray-600 hover:bg-gray-50">
-                Cerrar
-              </button>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewUrl.url}
+                  download={previewUrl.filename}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                  style={{ backgroundColor: '#00829a', color: 'white', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Descargar
+                </a>
+                <button onClick={() => setPreviewUrl(null)} className="px-3 py-1.5 text-xs rounded-lg border text-gray-600 hover:bg-gray-50">
+                  Cerrar
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-hidden bg-gray-50">
               {previewUrl.contentType === 'application/pdf' ? (

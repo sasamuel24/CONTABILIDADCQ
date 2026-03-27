@@ -1327,6 +1327,7 @@ export interface PaqueteOut {
   monto_a_pagar: number | null;
   total_documentos: number;
   fecha_envio: string | null;
+  fecha_envio_gerencia: string | null;
   fecha_aprobacion: string | null;
   fecha_pago: string | null;
   folio?: string | null;

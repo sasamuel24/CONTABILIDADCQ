@@ -65,11 +65,14 @@ class EmailService:
             # Construir filas de la tabla de gastos
             filas_gastos = ""
             for g in paquete.gastos:
+                ca = g.cuenta_auxiliar
+                cuenta_str = f"{ca.codigo} — {ca.descripcion}" if ca else "—"
                 filas_gastos += (
                     f"<tr>"
                     f"<td style='padding:6px;border:1px solid #ddd'>{g.fecha.strftime('%d/%m/%Y')}</td>"
                     f"<td style='padding:6px;border:1px solid #ddd'>{g.pagado_a}</td>"
                     f"<td style='padding:6px;border:1px solid #ddd'>{g.concepto}</td>"
+                    f"<td style='padding:6px;border:1px solid #ddd'>{cuenta_str}</td>"
                     f"<td style='padding:6px;border:1px solid #ddd;text-align:right'>"
                     f"${float(g.valor_pagado):,.2f}</td>"
                     f"</tr>"
@@ -96,6 +99,7 @@ class EmailService:
                   <th style="padding:8px;border:1px solid #ddd">Fecha</th>
                   <th style="padding:8px;border:1px solid #ddd">Pagado a</th>
                   <th style="padding:8px;border:1px solid #ddd">Concepto</th>
+                  <th style="padding:8px;border:1px solid #ddd">Cuenta Contable</th>
                   <th style="padding:8px;border:1px solid #ddd">Valor</th>
                 </tr>
               </thead>
@@ -183,11 +187,14 @@ class EmailService:
 
             filas_gastos = ""
             for g in paquete.gastos:
+                ca = g.cuenta_auxiliar
+                cuenta_str = f"{ca.codigo} — {ca.descripcion}" if ca else "—"
                 filas_gastos += (
                     f"<tr>"
                     f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.fecha.strftime('%d/%m/%Y')}</td>"
                     f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.pagado_a}</td>"
                     f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.concepto}</td>"
+                    f"<td style='padding:6px 10px;border:1px solid #ddd'>{cuenta_str}</td>"
                     f"<td style='padding:6px 10px;border:1px solid #ddd;text-align:right'>"
                     f"${float(g.valor_pagado):,.2f}</td>"
                     f"</tr>"
@@ -234,6 +241,7 @@ class EmailService:
                     <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Fecha</th>
                     <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Pagado a</th>
                     <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Concepto</th>
+                    <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Cuenta Contable</th>
                     <th style="padding:8px 10px;border:1px solid #ddd;text-align:right">Valor</th>
                   </tr>
                 </thead>
@@ -341,11 +349,14 @@ class EmailService:
             filas_gastos = ""
             for g in paquete.gastos:
                 estado_color = "#e8f5e9" if getattr(g, "estado_gasto", "pendiente") != "devuelto" else "#fdecea"
+                ca = g.cuenta_auxiliar
+                cuenta_str = f"{ca.codigo} — {ca.descripcion}" if ca else "—"
                 filas_gastos += (
                     f"<tr style='background:{estado_color}'>"
                     f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.fecha.strftime('%d/%m/%Y')}</td>"
                     f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.pagado_a}</td>"
                     f"<td style='padding:6px 10px;border:1px solid #ddd'>{g.concepto}</td>"
+                    f"<td style='padding:6px 10px;border:1px solid #ddd'>{cuenta_str}</td>"
                     f"<td style='padding:6px 10px;border:1px solid #ddd;text-align:right'>"
                     f"${float(g.valor_pagado):,.2f}</td>"
                     f"</tr>"
@@ -392,6 +403,7 @@ class EmailService:
                     <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Fecha</th>
                     <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Pagado a</th>
                     <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Concepto</th>
+                    <th style="padding:8px 10px;border:1px solid #ddd;text-align:left">Cuenta Contable</th>
                     <th style="padding:8px 10px;border:1px solid #ddd;text-align:right">Valor</th>
                   </tr>
                 </thead>

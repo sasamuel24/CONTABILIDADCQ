@@ -174,6 +174,7 @@ class PaqueteOut(BaseModel):
     monto_a_pagar: Optional[Decimal] = None
     total_documentos: int
     fecha_envio: Optional[datetime]
+    fecha_envio_gerencia: Optional[datetime] = None
     fecha_aprobacion: Optional[datetime]
     fecha_pago: Optional[datetime]
     tecnico: UserBrief

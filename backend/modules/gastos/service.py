@@ -167,6 +167,7 @@ class GastosService:
             expires_at=expires_at,
         )
         await self.token_repo.create(token_obj)
+        paquete.fecha_envio_gerencia = datetime.now(tz=timezone.utc)
         await self.db.commit()
 
         paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
@@ -193,7 +194,7 @@ class GastosService:
         ))
         await self.db.commit()
         paquete_aprobado = await self.paquete_repo.get_by_id(paquete_id)
-        await email_service.enviar_notificacion_aprobado(paquete_aprobado, settings.email_approver)
+        await email_service.enviar_notificacion_aprobado(paquete_aprobado, settings.email_responsable)
         await email_service.enviar_notificacion_paquete_aprobado_tecnico(paquete_aprobado, paquete_aprobado.tecnico.email)
         return self._to_out(paquete_aprobado)
 
@@ -682,7 +683,7 @@ class GastosService:
 
             # Notificar a Facturación y al técnico
             paquete_final = await self.paquete_repo.get_by_id(paquete.id)
-            await email_service.enviar_notificacion_aprobado(paquete_final, settings.email_approver)
+            await email_service.enviar_notificacion_aprobado(paquete_final, settings.email_responsable)
             await email_service.enviar_notificacion_paquete_aprobado_tecnico(paquete_final, paquete_final.tecnico.email)
 
             return self._to_out(paquete_final)

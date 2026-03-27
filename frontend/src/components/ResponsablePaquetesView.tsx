@@ -253,6 +253,11 @@ function DetallePaqueteResponsable({
   // Ediciones locales de asignaciones por gasto
   const [asignaciones, setAsignaciones] = useState<Record<string, AsignacionLocal>>({});
 
+  // Sincronizar correoGerEnviado cuando se actualiza el paquete
+  useEffect(() => {
+    if (paquete) setCorreoGerEnviado(!!paquete.fecha_envio_gerencia);
+  }, [paquete]);
+
   // Cargar paquete y catálogos
   useEffect(() => {
     (async () => {

@@ -832,9 +832,9 @@ export function TesoreriaPaquetesView() {
                         <span className="text-base font-bold" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#15803d' }}>
                           {fmtMonto(p.monto_a_pagar)}
                         </span>
-                        {p.monto_a_pagar < p.monto_total && (
+                        {Number(p.monto_a_pagar) < Number(p.monto_total) && (
                           <p className="text-xs mt-0.5" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif', color: '#dc2626' }}>
-                            -{fmtMonto(p.monto_total - p.monto_a_pagar)} devuelto
+                            -{fmtMonto(Number(p.monto_total) - Number(p.monto_a_pagar))} devuelto
                           </p>
                         )}
                       </>

@@ -73,7 +73,7 @@ type GastoLocal = {
   motivo_devolucion_gasto?: string | null;
 };
 
-type EstadoUI = 'Borrador' | 'En revision' | 'Devuelto' | 'Aprobado' | 'Pagado';
+type EstadoUI = 'Borrador' | 'En revision' | 'Devuelto' | 'Aprobado' | 'En tesoreria' | 'Pagado';
 
 // ============================================================
 // Helpers
@@ -111,6 +111,7 @@ function apiToUI(estado: string): EstadoUI {
     en_revision: 'En revision',
     devuelto: 'Devuelto',
     aprobado: 'Aprobado',
+    en_tesoreria: 'En tesoreria',
     pagado: 'Pagado',
   };
   return map[estado] ?? 'Borrador';
@@ -184,8 +185,9 @@ const estadoConfig: Record<
   Borrador:       { label: 'Borrador',            bg: '#f3f4f6', text: '#6b7280', border: '#e5e7eb', icon: FileText },
   'En revision':  { label: 'En revision',         bg: '#e0f2fe', text: '#0284c7', border: '#bae6fd', icon: Clock },
   Devuelto:       { label: 'Devuelto',            bg: '#fee2e2', text: '#dc2626', border: '#fecaca', icon: RotateCcw },
-  Aprobado:       { label: 'Aprobado',            bg: '#dcfce7', text: '#16a34a', border: '#bbf7d0', icon: CheckCircle2 },
-  Pagado:         { label: 'Pagado / Legalizado', bg: '#f0fdf4', text: '#15803d', border: '#86efac', icon: BadgeCheck },
+  Aprobado:        { label: 'Aprobado',            bg: '#dcfce7', text: '#16a34a', border: '#bbf7d0', icon: CheckCircle2 },
+  'En tesoreria':  { label: 'En Tesorería',        bg: '#eff6ff', text: '#1d4ed8', border: '#bfdbfe', icon: Banknote },
+  Pagado:          { label: 'Pagado / Legalizado', bg: '#f0fdf4', text: '#15803d', border: '#86efac', icon: BadgeCheck },
 };
 
 // ============================================================
@@ -217,18 +219,20 @@ function EstadoBadge({ estado, size = 'sm' }: { estado: EstadoUI; size?: 'sm' | 
 
 function PipelineEstado({ estado }: { estado: EstadoUI }) {
   const pasos = [
-    { key: 'Borrador',    label: 'Borrador' },
-    { key: 'enviado',     label: 'Enviado' },
-    { key: 'En revision', label: 'Revision' },
-    { key: 'Aprobado',   label: 'Aprobado' },
-    { key: 'Pagado',     label: 'Pagado' },
+    { key: 'Borrador',       label: 'Borrador' },
+    { key: 'enviado',        label: 'Enviado' },
+    { key: 'En revision',    label: 'Revision' },
+    { key: 'Aprobado',       label: 'Aprobado' },
+    { key: 'En tesoreria',   label: 'Tesorería' },
+    { key: 'Pagado',         label: 'Pagado' },
   ];
 
   const indexActual =
-    estado === 'Borrador'    ? 0 :
-    estado === 'En revision' ? 2 :
-    estado === 'Devuelto'    ? 2 :
-    estado === 'Aprobado'    ? 3 : 4;
+    estado === 'Borrador'      ? 0 :
+    estado === 'En revision'   ? 2 :
+    estado === 'Devuelto'      ? 2 :
+    estado === 'Aprobado'      ? 3 :
+    estado === 'En tesoreria'  ? 4 : 5;
 
   return (
     <div className="flex items-center w-full">

@@ -737,7 +737,7 @@ export function TesoreriaPaquetesView() {
         <div className="flex items-center justify-center h-48">
           <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#00829a' }} />
         </div>
-      ) : lista.length === 0 ? (
+      ) : listaBase.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400">
           <PackageOpen className="w-12 h-12 mb-3 opacity-30" />
           <p className="text-sm" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
@@ -879,6 +879,13 @@ export function TesoreriaPaquetesView() {
                   </td>
                 </tr>
               ))}
+              {lista.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center text-sm text-gray-400" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                    Sin resultados para "{filtroNombre}"
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

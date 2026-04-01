@@ -183,6 +183,27 @@ export const clearTokens = (): void => {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 };
 
+// Evita múltiples llamadas simultáneas al endpoint de refresh
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshToken(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!response.ok) return false;
+    const data = await response.json();
+    setTokens(data.access_token, data.refresh_token);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Helper para hacer requests con manejo de errores
  */
@@ -192,7 +213,7 @@ async function fetchAPI<T>(
   skipAuthRedirect = false
 ): Promise<T> {
   const token = getAccessToken();
-  
+
   const isFormData = options.body instanceof FormData;
   const headers: Record<string, string> = {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
@@ -212,15 +233,30 @@ async function fetchAPI<T>(
       headers,
     });
 
-    // Si es 401 en login, no redirigir (es un error de credenciales)
+    // Si es 401 intentar renovar el token antes de cerrar sesión
     if (response.status === 401) {
       if (!skipAuthRedirect) {
+        // Reutilizar el mismo refresh si ya hay uno en curso
+        if (!refreshPromise) {
+          refreshPromise = tryRefreshToken().finally(() => { refreshPromise = null; });
+        }
+        const refreshed = await refreshPromise;
+        if (refreshed) {
+          // Reintentar la petición original con el nuevo token
+          const newToken = getAccessToken();
+          const retryHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
+          const retry = await fetch(url, { ...options, headers: retryHeaders });
+          if (retry.ok) {
+            if (retry.status === 204) return null as T;
+            return retry.json();
+          }
+        }
         clearTokens();
         window.location.href = '/';
       }
       const error: ApiError = await response.json();
-      const message = typeof error.detail === 'string' 
-        ? error.detail 
+      const message = typeof error.detail === 'string'
+        ? error.detail
         : error.detail?.message || 'No autorizado';
       throw new Error(message);
     }

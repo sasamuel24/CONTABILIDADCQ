@@ -10,7 +10,7 @@ from core.config import settings
 # Configuración JWT (agregar a settings en producción)
 SECRET_KEY = "your-secret-key-here-change-in-production"  # TODO: Mover a .env
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
 

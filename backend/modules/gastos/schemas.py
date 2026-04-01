@@ -200,8 +200,10 @@ class PaqueteListItem(BaseModel):
     fecha_fin: date
     estado: str
     monto_total: Decimal
+    monto_a_pagar: Optional[Decimal] = None
     total_documentos: int
     fecha_envio: Optional[datetime]
+    fecha_envio_tesoreria: Optional[datetime] = None
     comentario_devolucion: Optional[str] = None
     tiene_gastos_devueltos: bool = False
     tecnico: Optional[UserBrief] = None

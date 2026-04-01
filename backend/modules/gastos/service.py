@@ -232,6 +232,7 @@ class GastosService:
 
         paquete.estado = "en_tesoreria"
         paquete.monto_a_pagar = monto_a_pagar
+        paquete.fecha_envio_tesoreria = datetime.now(tz=timezone.utc)
         await self.paquete_repo.save(paquete)
 
         texto_comentario = "Paquete enviado a Tesorería para procesamiento de pago."

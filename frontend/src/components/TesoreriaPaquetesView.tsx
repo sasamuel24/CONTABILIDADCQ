@@ -630,6 +630,7 @@ export function TesoreriaPaquetesView() {
   const [historial, setHistorial] = useState<PaqueteListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'pendientes' | 'historial'>('pendientes');
+  const [filtroNombre, setFiltroNombre] = useState('');
 
   // Detalle / auditoría
   const [paqueteDetalleId, setPaqueteDetalleId] = useState<string | null>(null);
@@ -668,7 +669,12 @@ export function TesoreriaPaquetesView() {
     );
   }
 
-  const lista = tab === 'pendientes' ? pendientes : historial;
+  const listaBase = tab === 'pendientes' ? pendientes : historial;
+  const lista = filtroNombre.trim()
+    ? listaBase.filter(p =>
+        (p.tecnico?.nombre ?? '').toLowerCase().includes(filtroNombre.trim().toLowerCase())
+      )
+    : listaBase;
 
   return (
     <div className="p-8">
@@ -745,15 +751,27 @@ export function TesoreriaPaquetesView() {
             <div className="flex items-center justify-between px-6 py-3 border-b" style={{ backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }}>
               <span className="text-sm text-green-700" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Total a pagar</span>
               <span className="text-lg font-bold text-green-800" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
-                {fmtMonto(pendientes.reduce((sum, p) => sum + Number(p.monto_total), 0))}
+                {fmtMonto(lista.reduce((sum, p) => sum + Number(p.monto_a_pagar ?? p.monto_total), 0))}
               </span>
             </div>
           )}
 
+            {/* Filtro por nombre */}
+          <div className="px-5 py-3 border-b" style={{ borderColor: '#e5e7eb' }}>
+            <input
+              type="text"
+              placeholder="Filtrar por nombre del técnico..."
+              value={filtroNombre}
+              onChange={(e) => setFiltroNombre(e.target.value)}
+              className="w-full max-w-xs text-sm px-3 py-1.5 rounded-lg border outline-none"
+              style={{ borderColor: '#d1d5db', fontFamily: 'Neutra Text Book, Montserrat, sans-serif', color: '#374151' }}
+            />
+          </div>
+
           <table className="w-full text-sm">
             <thead>
               <tr style={{ backgroundColor: '#00829a' }}>
-                {['Semana', 'Técnico', 'Monto', 'Enviado por Facturación', tab === 'pendientes' ? 'Acción' : 'Estado'].map((h) => (
+                {['Semana', 'Técnico', 'Monto total', 'Valor a pagar', 'Enviado por Facturación', tab === 'pendientes' ? 'Acción' : 'Estado'].map((h) => (
                   <th
                     key={h}
                     className="px-5 py-3 text-left font-semibold text-white whitespace-nowrap"
@@ -797,9 +815,9 @@ export function TesoreriaPaquetesView() {
                     </div>
                   </td>
 
-                  {/* Monto */}
+                  {/* Monto total */}
                   <td className="px-5 py-4">
-                    <span className="text-base font-bold" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#15803d' }}>
+                    <span className="text-sm" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', color: '#374151' }}>
                       {fmtMonto(p.monto_total)}
                     </span>
                     <p className="text-xs text-gray-400 mt-0.5" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
@@ -807,13 +825,33 @@ export function TesoreriaPaquetesView() {
                     </p>
                   </td>
 
-                  {/* Fecha envío */}
+                  {/* Valor a pagar (monto_total - devueltos) */}
                   <td className="px-5 py-4">
-                    {p.fecha_envio ? (
+                    {p.monto_a_pagar != null ? (
+                      <>
+                        <span className="text-base font-bold" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#15803d' }}>
+                          {fmtMonto(p.monto_a_pagar)}
+                        </span>
+                        {p.monto_a_pagar < p.monto_total && (
+                          <p className="text-xs mt-0.5" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif', color: '#dc2626' }}>
+                            -{fmtMonto(p.monto_total - p.monto_a_pagar)} devuelto
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-base font-bold" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#15803d' }}>
+                        {fmtMonto(p.monto_total)}
+                      </span>
+                    )}
+                  </td>
+
+                  {/* Fecha envío a Tesorería (por Facturación) */}
+                  <td className="px-5 py-4">
+                    {p.fecha_envio_tesoreria ? (
                       <div className="flex items-center gap-1.5 text-xs text-gray-500">
                         <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
                         <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                          {fmtFecha(p.fecha_envio.slice(0, 10))}
+                          {fmtFecha(p.fecha_envio_tesoreria.slice(0, 10))}
                         </span>
                       </div>
                     ) : (

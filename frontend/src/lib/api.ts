@@ -1352,8 +1352,10 @@ export interface PaqueteListItem {
   fecha_fin: string;
   estado: EstadoPaquete;
   monto_total: number;
+  monto_a_pagar: number | null;
   total_documentos: number;
   fecha_envio: string | null;
+  fecha_envio_tesoreria: string | null;
   comentario_devolucion: string | null;
   tiene_gastos_devueltos: boolean;
   folio?: string | null;

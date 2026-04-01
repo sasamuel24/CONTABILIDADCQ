@@ -1045,6 +1045,9 @@ class PaqueteGasto(Base, TimestampMixin):
     fecha_aprobacion: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
+    fecha_envio_tesoreria: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
     fecha_pago: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )

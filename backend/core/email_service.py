@@ -39,7 +39,7 @@ class EmailService:
                     {"emailAddress": {"address": to_email}}
                 ],
             },
-            "saveToSentItems": "true",
+            "saveToSentItems": True,
         }
         headers = {
             "Authorization": f"Bearer {token}",

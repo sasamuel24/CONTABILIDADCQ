@@ -8,8 +8,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, List
 from db.models import (
     PaqueteGasto, GastoLegalizacion, ArchivoGasto,
-    ComentarioPaquete, HistorialEstadoPaquete, TokenAprobacionPaquete
+    ComentarioPaquete, HistorialEstadoPaquete, TokenAprobacionPaquete, User, Rol
 )
+from sqlalchemy import select
 from core.s3_service import s3_service
 from core.logging import logger
 from core.config import settings
@@ -251,15 +252,31 @@ class GastosService:
             estado_anterior="aprobado", estado_nuevo="en_tesoreria",
         ))
         await self.db.commit()
-        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+        paquete_enviado = await self.paquete_repo.get_by_id(paquete_id)
 
-    async def pagar(self, paquete_id: UUID, user_id: UUID) -> PaqueteOut:
+        # Notificar a todos los usuarios activos de Tesorería
+        try:
+            result = await self.db.execute(
+                select(User)
+                .join(Rol, User.role_id == Rol.id)
+                .where(Rol.code.in_(["tesoreria", "tes"]))
+                .where(User.is_active == True)
+            )
+            usuarios_tesoreria = result.scalars().all()
+            for u in usuarios_tesoreria:
+                await email_service.enviar_notificacion_paquete_en_tesoreria(paquete_enviado, u.email)
+        except Exception as e:
+            logger.error(f"Error enviando notificaciones de tesorería para paquete {paquete_id}: {e}")
+
+        return self._to_out(paquete_enviado)
+
+    async def pagar(self, paquete_id: UUID, user_id: UUID, fecha_pago: datetime | None = None) -> PaqueteOut:
         paquete = await self._get_paquete_or_404(paquete_id)
         if paquete.estado != "en_tesoreria":
             raise HTTPException(status_code=400, detail="Solo paquetes enviados a tesorería pueden marcarse como pagados.")
 
         paquete.estado = "pagado"
-        paquete.fecha_pago = datetime.utcnow()
+        paquete.fecha_pago = fecha_pago if fecha_pago is not None else datetime.utcnow()
         await self.paquete_repo.save(paquete)
         await self.comentario_repo.create(ComentarioPaquete(
             paquete_id=paquete.id, user_id=user_id,
@@ -273,6 +290,23 @@ class GastosService:
         paquete_pagado = await self.paquete_repo.get_by_id(paquete_id)
         await email_service.enviar_notificacion_pago_tecnico(paquete_pagado, paquete_pagado.tecnico.email)
         return self._to_out(paquete_pagado)
+
+    async def pagar_masivo(
+        self,
+        paquete_ids: List[UUID],
+        user_id: UUID,
+        fecha_pago: datetime | None = None,
+    ) -> dict:
+        pagados = 0
+        errores: List[str] = []
+        for pid in paquete_ids:
+            try:
+                await self.pagar(pid, user_id, fecha_pago=fecha_pago)
+                pagados += 1
+            except Exception as e:
+                detail = getattr(e, "detail", str(e))
+                errores.append(f"{pid}: {detail}")
+        return {"pagados": pagados, "errores": errores}
 
     # ------------------------------------------------------------------
     # Gastos

@@ -521,4 +521,123 @@ class EmailService:
             logger.error(f"Error al enviar email de pago al técnico: {e}")
 
 
+    async def enviar_notificacion_paquete_en_tesoreria(
+        self,
+        paquete,
+        email_tesoreria: str,
+    ) -> None:
+        """
+        Notifica al analista de Tesorería que un nuevo paquete llegó para procesar el pago.
+        Se dispara cuando Facturación ejecuta 'Enviar a Tesorería'.
+        """
+        try:
+            folio = getattr(paquete, "folio", None) or str(paquete.id)[:8]
+            nombre_tecnico = paquete.tecnico.nombre if paquete.tecnico else "Técnico"
+            semana = paquete.semana
+            fecha_inicio = paquete.fecha_inicio.strftime("%d/%m/%Y")
+            fecha_fin = paquete.fecha_fin.strftime("%d/%m/%Y")
+            monto_a_pagar = float(paquete.monto_a_pagar or paquete.monto_total)
+            monto_total = float(paquete.monto_total)
+            frontend_url = settings.frontend_url
+
+            hay_descuento = monto_a_pagar < monto_total
+            fila_descuento = ""
+            if hay_descuento:
+                descuento = monto_total - monto_a_pagar
+                fila_descuento = f"""
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Descuento por devoluciones:</td>
+                  <td style="padding:8px 14px;color:#c0392b">-${descuento:,.2f} COP</td>
+                </tr>"""
+
+            # Tabla de gastos del paquete
+            filas_gastos = ""
+            for g in getattr(paquete, "gastos", []):
+                estado_gasto = getattr(g, "estado_gasto", "pendiente")
+                if estado_gasto == "devuelto":
+                    continue
+                fecha_g = g.fecha.strftime("%d/%m/%Y") if hasattr(g.fecha, "strftime") else str(g.fecha)
+                cuenta = f"{g.cuenta_auxiliar.codigo} — {g.cuenta_auxiliar.descripcion}" if g.cuenta_auxiliar else "—"
+                filas_gastos += f"""
+                <tr style="border-top:1px solid #eee">
+                  <td style="padding:6px 10px">{fecha_g}</td>
+                  <td style="padding:6px 10px">{g.pagado_a}</td>
+                  <td style="padding:6px 10px">{g.concepto}</td>
+                  <td style="padding:6px 10px">{cuenta}</td>
+                  <td style="padding:6px 10px;text-align:right">${float(g.valor_pagado):,.2f}</td>
+                </tr>"""
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:640px;margin:0 auto">
+            <div style="background:#0e7490;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">&#128176; Nuevo Paquete Pendiente de Pago</h2>
+              <p style="color:#cffafe;margin:4px 0 0">Sistema de Legalización de Gastos — Tesorería</p>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>Estimado(a) equipo de <strong>Tesorería</strong>,</p>
+              <p>
+                Facturación ha enviado un nuevo paquete de gastos que requiere <strong>procesamiento de pago</strong>.
+                Por favor ingresar al sistema para revisarlo y registrar el pago correspondiente.
+              </p>
+
+              <table style="border-collapse:collapse;margin:16px 0;width:100%">
+                <tr style="background:#f0fdfe">
+                  <td style="padding:8px 14px;font-weight:bold;width:200px">Folio:</td>
+                  <td style="padding:8px 14px">{folio}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Técnico:</td>
+                  <td style="padding:8px 14px">{nombre_tecnico}</td>
+                </tr>
+                <tr style="background:#f0fdfe">
+                  <td style="padding:8px 14px;font-weight:bold">Semana:</td>
+                  <td style="padding:8px 14px">{semana} &nbsp;({fecha_inicio} – {fecha_fin})</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Monto Total:</td>
+                  <td style="padding:8px 14px">${monto_total:,.2f} COP</td>
+                </tr>
+                {fila_descuento}
+                <tr style="background:#ecfdf5">
+                  <td style="padding:8px 14px;font-weight:bold;color:#065f46">Monto a Pagar:</td>
+                  <td style="padding:8px 14px;font-size:1.1em;font-weight:bold;color:#065f46">${monto_a_pagar:,.2f} COP</td>
+                </tr>
+              </table>
+
+              <p style="font-weight:bold;margin-top:20px;margin-bottom:8px">Detalle de gastos:</p>
+              <table style="border-collapse:collapse;width:100%;font-size:0.88em">
+                <thead>
+                  <tr style="background:#0e7490;color:#fff">
+                    <th style="padding:7px 10px;text-align:left">Fecha</th>
+                    <th style="padding:7px 10px;text-align:left">Pagado a</th>
+                    <th style="padding:7px 10px;text-align:left">Concepto</th>
+                    <th style="padding:7px 10px;text-align:left">Cuenta Contable</th>
+                    <th style="padding:7px 10px;text-align:right">Valor</th>
+                  </tr>
+                </thead>
+                <tbody>{filas_gastos}</tbody>
+              </table>
+
+              <p style="margin-top:24px">
+                <a href="{frontend_url}"
+                   style="background:#0e7490;color:#fff;padding:11px 24px;border-radius:5px;
+                          text-decoration:none;font-weight:bold;display:inline-block">
+                  Ir a Tesorería
+                </a>
+              </p>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">
+                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+              </p>
+            </div>
+            </body></html>
+            """
+
+            subject = f"[Tesorería] Nuevo paquete para pago — {folio} | {nombre_tecnico} | {semana}"
+            await self._send_mail(subject, body_html, email_tesoreria)
+            logger.info(f"Notificación de tesorería enviada a {email_tesoreria} para paquete {folio}")
+        except Exception as e:
+            logger.error(f"Error al enviar notificación de tesorería: {e}")
+
+
 email_service = EmailService()

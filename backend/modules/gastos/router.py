@@ -15,6 +15,7 @@ from modules.gastos.schemas import (
     PaqueteCreate, PaqueteOut, PaqueteListResponse,
     GastoCreate, GastoUpdate, GastoOut,
     ArchivoGastoOut, PaqueteDevolver, GastoDevolverRequest,
+    PagarPaqueteIn, PagarMasivoIn, PagarMasivoOut,
 )
 
 router = APIRouter(tags=["Gastos"])
@@ -215,6 +216,7 @@ async def devolver_paquete(
 )
 async def pagar_paquete(
     paquete_id: UUID,
+    body: PagarPaqueteIn = None,
     svc: GastosService = Depends(_svc),
     user: User = Depends(_get_user_db),
 ):
@@ -222,7 +224,25 @@ async def pagar_paquete(
     area = user.area.code.lower() if user.area else ""
     if role not in {"admin", "tesoreria", "tes"} and area not in {"admin", "tesoreria", "tes"}:
         raise HTTPException(status_code=403, detail="Solo Tesorería puede marcar como pagado.")
-    return await svc.pagar(paquete_id, user.id)
+    fecha_pago = body.fecha_pago if body else None
+    return await svc.pagar(paquete_id, user.id, fecha_pago=fecha_pago)
+
+
+@router.post(
+    "/gastos/paquetes/pagar-masivo",
+    response_model=PagarMasivoOut,
+    summary="Marcar múltiples paquetes como pagados (tesorería)",
+)
+async def pagar_paquetes_masivo(
+    body: PagarMasivoIn,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    area = user.area.code.lower() if user.area else ""
+    if role not in {"admin", "tesoreria", "tes"} and area not in {"admin", "tesoreria", "tes"}:
+        raise HTTPException(status_code=403, detail="Solo Tesorería puede marcar como pagado.")
+    return await svc.pagar_masivo(body.paquete_ids, user.id, fecha_pago=body.fecha_pago)
 
 
 # =============================================================================

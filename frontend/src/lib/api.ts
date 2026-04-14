@@ -1485,8 +1485,24 @@ export async function enviarATesoreria(paqueteId: string): Promise<PaqueteOut> {
 }
 
 /** Tesorería marca el paquete como pagado */
-export async function pagarPaquete(paqueteId: string): Promise<PaqueteOut> {
-  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/pagar`, { method: 'POST' });
+export async function pagarPaquete(paqueteId: string, fechaPago?: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/pagar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fecha_pago: fechaPago ?? null }),
+  });
+}
+
+/** Tesorería marca múltiples paquetes como pagados en una sola operación */
+export async function pagarPaquetesMasivo(
+  paqueteIds: string[],
+  fechaPago?: string,
+): Promise<{ pagados: number; errores: string[] }> {
+  return fetchAPI(`/gastos/paquetes/pagar-masivo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paquete_ids: paqueteIds, fecha_pago: fechaPago ?? null }),
+  });
 }
 
 // --- Gastos (líneas de detalle) ---------------------------------------------

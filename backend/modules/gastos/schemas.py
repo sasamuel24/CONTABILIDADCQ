@@ -215,3 +215,17 @@ class PaqueteListItem(BaseModel):
 class PaqueteListResponse(BaseModel):
     paquetes: List[PaqueteListItem]
     total: int
+
+
+class PagarPaqueteIn(BaseModel):
+    fecha_pago: Optional[datetime] = None
+
+
+class PagarMasivoIn(BaseModel):
+    paquete_ids: List[UUID]
+    fecha_pago: Optional[datetime] = None
+
+
+class PagarMasivoOut(BaseModel):
+    pagados: int
+    errores: List[str] = []

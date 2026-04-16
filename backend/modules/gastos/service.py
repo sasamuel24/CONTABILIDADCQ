@@ -1,4 +1,5 @@
 """Lógica de negocio para el módulo de gastos / legalización."""
+import asyncio
 import io
 import secrets
 from fastapi import HTTPException, UploadFile, status
@@ -414,7 +415,8 @@ class GastosService:
         s3_key = _s3_key(paquete_id, gasto_id, file.filename)
         file_content = await file.read()
 
-        upload_result = s3_service.upload_fileobj(
+        upload_result = await asyncio.to_thread(
+            s3_service.upload_fileobj,
             io.BytesIO(file_content), s3_key, content_type
         )
 
@@ -504,7 +506,9 @@ class GastosService:
                 logger.warning(f"No se pudo eliminar de S3: {paquete.aprobacion_gerencia_s3_key}")
 
         file_content = await file.read()
-        s3_service.upload_fileobj(io.BytesIO(file_content), s3_key, content_type)
+        await asyncio.to_thread(
+            s3_service.upload_fileobj, io.BytesIO(file_content), s3_key, content_type
+        )
 
         paquete.aprobacion_gerencia_s3_key = s3_key
         paquete.aprobacion_gerencia_filename = file.filename
@@ -553,7 +557,9 @@ class GastosService:
                 logger.warning(f"No se pudo eliminar de S3: {paquete.doc_contable_s3_key}")
 
         file_content = await file.read()
-        s3_service.upload_fileobj(io.BytesIO(file_content), s3_key, content_type)
+        await asyncio.to_thread(
+            s3_service.upload_fileobj, io.BytesIO(file_content), s3_key, content_type
+        )
 
         paquete.doc_contable_s3_key = s3_key
         paquete.doc_contable_filename = file.filename
@@ -625,7 +631,9 @@ class GastosService:
                 logger.warning(f"No se pudo eliminar de S3: {gasto.cm_pdf_s3_key}")
 
         file_content = await file.read()
-        s3_service.upload_fileobj(io.BytesIO(file_content), s3_key, content_type)
+        await asyncio.to_thread(
+            s3_service.upload_fileobj, io.BytesIO(file_content), s3_key, content_type
+        )
 
         gasto.cm_pdf_s3_key = s3_key
         gasto.cm_pdf_filename = file.filename

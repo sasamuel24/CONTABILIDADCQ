@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 import mimetypes
 import re
 import os
+import asyncio
 
 
 class FileService:
@@ -415,15 +416,16 @@ class FileService:
                 new_filename = f"{timestamp}_{sanitized_filename}"
                 s3_key = f"dev/facturas/{factura_id}/{doc_type}/{new_filename}"
                 
-                # Subir a S3
+                # Subir a S3 en thread pool para no bloquear el event loop
                 logger.info(f"Subiendo archivo a S3: {s3_key}")
                 content = await file.read()
                 file_bytes_io = __import__('io').BytesIO(content)
-                
-                s3_metadata = s3_service.upload_fileobj(
-                    fileobj=file_bytes_io,
-                    key=s3_key,
-                    content_type=actual_content_type
+
+                s3_metadata = await asyncio.to_thread(
+                    s3_service.upload_fileobj,
+                    file_bytes_io,
+                    s3_key,
+                    actual_content_type
                 )
                 
                 # Generar URL prefirmada (válida 10 minutos)

@@ -13,7 +13,7 @@ from db.models import User
 from modules.gastos.service import GastosService
 from modules.gastos.schemas import (
     PaqueteCreate, PaqueteOut, PaqueteListResponse,
-    GastoCreate, GastoUpdate, GastoOut,
+    GastoCreate, GastoUpdate, GastoOut, GastoCreateResponse,
     ArchivoGastoOut, PaqueteDevolver, GastoDevolverRequest,
     PagarPaqueteIn, PagarMasivoIn, PagarMasivoOut,
 )
@@ -249,9 +249,25 @@ async def pagar_paquetes_masivo(
 # GASTOS (líneas de detalle)
 # =============================================================================
 
+@router.get(
+    "/gastos/check-buzon",
+    summary="Verifica si un número de recibo existe en el buzón de facturas",
+)
+async def check_buzon(
+    no_recibo: str = Query(..., description="Número de recibo a verificar"),
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(get_current_user),
+):
+    from modules.facturas.repository import FacturaRepository
+    repo = FacturaRepository(db)
+    factura = await repo.get_by_numero(no_recibo)
+    if factura:
+        return {"existe": True, "proveedor": factura.proveedor}
+    return {"existe": False, "proveedor": None}
+
 @router.post(
     "/gastos/paquetes/{paquete_id}/gastos",
-    response_model=GastoOut,
+    response_model=GastoCreateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Agregar línea de gasto",
 )

@@ -1334,6 +1334,7 @@ export interface GastoOut {
   cm_pdf_s3_key: string | null;
   created_at: string;
   updated_at: string;
+  aviso_buzon?: string | null;
 }
 
 export interface ComentarioPaqueteOut {
@@ -1506,6 +1507,11 @@ export async function pagarPaquetesMasivo(
 }
 
 // --- Gastos (líneas de detalle) ---------------------------------------------
+
+/** Verifica si un número de recibo existe en el buzón de facturas */
+export async function checkBuzon(noRecibo: string): Promise<{ existe: boolean; proveedor: string | null }> {
+  return fetchAPI(`/gastos/check-buzon?no_recibo=${encodeURIComponent(noRecibo)}`);
+}
 
 /** Agregar línea de gasto */
 export async function agregarGasto(paqueteId: string, data: GastoCreate): Promise<GastoOut> {

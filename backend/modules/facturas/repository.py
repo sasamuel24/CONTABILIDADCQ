@@ -94,3 +94,8 @@ class FacturaRepository:
             await self.db.flush()
             await self.db.refresh(factura)
         return factura
+
+    async def delete(self, factura: Factura) -> None:
+        """Elimina una factura y sus registros relacionados (cascade)."""
+        await self.db.delete(factura)
+        await self.db.flush()

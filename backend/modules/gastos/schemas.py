@@ -116,6 +116,10 @@ class GastoOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class GastoCreateResponse(GastoOut):
+    aviso_buzon: Optional[str] = None
+
+
 class GastoDevolverRequest(BaseModel):
     motivo: str
 

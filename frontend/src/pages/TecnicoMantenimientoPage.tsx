@@ -45,6 +45,7 @@ import {
   getCentrosOperacion,
   getCuentasAuxiliares,
   reenviarGasto,
+  checkBuzon,
   CentroCosto,
   CentroOperacion,
   CuentaAuxiliar,
@@ -325,6 +326,23 @@ function CardGasto({
   const inputReadCls = `w-full rounded-lg px-3 py-2.5 text-sm text-gray-700 bg-gray-50 border border-gray-100 cursor-default`;
   const selectCls = `w-full rounded-lg px-3 py-2.5 text-sm text-gray-800 border border-gray-200 focus:outline-none focus:ring-2 focus:border-transparent bg-white transition-all`;
 
+  type BuzonEstado = 'cargando' | 'encontrada' | 'no_encontrada';
+  const [buzonStatus, setBuzonStatus] = useState<{ estado: BuzonEstado; proveedor?: string } | null>(null);
+
+  const handleBlurRecibo = async (valor: string) => {
+    if (!valor.trim()) { setBuzonStatus(null); return; }
+    setBuzonStatus({ estado: 'cargando' });
+    try {
+      const res = await checkBuzon(valor.trim());
+      setBuzonStatus(res.existe
+        ? { estado: 'encontrada', proveedor: res.proveedor ?? undefined }
+        : { estado: 'no_encontrada' }
+      );
+    } catch {
+      setBuzonStatus(null);
+    }
+  };
+
   const monto = parseFloat(fila.valorPagado.replace(/[^0-9.]/g, '')) || 0;
   const tituloGasto = fila.concepto || fila.pagadoA || `Gasto #${idx + 1}`;
   const esGastoDevuelto = fila.estado_gasto === 'devuelto';
@@ -480,14 +498,32 @@ function CardGasto({
             {bloqueado ? (
               <p className={inputReadCls}>{fila.noRecibo || '—'}</p>
             ) : (
-              <input
-                type="text"
-                placeholder="Numero de recibo"
-                value={fila.noRecibo}
-                onChange={(e) => onCampo(fila.localId, 'noRecibo', e.target.value)}
-                className={inputCls}
-                style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
-              />
+              <>
+                <input
+                  type="text"
+                  placeholder="Numero de recibo"
+                  value={fila.noRecibo}
+                  onChange={(e) => { onCampo(fila.localId, 'noRecibo', e.target.value); setBuzonStatus(null); }}
+                  onBlur={(e) => handleBlurRecibo(e.target.value)}
+                  className={inputCls}
+                  style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                />
+                {buzonStatus?.estado === 'cargando' && (
+                  <p className="mt-1 text-xs text-gray-400 flex items-center gap-1">
+                    <Loader2 size={11} className="animate-spin" /> Verificando en buzón...
+                  </p>
+                )}
+                {buzonStatus?.estado === 'encontrada' && (
+                  <p className="mt-1 text-xs font-medium flex items-center gap-1" style={{ color: '#16a34a' }}>
+                    <BadgeCheck size={13} /> Factura en buzón · {buzonStatus.proveedor}
+                  </p>
+                )}
+                {buzonStatus?.estado === 'no_encontrada' && (
+                  <p className="mt-1 text-xs font-medium flex items-center gap-1" style={{ color: '#d97706' }}>
+                    <AlertCircle size={13} /> No encontrada en el buzón aún
+                  </p>
+                )}
+              </>
             )}
           </div>
           <div>
@@ -1082,6 +1118,7 @@ function DetallePaquete({
           cuenta_auxiliar_id: fila.cuentaAuxiliarId || undefined,
         });
         gastoId = creado.id;
+        if (creado.aviso_buzon) toast.info(creado.aviso_buzon, { duration: 8000 });
       } else if (!esNueva && fila.isDirty && gastoId) {
         // Editar gasto existente
         await editarGasto(paqueteId, gastoId, {
@@ -1435,6 +1472,7 @@ function NuevoPaqueteForm({
           centro_operacion_id: fila.centroOperacionId || undefined,
           cuenta_auxiliar_id: fila.cuentaAuxiliarId || undefined,
         });
+        if (creado.aviso_buzon) toast.info(creado.aviso_buzon, { duration: 8000 });
 
         // Subir archivos pendientes si existen
         for (const pf of fila.pendingFiles) {

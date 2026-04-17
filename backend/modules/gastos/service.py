@@ -23,8 +23,9 @@ from modules.gastos.repository import (
 from modules.gastos.token_repository import TokenAprobacionRepository
 from modules.gastos.schemas import (
     PaqueteCreate, GastoCreate, GastoUpdate, PaqueteDevolver,
-    PaqueteOut, PaqueteListItem, GastoOut, ArchivoGastoOut, ComentarioPaqueteOut
+    PaqueteOut, PaqueteListItem, GastoOut, GastoCreateResponse, ArchivoGastoOut, ComentarioPaqueteOut
 )
+from modules.facturas.repository import FacturaRepository
 
 CATEGORIAS_VALIDAS = {
     'Combustible', 'Hospedaje', 'Alimentacion',
@@ -64,6 +65,7 @@ class GastosService:
         self.comentario_repo = ComentarioPaqueteRepository(db)
         self.historial_repo = HistorialRepository(db)
         self.token_repo = TokenAprobacionRepository(db)
+        self.factura_repo = FacturaRepository(db)
 
     # ------------------------------------------------------------------
     # Paquetes
@@ -315,7 +317,7 @@ class GastosService:
 
     async def agregar_gasto(
         self, paquete_id: UUID, user_id: UUID, data: GastoCreate
-    ) -> GastoOut:
+    ) -> GastoCreateResponse:
         paquete = await self._get_paquete_or_404(paquete_id)
         self._check_editable(paquete, user_id)
 
@@ -334,9 +336,27 @@ class GastosService:
         )
         await self.gasto_repo.create(gasto)
         await self.paquete_repo.recalculate_totals(paquete_id)
+
+        aviso_buzon: Optional[str] = None
+        if data.no_recibo:
+            factura_en_buzon = await self.factura_repo.get_by_numero(data.no_recibo)
+            if factura_en_buzon:
+                await self.factura_repo.delete(factura_en_buzon)
+                aviso_buzon = (
+                    f"La factura No. {data.no_recibo} fue encontrada en el buzón "
+                    f"y ha sido legalizada por el módulo de técnicos."
+                )
+            else:
+                aviso_buzon = (
+                    f"El No. de recibo {data.no_recibo} no se encontró en el buzón "
+                    f"de Café Quindío. El gasto fue guardado correctamente; "
+                    f"es posible que la factura aún no haya llegado al buzón."
+                )
+
         await self.db.commit()
         gasto = await self.gasto_repo.get_by_id(gasto.id)
-        return GastoOut.model_validate(gasto)
+        gasto_out = GastoOut.model_validate(gasto)
+        return GastoCreateResponse(**gasto_out.model_dump(), aviso_buzon=aviso_buzon)
 
     async def editar_gasto(
         self, paquete_id: UUID, gasto_id: UUID, user_id: UUID, data: GastoUpdate,

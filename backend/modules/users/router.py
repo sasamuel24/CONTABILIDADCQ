@@ -13,6 +13,7 @@ from modules.users.schemas import (
     UserCreate,
     UserUpdate,
     UserPasswordUpdate,
+    AdminPasswordReset,
     UserListItem,
     UserDetail,
     UsersPaginatedResponse
@@ -136,6 +137,17 @@ async def update_password(
     - Nueva contraseña con mínimo 6 caracteres
     """
     return await service.update_password(user_id, password_data)
+
+
+@router.post("/{user_id}/admin-reset-password")
+async def admin_reset_password(
+    user_id: UUID,
+    data: AdminPasswordReset,
+    service: UserService = Depends(get_user_service),
+    current_user: dict = Depends(get_current_user)
+):
+    """Resetea la contraseña de un usuario sin requerir la contraseña actual. Solo para administradores."""
+    return await service.admin_reset_password(user_id, data)
 
 
 @router.delete("/{user_id}")

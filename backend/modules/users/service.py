@@ -3,10 +3,11 @@ Servicio para lógica de negocio de usuarios.
 """
 from modules.users.repository import UserRepository
 from modules.users.schemas import (
-    UserCreate, 
-    UserUpdate, 
+    UserCreate,
+    UserUpdate,
     UserPasswordUpdate,
-    UserListItem, 
+    AdminPasswordReset,
+    UserListItem,
     UserDetail,
     UsersPaginatedResponse
 )
@@ -190,6 +191,26 @@ class UserService:
         logger.info(f"Contraseña actualizada exitosamente: {user_id}")
         return {"message": "Contraseña actualizada exitosamente"}
     
+    async def admin_reset_password(self, user_id: UUID, data: AdminPasswordReset) -> dict:
+        """Admin resetea la contraseña de un usuario sin requerir la contraseña actual."""
+        logger.info(f"Admin reseteando contraseña del usuario ID: {user_id}")
+
+        user = await self.repository.get_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Usuario con ID {user_id} no encontrado"
+            )
+
+        new_hashed = hash_password(data.new_password)
+        await self.repository.update(user_id, {
+            "password_hash": new_hashed,
+            "must_change_password": True,
+        })
+
+        logger.info(f"Contraseña reseteada por admin para usuario: {user_id}")
+        return {"message": "Contraseña reseteada. El usuario deberá cambiarla al ingresar."}
+
     async def delete_user(self, user_id: UUID) -> dict:
         """Desactiva un usuario (soft delete)."""
         logger.info(f"Desactivando usuario ID: {user_id}")

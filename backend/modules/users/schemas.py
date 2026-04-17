@@ -69,3 +69,8 @@ class UsersPaginatedResponse(BaseModel):
     total: int
     page: int
     per_page: int
+
+
+class AdminPasswordReset(BaseModel):
+    """Esquema para que el admin resetee la contraseña de un usuario."""
+    new_password: str = Field(..., min_length=6, description="Nueva contraseña temporal")

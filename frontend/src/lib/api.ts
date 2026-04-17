@@ -39,6 +39,22 @@ export interface Area {
   nombre: string;
 }
 
+export interface AreaDetail {
+  id: string;
+  code: string;
+  nombre: string;
+}
+
+export interface AreaCreatePayload {
+  code: string;
+  nombre: string;
+}
+
+export interface AreaUpdatePayload {
+  code?: string;
+  nombre?: string;
+}
+
 export interface Estado {
   id: number;
   code: string;
@@ -155,6 +171,45 @@ export interface UserListItem {
   id: string;
   nombre: string;
   email: string;
+  role: string;
+  area: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface UserDetail {
+  id: string;
+  nombre: string;
+  email: string;
+  role: string;
+  area_id: string | null;
+  area: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface UsersPaginatedResponse {
+  items: UserListItem[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface UserCreatePayload {
+  nombre: string;
+  email: string;
+  role: string;
+  area_id?: string;
+  password: string;
+}
+
+export interface UserUpdatePayload {
+  nombre?: string;
+  email?: string;
+  role?: string;
+  area_id?: string | null;
+  is_active?: boolean;
 }
 
 export interface ApiError {
@@ -368,8 +423,37 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
 /**
  * Obtener lista de áreas
  */
-export async function getAreas(): Promise<Area[]> {
-  return fetchAPI<Area[]>('/areas/');
+export async function getAreas(): Promise<AreaDetail[]> {
+  return fetchAPI<AreaDetail[]>('/areas/');
+}
+
+/**
+ * Crear una nueva área
+ */
+export async function createArea(data: AreaCreatePayload): Promise<AreaDetail> {
+  return fetchAPI<AreaDetail>('/areas/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Actualizar un área existente
+ */
+export async function updateArea(areaId: string, data: AreaUpdatePayload): Promise<AreaDetail> {
+  return fetchAPI<AreaDetail>(`/areas/${areaId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Eliminar un área
+ */
+export async function deleteArea(areaId: string): Promise<void> {
+  return fetchAPI<void>(`/areas/${areaId}`, {
+    method: 'DELETE',
+  });
 }
 
 /**
@@ -419,11 +503,36 @@ export async function updateFactura(facturaId: string, data: FacturaUpdate): Pro
   });
 }
 
-/**
- * Obtener lista de usuarios
- */
-export async function getUsers(): Promise<UserListItem[]> {
-  return fetchAPI<UserListItem[]>('/users/');
+/** Listar usuarios con paginación */
+export async function getUsers(skip = 0, limit = 200): Promise<UsersPaginatedResponse> {
+  return fetchAPI<UsersPaginatedResponse>(`/users/?skip=${skip}&limit=${limit}`);
+}
+
+/** Crear usuario */
+export async function createUser(data: UserCreatePayload): Promise<UserDetail> {
+  return fetchAPI<UserDetail>('/users/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+/** Actualizar usuario */
+export async function updateUser(userId: string, data: UserUpdatePayload): Promise<UserDetail> {
+  return fetchAPI<UserDetail>(`/users/${userId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+/** Admin resetea contraseña sin requerir la actual */
+export async function adminResetPassword(userId: string, newPassword: string): Promise<{ message: string }> {
+  return fetchAPI(`/users/${userId}/admin-reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ new_password: newPassword }),
+  });
 }
 
 /**

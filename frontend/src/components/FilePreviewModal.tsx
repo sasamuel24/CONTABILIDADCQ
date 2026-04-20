@@ -31,8 +31,10 @@ export function FilePreviewModal({
     ? `${API_BASE_URL}/facturas/${facturaId}/files/download?key=${encodeURIComponent(storagePath)}&inline=true`
     : `${API_BASE_URL}/files/${fileId}/preview`;
 
-  const isPDF = contentType === 'application/pdf';
-  const isImage = contentType?.startsWith('image/');
+  const isPDF = contentType === 'application/pdf'
+    || /\.pdf$/i.test(filename);
+  const isImage = contentType?.startsWith('image/')
+    || /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(filename);
 
   const previewUrl = isPDF
     ? `${baseUrl}#zoom=page-width&view=FitH`

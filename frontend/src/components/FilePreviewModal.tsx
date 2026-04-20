@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import { API_BASE_URL } from '../lib/api';
 
-interface ImgSize { w: number; h: number; }
 
 interface FilePreviewModalProps {
   fileId: string;
@@ -24,7 +23,6 @@ export function FilePreviewModal({
   onDownload
 }: FilePreviewModalProps) {
   const [zoom, setZoom] = useState(1);
-  const [imgSize, setImgSize] = useState<ImgSize | null>(null);
 
   const isTemporaryId = fileId === '00000000-0000-0000-0000-000000000000';
   const baseUrl = isTemporaryId && storagePath && facturaId
@@ -136,23 +134,21 @@ export function FilePreviewModal({
           ) : isImage ? (
             <div
               className="w-full h-full overflow-auto bg-gray-50"
-              style={{ display: 'grid', placeItems: zoom <= 1 ? 'center' : 'start' }}
+              style={{
+                display: 'flex',
+                alignItems: zoom <= 1 ? 'center' : 'flex-start',
+                justifyContent: zoom <= 1 ? 'center' : 'flex-start',
+              }}
             >
               <img
                 src={baseUrl}
                 alt={filename}
-                onLoad={(e) => setImgSize({
-                  w: e.currentTarget.naturalWidth,
-                  h: e.currentTarget.naturalHeight,
-                })}
                 style={{
                   display: 'block',
-                  width:    imgSize ? `${imgSize.w * zoom}px` : 'auto',
-                  height:   imgSize ? `${imgSize.h * zoom}px` : 'auto',
+                  zoom: zoom,
                   maxWidth:  zoom <= 1 ? '100%' : 'none',
                   maxHeight: zoom <= 1 ? '100%' : 'none',
                   margin: zoom <= 1 ? 'auto' : '16px',
-                  transition: 'width 0.15s ease, height 0.15s ease',
                 }}
               />
             </div>

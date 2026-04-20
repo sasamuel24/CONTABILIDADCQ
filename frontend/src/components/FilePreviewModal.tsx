@@ -1,4 +1,5 @@
-import { X } from 'lucide-react';
+import { useState } from 'react';
+import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import { API_BASE_URL } from '../lib/api';
 
 interface FilePreviewModalProps {
@@ -11,16 +12,17 @@ interface FilePreviewModalProps {
   onDownload: () => void;
 }
 
-export function FilePreviewModal({ 
-  fileId, 
-  filename, 
+export function FilePreviewModal({
+  fileId,
+  filename,
   contentType,
   storagePath,
   facturaId,
   onClose,
   onDownload
 }: FilePreviewModalProps) {
-  // Si el ID es el UUID vacío y tenemos storage_path, usar el endpoint de S3
+  const [zoom, setZoom] = useState(1);
+
   const isTemporaryId = fileId === '00000000-0000-0000-0000-000000000000';
   const baseUrl = isTemporaryId && storagePath && facturaId
     ? `${API_BASE_URL}/facturas/${facturaId}/files/download?key=${encodeURIComponent(storagePath)}&inline=true`
@@ -28,19 +30,20 @@ export function FilePreviewModal({
 
   const isPDF = contentType === 'application/pdf';
   const isImage = contentType?.startsWith('image/');
-  
-  // URL con zoom optimizado para PDFs
-  const previewUrl = isPDF 
+
+  const previewUrl = isPDF
     ? `${baseUrl}#zoom=page-width&view=FitH`
     : baseUrl;
 
+  const zoomPct = Math.round(zoom * 100);
+
   return (
-    <div 
+    <div
       className="fixed inset-0 flex items-center justify-center z-50"
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
       onClick={onClose}
     >
-      <div 
+      <div
         className="bg-white flex flex-col"
         style={{
           width: 'min(1400px, 96vw)',
@@ -50,48 +53,95 @@ export function FilePreviewModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header fijo - 56px */}
-        <div 
-          className="flex items-center justify-between px-6 border-b border-gray-200 flex-shrink-0"
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-6 border-b border-gray-200 flex-shrink-0 gap-4"
           style={{ height: '56px' }}
         >
-          <h3 className="text-lg font-semibold text-gray-900 truncate">
+          <h3 className="text-lg font-semibold text-gray-900 truncate flex-1 min-w-0">
             {filename}
           </h3>
-          
+
+          {(isPDF || isImage) && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={() => setZoom(z => Math.max(0.25, +(z - 0.25).toFixed(2)))}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Reducir zoom"
+              >
+                <ZoomOut className="w-4 h-4 text-gray-600" />
+              </button>
+
+              <input
+                type="range"
+                min="0.25"
+                max="3"
+                step="0.05"
+                value={zoom}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                className="w-28 accent-teal-600"
+                title={`Zoom: ${zoomPct}%`}
+              />
+
+              <button
+                onClick={() => setZoom(z => Math.min(3, +(z + 0.25).toFixed(2)))}
+                className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Aumentar zoom"
+              >
+                <ZoomIn className="w-4 h-4 text-gray-600" />
+              </button>
+
+              <button
+                onClick={() => setZoom(1)}
+                className="text-xs text-gray-500 hover:text-teal-600 w-12 text-center transition-colors"
+                title="Restablecer zoom"
+              >
+                {zoomPct}%
+              </button>
+            </div>
+          )}
+
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
             title="Cerrar"
           >
             <X className="w-5 h-5 text-gray-700" />
           </button>
         </div>
 
-        {/* Body - ocupa el resto del espacio */}
+        {/* Body */}
         <div className="flex-1 overflow-hidden" style={{ padding: 0 }}>
           {isPDF ? (
-            <iframe
-              src={previewUrl}
-              className="border-0"
-              style={{
-                width: '100%',
-                height: '100%',
-                display: 'block',
-              }}
-              title={filename}
-            />
+            <div className="w-full h-full overflow-auto" style={{ background: '#525659' }}>
+              <div style={{
+                width: zoom === 1 ? '100%' : `${zoom * 100}%`,
+                height: zoom === 1 ? '100%' : `${zoom * 100}%`,
+                minWidth: '100%',
+                minHeight: '100%',
+              }}>
+                <iframe
+                  src={previewUrl}
+                  className="border-0"
+                  style={{ width: '100%', height: '100%', display: 'block' }}
+                  title={filename}
+                />
+              </div>
+            </div>
           ) : isImage ? (
-            <div className="w-full h-full flex items-center justify-center bg-gray-50">
+            <div
+              className="w-full h-full overflow-auto flex justify-center bg-gray-50"
+              style={{ alignItems: zoom <= 1 ? 'center' : 'flex-start' }}
+            >
               <img
                 src={baseUrl}
                 alt={filename}
-                className="max-w-full max-h-full object-contain"
                 style={{
-                  width: 'auto',
+                  width: zoom === 1 ? 'auto' : `${zoom * 100}%`,
+                  maxWidth: zoom === 1 ? '100%' : 'none',
                   height: 'auto',
-                  maxWidth: '100%',
-                  maxHeight: '100%',
+                  transition: 'width 0.15s ease',
+                  padding: '12px',
                 }}
               />
             </div>

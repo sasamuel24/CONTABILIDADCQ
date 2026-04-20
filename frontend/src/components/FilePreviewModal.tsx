@@ -132,31 +132,27 @@ export function FilePreviewModal({
               </div>
             </div>
           ) : isImage ? (
-            <div className="w-full h-full overflow-auto bg-gray-50">
-              <div style={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: imgSize && zoom > 1 ? 'flex-start' : 'center',
-                minWidth: '100%',
-                minHeight: '100%',
-                padding: '12px',
-                boxSizing: 'border-box',
-              }}>
-                <img
-                  src={baseUrl}
-                  alt={filename}
-                  onLoad={(e) => setImgSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
-                  style={{
-                    width: imgSize ? imgSize.w * zoom : undefined,
-                    height: imgSize ? imgSize.h * zoom : undefined,
-                    maxWidth: zoom <= 1 ? '100%' : 'none',
-                    maxHeight: zoom <= 1 ? '100%' : 'none',
-                    objectFit: 'contain',
-                    flexShrink: 0,
-                    transition: 'width 0.15s ease, height 0.15s ease',
-                  }}
-                />
-              </div>
+            <div
+              className="w-full h-full overflow-auto bg-gray-50"
+              style={{ display: 'grid', placeItems: zoom <= 1 ? 'center' : 'start' }}
+            >
+              <img
+                src={baseUrl}
+                alt={filename}
+                onLoad={(e) => setImgSize({
+                  w: e.currentTarget.naturalWidth,
+                  h: e.currentTarget.naturalHeight,
+                })}
+                style={{
+                  display: 'block',
+                  width:    imgSize ? `${imgSize.w * zoom}px` : 'auto',
+                  height:   imgSize ? `${imgSize.h * zoom}px` : 'auto',
+                  maxWidth:  zoom <= 1 ? '100%' : 'none',
+                  maxHeight: zoom <= 1 ? '100%' : 'none',
+                  margin: zoom <= 1 ? 'auto' : '16px',
+                  transition: 'width 0.15s ease, height 0.15s ease',
+                }}
+              />
             </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gray-50">

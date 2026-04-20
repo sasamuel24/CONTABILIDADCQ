@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import { API_BASE_URL } from '../lib/api';
 
+interface BaseSize { w: number; h: number; }
 
 interface FilePreviewModalProps {
   fileId: string;
@@ -20,30 +21,37 @@ export function FilePreviewModal({
   storagePath,
   facturaId,
   onClose,
-  onDownload
+  onDownload,
 }: FilePreviewModalProps) {
   const [zoom, setZoom] = useState(1);
+  // Tamaño renderizado de la imagen cuando zoom=1 (offsetWidth/offsetHeight, no naturalWidth)
+  const [baseSize, setBaseSize] = useState<BaseSize | null>(null);
 
   const isTemporaryId = fileId === '00000000-0000-0000-0000-000000000000';
   const baseUrl = isTemporaryId && storagePath && facturaId
     ? `${API_BASE_URL}/facturas/${facturaId}/files/download?key=${encodeURIComponent(storagePath)}&inline=true`
     : `${API_BASE_URL}/files/${fileId}/preview`;
 
-  const isPDF = contentType === 'application/pdf'
-    || /\.pdf$/i.test(filename);
-  const isImage = contentType?.startsWith('image/')
-    || /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(filename);
+  const isPDF = contentType === 'application/pdf' || /\.pdf$/i.test(filename);
+  const isImage = contentType?.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(filename);
 
-  const previewUrl = isPDF
-    ? `${baseUrl}#zoom=page-width&view=FitH`
-    : baseUrl;
-
+  const previewUrl = isPDF ? `${baseUrl}#zoom=page-width&view=FitH` : baseUrl;
   const zoomPct = Math.round(zoom * 100);
+
+  const handleImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    // Captura solo la primera vez (con constraints activas = tamaño "ajustado" al modal)
+    if (!baseSize) {
+      setBaseSize({
+        w: e.currentTarget.offsetWidth,
+        h: e.currentTarget.offsetHeight,
+      });
+    }
+  };
 
   return (
     <div
       className="fixed inset-0 flex items-center justify-center z-50"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.45)' }}
+      style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
       onClick={onClose}
     >
       <div
@@ -52,7 +60,7 @@ export function FilePreviewModal({
           width: 'min(1400px, 96vw)',
           height: '95vh',
           borderRadius: '12px',
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -83,7 +91,6 @@ export function FilePreviewModal({
                 value={zoom}
                 onChange={(e) => setZoom(parseFloat(e.target.value))}
                 className="w-28 accent-teal-600"
-                title={`Zoom: ${zoomPct}%`}
               />
 
               <button
@@ -113,59 +120,75 @@ export function FilePreviewModal({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-hidden relative" style={{ padding: 0 }}>
-          {isPDF ? (
-            <div
-              style={{
-                position: 'absolute', inset: 0,
-                overflow: 'auto',
-                background: '#525659',
-              }}
-            >
+        {/* Body — relative para que los hijos con position:absolute se anclen aquí */}
+        <div className="flex-1 relative" style={{ minHeight: 0, overflow: 'hidden' }}>
+
+          {isPDF && (
+            <div style={{ position: 'absolute', inset: 0, overflow: 'auto', background: '#525659' }}>
               <div style={{
-                width: zoom === 1 ? '100%' : `${zoom * 100}%`,
-                height: zoom === 1 ? '100%' : `${zoom * 100}%`,
+                width: `${Math.max(zoom, 1) * 100}%`,
+                height: `${Math.max(zoom, 1) * 100}%`,
                 minWidth: '100%',
                 minHeight: '100%',
               }}>
                 <iframe
                   src={previewUrl}
-                  className="border-0"
-                  style={{ width: '100%', height: '100%', display: 'block' }}
+                  style={{ width: '100%', height: '100%', display: 'block', border: 'none' }}
                   title={filename}
                 />
               </div>
             </div>
-          ) : isImage ? (
-            <div
-              style={{
-                position: 'absolute', inset: 0,
-                overflow: 'auto',
-                background: '#f9fafb',
+          )}
+
+          {isImage && (
+            /*
+             * Outer: fixed por position:absolute+inset, overflow:auto → genera scroll
+             * Inner: minWidth/minHeight:100% → llena el outer cuando imagen es pequeña
+             *        crece más allá del outer cuando zoom > 1 → dispara el scroll
+             * Img:   flexShrink:0 → nunca comprimida por flex
+             *        offsetWidth/Height en onLoad (no naturalWidth, falla cross-origin)
+             *        dimensiones explícitas en px una vez conocida baseSize
+             */
+            <div style={{ position: 'absolute', inset: 0, overflow: 'auto', background: '#f9fafb' }}>
+              <div style={{
+                minWidth: '100%',
+                minHeight: '100%',
                 display: 'flex',
-                alignItems: zoom <= 1 ? 'center' : 'flex-start',
-                justifyContent: zoom <= 1 ? 'center' : 'flex-start',
-              }}
-            >
-              <img
-                src={baseUrl}
-                alt={filename}
-                style={{
-                  display: 'block',
-                  zoom: zoom,
-                  maxWidth:  zoom <= 1 ? '100%' : 'none',
-                  maxHeight: zoom <= 1 ? '100%' : 'none',
-                  margin: zoom <= 1 ? 'auto' : '16px',
-                }}
-              />
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '16px',
+                boxSizing: 'border-box',
+              }}>
+                <img
+                  src={baseUrl}
+                  alt={filename}
+                  onLoad={handleImgLoad}
+                  style={{
+                    display: 'block',
+                    flexShrink: 0,
+                    ...(baseSize
+                      ? {
+                          width: `${baseSize.w * zoom}px`,
+                          height: `${baseSize.h * zoom}px`,
+                          maxWidth: 'none',
+                          maxHeight: 'none',
+                        }
+                      : {
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          width: 'auto',
+                          height: 'auto',
+                        }),
+                  }}
+                />
+              </div>
             </div>
-          ) : (
+          )}
+
+          {!isPDF && !isImage && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb' }}>
               <div className="text-center p-6">
-                <p className="text-gray-600 mb-4">
-                  Vista previa no disponible para este tipo de archivo
-                </p>
+                <p className="text-gray-600 mb-4">Vista previa no disponible para este tipo de archivo</p>
                 <button
                   onClick={onDownload}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"

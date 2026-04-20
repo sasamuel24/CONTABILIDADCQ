@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import { API_BASE_URL } from '../lib/api';
 
+interface ImgSize { w: number; h: number; }
+
 interface FilePreviewModalProps {
   fileId: string;
   filename: string;
@@ -22,6 +24,7 @@ export function FilePreviewModal({
   onDownload
 }: FilePreviewModalProps) {
   const [zoom, setZoom] = useState(1);
+  const [imgSize, setImgSize] = useState<ImgSize | null>(null);
 
   const isTemporaryId = fileId === '00000000-0000-0000-0000-000000000000';
   const baseUrl = isTemporaryId && storagePath && facturaId
@@ -129,21 +132,31 @@ export function FilePreviewModal({
               </div>
             </div>
           ) : isImage ? (
-            <div
-              className="w-full h-full overflow-auto flex justify-center bg-gray-50"
-              style={{ alignItems: zoom <= 1 ? 'center' : 'flex-start' }}
-            >
-              <img
-                src={baseUrl}
-                alt={filename}
-                style={{
-                  width: zoom === 1 ? 'auto' : `${zoom * 100}%`,
-                  maxWidth: zoom === 1 ? '100%' : 'none',
-                  height: 'auto',
-                  transition: 'width 0.15s ease',
-                  padding: '12px',
-                }}
-              />
+            <div className="w-full h-full overflow-auto bg-gray-50">
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: imgSize && zoom > 1 ? 'flex-start' : 'center',
+                minWidth: '100%',
+                minHeight: '100%',
+                padding: '12px',
+                boxSizing: 'border-box',
+              }}>
+                <img
+                  src={baseUrl}
+                  alt={filename}
+                  onLoad={(e) => setImgSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+                  style={{
+                    width: imgSize ? imgSize.w * zoom : undefined,
+                    height: imgSize ? imgSize.h * zoom : undefined,
+                    maxWidth: zoom <= 1 ? '100%' : 'none',
+                    maxHeight: zoom <= 1 ? '100%' : 'none',
+                    objectFit: 'contain',
+                    flexShrink: 0,
+                    transition: 'width 0.15s ease, height 0.15s ease',
+                  }}
+                />
+              </div>
             </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gray-50">

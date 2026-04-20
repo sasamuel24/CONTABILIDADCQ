@@ -114,9 +114,15 @@ export function FilePreviewModal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-hidden" style={{ padding: 0 }}>
+        <div className="flex-1 overflow-hidden relative" style={{ padding: 0 }}>
           {isPDF ? (
-            <div className="w-full h-full overflow-auto" style={{ background: '#525659' }}>
+            <div
+              style={{
+                position: 'absolute', inset: 0,
+                overflow: 'auto',
+                background: '#525659',
+              }}
+            >
               <div style={{
                 width: zoom === 1 ? '100%' : `${zoom * 100}%`,
                 height: zoom === 1 ? '100%' : `${zoom * 100}%`,
@@ -133,8 +139,10 @@ export function FilePreviewModal({
             </div>
           ) : isImage ? (
             <div
-              className="w-full h-full overflow-auto bg-gray-50"
               style={{
+                position: 'absolute', inset: 0,
+                overflow: 'auto',
+                background: '#f9fafb',
                 display: 'flex',
                 alignItems: zoom <= 1 ? 'center' : 'flex-start',
                 justifyContent: zoom <= 1 ? 'center' : 'flex-start',
@@ -153,7 +161,7 @@ export function FilePreviewModal({
               />
             </div>
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gray-50">
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb' }}>
               <div className="text-center p-6">
                 <p className="text-gray-600 mb-4">
                   Vista previa no disponible para este tipo de archivo

@@ -10,8 +10,10 @@ export function NoAutorizadoPage() {
     // Redirigir según el rol del usuario
     const r = user?.role?.toLowerCase();
     
-    if (r === 'admin' || r === 'fact') {
+    if (r === 'admin') {
       navigate('/global');
+    } else if (r === 'fact') {
+      navigate('/facturacion');
     } else if (r === 'responsable') {
       navigate('/responsable');
     } else if (r === 'contabilidad') {

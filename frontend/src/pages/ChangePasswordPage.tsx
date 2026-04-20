@@ -65,8 +65,10 @@ export default function ChangePasswordPage() {
           navigate('/jefe-tesoreria', { replace: true });
           break;
         case 'admin':
-        case 'fact':
           navigate('/global', { replace: true });
+          break;
+        case 'fact':
+          navigate('/facturacion', { replace: true });
           break;
         case 'direccion':
           navigate('/centro-documental', { replace: true });

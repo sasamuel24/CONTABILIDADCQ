@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { GlobalPage } from './pages/GlobalPage';
+import { FacturacionPage } from './pages/FacturacionPage';
 import { ResponsablePage } from './pages/ResponsablePage';
 import { ContabilidadPage } from './pages/ContabilidadPage';
 import { TesoreriaPage } from './pages/TesoreriaPage';
@@ -37,7 +38,8 @@ function AppRoutes() {
 
   const roleRedirect = () => {
     const r = user?.role?.toLowerCase();
-    if (r === 'admin' || r === 'fact') return '/global';
+    if (r === 'admin') return '/global';
+    if (r === 'fact') return '/facturacion';
     if (r === 'responsable') return '/responsable';
     if (r === 'contabilidad') return '/contabilidad';
     if (r === 'tesoreria' || r === 'tes') return '/tesoreria';
@@ -63,8 +65,16 @@ function AppRoutes() {
           <Route
             path="/global"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'fact']}>
+              <ProtectedRoute allowedRoles={['admin']}>
                 <GlobalPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/facturacion"
+            element={
+              <ProtectedRoute allowedRoles={['fact']}>
+                <FacturacionPage />
               </ProtectedRoute>
             }
           />

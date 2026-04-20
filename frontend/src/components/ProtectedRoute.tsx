@@ -6,6 +6,19 @@ interface ProtectedRouteProps {
   allowedRoles?: string[];
 }
 
+function getRoleHome(role: string): string {
+  const r = role.toLowerCase();
+  if (r === 'admin') return '/global';
+  if (r === 'fact') return '/facturacion';
+  if (r === 'responsable') return '/responsable';
+  if (r === 'contabilidad') return '/contabilidad';
+  if (r === 'tesoreria' || r === 'tes') return '/tesoreria';
+  if (r === 'gerencia') return '/gerencia';
+  if (r === 'tecnico' || r === 'mant') return '/tecnico-mantenimiento';
+  if (r === 'direccion') return '/centro-documental';
+  return '/login';
+}
+
 export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
 
@@ -17,21 +30,16 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     );
   }
 
-  // Si no hay usuario, redirigir a login
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  // Si se especifican roles permitidos, validar
   if (allowedRoles && allowedRoles.length > 0) {
-    const userRole = user.role;
-    
-    // Comparación case-insensitive de roles
-    const normalizedUserRole = userRole?.toLowerCase();
+    const normalizedUserRole = user.role?.toLowerCase();
     const normalizedAllowedRoles = allowedRoles.map(r => r.toLowerCase());
-    
+
     if (!normalizedUserRole || !normalizedAllowedRoles.includes(normalizedUserRole)) {
-      return <Navigate to="/no-autorizado" replace />;
+      return <Navigate to={getRoleHome(user.role)} replace />;
     }
   }
 

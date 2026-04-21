@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Inbox, LogOut, PackageOpen } from 'lucide-react';
+import { Inbox, LogOut, PackageOpen, UploadCloud } from 'lucide-react';
 import { InboxView } from '../components/InboxView';
 import { ResponsablePaquetesView } from '../components/ResponsablePaquetesView';
+import { GastosAdminSubidaView } from '../components/GastosAdminSubidaView';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-type Seccion = 'bandeja' | 'paquetes';
+type Seccion = 'bandeja' | 'paquetes' | 'subida';
 
 export function ResponsablePage() {
   const { user, logout } = useAuth();
@@ -19,10 +20,12 @@ export function ResponsablePage() {
   };
 
   const esMant = user?.area?.code === 'mant';
+  const esGadmin = user?.area?.code === 'GADMIN';
 
   const NAV: { id: Seccion; label: string; icon: React.ReactNode }[] = [
     { id: 'bandeja',  label: 'Bandeja de Entrada',  icon: <Inbox className="w-5 h-5" /> },
     ...(esMant ? [{ id: 'paquetes' as Seccion, label: 'Paquetes de Gastos', icon: <PackageOpen className="w-5 h-5" /> }] : []),
+    ...(esGadmin ? [{ id: 'subida' as Seccion, label: 'Subida Manual de Facturas', icon: <UploadCloud className="w-5 h-5" /> }] : []),
   ];
 
   return (
@@ -118,6 +121,7 @@ export function ResponsablePage() {
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
         {seccion === 'bandeja' && <InboxView />}
+        {seccion === 'subida' && esGadmin && <GastosAdminSubidaView />}
         {seccion === 'paquetes' && esMant && (
           <div className={enDetalle ? 'p-4' : 'p-8'}>
             {!enDetalle && (

@@ -4,6 +4,7 @@
  * completa antes de registrar el pago.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { ZoomableImage } from './ZoomableImage';
 import { createPortal } from 'react-dom';
 import {
   listPaquetesGastos,
@@ -247,9 +248,7 @@ function DetalleAuditoriaTes({
               {previewUrl.contentType === 'application/pdf' ? (
                 <iframe src={`${previewUrl.url}#zoom=page-width`} className="w-full h-full border-0" title={previewUrl.filename} />
               ) : previewUrl.contentType?.startsWith('image/') ? (
-                <div className="w-full h-full flex items-center justify-center p-4">
-                  <img src={previewUrl.url} alt={previewUrl.filename} className="max-w-full max-h-full object-contain" />
-                </div>
+                <ZoomableImage src={previewUrl.url} alt={previewUrl.filename} />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <p className="text-sm text-gray-500">Vista previa no disponible.</p>

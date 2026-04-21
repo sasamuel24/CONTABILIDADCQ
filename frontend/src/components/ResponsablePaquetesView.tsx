@@ -3,6 +3,7 @@
  * Permite ver, aprobar y devolver paquetes enviados por los técnicos.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { ZoomableImage } from './ZoomableImage';
 import {
   listPaquetesGastos,
   getPaqueteGasto,
@@ -1363,13 +1364,7 @@ function DetallePaqueteResponsable({
                     title={previewArchivo.filename}
                   />
                 ) : previewArchivo.contentType?.startsWith('image/') ? (
-                  <div className="w-full h-full flex items-center justify-center p-4">
-                    <img
-                      src={previewArchivo.url}
-                      alt={previewArchivo.filename}
-                      className="max-w-full max-h-full object-contain"
-                    />
-                  </div>
+                  <ZoomableImage src={previewArchivo.url} alt={previewArchivo.filename} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <p className="text-sm text-gray-500">Vista previa no disponible para este tipo de archivo.</p>

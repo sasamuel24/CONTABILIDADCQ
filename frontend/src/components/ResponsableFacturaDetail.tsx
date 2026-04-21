@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { X, Upload, AlertCircle, Eye, Download, FileText, CheckCircle, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, InventariosData, UnidadNegocio, CuentaAuxiliar, DistribucionCCCO } from '../lib/api';
-import { 
-  uploadFacturaFile, 
+import {
+  uploadFacturaFile,
+  submitGadminTesoreria,
   getFacturaFilesByDocType,
   getCentrosCosto,
   getCentrosOperacion,
@@ -56,6 +57,8 @@ const INTERVALOS_ENTREGA = [
 
 export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFacturaDetailProps) {
   const { user } = useAuth();
+  const esGadmin = user?.area?.code === 'GADMIN';
+
   // Estados para modal de devolución a Facturación
   const [mostrarModalDevolucion, setMostrarModalDevolucion] = useState(false);
   const [motivoDevolucion, setMotivoDevolucion] = useState('');
@@ -114,6 +117,9 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [savingAnticipo, setSavingAnticipo] = useState(false);
   const [savingIntervalo, setSavingIntervalo] = useState(false);
   const [enviandoContabilidad, setEnviandoContabilidad] = useState(false);
+  const [enviandoTesoreria, setEnviandoTesoreria] = useState(false);
+  const [soporteGastoFijoFiles, setSoporteGastoFijoFiles] = useState<FileMiniOut[]>([]);
+  const [uploadingSoporteGastoFijo, setUploadingSoporteGastoFijo] = useState(false);
 
   // Campos de Tienda
   const [oct, setOct] = useState('');
@@ -166,20 +172,22 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       try {
         setLoadingArchivos(true);
         
-        const [archivosOC, archivosAprobacion, archivosSoportePago] = await Promise.all([
+        const [archivosOC, archivosAprobacion, archivosSoportePago, archivosSoporteGastoFijo] = await Promise.all([
           getFacturaFilesByDocType(factura.id, 'OC'),
           getFacturaFilesByDocType(factura.id, 'APROBACION_GERENCIA'),
-          getFacturaFilesByDocType(factura.id, 'FACTURA_PDF')
+          getFacturaFilesByDocType(factura.id, 'FACTURA_PDF'),
+          getFacturaFilesByDocType(factura.id, 'SOPORTE_PAGO'),
         ]);
-        
+
         // Cargar todos los archivos OC/OS
         setArchivosOCExistentes(archivosOC);
-        
+
         if (archivosAprobacion.length > 0) {
           setArchivoAprobacionExistente(archivosAprobacion[0]);
         }
-        
+
         setSoportePagoFiles(archivosSoportePago);
+        setSoporteGastoFijoFiles(archivosSoporteGastoFijo);
       } catch (error) {
         console.error('Error cargando archivos existentes:', error);
       } finally {
@@ -1114,6 +1122,66 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     }
   };
 
+  const handleUploadSoporteGastoFijo = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    input.onchange = async (e: Event) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        setUploadingSoporteGastoFijo(true);
+        const response = await uploadFacturaFile(factura.id, 'SOPORTE_PAGO', file);
+        setSoporteGastoFijoFiles(prev => [...prev, {
+          id: response.file_id,
+          doc_type: response.doc_type,
+          filename: response.filename,
+          content_type: response.content_type,
+          uploaded_at: response.created_at,
+        } as FileMiniOut]);
+        toast.success('Soporte de Gasto Fijo subido correctamente');
+      } catch (error: any) {
+        toast.error(`Error al subir soporte: ${error.message || 'Error desconocido'}`);
+      } finally {
+        setUploadingSoporteGastoFijo(false);
+      }
+    };
+    input.click();
+  };
+
+  const handleEnviarTesoreria = async () => {
+    if (soporteGastoFijoFiles.length === 0) {
+      setConfirmModalConfig({
+        title: 'Soporte requerido',
+        message: 'Debes adjuntar el Soporte de Gasto Fijo antes de enviar a Tesorería.',
+        type: 'warning',
+      });
+      setShowConfirmModal(true);
+      return;
+    }
+    try {
+      setEnviandoTesoreria(true);
+      await submitGadminTesoreria(factura.id);
+      setConfirmModalConfig({
+        title: 'Factura Enviada a Tesorería',
+        message: 'La factura ha sido enviada exitosamente a Tesorería.',
+        type: 'success',
+        onConfirm: () => onClose(),
+      });
+      setShowConfirmModal(true);
+    } catch (error: any) {
+      setConfirmModalConfig({
+        title: 'Error al Enviar',
+        message: `No se pudo enviar la factura a Tesorería.\n\n${error.message || 'Error desconocido'}`,
+        type: 'error',
+      });
+      setShowConfirmModal(true);
+    } finally {
+      setEnviandoTesoreria(false);
+    }
+  };
+
+
   const handleDevolverAFacturacion = async () => {
     if (!motivoDevolucion) {
       toast.warning('Debe seleccionar un motivo de devolución');
@@ -1301,6 +1369,63 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 </div>
               )}
             </div>
+
+            {/* Soporte de Gasto Fijo — solo visible para GADMIN */}
+            {esGadmin && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-gray-900 font-semibold">Soporte de Gasto Fijo</h4>
+                  <button
+                    type="button"
+                    onClick={handleUploadSoporteGastoFijo}
+                    disabled={uploadingSoporteGastoFijo}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border transition-colors disabled:opacity-50"
+                    style={{
+                      borderColor: '#00829a',
+                      color: '#00829a',
+                      fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(20,170,184,0.08)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    {uploadingSoporteGastoFijo
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Subiendo...</>
+                      : <><Upload className="w-4 h-4" /> Adjuntar soporte</>}
+                  </button>
+                </div>
+                {soporteGastoFijoFiles.length > 0 ? (
+                  <div className="space-y-2">
+                    {soporteGastoFijoFiles.map(file => (
+                      <div key={file.id} className="border border-gray-200 rounded-lg p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-teal-50 rounded flex items-center justify-center">
+                            <FileText className="w-4 h-4 text-teal-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-900 truncate max-w-xs">{file.filename}</p>
+                            <p className="text-xs text-gray-400">
+                              {new Date(file.uploaded_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => handlePreviewFile(file)} className="p-2 hover:bg-blue-50 rounded-lg" title="Vista previa">
+                            <Eye className="w-4 h-4 text-blue-600" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="border border-dashed border-gray-200 rounded-lg p-6 text-center">
+                    <FileText className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+                    <p className="text-sm text-gray-400" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
+                      Sin soporte adjunto — requerido para enviar a Tesorería
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Toggle: ¿Es Gasto Administrativo? */}
             <div className="rounded-lg p-4">
@@ -2061,32 +2186,43 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               >
                 Devolver a Radicación
               </button>
-              <button
-                onClick={handleEnviarContabilidad}
-                disabled={enviandoContabilidad}
-                className={`px-6 py-2 rounded-lg transition-colors font-medium`}
-                style={{
-                  backgroundColor: enviandoContabilidad ? '#9ca3af' : '#00829a',
-                  color: enviandoContabilidad ? '#e5e7eb' : 'white',
-                  cursor: enviandoContabilidad ? 'not-allowed' : 'pointer',
-                  fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
-                }}
-                onMouseEnter={(e) => {
-                  if (!enviandoContabilidad) e.currentTarget.style.backgroundColor = '#14aab8';
-                }}
-                onMouseLeave={(e) => {
-                  if (!enviandoContabilidad) e.currentTarget.style.backgroundColor = '#00829a';
-                }}
-              >
-                {enviandoContabilidad ? (
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Enviando...
-                  </div>
-                ) : (
-                  'Enviar a Contabilidad'
-                )}
-              </button>
+              {esGadmin ? (
+                <button
+                  onClick={handleEnviarTesoreria}
+                  disabled={enviandoTesoreria}
+                  className="px-6 py-2 rounded-lg transition-colors font-medium"
+                  style={{
+                    backgroundColor: enviandoTesoreria ? '#9ca3af' : '#00829a',
+                    color: 'white',
+                    cursor: enviandoTesoreria ? 'not-allowed' : 'pointer',
+                    fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                  }}
+                  onMouseEnter={e => { if (!enviandoTesoreria) e.currentTarget.style.backgroundColor = '#14aab8'; }}
+                  onMouseLeave={e => { if (!enviandoTesoreria) e.currentTarget.style.backgroundColor = '#00829a'; }}
+                >
+                  {enviandoTesoreria
+                    ? <div className="flex items-center gap-2"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />Enviando...</div>
+                    : 'Enviar a Tesorería'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleEnviarContabilidad}
+                  disabled={enviandoContabilidad}
+                  className="px-6 py-2 rounded-lg transition-colors font-medium"
+                  style={{
+                    backgroundColor: enviandoContabilidad ? '#9ca3af' : '#00829a',
+                    color: 'white',
+                    cursor: enviandoContabilidad ? 'not-allowed' : 'pointer',
+                    fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                  }}
+                  onMouseEnter={e => { if (!enviandoContabilidad) e.currentTarget.style.backgroundColor = '#14aab8'; }}
+                  onMouseLeave={e => { if (!enviandoContabilidad) e.currentTarget.style.backgroundColor = '#00829a'; }}
+                >
+                  {enviandoContabilidad
+                    ? <div className="flex items-center gap-2"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />Enviando...</div>
+                    : 'Enviar a Contabilidad'}
+                </button>
+              )}
             </div>
             </div>
           </div>

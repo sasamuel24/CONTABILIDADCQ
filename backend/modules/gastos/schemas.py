@@ -233,3 +233,18 @@ class PagarMasivoIn(BaseModel):
 class PagarMasivoOut(BaseModel):
     pagados: int
     errores: List[str] = []
+
+
+# ---------------------------------------------------------------------------
+# Extracción de datos desde imagen de factura (IA)
+# ---------------------------------------------------------------------------
+
+class ExtraccionDatosOut(BaseModel):
+    no_identificacion: Optional[str] = None
+    pagado_a: Optional[str] = None
+    concepto: Optional[str] = None
+    no_recibo: Optional[str] = None
+    valor_pagado: Optional[str] = None
+    fecha: Optional[str] = None
+    confianza: str = "baja"
+    campos_detectados: List[str] = []

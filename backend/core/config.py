@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     email_approver: str = ""      # Gerente — recibe el link de aprobación cuando responsable lo decide
     frontend_url: str = "http://localhost:3000"
 
+    # Anthropic — IA extracción datos facturas
+    anthropic_api_key: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

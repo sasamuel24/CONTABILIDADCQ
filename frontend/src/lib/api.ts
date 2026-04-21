@@ -1681,6 +1681,29 @@ export async function eliminarArchivoGasto(
   );
 }
 
+// --- IA: Extracción de datos desde imagen de factura -------------------
+
+export interface ExtraccionDatosOut {
+  no_identificacion: string | null;
+  pagado_a: string | null;
+  concepto: string | null;
+  no_recibo: string | null;
+  valor_pagado: string | null;
+  fecha: string | null;
+  confianza: 'alta' | 'media' | 'baja';
+  campos_detectados: string[];
+}
+
+/** Extraer datos de factura desde imagen usando Claude Haiku */
+export async function extraerDatosImagen(file: File): Promise<ExtraccionDatosOut> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return fetchAPI<ExtraccionDatosOut>('/gastos/extraer-datos-imagen', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
 /** Obtener URL de descarga del soporte por archivoId */
 export async function getDownloadUrlArchivoGasto(
   paqueteId: string,

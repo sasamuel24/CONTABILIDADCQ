@@ -21,6 +21,8 @@ import {
   BadgeCheck,
   PlusCircle,
   Loader2,
+  Scan,
+  Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
@@ -46,6 +48,7 @@ import {
   getCuentasAuxiliares,
   reenviarGasto,
   checkBuzon,
+  extraerDatosImagen,
   CentroCosto,
   CentroOperacion,
   CuentaAuxiliar,
@@ -303,6 +306,8 @@ interface CardGastoProps {
   onQuitarArchivoPendiente: (localId: string, localKey: string) => void;
   onVerArchivo: (localId: string, archivoId: string) => void;
   onReenviarGasto: (localId: string) => void;
+  onEscanear: (localId: string, file: File) => void;
+  escaneando: boolean;
 }
 
 function CardGasto({
@@ -321,6 +326,8 @@ function CardGasto({
   onQuitarArchivoPendiente,
   onVerArchivo,
   onReenviarGasto,
+  onEscanear,
+  escaneando,
 }: CardGastoProps) {
   const inputCls = `w-full rounded-lg px-3 py-2.5 text-sm text-gray-800 border border-gray-200 focus:outline-none focus:ring-2 focus:border-transparent bg-white transition-all`;
   const inputReadCls = `w-full rounded-lg px-3 py-2.5 text-sm text-gray-700 bg-gray-50 border border-gray-100 cursor-default`;
@@ -410,6 +417,49 @@ function CardGasto({
           )}
         </div>
       </div>
+
+      {/* Botón escanear con IA — solo visible cuando no está bloqueado */}
+      {!bloqueado && (
+        <div className="px-5 pt-3 pb-1">
+          <label
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold cursor-pointer transition-all border ${
+              escaneando
+                ? 'bg-purple-50 border-purple-200 text-purple-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 text-purple-700 hover:from-purple-100 hover:to-indigo-100 hover:border-purple-300'
+            }`}
+            style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+            title="Toma una foto de la factura y la IA completará los campos automáticamente"
+          >
+            {escaneando ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Analizando factura...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <Scan className="w-4 h-4" />
+                Escanear con IA
+              </>
+            )}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              disabled={escaneando}
+              style={{ position: 'absolute', width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onEscanear(fila.localId, f);
+                e.target.value = '';
+              }}
+            />
+          </label>
+          <p className="text-xs text-gray-400 mt-1.5" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+            Toma foto de la factura para pre-llenar los campos automáticamente
+          </p>
+        </div>
+      )}
 
       {/* Cuerpo: campos en grid */}
       <div className="px-5 py-4 space-y-4">
@@ -772,6 +822,8 @@ interface TablaGastosProps {
   onQuitarArchivoPendiente: (localId: string, localKey: string) => void;
   onVerArchivo: (localId: string, archivoId: string) => void;
   onReenviarGasto: (localId: string) => void;
+  onEscanear: (localId: string, file: File) => void;
+  escaneandoId: string | null;
 }
 
 function TablaGastos({
@@ -790,6 +842,8 @@ function TablaGastos({
   onQuitarArchivoPendiente,
   onVerArchivo,
   onReenviarGasto,
+  onEscanear,
+  escaneandoId,
 }: TablaGastosProps) {
   const totalCalculado = filas.reduce(
     (acc, f) => acc + (parseFloat(f.valorPagado.replace(/[^0-9.]/g, '')) || 0),
@@ -850,6 +904,8 @@ function TablaGastos({
             onQuitarArchivoPendiente={onQuitarArchivoPendiente}
             onVerArchivo={onVerArchivo}
             onReenviarGasto={onReenviarGasto}
+            onEscanear={onEscanear}
+            escaneando={escaneandoId === fila.localId}
           />
         ))}
 
@@ -913,6 +969,7 @@ function DetallePaquete({
   const [gastos, setGastos] = useState<GastoLocal[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [escaneandoId, setEscaneandoId] = useState<string | null>(null);
   const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
   const [centrosOperacion, setCentrosOperacion] = useState<CentroOperacion[]>([]);
   const [cuentasAuxiliares, setCuentasAuxiliares] = useState<CuentaAuxiliar[]>([]);
@@ -1089,6 +1146,38 @@ function DetallePaquete({
       toast.error(msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEscanear = async (localId: string, file: File) => {
+    setEscaneandoId(localId);
+    try {
+      const datos = await extraerDatosImagen(file);
+      const campos: Partial<Record<keyof GastoLocal, string>> = {};
+      if (datos.no_identificacion) campos.noIdentificacion = datos.no_identificacion;
+      if (datos.pagado_a)          campos.pagadoA          = datos.pagado_a;
+      if (datos.concepto)          campos.concepto          = datos.concepto;
+      if (datos.no_recibo)         campos.noRecibo          = datos.no_recibo;
+      if (datos.valor_pagado)      campos.valorPagado       = datos.valor_pagado;
+      if (datos.fecha)             campos.fecha             = datos.fecha;
+
+      setGastos((prev) =>
+        prev.map((f) =>
+          f.localId === localId ? { ...f, ...campos, isDirty: true } : f
+        )
+      );
+
+      const n = datos.campos_detectados.length;
+      if (n === 0) {
+        toast.warning('No se detectaron datos en la imagen. Intenta con una foto más nítida.');
+      } else {
+        const emoji = datos.confianza === 'alta' ? '✅' : datos.confianza === 'media' ? '⚠️' : '🔍';
+        toast.success(`${emoji} ${n} campo${n !== 1 ? 's' : ''} completado${n !== 1 ? 's' : ''} automáticamente`);
+      }
+    } catch {
+      toast.error('No se pudo analizar la imagen. Intenta de nuevo.');
+    } finally {
+      setEscaneandoId(null);
     }
   };
 
@@ -1336,6 +1425,8 @@ function DetallePaquete({
           onQuitarArchivoPendiente={handleQuitarArchivoPendiente}
           onVerArchivo={handleVerArchivo}
           onReenviarGasto={handleReenviarGasto}
+          onEscanear={handleEscanear}
+          escaneandoId={escaneandoId}
         />
       </div>
 
@@ -1378,6 +1469,7 @@ function NuevoPaqueteForm({
   const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
   const [centrosOperacion, setCentrosOperacion] = useState<CentroOperacion[]>([]);
   const [cuentasAuxiliares, setCuentasAuxiliares] = useState<CuentaAuxiliar[]>([]);
+  const [escaneandoId, setEscaneandoId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -1438,6 +1530,34 @@ function NuevoPaqueteForm({
           : f
       )
     );
+  };
+
+  const handleEscanear = async (localId: string, file: File) => {
+    setEscaneandoId(localId);
+    try {
+      const datos = await extraerDatosImagen(file);
+      const campos: Partial<Record<keyof GastoLocal, string>> = {};
+      if (datos.no_identificacion) campos.noIdentificacion = datos.no_identificacion;
+      if (datos.pagado_a)          campos.pagadoA          = datos.pagado_a;
+      if (datos.concepto)          campos.concepto          = datos.concepto;
+      if (datos.no_recibo)         campos.noRecibo          = datos.no_recibo;
+      if (datos.valor_pagado)      campos.valorPagado       = datos.valor_pagado;
+      if (datos.fecha)             campos.fecha             = datos.fecha;
+      setFilas((prev) =>
+        prev.map((f) => f.localId === localId ? { ...f, ...campos } : f)
+      );
+      const n = datos.campos_detectados.length;
+      if (n === 0) {
+        toast.warning('No se detectaron datos en la imagen. Intenta con una foto más nítida.');
+      } else {
+        const emoji = datos.confianza === 'alta' ? '✅' : datos.confianza === 'media' ? '⚠️' : '🔍';
+        toast.success(`${emoji} ${n} campo${n !== 1 ? 's' : ''} completado${n !== 1 ? 's' : ''} automáticamente`);
+      }
+    } catch {
+      toast.error('No se pudo analizar la imagen. Intenta de nuevo.');
+    } finally {
+      setEscaneandoId(null);
+    }
   };
 
   const handleGuardar = async () => {
@@ -1571,6 +1691,8 @@ function NuevoPaqueteForm({
           onQuitarArchivoPendiente={handleQuitarArchivoPendiente}
           onVerArchivo={() => {}}
           onReenviarGasto={() => {}}
+          onEscanear={handleEscanear}
+          escaneandoId={escaneandoId}
         />
 
         {totalCalculado > 0 && (

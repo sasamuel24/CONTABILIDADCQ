@@ -16,6 +16,7 @@ from modules.gastos.schemas import (
     GastoCreate, GastoUpdate, GastoOut, GastoCreateResponse,
     ArchivoGastoOut, PaqueteDevolver, GastoDevolverRequest,
     PagarPaqueteIn, PagarMasivoIn, PagarMasivoOut,
+    ExtraccionDatosOut,
 )
 
 router = APIRouter(tags=["Gastos"])
@@ -561,3 +562,115 @@ async def eliminar_cm_pdf_gasto(
 ):
     role = user.role.code.lower() if user.role else ""
     return await svc.eliminar_cm_pdf_gasto(paquete_id, gasto_id, user.id, role)
+
+
+# =============================================================================
+# IA — EXTRACCIÓN DE DATOS DESDE IMAGEN DE FACTURA
+# =============================================================================
+
+@router.post(
+    "/gastos/extraer-datos-imagen",
+    response_model=ExtraccionDatosOut,
+    summary="Extraer datos de factura desde imagen usando IA (Claude Haiku)",
+)
+async def extraer_datos_imagen(
+    file: UploadFile = File(..., description="Foto de la factura (JPG, PNG)"),
+    _user: User = Depends(_get_user_db),
+):
+    """
+    Recibe una imagen de factura y usa Claude Haiku para extraer:
+    NIT/identificación, nombre proveedor, concepto, número de factura,
+    valor total y fecha. Devuelve los campos encontrados con nivel de
+    confianza (alta / media / baja).
+    """
+    import base64
+    import json
+    from anthropic import AsyncAnthropic
+    from core.config import settings
+
+    if not settings.anthropic_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Servicio de IA no configurado. Contacte al administrador."
+        )
+
+    content_type = file.content_type or ""
+    if content_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+        raise HTTPException(
+            status_code=422,
+            detail="Solo se aceptan imágenes JPG, PNG o WEBP."
+        )
+
+    imagen_bytes = await file.read()
+    imagen_b64 = base64.standard_b64encode(imagen_bytes).decode("utf-8")
+
+    media_type = content_type  # type: ignore[assignment]
+
+    prompt = """Analiza esta imagen de una factura o recibo colombiano y extrae los siguientes datos en formato JSON.
+Si un campo no es visible o legible, usa null.
+Devuelve ÚNICAMENTE el objeto JSON, sin texto adicional, sin markdown.
+
+Campos a extraer:
+- no_identificacion: NIT o cédula del proveedor/establecimiento (solo números y guión, sin texto adicional)
+- pagado_a: nombre del proveedor, establecimiento o empresa emisora
+- concepto: descripción breve del bien o servicio (máximo 300 caracteres)
+- no_recibo: número de factura, recibo, tiquete o documento (solo el número)
+- valor_pagado: valor total a pagar en números (solo el monto final, sin signo peso ni puntos de miles)
+- fecha: fecha de la factura en formato YYYY-MM-DD
+
+Adicionalmente incluye:
+- confianza: "alta" si detectaste 4 o más campos, "media" si detectaste 2-3, "baja" si detectaste 0-1
+- campos_detectados: lista con los nombres de los campos que encontraste (sin null)
+
+Ejemplo de respuesta:
+{"no_identificacion":"900123456-1","pagado_a":"Ferretería El Clavo","concepto":"Materiales de construcción","no_recibo":"0012345","valor_pagado":"87500","fecha":"2026-04-15","confianza":"alta","campos_detectados":["no_identificacion","pagado_a","concepto","no_recibo","valor_pagado","fecha"]}"""
+
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+    message = await client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=512,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": imagen_b64,
+                        },
+                    },
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ],
+    )
+
+    raw = message.content[0].text.strip()
+    # Limpiar posibles bloques markdown que el modelo incluya
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+
+    try:
+        datos = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=502,
+            detail="La IA no pudo interpretar la imagen. Intenta con una foto más nítida."
+        )
+
+    return ExtraccionDatosOut(
+        no_identificacion=datos.get("no_identificacion"),
+        pagado_a=datos.get("pagado_a"),
+        concepto=datos.get("concepto"),
+        no_recibo=datos.get("no_recibo"),
+        valor_pagado=str(datos["valor_pagado"]) if datos.get("valor_pagado") else None,
+        fecha=datos.get("fecha"),
+        confianza=datos.get("confianza", "baja"),
+        campos_detectados=datos.get("campos_detectados", []),
+    )

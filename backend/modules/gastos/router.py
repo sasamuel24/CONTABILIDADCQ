@@ -610,20 +610,45 @@ async def extraer_datos_imagen(
 Si un campo no es visible o legible, usa null.
 Devuelve ÚNICAMENTE el objeto JSON, sin texto adicional, sin markdown.
 
+IMPORTANTE: Este documento representa un pago realizado por la empresa Café Quindío a un tercero.
+El campo "pagado_a" y "no_identificacion" corresponden a QUIEN RECIBIÓ el pago (el proveedor, establecimiento o empresa emisora del documento), NO a Café Quindío.
+
+Caso real de ejemplo: un tiquete de transporte de la empresa TAXBELALCAZAR con NIT 8915002771.
+En ese tiquete, el campo "Viajero Identificación" muestra 900273380 y el nombre CAFE QUINDIO — esos son datos del PASAJERO/COMPRADOR, NO del beneficiario.
+El beneficiario (quien recibió el pago) es TAXBELALCAZAR (NIT 8915002771), que aparece en el encabezado del documento.
+Aplica la misma lógica para cualquier documento: el emisor/prestador del servicio es "pagado_a", no el cliente.
+Nunca uses "Café Quindío" ni variantes de esa razón social en "pagado_a" ni en "no_identificacion".
+
+REGLAS CRÍTICAS PARA CADA CAMPO:
+
+REGLA no_identificacion:
+- Es SIEMPRE el NIT que aparece junto al nombre del EMISOR en el encabezado del documento (la empresa que vende/presta el servicio).
+- En facturas electrónicas, está etiquetado como "NIT:" junto al nombre del establecimiento en la parte superior.
+- NUNCA uses el número que aparece junto a "Cliente:", "C C / NIT:", "Viajero Identificación" o cualquier campo que identifique al comprador/cliente.
+- Ejemplo: factura de DIEGO CORTES CARDONA con "NIT: 18496220-8" en el encabezado y "Cliente: CAFE QUINDIO SAS, C C / NIT: 900273380-1" → no_identificacion = "18496220-8", NUNCA "900273380-1".
+
+REGLA no_recibo:
+- Es SIEMPRE el número de la factura electrónica de venta, indicado como "No.", "Factura No.", "Factura electrónica de venta No.", "Tiquete N°" u similar en el documento.
+- Incluye el prefijo alfanumérico si existe (ej: "POEL-4795", "FE-001234").
+- NUNCA uses números internos como localizadores, CUFE, códigos de autorización u otros códigos técnicos.
+
 Campos a extraer:
-- no_identificacion: NIT o cédula del proveedor/establecimiento (solo números y guión, sin texto adicional)
-- pagado_a: nombre del proveedor, establecimiento o empresa emisora
+- no_identificacion: NIT del EMISOR del documento (encabezado), solo números y guión, sin texto adicional
+- pagado_a: nombre del EMISOR del documento (proveedor o establecimiento que recibió el pago)
 - concepto: descripción breve del bien o servicio (máximo 300 caracteres)
-- no_recibo: número de factura, recibo, tiquete o documento (solo el número)
-- valor_pagado: valor total a pagar en números (solo el monto final, sin signo peso ni puntos de miles)
-- fecha: fecha de la factura en formato YYYY-MM-DD
+- no_recibo: número de la factura/tiquete electrónico (incluir prefijo si existe, ej: POEL-4795)
+- valor_pagado: valor total a pagar en números enteros (sin signo peso ni puntos de miles ni comas)
+- fecha: fecha de emisión del documento en formato YYYY-MM-DD
 
 Adicionalmente incluye:
 - confianza: "alta" si detectaste 4 o más campos, "media" si detectaste 2-3, "baja" si detectaste 0-1
 - campos_detectados: lista con los nombres de los campos que encontraste (sin null)
 
-Ejemplo de respuesta:
-{"no_identificacion":"900123456-1","pagado_a":"Ferretería El Clavo","concepto":"Materiales de construcción","no_recibo":"0012345","valor_pagado":"87500","fecha":"2026-04-15","confianza":"alta","campos_detectados":["no_identificacion","pagado_a","concepto","no_recibo","valor_pagado","fecha"]}"""
+Ejemplo 1 (tiquete de transporte):
+{"no_identificacion":"8915002771","pagado_a":"TAXBELALCAZAR","concepto":"Tiquete de transporte de pasajeros Armenia - Cali","no_recibo":"3464783","valor_pagado":"45000","fecha":"2026-04-15","confianza":"alta","campos_detectados":["no_identificacion","pagado_a","concepto","no_recibo","valor_pagado","fecha"]}
+
+Ejemplo 2 (factura electrónica de ferretería):
+{"no_identificacion":"18496220-8","pagado_a":"DIEGO CORTES CARDONA","concepto":"Pintemos Every Barniz Brillante, Brocha Macro Azul","no_recibo":"POEL-4795","valor_pagado":"11000","fecha":"2026-04-13","confianza":"alta","campos_detectados":["no_identificacion","pagado_a","concepto","no_recibo","valor_pagado","fecha"]}"""
 
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 

@@ -28,6 +28,7 @@ import { DistribucionCCCOTable } from './DistribucionCCCOTable';
 import { FilePreviewModal } from './FilePreviewModal';
 import { ConfirmModal } from './ConfirmModal';
 import { ComentariosFactura } from './ComentariosFactura';
+import { MOTIVOS_DEVOLUCION } from '../lib/opciones';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ResponsableFacturaDetailProps {
@@ -40,7 +41,7 @@ const statusConfig: Record<string, { color: string; bgColor: string }> = {
   'Pendiente': { color: 'text-yellow-700', bgColor: 'bg-yellow-50 border-yellow-200' },
   'Asignada': { color: 'text-purple-700', bgColor: 'bg-purple-50 border-purple-200' },
   'En Curso': { color: 'text-indigo-700', bgColor: 'bg-indigo-50 border-indigo-200' },
-  'Cerrada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
+  'Pagada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
   'Rechazada': { color: 'text-red-700', bgColor: 'bg-red-50 border-red-200' },
 };
 
@@ -1108,15 +1109,15 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   };
 
   const handleDevolverAFacturacion = async () => {
-    if (motivoDevolucion.trim().length < 10) {
-      toast.warning('El motivo debe tener al menos 10 caracteres');
+    if (!motivoDevolucion) {
+      toast.warning('Debe seleccionar un motivo de devolución');
       return;
     }
 
     try {
       setEnviandoDevolucion(true);
       await devolverAFacturacion(factura.id, motivoDevolucion.trim());
-      toast.success('Factura devuelta a Facturación correctamente');
+      toast.success('Factura devuelta a Radicación correctamente');
       setMostrarModalDevolucion(false);
       setMotivoDevolucion('');
       onClose(); // Cerrar modal después de devolver
@@ -2046,7 +2047,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 disabled={enviandoDevolucion}
                 className="px-6 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Devolver a Facturación
+                Devolver a Radicación
               </button>
               <button
                 onClick={handleEnviarContabilidad}
@@ -2095,9 +2096,9 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto" onClick={(e) => e.stopPropagation()}>
             {/* Header con gradiente verde */}
             <div className="p-6 border-b border-gray-200 rounded-t-lg" style={{background: 'linear-gradient(to right, #059669, #10b981)'}}>
-              <h3 className="text-lg font-semibold text-white" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Devolver a Facturación</h3>
+              <h3 className="text-lg font-semibold text-white" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Devolver a Radicación</h3>
               <p className="text-sm mt-1" style={{color: 'rgba(255, 255, 255, 0.9)', fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
-                La factura será devuelta al área de Facturación para correcciones
+                La factura será devuelta al área de Radicación para correcciones
               </p>
             </div>
             
@@ -2105,26 +2106,18 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               <label className="block text-sm font-medium text-gray-700 mb-2" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
                 Motivo de devolución <span className="text-red-600">*</span>
               </label>
-              <textarea
+              <select
                 value={motivoDevolucion}
                 onChange={(e) => setMotivoDevolucion(e.target.value)}
-                rows={4}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none resize-none"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
                 style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
-                onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(220, 38, 38, 0.5)'}
-                onBlur={(e) => e.target.style.boxShadow = ''}
-                placeholder="Describa el motivo de la devolución (mínimo 10 caracteres)..."
                 disabled={enviandoDevolucion}
-              />
-              <p className="text-xs text-gray-500 mt-1" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
-                {motivoDevolucion.length}/1000 caracteres (mínimo 10)
-              </p>
-              {motivoDevolucion.length > 0 && motivoDevolucion.length < 10 && (
-                <p className="text-xs text-red-600 mt-1 flex items-center gap-1" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
-                  <AlertCircle className="w-3 h-3" />
-                  El motivo debe tener al menos 10 caracteres
-                </p>
-              )}
+              >
+                <option value="">— Seleccione un motivo —</option>
+                {MOTIVOS_DEVOLUCION.map((motivo) => (
+                  <option key={motivo} value={motivo}>{motivo}</option>
+                ))}
+              </select>
             </div>
 
             <div className="p-6 border-t border-gray-200 flex gap-3 justify-end bg-gray-50 rounded-b-lg">
@@ -2139,7 +2132,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               >
                 Cancelar
               </button>
-              {motivoDevolucion.trim().length >= 10 && (
+              {motivoDevolucion && (
                 <button
                   onClick={handleDevolverAFacturacion}
                   disabled={enviandoDevolucion}

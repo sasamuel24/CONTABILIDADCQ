@@ -1374,7 +1374,7 @@ class FacturaService:
         files = all_files_result.scalars().all()
         
         logger.info(
-            f"Factura {factura_id} cerrada en TESORERIA exitosamente. "
+            f"Factura {factura_id} pagada en TESORERIA exitosamente. "
             f"Estado: {estado_finalizado.label}"
         )
         

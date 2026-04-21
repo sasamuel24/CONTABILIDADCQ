@@ -37,7 +37,7 @@ const statusConfig: Record<string, { color: string; bgColor: string; border: str
   'Pendiente': { color: '#a16207', bgColor: '#fefce8', border: '#fde68a' },
   'Asignada': { color: '#7c3aed', bgColor: '#f5f3ff', border: '#c4b5fd' },
   'En Curso': { color: '#4338ca', bgColor: '#eef2ff', border: '#a5b4fc' },
-  'Cerrada': { color: '#15803d', bgColor: '#f0fdf4', border: '#86efac' },
+  'Pagada': { color: '#15803d', bgColor: '#f0fdf4', border: '#86efac' },
   'Rechazada': { color: '#dc2626', bgColor: '#fef2f2', border: '#fca5a5' },
 };
 
@@ -231,13 +231,13 @@ export function ExploradorArchivosTesoreria() {
   const handleBatchClose = () => {
     const count = selectedFacturaIds.size;
     const nonCerradas = visibleFacturas.filter(
-      f => selectedFacturaIds.has(f.id) && f.estado !== 'Cerrada'
+      f => selectedFacturaIds.has(f.id) && f.estado !== 'Pagada'
     );
     
     if (nonCerradas.length === 0) {
       setConfirmModalConfig({
         title: 'Sin facturas para cerrar',
-        message: 'Todas las facturas seleccionadas ya están cerradas.',
+        message: 'Todas las facturas seleccionadas ya están pagadas.',
         type: 'info'
       });
       setShowConfirmModal(true);
@@ -245,8 +245,8 @@ export function ExploradorArchivosTesoreria() {
     }
 
     setConfirmModalConfig({
-      title: 'Cerrar Facturas',
-      message: `¿Está seguro de cerrar ${nonCerradas.length} factura${nonCerradas.length !== 1 ? 's' : ''}?\n\nFacturas a cerrar:\n${nonCerradas.map(f => `• ${f.numero_factura} - ${f.proveedor}`).join('\n')}`,
+      title: 'Pagar Facturas',
+      message: `¿Está seguro de marcar como pagadas ${nonCerradas.length} factura${nonCerradas.length !== 1 ? 's' : ''}?\n\nFacturas a pagar:\n${nonCerradas.map(f => `• ${f.numero_factura} - ${f.proveedor}`).join('\n')}`,
       type: 'warning',
       showCancel: true,
       onConfirm: executeBatchClose
@@ -259,7 +259,7 @@ export function ExploradorArchivosTesoreria() {
     setShowConfirmModal(false);
     
     const nonCerradas = visibleFacturas.filter(
-      f => selectedFacturaIds.has(f.id) && f.estado !== 'Cerrada'
+      f => selectedFacturaIds.has(f.id) && f.estado !== 'Pagada'
     );
     
     let exitosas = 0;
@@ -267,7 +267,7 @@ export function ExploradorArchivosTesoreria() {
     
     for (const factura of nonCerradas) {
       try {
-        await updateFacturaEstado(factura.id, 5); // 5 = Cerrada
+        await updateFacturaEstado(factura.id, 5); // 5 = Pagada
         exitosas++;
       } catch (err) {
         console.error(`Error cerrando factura ${factura.numero_factura}:`, err);
@@ -294,14 +294,14 @@ export function ExploradorArchivosTesoreria() {
     
     if (fallidas > 0) {
       setConfirmModalConfig({
-        title: 'Cierre Parcial',
-        message: `Se cerraron ${exitosas} factura${exitosas !== 1 ? 's' : ''} exitosamente.\n${fallidas} factura${fallidas !== 1 ? 's' : ''} no pudieron ser cerradas.`,
+        title: 'Pago Parcial',
+        message: `Se pagaron ${exitosas} factura${exitosas !== 1 ? 's' : ''} exitosamente.\n${fallidas} factura${fallidas !== 1 ? 's' : ''} no pudieron ser procesadas.`,
         type: 'warning'
       });
     } else {
       setConfirmModalConfig({
-        title: 'Facturas Cerradas',
-        message: `${exitosas} factura${exitosas !== 1 ? 's' : ''} cerrada${exitosas !== 1 ? 's' : ''} exitosamente.`,
+        title: 'Facturas Pagadas',
+        message: `${exitosas} factura${exitosas !== 1 ? 's' : ''} pagada${exitosas !== 1 ? 's' : ''} exitosamente.`,
         type: 'success'
       });
     }

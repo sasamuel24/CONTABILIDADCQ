@@ -337,7 +337,7 @@ function DetalleAuditoriaTes({
               <div className="flex items-center gap-2 text-gray-600">
                 <CalendarDays className="w-4 h-4 text-gray-400" />
                 <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                  <span className="text-gray-400">Enviado por Facturación: </span>
+                  <span className="text-gray-400">Enviado por Radicación: </span>
                   {fmtFecha(paquete.fecha_envio.slice(0, 10))}
                 </span>
               </div>
@@ -868,7 +868,7 @@ export function TesoreriaPaquetesView() {
             Paquetes de Gastos
           </h2>
           <p className="text-sm text-gray-400 mt-0.5" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-            Pagos pendientes remitidos por Facturación
+            Pagos pendientes remitidos por Radicación
           </p>
         </div>
         <button
@@ -1189,7 +1189,7 @@ export function TesoreriaPaquetesView() {
                     />
                   </th>
                 )}
-                {['Semana', 'Técnico', 'Monto total', 'Valor a pagar', 'Enviado por Facturación', tab === 'pendientes' ? 'Acción' : 'Estado'].map((h) => (
+                {['Semana', 'Técnico', 'Monto total', 'Valor a pagar', 'Enviado por Radicación', tab === 'pendientes' ? 'Acción' : 'Estado'].map((h) => (
                   <th
                     key={h}
                     className="px-5 py-3 text-left font-semibold text-white whitespace-nowrap"

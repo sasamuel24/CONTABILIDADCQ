@@ -38,10 +38,10 @@ class DashboardRepository:
             )
             metrics["asignadas"] = result.scalar() or 0
         
-        # Cerradas (estado: cerrada, id=5)
-        if "cerrada" in estados:
+        # Pagadas (estado: pagada, id=5)
+        if "pagada" in estados:
             result = await self.db.execute(
-                select(func.count(Factura.id)).where(Factura.estado_id == estados["cerrada"])
+                select(func.count(Factura.id)).where(Factura.estado_id == estados["pagada"])
             )
             metrics["cerradas"] = result.scalar() or 0
         

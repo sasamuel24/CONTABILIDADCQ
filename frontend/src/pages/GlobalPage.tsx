@@ -31,7 +31,7 @@ export function GlobalPage() {
         <div className="p-6 border-b border-gray-200">
           <div className="w-full h-10 rounded-lg flex items-center justify-center px-3" style={{ backgroundColor: '#00829a' }}>
             <span className="text-white font-bold text-sm" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
-              Sistema Facturación
+              Sistema Radicación
             </span>
           </div>
         </div>

@@ -32,7 +32,7 @@ const statusConfig: Record<string, { color: string; bgColor: string }> = {
   'Pendiente': { color: 'text-yellow-700', bgColor: 'bg-yellow-50 border-yellow-200' },
   'Asignada': { color: 'text-purple-700', bgColor: 'bg-purple-50 border-purple-200' },
   'En Curso': { color: 'text-indigo-700', bgColor: 'bg-indigo-50 border-indigo-200' },
-  'Cerrada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
+  'Pagada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
   'Rechazada': { color: 'text-red-700', bgColor: 'bg-red-50 border-red-200' },
 };
 
@@ -81,9 +81,9 @@ export function InboxView() {
         f => f.area === user.area?.nombre
       );
       
-      // Si el usuario es de tesorería, excluir facturas cerradas (van a carpetas)
+      // Si el usuario es de tesorería, excluir facturas pagadas (van a carpetas)
       if (user.role === 'tesoreria') {
-        facturasDelArea = facturasDelArea.filter(f => f.estado !== 'Cerrada');
+        facturasDelArea = facturasDelArea.filter(f => f.estado !== 'Pagada');
       }
       
       setFacturas(facturasDelArea);
@@ -302,8 +302,8 @@ export function InboxView() {
               <p style={{color: '#14aab8', fontWeight: '600'}}>{statusCounts['Recibida'] || 0}</p>
             </div>
             <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-              <p className="text-gray-600 mb-1">Cerradas</p>
-              <p className="text-green-600">{statusCounts['Cerrada'] || 0}</p>
+              <p className="text-gray-600 mb-1">Pagadas</p>
+              <p className="text-green-600">{statusCounts['Pagada'] || 0}</p>
             </div>
           </>
         )}

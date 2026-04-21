@@ -108,7 +108,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
     'Finalizado': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
     'Asignada': { color: 'text-blue-700', bgColor: 'bg-blue-50 border-blue-200' },
     'En Curso': { color: 'text-purple-700', bgColor: 'bg-purple-50 border-purple-200' },
-    'Cerrada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
+    'Pagada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
   } as Record<string, { color: string; bgColor: string }>;
 
   return (
@@ -118,7 +118,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
         {/* Logo */}
         <div className="p-6 border-b border-gray-200">
           <div className="w-15 h-10 rounded-lg flex items-center justify-center" style={{backgroundColor: '#00829a'}}>
-            <span className="text-white font-bold" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Sistema Facturación</span>
+            <span className="text-white font-bold" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Sistema Radicación</span>
           </div>
         </div>
 
@@ -292,7 +292,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                       <p className="text-gray-900">{metrics.asignadas}</p>
                     </div>
                     <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow text-center">
-                      <p className="text-gray-600 mb-3">Facturas Cerradas</p>
+                      <p className="text-gray-600 mb-3">Facturas Pagadas</p>
                       <p className="text-gray-900">{metrics.cerradas}</p>
                     </div>
                     <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow text-center">

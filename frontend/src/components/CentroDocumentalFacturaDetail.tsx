@@ -35,7 +35,7 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
       { name: 'Asignada', status: 'pending' },
       { name: 'Revisión Contabilidad', status: 'pending' },
       { name: 'Aprobada Tesorería', status: 'pending' },
-      { name: 'Cerrada', status: 'pending' },
+      { name: 'Pagada', status: 'pending' },
     ];
 
     const estadoIndex = {
@@ -48,7 +48,7 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
       'Aprobada Tesorería': 3,
       'Pendiente en Tesoreria': 3,
       'Pendiente en tesoreria': 3,
-      'Cerrada': 4,
+      'Pagada': 4,
       'Rechazada': -1,
     };
 
@@ -62,7 +62,7 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
     }
 
     // Si está cerrada, todas las etapas están completadas
-    if (estado === 'Cerrada') {
+    if (estado === 'Pagada') {
       return steps.map((step) => ({
         ...step,
         status: 'completed' as const,
@@ -169,7 +169,7 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
       'En Curso': 'bg-indigo-100 text-indigo-700 border-indigo-300',
       'En Revisión Contabilidad': 'bg-orange-100 text-orange-700 border-orange-300',
       'Aprobada Tesorería': 'bg-teal-100 text-teal-700 border-teal-300',
-      'Cerrada': 'bg-green-100 text-green-700 border-green-300',
+      'Pagada': 'bg-green-100 text-green-700 border-green-300',
       'Rechazada': 'bg-red-100 text-red-700 border-red-300',
     };
     return colors[estado] || 'bg-gray-100 text-gray-700 border-gray-300';

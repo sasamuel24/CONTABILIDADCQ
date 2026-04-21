@@ -84,7 +84,7 @@ export function CentroDocumentalPage() {
   const getProcesoActual = (estado: string): string => {
     const estadosRevision = ['Recibida', 'Pendiente', 'Asignada', 'En Curso'];
     const estadosPago = ['En Revisión Contabilidad', 'Aprobada Tesorería'];
-    const estadosArchivada = ['Cerrada', 'Rechazada'];
+    const estadosArchivada = ['Pagada', 'Rechazada'];
 
     if (estadosRevision.includes(estado)) return 'Revisión';
     if (estadosPago.includes(estado)) return 'Pago';

@@ -728,7 +728,7 @@ function CardGasto({
           <div className="mx-5 mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
             <p className="text-xs font-bold text-red-700 mb-1"
               style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
-              Devuelto por Facturación:
+              Devuelto por Radicación:
             </p>
             {fila.motivo_devolucion_gasto && (
               <p className="text-xs text-red-600 mb-2"
@@ -1079,7 +1079,7 @@ function DetallePaquete({
         (f) => f.localId !== localId && f.estado_gasto === 'devuelto'
       );
       if (otrosDevueltos.length === 0) {
-        toast.success('¡Todos los gastos han sido corregidos! Facturación puede proceder con el envío a Tesorería.');
+        toast.success('¡Todos los gastos han sido corregidos! Radicación puede proceder con el envío a Tesorería.');
       } else {
         toast.success('Gasto marcado como corregido.');
       }
@@ -1713,7 +1713,7 @@ function PaqueteCard({
               className="text-xs text-orange-700 font-semibold"
               style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
             >
-              Facturación devolvió uno o más gastos — revisa y corrige para completar el pago
+              Radicación devolvió uno o más gastos — revisa y corrige para completar el pago
             </p>
           </div>
         )}
@@ -1873,7 +1873,7 @@ export function TecnicoMantenimientoPage() {
                 <span
                   className="text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center text-white"
                   style={{ backgroundColor: '#f97316' }}
-                  title="Gastos devueltos por Facturación"
+                  title="Gastos devueltos por Radicación"
                 >
                   {conGastosDevueltos.length}
                 </span>
@@ -2044,7 +2044,7 @@ export function TecnicoMantenimientoPage() {
                           className="text-xs text-orange-700"
                           style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
                         >
-                          Facturación devolvió gastos en los siguientes paquetes. Ingresa al paquete, corrige los gastos marcados y usa el botón <strong>"Marcar como corregido"</strong> para que Facturación pueda procesar el pago.
+                          Radicación devolvió gastos en los siguientes paquetes. Ingresa al paquete, corrige los gastos marcados y usa el botón <strong>"Marcar como corregido"</strong> para que Radicación pueda procesar el pago.
                         </p>
                       </div>
                       <div className="space-y-3">

@@ -38,7 +38,7 @@ export function CarpetasGerenciaView() {
         const facturasResponse = await getFacturas(0, 10000);
         // Filtrar solo facturas cerradas (procesadas por tesorería)
         const facturasCerradas = facturasResponse.items.filter(
-          f => f.estado === 'Cerrada'
+          f => f.estado === 'Pagada'
         );
         setFacturas(facturasCerradas);
       } catch (err) {
@@ -146,7 +146,7 @@ export function CarpetasGerenciaView() {
       'En Curso': 'bg-indigo-100 text-indigo-700 border-indigo-300',
       'En Revisión Contabilidad': 'bg-orange-100 text-orange-700 border-orange-300',
       'Aprobada Tesorería': 'bg-teal-100 text-teal-700 border-teal-300',
-      'Cerrada': 'bg-green-100 text-green-700 border-green-300',
+      'Pagada': 'bg-green-100 text-green-700 border-green-300',
       'Rechazada': 'bg-red-100 text-red-700 border-red-300',
     };
     return colors[estado] || 'bg-gray-100 text-gray-700 border-gray-300';

@@ -12,7 +12,7 @@ import {
 
 const ROLES = [
   { code: 'admin',         label: 'Administrador' },
-  { code: 'fact',          label: 'Facturación' },
+  { code: 'fact',          label: 'Radicación' },
   { code: 'responsable',   label: 'Responsable de Área' },
   { code: 'contabilidad',  label: 'Contabilidad' },
   { code: 'tesoreria',     label: 'Tesorería' },

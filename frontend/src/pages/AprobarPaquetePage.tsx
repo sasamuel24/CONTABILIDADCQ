@@ -70,7 +70,7 @@ export function AprobarPaquetePage() {
               </table>
             </div>
             <p className="text-gray-500 text-sm mt-4">
-              El área de Facturación recibirá una notificación y enviará el paquete a Tesorería.
+              El área de Radicación recibirá una notificación y enviará el paquete a Tesorería.
             </p>
           </div>
         )}

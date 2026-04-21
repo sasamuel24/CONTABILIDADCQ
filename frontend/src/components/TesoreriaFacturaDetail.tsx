@@ -18,7 +18,7 @@ const statusConfig: Record<string, { color: string; bgColor: string }> = {
   'Pendiente': { color: 'text-yellow-700', bgColor: 'bg-yellow-50 border-yellow-200' },
   'Asignada': { color: 'text-purple-700', bgColor: 'bg-purple-50 border-purple-200' },
   'En Curso': { color: 'text-indigo-700', bgColor: 'bg-indigo-50 border-indigo-200' },
-  'Cerrada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
+  'Pagada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
   'Rechazada': { color: 'text-red-700', bgColor: 'bg-red-50 border-red-200' },
 };
 
@@ -402,23 +402,23 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
     try {
       setProcesando(true);
       
-      // Actualizar estado a "Cerrada" (id: 5)
+      // Actualizar estado a "Pagada" (id: 5)
       await updateFacturaEstado(factura.id, 5);
-      
+
       // Construir mensaje con documentos cargados (si los hay)
       const documentosCargados = [];
       if (archivoPEC || archivoPECExistente) documentosCargados.push(`• PEC: ${archivoPEC || archivoPECExistente?.filename}`);
       if (archivoEC || archivoECExistente) documentosCargados.push(`• EC: ${archivoEC || archivoECExistente?.filename}`);
       if (archivoPCE || archivoPCEExistente) documentosCargados.push(`• PCE: ${archivoPCE || archivoPCEExistente?.filename}`);
       if (archivoPED || archivoPEDExistente) documentosCargados.push(`• PED: ${archivoPED || archivoPEDExistente?.filename}`);
-      
-      const docMsg = documentosCargados.length > 0 
-        ? `\n\nDocumentos de Tesorería registrados:\n${documentosCargados.join('\n')}` 
+
+      const docMsg = documentosCargados.length > 0
+        ? `\n\nDocumentos de Tesorería registrados:\n${documentosCargados.join('\n')}`
         : '';
-      
+
       setConfirmModalConfig({
-        title: 'Factura Cerrada',
-        message: `La factura ha sido finalizada y cerrada exitosamente.${docMsg}`,
+        title: 'Factura Pagada',
+        message: `La factura ha sido pagada exitosamente.${docMsg}`,
         type: 'success',
         onConfirm: () => onClose()
       });
@@ -1293,7 +1293,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                 onBlur={(e) => e.currentTarget.style.boxShadow = 'none'}
                 className="px-6 py-2 rounded-lg font-medium"
               >
-                {procesando ? 'Procesando...' : 'Finalizar y Cerrar Factura'}
+                {procesando ? 'Procesando...' : 'Pagar'}
               </button>
             </div>
           </div>

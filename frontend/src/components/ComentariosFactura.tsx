@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { MessageSquare, Send, Trash2, Edit2, X, Check } from 'lucide-react';
 import type { ComentarioFactura } from '../lib/api';
-import { 
-  getComentariosByFactura, 
-  createComentario, 
-  updateComentario, 
+import {
+  getComentariosByFactura,
+  createComentario,
+  updateComentario,
   deleteComentario,
   type ComentarioCreate,
-  type ComentarioUpdate 
+  type ComentarioUpdate
 } from '../lib/api';
+import { MOTIVOS_COMENTARIO } from '../lib/opciones';
 
 interface ComentariosFacturaProps {
   facturaId: string;
@@ -136,13 +137,17 @@ export function ComentariosFactura({ facturaId, currentUserId }: ComentariosFact
       {/* Formulario para nuevo comentario */}
       <form onSubmit={handleSubmitComentario} className="space-y-3 bg-white">
         <div>
-          <textarea
+          <select
             value={nuevoComentario}
             onChange={(e) => setNuevoComentario(e.target.value)}
-            placeholder="Escribe un comentario..."
-            className="w-full min-h-[80px] px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00829a] focus:border-transparent resize-none"
+            className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00829a] focus:border-transparent"
             disabled={submitting}
-          />
+          >
+            <option value="">— Seleccione un comentario predefinido —</option>
+            {MOTIVOS_COMENTARIO.map((motivo) => (
+              <option key={motivo} value={motivo}>{motivo}</option>
+            ))}
+          </select>
         </div>
         <div className="flex justify-end">
           <button

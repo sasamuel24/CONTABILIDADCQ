@@ -57,7 +57,7 @@ export function AdminDashboardView() {
   usuarios.forEach(u => { rolCounts[u.role] = (rolCounts[u.role] || 0) + 1; });
 
   const ROL_LABELS: Record<string, string> = {
-    admin: 'Administrador', fact: 'Facturación', responsable: 'Responsable',
+    admin: 'Administrador', fact: 'Radicación', responsable: 'Responsable',
     contabilidad: 'Contabilidad', tesoreria: 'Tesorería', tes: 'Tesorería',
     gerencia: 'Gerencia', tecnico: 'Técnico Mant.', mant: 'Mantenimiento',
     direccion: 'Dirección',
@@ -120,7 +120,7 @@ export function AdminDashboardView() {
         />
         <MetricCard
           icon={<CheckCircle2 size={22} />}
-          label="Cerradas"
+          label="Pagadas"
           value={metrics?.cerradas ?? 0}
           color="#15803d"
           bgColor="rgba(21,128,61,0.08)"

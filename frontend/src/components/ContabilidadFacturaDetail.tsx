@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Download, FileText, Eye } from 'lucide-react';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, DistribucionCCCO, UnidadNegocio, CuentaAuxiliar } from '../lib/api';
 import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares, downloadFileById } from '../lib/api';
+import { MOTIVOS_DEVOLUCION } from '../lib/opciones';
 import { FilePreviewModal } from './FilePreviewModal';
 import { ConfirmModal } from './ConfirmModal';
 import { ComentariosFactura } from './ComentariosFactura';
@@ -18,7 +19,7 @@ const statusConfig: Record<string, { color: string; bgColor: string }> = {
   'Pendiente': { color: 'text-yellow-700', bgColor: 'bg-yellow-50 border-yellow-200' },
   'Asignada': { color: 'text-purple-700', bgColor: 'bg-purple-50 border-purple-200' },
   'En Curso': { color: 'text-indigo-700', bgColor: 'bg-indigo-50 border-indigo-200' },
-  'Cerrada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
+  'Pagada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
   'Rechazada': { color: 'text-red-700', bgColor: 'bg-red-50 border-red-200' },
 };
 
@@ -349,10 +350,10 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   };
 
   const handleDevolverAResponsable = async () => {
-    if (motivoDevolucion.trim().length < 10) {
+    if (!motivoDevolucion) {
       setConfirmModalConfig({
-        title: 'Motivo Insuficiente',
-        message: 'El motivo de devolución debe tener al menos 10 caracteres para mayor claridad.',
+        title: 'Motivo Requerido',
+        message: 'Debe seleccionar un motivo de devolución.',
         type: 'warning'
       });
       setShowConfirmModal(true);
@@ -1059,25 +1060,18 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
               <label style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="block text-sm font-medium text-gray-700 mb-2">
                 Motivo de devolución <span className="text-red-600">*</span>
               </label>
-              <textarea
+              <select
                 value={motivoDevolucion}
                 onChange={(e) => setMotivoDevolucion(e.target.value)}
-                rows={4}
                 style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}}
-                onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(220, 38, 38, 0.5)'}
-                onBlur={(e) => e.target.style.boxShadow = 'none'}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg resize-none"
-                placeholder="Describa el motivo de la devolución (mínimo 10 caracteres)..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
                 disabled={enviandoDevolucion}
-              />
-              <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-xs text-gray-500 mt-1">
-                {motivoDevolucion.length}/1000 caracteres (mínimo 10)
-              </p>
-              {motivoDevolucion.length > 0 && motivoDevolucion.length < 10 && (
-                <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-xs text-red-600 mt-1">
-                  ⚠️ El motivo debe tener al menos 10 caracteres
-                </p>
-              )}
+              >
+                <option value="">— Seleccione un motivo —</option>
+                {MOTIVOS_DEVOLUCION.map((motivo) => (
+                  <option key={motivo} value={motivo}>{motivo}</option>
+                ))}
+              </select>
             </div>
 
             <div className="p-6 border-t border-gray-200 flex gap-3 justify-end bg-gray-50 rounded-b-lg">
@@ -1097,7 +1091,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
               >
                 Cancelar
               </button>
-              {motivoDevolucion.trim().length >= 10 && (
+              {motivoDevolucion && (
                 <button
                   onClick={handleDevolverAResponsable}
                   disabled={enviandoDevolucion}

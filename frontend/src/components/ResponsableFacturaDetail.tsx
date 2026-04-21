@@ -987,14 +987,20 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
       if (tipoIngreso === 'tienda') {
         if (!oct) nuevosErrores.oct = 'OCT es obligatorio';
+        else if (oct.length !== 5) nuevosErrores.oct = 'OCT debe tener exactamente 5 caracteres';
         if (!ect) nuevosErrores.ect = 'ECT es obligatorio';
+        else if (ect.length !== 5) nuevosErrores.ect = 'ECT debe tener exactamente 5 caracteres';
         if (!fpcTienda) nuevosErrores.fpcTienda = 'FPC es obligatorio';
+        else if (fpcTienda.length !== 5) nuevosErrores.fpcTienda = 'FPC debe tener exactamente 5 caracteres';
       }
 
       if (tipoIngreso === 'almacen') {
         if (!occ) nuevosErrores.occ = 'OCC es obligatorio';
+        else if (occ.length !== 5) nuevosErrores.occ = 'OCC debe tener exactamente 5 caracteres';
         if (!edo) nuevosErrores.edo = 'EDO es obligatorio';
+        else if (edo.length !== 5) nuevosErrores.edo = 'EDO debe tener exactamente 5 caracteres';
         if (!fpcAlmacen) nuevosErrores.fpcAlmacen = 'FPC es obligatorio';
+        else if (fpcAlmacen.length !== 5) nuevosErrores.fpcAlmacen = 'FPC debe tener exactamente 5 caracteres';
       }
     }
 
@@ -1716,6 +1722,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                             type="text"
                             value={oct}
                             onChange={(e) => setOct(e.target.value)}
+                            maxLength={5}
                             className={`w-full px-3 py-2 border rounded-lg ${
                               mostrarValidacion && errores.oct ? 'border-red-500' : 'border-gray-300'
                             }`}
@@ -1733,6 +1740,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                             type="text"
                             value={ect}
                             onChange={(e) => setEct(e.target.value)}
+                            maxLength={5}
                             className={`w-full px-3 py-2 border rounded-lg ${
                               mostrarValidacion && errores.ect ? 'border-red-500' : 'border-gray-300'
                             }`}
@@ -1750,6 +1758,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                             type="text"
                             value={fpcTienda}
                             onChange={(e) => setFpcTienda(e.target.value)}
+                            maxLength={5}
                             className={`w-full px-3 py-2 border rounded-lg ${
                               mostrarValidacion && errores.fpcTienda ? 'border-red-500' : 'border-gray-300'
                             }`}
@@ -1775,6 +1784,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                             type="text"
                             value={occ}
                             onChange={(e) => setOcc(e.target.value)}
+                            maxLength={5}
                             className={`w-full px-3 py-2 border rounded-lg ${
                               mostrarValidacion && errores.occ ? 'border-red-500' : 'border-gray-300'
                             }`}
@@ -1792,6 +1802,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                             type="text"
                             value={edo}
                             onChange={(e) => setEdo(e.target.value)}
+                            maxLength={5}
                             className={`w-full px-3 py-2 border rounded-lg ${
                               mostrarValidacion && errores.edo ? 'border-red-500' : 'border-gray-300'
                             }`}
@@ -1809,6 +1820,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                             type="text"
                             value={fpcAlmacen}
                             onChange={(e) => setFpcAlmacen(e.target.value)}
+                            maxLength={5}
                             className={`w-full px-3 py-2 border rounded-lg ${
                               mostrarValidacion && errores.fpcAlmacen ? 'border-red-500' : 'border-gray-300'
                             }`}

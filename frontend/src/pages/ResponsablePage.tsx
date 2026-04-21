@@ -18,9 +18,11 @@ export function ResponsablePage() {
     navigate('/login');
   };
 
+  const esMant = user?.area?.code === 'mant';
+
   const NAV: { id: Seccion; label: string; icon: React.ReactNode }[] = [
     { id: 'bandeja',  label: 'Bandeja de Entrada',  icon: <Inbox className="w-5 h-5" /> },
-    { id: 'paquetes', label: 'Paquetes de Gastos',   icon: <PackageOpen className="w-5 h-5" /> },
+    ...(esMant ? [{ id: 'paquetes' as Seccion, label: 'Paquetes de Gastos', icon: <PackageOpen className="w-5 h-5" /> }] : []),
   ];
 
   return (
@@ -116,7 +118,7 @@ export function ResponsablePage() {
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
         {seccion === 'bandeja' && <InboxView />}
-        {seccion === 'paquetes' && (
+        {seccion === 'paquetes' && esMant && (
           <div className={enDetalle ? 'p-4' : 'p-8'}>
             {!enDetalle && (
               <div className="mb-6">

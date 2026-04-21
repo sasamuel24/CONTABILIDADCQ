@@ -473,14 +473,26 @@ export async function getFacturasAsignadas(): Promise<FacturaAsignada[]> {
 /**
  * Obtener lista paginada de facturas
  */
-export async function getFacturas(skip: number = 0, limit: number = 100, area_id?: string): Promise<FacturasPaginatedResponse> {
+export async function getFacturas(skip: number = 0, limit: number = 100, area_id?: string, area_origen_id?: string): Promise<FacturasPaginatedResponse> {
   const params = new URLSearchParams();
   params.append('skip', skip.toString());
   params.append('limit', limit.toString());
-  if (area_id) {
-    params.append('area_id', area_id);
-  }
+  if (area_id) params.append('area_id', area_id);
+  if (area_origen_id) params.append('area_origen_id', area_origen_id);
   return fetchAPI<FacturasPaginatedResponse>(`/facturas/?${params.toString()}`);
+}
+
+export async function submitGadminTesoreria(facturaId: string): Promise<{ factura_id: string; area_actual: string; estado_actual: string }> {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE_URL}/facturas/${facturaId}/submit-gadmin-tesoreria`, {
+    method: 'POST',
+    headers: { 'Authorization': token ? `Bearer ${token}` : '' },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Error ${res.status}`);
+  }
+  return res.json();
 }
 
 /**

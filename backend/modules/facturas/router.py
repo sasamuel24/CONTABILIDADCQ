@@ -49,11 +49,12 @@ async def list_facturas(
     skip: int = 0,
     limit: int = 100,
     area_id: Optional[UUID] = Query(None, description="Filtrar por ID de área"),
+    area_origen_id: Optional[UUID] = Query(None, description="Filtrar por ID de área de origen"),
     estado: Optional[str] = Query(None, description="Filtrar por estado de la factura"),
     service: FacturaService = Depends(get_factura_service)
 ):
     """Lista todas las facturas con paginación y filtros opcionales."""
-    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, estado=estado)
+    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado)
 
 
 @router.get("/{factura_id}", response_model=FacturaResponse)
@@ -554,6 +555,19 @@ async def submit_tesoreria(
     3. Tesorería procesa pago
     """
     return await service.submit_tesoreria(factura_id)
+
+
+@router.post(
+    "/{factura_id}/submit-gadmin-tesoreria",
+    response_model=SubmitResponsableOut,
+    summary="Enviar factura GADMIN directo a Tesorería",
+)
+async def submit_gadmin_tesoreria(
+    factura_id: UUID,
+    service: FacturaService = Depends(get_factura_service)
+):
+    """Envía una factura del área Gastos Fijos Café Quindío directamente a Tesorería, sin pasar por Contabilidad."""
+    return await service.submit_gadmin_tesoreria(factura_id)
 
 
 @router.post(

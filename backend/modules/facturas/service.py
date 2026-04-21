@@ -75,11 +75,12 @@ class FacturaService:
         skip: int = 0,
         limit: int = 100,
         area_id: Optional[UUID] = None,
+        area_origen_id: Optional[UUID] = None,
         estado: Optional[str] = None
     ) -> FacturasPaginatedResponse:
         """Lista todas las facturas con paginación y filtros."""
-        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, estado={estado}")
-        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, estado=estado)
+        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, area_origen_id={area_origen_id}, estado={estado}")
+        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado)
         
         items = []
         for f in facturas:
@@ -1269,6 +1270,79 @@ class FacturaService:
             ]
         )
     
+    async def submit_gadmin_tesoreria(self, factura_id: UUID) -> SubmitResponsableOut:
+        """
+        Envía una factura desde GADMIN directamente a TESORERIA (sin pasar por Contabilidad).
+        """
+        from db.models import Area, Estado, FacturaInventarioCodigo
+        from sqlalchemy import select
+
+        GADMIN_AREA_ID = UUID("c1589d0c-736b-4af4-89f2-81900d2dac16")
+        TESORERIA_AREA_ID = UUID("b067adcd-13ff-420f-9389-42bfaa78cf9f")
+        TESORERIA_ESTADO_ID = 7
+
+        factura = await self.repository.get_by_id(factura_id)
+        if not factura:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Factura con ID {factura_id} no encontrada")
+
+        if factura.area_id != GADMIN_AREA_ID:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="La factura no pertenece al área Gastos Fijos Café Quindío")
+
+        area_result = await self.db.execute(select(Area).where(Area.id == TESORERIA_AREA_ID))
+        area_tesoreria = area_result.scalar_one_or_none()
+        if not area_tesoreria:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Área Tesorería no encontrada")
+
+        estado_result = await self.db.execute(select(Estado).where(Estado.id == TESORERIA_ESTADO_ID))
+        estado_tesoreria = estado_result.scalar_one_or_none()
+        if not estado_tesoreria:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Estado Tesorería no encontrado")
+
+        # Guardar origen antes de mover
+        if factura.area_origen_id is None:
+            factura.area_origen_id = GADMIN_AREA_ID
+
+        factura.area_id = TESORERIA_AREA_ID
+        factura.estado_id = TESORERIA_ESTADO_ID
+        factura.assigned_to_user_id = None
+        factura.assigned_at = datetime.utcnow()
+
+        await self.db.commit()
+        await self.db.refresh(factura)
+
+        codigos_result = await self.db.execute(
+            select(FacturaInventarioCodigo).where(FacturaInventarioCodigo.factura_id == factura_id)
+        )
+        codigos = codigos_result.scalars().all()
+
+        files_result = await self.db.execute(
+            select(File).where(File.factura_id == factura_id)
+        )
+        files = files_result.scalars().all()
+
+        from modules.facturas.schemas import InventarioCodigoOut
+        from modules.files.schemas import FileMiniOut
+
+        return SubmitResponsableOut(
+            factura_id=factura.id,
+            area_id=factura.area_id,
+            area_actual=area_tesoreria.nombre,
+            estado_id=factura.estado_id,
+            estado_actual=estado_tesoreria.label,
+            proveedor=factura.proveedor,
+            numero_factura=factura.numero_factura,
+            centro_costo_id=factura.centro_costo_id,
+            centro_operacion_id=factura.centro_operacion_id,
+            requiere_entrada_inventarios=factura.requiere_entrada_inventarios,
+            destino_inventarios=factura.destino_inventarios,
+            presenta_novedad=factura.presenta_novedad,
+            inventario_codigos=[InventarioCodigoOut(codigo=c.codigo, valor=c.valor, created_at=c.created_at) for c in codigos],
+            tiene_anticipo=factura.tiene_anticipo,
+            porcentaje_anticipo=factura.porcentaje_anticipo,
+            intervalo_entrega_contabilidad=factura.intervalo_entrega_contabilidad,
+            files=[FileMiniOut(id=f.id, doc_type=f.doc_type, filename=f.filename, content_type=f.content_type, uploaded_at=f.created_at) for f in files],
+        )
+
     async def close_tesoreria(self, factura_id: UUID) -> SubmitResponsableOut:
         """
         Cierra una factura en TESORERIA cambiando su estado a finalizado.

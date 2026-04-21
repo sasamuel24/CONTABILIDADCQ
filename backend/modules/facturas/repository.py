@@ -16,7 +16,7 @@ class FacturaRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, skip: int = 0, limit: int = 100, area_id: Optional[UUID] = None, estado: Optional[str] = None) -> Tuple[List[Factura], int]:
+    async def get_all(self, skip: int = 0, limit: int = 100, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None) -> Tuple[List[Factura], int]:
         """Obtiene todas las facturas con paginación y filtros opcionales."""
         # Construir query base con eager loading de files e inventario_codigos
         query = select(Factura).options(
@@ -33,7 +33,11 @@ class FacturaRepository:
         if area_id:
             query = query.where(Factura.area_id == area_id)
             count_query = count_query.where(Factura.area_id == area_id)
-        
+
+        if area_origen_id:
+            query = query.where(Factura.area_origen_id == area_origen_id)
+            count_query = count_query.where(Factura.area_origen_id == area_origen_id)
+
         # Aplicar filtro por estado si se proporciona
         if estado:
             # Join con la tabla Estado para filtrar por label

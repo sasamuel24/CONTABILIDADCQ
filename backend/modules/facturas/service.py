@@ -1331,6 +1331,9 @@ class FacturaService:
             estado_actual=estado_tesoreria.label,
             proveedor=factura.proveedor,
             numero_factura=factura.numero_factura,
+            fecha_emision=factura.fecha_emision,
+            fecha_vencimiento=factura.fecha_vencimiento,
+            total=float(factura.total),
             centro_costo_id=factura.centro_costo_id,
             centro_operacion_id=factura.centro_operacion_id,
             requiere_entrada_inventarios=factura.requiere_entrada_inventarios,
@@ -1339,8 +1342,9 @@ class FacturaService:
             inventario_codigos=[InventarioCodigoOut(codigo=c.codigo, valor=c.valor, created_at=c.created_at) for c in codigos],
             tiene_anticipo=factura.tiene_anticipo,
             porcentaje_anticipo=factura.porcentaje_anticipo,
-            intervalo_entrega_contabilidad=factura.intervalo_entrega_contabilidad,
-            files=[FileMiniOut(id=f.id, doc_type=f.doc_type, filename=f.filename, content_type=f.content_type, uploaded_at=f.created_at) for f in files],
+            intervalo_entrega_contabilidad=factura.intervalo_entrega_contabilidad or '1_SEMANA',
+            es_gasto_adm=factura.es_gasto_adm,
+            files=[],
         )
 
     async def close_tesoreria(self, factura_id: UUID) -> SubmitResponsableOut:

@@ -29,6 +29,7 @@ import { DistribucionCCCOTable } from './DistribucionCCCOTable';
 import { FilePreviewModal } from './FilePreviewModal';
 import { ConfirmModal } from './ConfirmModal';
 import { ComentariosFactura } from './ComentariosFactura';
+import { AsignarCarpetaModal } from './AsignarCarpetaModal';
 import { MOTIVOS_DEVOLUCION } from '../lib/opciones';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -118,6 +119,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [savingIntervalo, setSavingIntervalo] = useState(false);
   const [enviandoContabilidad, setEnviandoContabilidad] = useState(false);
   const [enviandoTesoreria, setEnviandoTesoreria] = useState(false);
+  const [showCarpetaTesoreriaModal, setShowCarpetaTesoreriaModal] = useState(false);
   const [soporteGastoFijoFiles, setSoporteGastoFijoFiles] = useState<FileMiniOut[]>([]);
   const [uploadingSoporteGastoFijo, setUploadingSoporteGastoFijo] = useState(false);
 
@@ -1149,7 +1151,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     input.click();
   };
 
-  const handleEnviarTesoreria = async () => {
+  const handleEnviarTesoreria = () => {
     if (soporteGastoFijoFiles.length === 0) {
       setConfirmModalConfig({
         title: 'Soporte requerido',
@@ -1159,6 +1161,11 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       setShowConfirmModal(true);
       return;
     }
+    // Abrir modal de carpeta antes de enviar (igual que Contabilidad)
+    setShowCarpetaTesoreriaModal(true);
+  };
+
+  const handleEnviarDespuesCarpeta = async () => {
     try {
       setEnviandoTesoreria(true);
       await submitGadminTesoreria(factura.id);
@@ -2187,7 +2194,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 Devolver a Radicación
               </button>
               {esGadmin ? (
-                <button
+                <>
+                  <button
                   onClick={handleEnviarTesoreria}
                   disabled={enviandoTesoreria}
                   className="px-6 py-2 rounded-lg transition-colors font-medium"
@@ -2204,6 +2212,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                     ? <div className="flex items-center gap-2"><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />Enviando...</div>
                     : 'Enviar a Tesorería'}
                 </button>
+                </>
               ) : (
                 <button
                   onClick={handleEnviarContabilidad}
@@ -2329,6 +2338,17 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         message={confirmModalConfig.message}
         type={confirmModalConfig.type}
         showCancel={confirmModalConfig.showCancel}
+      />
+
+      {/* Modal para asignar carpeta de Tesorería */}
+      <AsignarCarpetaModal
+        isOpen={showCarpetaTesoreriaModal}
+        onClose={() => setShowCarpetaTesoreriaModal(false)}
+        factura={factura}
+        onSuccess={() => {
+          setShowCarpetaTesoreriaModal(false);
+          handleEnviarDespuesCarpeta();
+        }}
       />
     </>
   );

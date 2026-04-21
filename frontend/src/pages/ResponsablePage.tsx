@@ -28,7 +28,6 @@ export function ResponsablePage() {
     ...(esMant ? [{ id: 'paquetes' as Seccion, label: 'Paquetes de Gastos', icon: <PackageOpen className="w-5 h-5" /> }] : []),
     ...(esGadmin ? [
       { id: 'subida' as Seccion, label: 'Subida Manual de Facturas', icon: <UploadCloud className="w-5 h-5" /> },
-      { id: 'trazabilidad' as Seccion, label: 'Trazabilidad Facturas', icon: <FolderInput className="w-5 h-5" /> },
     ] : []),
   ];
 

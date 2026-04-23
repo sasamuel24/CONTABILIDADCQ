@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { X, Folder, Check, ChevronRight, ChevronDown, FolderOpen } from 'lucide-react';
-import { getCarpetasTesoreria, asignarFacturaACarpetaTesoreria, type CarpetaTesoreria, type FacturaListItem } from '../lib/api';
+import {
+  getCarpetasTesoreria,
+  asignarFacturasACarpetaTesoreriaMasivo,
+  type CarpetaTesoreria,
+  type FacturaListItem,
+} from '../lib/api';
 
 interface AsignarCarpetaTesoreriaModalProps {
   isOpen: boolean;
   onClose: () => void;
-  factura: FacturaListItem;
+  facturas: FacturaListItem[];
   onSuccess: () => void;
 }
 
-export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSuccess }: AsignarCarpetaTesoreriaModalProps) {
+export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, facturas, onSuccess }: AsignarCarpetaTesoreriaModalProps) {
   const [carpetas, setCarpetas] = useState<CarpetaTesoreria[]>([]);
   const [selectedCarpetaId, setSelectedCarpetaId] = useState<string>('');
   const [selectedCarpetaNombre, setSelectedCarpetaNombre] = useState<string>('');
@@ -44,8 +49,11 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSucce
 
     try {
       setIsSubmitting(true);
-      await asignarFacturaACarpetaTesoreria(factura.id, { carpeta_id: selectedCarpetaId });
-      // Solo llamar a onSuccess, que manejará el cierre del modal y la recarga
+      const ids = facturas.map(f => f.id);
+      const { errores } = await asignarFacturasACarpetaTesoreriaMasivo(ids, selectedCarpetaId);
+      if (errores > 0) {
+        alert(`Se archivaron ${ids.length - errores} factura(s). ${errores} no pudieron archivarse.`);
+      }
       onSuccess();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al asignar carpeta';
@@ -81,9 +89,7 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSucce
           className={`flex items-center gap-2 px-3 py-2 hover:bg-gray-100 cursor-pointer transition-colors rounded-md ${
             isSelected ? 'bg-teal-50 border-l-4 border-teal-500' : ''
           }`}
-          style={{
-            paddingLeft: `${level * 20 + 12}px`
-          }}
+          style={{ paddingLeft: `${level * 20 + 12}px` }}
         >
           {hasChildren ? (
             <button
@@ -102,7 +108,7 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSucce
           ) : (
             <div className="w-5" />
           )}
-          
+
           <div
             className="flex-1 flex items-center gap-2"
             onClick={() => handleSelectCarpeta(carpeta)}
@@ -112,7 +118,6 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSucce
             ) : (
               <Folder className="w-4 h-4 text-teal-600" />
             )}
-            
             <span className="text-sm font-medium text-gray-900">{carpeta.nombre}</span>
           </div>
         </div>
@@ -128,52 +133,74 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSucce
 
   if (!isOpen) return null;
 
+  const esMasivo = facturas.length > 1;
+
   return (
     <>
-      {/* Backdrop con blur elegante */}
-      <div 
-        className="fixed inset-0 z-50 backdrop-blur-lg" 
-        style={{backgroundColor: 'rgba(55, 65, 81, 0.75)'}}
-        onClick={onClose} 
+      <div
+        className="fixed inset-0 z-50 backdrop-blur-lg"
+        style={{ backgroundColor: 'rgba(55, 65, 81, 0.75)' }}
+        onClick={onClose}
       />
-      
+
       <div className="fixed inset-0 z-50 overflow-y-auto">
         <div className="flex min-h-full items-center justify-center p-6">
-          <div 
-            className="w-full max-w-2xl bg-white shadow-2xl rounded-lg border border-gray-200 relative" 
-            style={{boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'}}
+          <div
+            className="w-full max-w-2xl bg-white shadow-2xl rounded-lg border border-gray-200 relative"
+            style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-teal-600 to-teal-500 rounded-t-lg">
-              <h2 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="text-lg font-bold text-white">Asignar a Carpeta</h2>
-              <button
-                onClick={onClose}
-                className="p-1 hover:bg-white/20 rounded-lg transition-colors"
-              >
+              <h2 style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }} className="text-lg font-bold text-white">
+                {esMasivo ? `Archivar ${facturas.length} facturas` : 'Asignar a Carpeta'}
+              </h2>
+              <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg transition-colors">
                 <X className="w-5 h-5 text-white" />
               </button>
             </div>
 
             {/* Body */}
             <form onSubmit={handleSubmit} className="p-6">
-              {/* Info de la factura */}
+              {/* Info de la(s) factura(s) */}
               <div className="mb-4 p-4 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg border border-teal-200">
-                <p style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm text-gray-600 font-medium mb-1">Factura:</p>
-                <p style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="font-mono text-lg font-bold text-gray-900">{factura.numero_factura}</p>
-                <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-sm text-gray-700 mt-1">{factura.proveedor}</p>
+                {esMasivo ? (
+                  <>
+                    <p style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }} className="text-sm text-gray-600 font-medium mb-1">
+                      Facturas seleccionadas:
+                    </p>
+                    <p style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }} className="text-lg font-bold text-gray-900">
+                      {facturas.length} facturas
+                    </p>
+                    <p style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="text-sm text-gray-500 mt-1">
+                      {facturas.map(f => f.numero_factura).join(', ')}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }} className="text-sm text-gray-600 font-medium mb-1">
+                      Factura:
+                    </p>
+                    <p style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }} className="font-mono text-lg font-bold text-gray-900">
+                      {facturas[0].numero_factura}
+                    </p>
+                    <p style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="text-sm text-gray-700 mt-1">
+                      {facturas[0].proveedor}
+                    </p>
+                  </>
+                )}
               </div>
 
-              {/* Selector de carpeta en cascada */}
+              {/* Selector de carpeta */}
               <div className="mb-6">
-                <label style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="block text-sm font-medium text-gray-700 mb-3">
+                <label style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }} className="block text-sm font-medium text-gray-700 mb-3">
                   Seleccionar Carpeta
                 </label>
-                
+
                 {selectedCarpetaNombre && (
                   <div className="mb-3 p-3 bg-teal-50 border border-teal-200 rounded-lg flex items-center gap-2">
                     <Folder className="w-4 h-4 text-teal-600" />
-                    <span style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm font-medium text-teal-900">
+                    <span style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }} className="text-sm font-medium text-teal-900">
                       Carpeta seleccionada: {selectedCarpetaNombre}
                     </span>
                   </div>
@@ -188,8 +215,8 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSucce
                     {carpetas.length === 0 ? (
                       <div className="p-8 text-center">
                         <Folder className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                        <p style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm text-gray-600">No hay carpetas disponibles</p>
-                        <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-xs text-gray-500 mt-1">Crea una carpeta primero</p>
+                        <p style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }} className="text-sm text-gray-600">No hay carpetas disponibles</p>
+                        <p style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="text-xs text-gray-500 mt-1">Crea una carpeta primero</p>
                       </div>
                     ) : (
                       <div className="p-2">
@@ -205,7 +232,7 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSucce
                 <button
                   type="button"
                   onClick={onClose}
-                  style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}}
+                  style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
                   className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   Cancelar
@@ -216,19 +243,19 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSucce
                   style={{
                     fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
                     backgroundColor: !selectedCarpetaId || isSubmitting ? '#9ca3af' : '#0d9488',
-                    cursor: !selectedCarpetaId || isSubmitting ? 'not-allowed' : 'pointer'
+                    cursor: !selectedCarpetaId || isSubmitting ? 'not-allowed' : 'pointer',
                   }}
-                  className="flex items-center gap-2 px-4 py-2 text-white rounded-lg hover:bg-teal-700 disabled:hover:bg-gray-400 transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 text-white rounded-lg disabled:hover:bg-gray-400 transition-colors"
                 >
                   {isSubmitting ? (
                     <>
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Asignando...</span>
+                      <span>Archivando...</span>
                     </>
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
-                      <span>Asignar</span>
+                      <span>{esMasivo ? `Archivar ${facturas.length} facturas` : 'Asignar'}</span>
                     </>
                   )}
                 </button>
@@ -240,4 +267,3 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, factura, onSucce
     </>
   );
 }
-

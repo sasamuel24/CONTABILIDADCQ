@@ -118,7 +118,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
         {/* Logo */}
         <div className="p-6 border-b border-gray-200">
           <div className="w-15 h-10 rounded-lg flex items-center justify-center" style={{backgroundColor: '#00829a'}}>
-            <span className="text-white font-bold" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Sistema Radicación</span>
+            <span className="text-white font-bold" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>DocuFlow</span>
           </div>
         </div>
 

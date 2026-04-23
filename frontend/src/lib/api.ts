@@ -1294,6 +1294,19 @@ export async function asignarFacturaACarpetaTesoreria(
   });
 }
 
+export async function asignarFacturasACarpetaTesoreriaMasivo(
+  facturaIds: string[],
+  carpetaId: string
+): Promise<{ exitosos: number; errores: number }> {
+  const results = await Promise.allSettled(
+    facturaIds.map(id => asignarFacturaACarpetaTesoreria(id, { carpeta_id: carpetaId }))
+  );
+  return {
+    exitosos: results.filter(r => r.status === 'fulfilled').length,
+    errores: results.filter(r => r.status === 'rejected').length,
+  };
+}
+
 /**
  * Obtener distribución CC/CO de una factura
  */
@@ -1894,4 +1907,26 @@ export async function aprobarPaquetePorToken(token: string): Promise<PaqueteOut>
     throw new Error(err.detail || `Error ${resp.status}`);
   }
   return resp.json();
+}
+
+// ─── Extracción IA desde PDF de factura pública ──────────────────────────────
+
+export interface ExtraccionFacturaPdfOut {
+  proveedor: string | null;
+  numero_factura: string | null;
+  fecha_emision: string | null;
+  fecha_vencimiento: string | null;
+  total: string | null;
+  confianza: 'alta' | 'media' | 'baja';
+  campos_detectados: string[];
+}
+
+/** Extrae datos de una factura electrónica colombiana (PDF) usando Claude Sonnet */
+export async function extraerDatosFacturaPdf(file: File): Promise<ExtraccionFacturaPdfOut> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return fetchAPI<ExtraccionFacturaPdfOut>('/facturas/extraer-datos-pdf', {
+    method: 'POST',
+    body: formData,
+  });
 }

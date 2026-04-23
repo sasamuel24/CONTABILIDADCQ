@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
-import { Upload, FileText, CheckCircle, AlertCircle, X } from 'lucide-react';
-import { uploadFacturaFile, API_BASE_URL, getAccessToken } from '../lib/api';
+import { Upload, FileText, CheckCircle, AlertCircle, X, Sparkles, Scan, Loader2 } from 'lucide-react';
+import { uploadFacturaFile, API_BASE_URL, getAccessToken, extraerDatosFacturaPdf } from '../lib/api';
+import { toast } from 'sonner';
 
 const GADMIN_AREA_ID = 'c1589d0c-736b-4af4-89f2-81900d2dac16';
 const API_KEY = 'mi-api-key-secreta-2025';
@@ -26,10 +27,41 @@ export function GastosAdminSubidaView() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [estado, setEstado] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [mensaje, setMensaje] = useState('');
+  const [escaneando, setEscaneando] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const escanearPdf = async (file: File) => {
+    setEscaneando(true);
+    try {
+      const datos = await extraerDatosFacturaPdf(file);
+
+      const patch: Partial<FormData> = {};
+      if (datos.proveedor)        patch.proveedor        = datos.proveedor;
+      if (datos.numero_factura)   patch.numero_factura   = datos.numero_factura;
+      if (datos.fecha_emision)    patch.fecha_emision    = datos.fecha_emision;
+      if (datos.fecha_vencimiento) patch.fecha_vencimiento = datos.fecha_vencimiento;
+      if (datos.total)            patch.total            = datos.total;
+
+      if (Object.keys(patch).length > 0) {
+        setForm(prev => ({ ...prev, ...patch }));
+      }
+
+      const n = datos.campos_detectados.length;
+      if (n === 0) {
+        toast.warning('No se detectaron datos en el PDF. Completa los campos manualmente.');
+      } else {
+        const emoji = datos.confianza === 'alta' ? '✅' : datos.confianza === 'media' ? '⚠️' : '🔍';
+        toast.success(`${emoji} ${n} campo${n !== 1 ? 's' : ''} completado${n !== 1 ? 's' : ''} automáticamente`);
+      }
+    } catch {
+      toast.error('No se pudo analizar el PDF. Completa los campos manualmente.');
+    } finally {
+      setEscaneando(false);
+    }
   };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,6 +75,7 @@ export function GastosAdminSubidaView() {
     setPdfFile(f);
     setEstado('idle');
     setMensaje('');
+    escanearPdf(f);
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -57,6 +90,7 @@ export function GastosAdminSubidaView() {
     setPdfFile(f);
     setEstado('idle');
     setMensaje('');
+    escanearPdf(f);
   };
 
   const limpiar = () => {
@@ -87,7 +121,6 @@ export function GastosAdminSubidaView() {
     setMensaje('');
 
     try {
-      // 1. Crear la factura
       const token = getAccessToken();
       const body = {
         proveedor: form.proveedor.trim(),
@@ -116,8 +149,6 @@ export function GastosAdminSubidaView() {
       }
 
       const factura = await res.json();
-
-      // 2. Subir el PDF de la factura
       await uploadFacturaFile(factura.id, 'FACTURA_PDF', pdfFile);
 
       setEstado('ok');
@@ -164,6 +195,112 @@ export function GastosAdminSubidaView() {
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm space-y-5">
+
+        {/* PDF Upload — va primero para que el escáner IA pre-llene los campos */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className={labelCls} style={{ fontFamily: 'Neutra Text, Montserrat, sans-serif', marginBottom: 0 }}>
+              PDF de la Factura <span className="text-red-500">*</span>
+            </label>
+            {pdfFile && !escaneando && (
+              <button
+                type="button"
+                onClick={() => escanearPdf(pdfFile)}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all"
+                style={{
+                  color: '#7c3aed',
+                  borderColor: '#ddd6fe',
+                  backgroundColor: '#f5f3ff',
+                  fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <Scan className="w-3.5 h-3.5" />
+                Re-escanear con IA
+              </button>
+            )}
+          </div>
+
+          <div
+            onDrop={handleDrop}
+            onDragOver={e => e.preventDefault()}
+            onClick={() => !escaneando && fileInputRef.current?.click()}
+            className="border-2 border-dashed rounded-lg p-5 text-center transition-colors"
+            style={{
+              borderColor: pdfFile ? '#00829a' : '#d1d5db',
+              backgroundColor: pdfFile ? 'rgba(20,170,184,0.05)' : '#fafafa',
+              cursor: escaneando ? 'default' : 'pointer',
+            }}
+            onMouseEnter={e => { if (!pdfFile && !escaneando) e.currentTarget.style.borderColor = '#14aab8'; }}
+            onMouseLeave={e => { if (!pdfFile && !escaneando) e.currentTarget.style.borderColor = '#d1d5db'; }}
+          >
+            {escaneando ? (
+              <div className="flex flex-col items-center gap-2 py-1">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" style={{ color: '#7c3aed' }} />
+                  <Sparkles className="w-4 h-4" style={{ color: '#7c3aed' }} />
+                </div>
+                <p className="text-sm font-semibold" style={{ color: '#7c3aed', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                  Analizando factura con IA...
+                </p>
+                <p className="text-xs text-gray-400" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                  Claude Sonnet está leyendo el PDF y extrayendo los datos
+                </p>
+              </div>
+            ) : pdfFile ? (
+              <div className="flex items-center justify-center gap-3">
+                <FileText className="w-6 h-6" style={{ color: '#00829a' }} />
+                <span className="text-sm font-medium text-gray-800" style={{ fontFamily: 'Neutra Text, Montserrat, sans-serif' }}>
+                  {pdfFile.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation();
+                    setPdfFile(null);
+                    setForm(EMPTY_FORM);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                  className="ml-1 text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Upload className="w-7 h-7 text-gray-400" />
+                  <Sparkles className="w-5 h-5" style={{ color: '#7c3aed' }} />
+                </div>
+                <p className="text-sm text-gray-500" style={{ fontFamily: 'Neutra Text, Montserrat, sans-serif' }}>
+                  Arrastra el PDF aquí o <span style={{ color: '#00829a' }} className="font-medium">haz clic para seleccionar</span>
+                </p>
+                <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                  Solo archivos PDF · La IA completará los campos automáticamente
+                </p>
+              </div>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf"
+            onChange={handleFile}
+            className="hidden"
+          />
+        </div>
+
+        {/* Separador con label IA */}
+        {pdfFile && !escaneando && (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-gray-100" />
+            <span className="text-xs text-gray-400 flex items-center gap-1" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+              <Sparkles className="w-3 h-3" style={{ color: '#7c3aed' }} />
+              Revisa y ajusta los campos completados por IA
+            </span>
+            <div className="flex-1 h-px bg-gray-100" />
+          </div>
+        )}
 
         <div>
           <label className={labelCls} style={{ fontFamily: 'Neutra Text, Montserrat, sans-serif' }}>
@@ -254,56 +391,6 @@ export function GastosAdminSubidaView() {
           </div>
         </div>
 
-        {/* PDF Upload */}
-        <div>
-          <label className={labelCls} style={{ fontFamily: 'Neutra Text, Montserrat, sans-serif' }}>
-            PDF de la Factura <span className="text-red-500">*</span>
-          </label>
-          <div
-            onDrop={handleDrop}
-            onDragOver={e => e.preventDefault()}
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors"
-            style={{
-              borderColor: pdfFile ? '#00829a' : '#d1d5db',
-              backgroundColor: pdfFile ? 'rgba(20,170,184,0.05)' : '#fafafa',
-            }}
-            onMouseEnter={e => { if (!pdfFile) e.currentTarget.style.borderColor = '#14aab8'; }}
-            onMouseLeave={e => { if (!pdfFile) e.currentTarget.style.borderColor = '#d1d5db'; }}
-          >
-            {pdfFile ? (
-              <div className="flex items-center justify-center gap-3">
-                <FileText className="w-6 h-6" style={{ color: '#00829a' }} />
-                <span className="text-sm font-medium text-gray-800" style={{ fontFamily: 'Neutra Text, Montserrat, sans-serif' }}>
-                  {pdfFile.name}
-                </span>
-                <button
-                  type="button"
-                  onClick={e => { e.stopPropagation(); setPdfFile(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
-                  className="ml-1 text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <div>
-                <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-500" style={{ fontFamily: 'Neutra Text, Montserrat, sans-serif' }}>
-                  Arrastra el PDF aquí o <span style={{ color: '#00829a' }} className="font-medium">haz clic para seleccionar</span>
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Solo archivos PDF</p>
-              </div>
-            )}
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/pdf"
-            onChange={handleFile}
-            className="hidden"
-          />
-        </div>
-
         {estado === 'error' && (
           <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-sm">
             <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
@@ -313,7 +400,7 @@ export function GastosAdminSubidaView() {
 
         <button
           type="submit"
-          disabled={estado === 'loading'}
+          disabled={estado === 'loading' || escaneando}
           className="w-full py-3 rounded-lg text-white text-sm font-medium transition-opacity disabled:opacity-60"
           style={{ backgroundColor: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
         >
@@ -321,6 +408,11 @@ export function GastosAdminSubidaView() {
             <span className="flex items-center justify-center gap-2">
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               Registrando...
+            </span>
+          ) : escaneando ? (
+            <span className="flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Analizando PDF...
             </span>
           ) : (
             'Registrar Factura'

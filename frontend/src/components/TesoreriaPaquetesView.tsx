@@ -728,6 +728,20 @@ export function TesoreriaPaquetesView() {
   const [fechaMasivoSeleccionada, setFechaMasivoSeleccionada] = useState<string>(() => new Date().toISOString().slice(0, 10));
   const [loadingMasivo, setLoadingMasivo] = useState(false);
 
+  // Ordenamiento pendientes
+  type SortCol = 'semana' | 'tecnico' | 'monto_total' | 'monto_a_pagar' | 'fecha_envio_tesoreria';
+  const [sortCol, setSortCol] = useState<SortCol>('semana');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleSortPend = (col: SortCol) => {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  };
+
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
@@ -829,11 +843,45 @@ export function TesoreriaPaquetesView() {
   }
 
   const listaBase = tab === 'pendientes' ? pendientes : tab === 'historial' ? historial : [];
-  const lista = filtroNombre.trim()
+  const listaFiltrada = filtroNombre.trim()
     ? listaBase.filter(p =>
         (p.tecnico?.nombre ?? '').toLowerCase().includes(filtroNombre.trim().toLowerCase())
       )
     : listaBase;
+
+  const lista = [...listaFiltrada].sort((a, b) => {
+    let aVal: string | number | null;
+    let bVal: string | number | null;
+    switch (sortCol) {
+      case 'semana':
+        aVal = a.fecha_inicio ?? '';
+        bVal = b.fecha_inicio ?? '';
+        break;
+      case 'tecnico':
+        aVal = a.tecnico?.nombre ?? '';
+        bVal = b.tecnico?.nombre ?? '';
+        break;
+      case 'monto_total':
+        aVal = Number(a.monto_total);
+        bVal = Number(b.monto_total);
+        break;
+      case 'monto_a_pagar':
+        aVal = Number(a.monto_a_pagar ?? a.monto_total);
+        bVal = Number(b.monto_a_pagar ?? b.monto_total);
+        break;
+      case 'fecha_envio_tesoreria':
+        aVal = a.fecha_envio_tesoreria ?? '';
+        bVal = b.fecha_envio_tesoreria ?? '';
+        break;
+    }
+    if (aVal === bVal) return 0;
+    if (aVal === '' || aVal === null) return 1;
+    if (bVal === '' || bVal === null) return -1;
+    const cmp = typeof aVal === 'number'
+      ? aVal - (bVal as number)
+      : String(aVal).localeCompare(String(bVal));
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
 
   // Trazabilidad con doble filtro
   const listaTraz = trazabilidad
@@ -1188,15 +1236,42 @@ export function TesoreriaPaquetesView() {
                     />
                   </th>
                 )}
-                {['Semana', 'Técnico', 'Monto total', 'Valor a pagar', 'Enviado por Radicación', tab === 'pendientes' ? 'Acción' : 'Estado'].map((h) => (
+                {/* Cabeceras ordenables — solo activas en pendientes */}
+                {([
+                  { label: 'Semana',                col: 'semana' as SortCol,                  icon: <CalendarDays className="w-3.5 h-3.5" /> },
+                  { label: 'Técnico',               col: 'tecnico' as SortCol,                 icon: <User className="w-3.5 h-3.5" /> },
+                  { label: 'Monto total',            col: 'monto_total' as SortCol,             icon: <Banknote className="w-3.5 h-3.5" /> },
+                  { label: 'Valor a pagar',          col: 'monto_a_pagar' as SortCol,           icon: <Banknote className="w-3.5 h-3.5" /> },
+                  { label: 'Enviado por Radicación', col: 'fecha_envio_tesoreria' as SortCol,   icon: <CalendarDays className="w-3.5 h-3.5" /> },
+                ] as { label: string; col: SortCol; icon: React.ReactNode }[]).map(({ label, col, icon }) => (
                   <th
-                    key={h}
+                    key={col}
+                    onClick={() => tab === 'pendientes' && handleSortPend(col)}
                     className="px-5 py-3 text-left font-semibold text-white whitespace-nowrap"
-                    style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', fontSize: 12 }}
+                    style={{
+                      fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                      fontSize: 12,
+                      cursor: tab === 'pendientes' ? 'pointer' : 'default',
+                      userSelect: 'none',
+                    }}
                   >
-                    {h}
+                    <div className="flex items-center gap-1.5">
+                      {icon}
+                      {label}
+                      {tab === 'pendientes' && sortCol === col && (
+                        <span style={{ fontSize: 11, opacity: 0.9 }}>
+                          {sortDir === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
                   </th>
                 ))}
+                <th
+                  className="px-5 py-3 text-left font-semibold text-white whitespace-nowrap"
+                  style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', fontSize: 12 }}
+                >
+                  {tab === 'pendientes' ? 'Acción' : 'Estado'}
+                </th>
               </tr>
             </thead>
             <tbody>

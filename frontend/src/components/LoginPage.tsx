@@ -82,7 +82,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   return (
-    <div 
+    <div
       className="min-h-screen flex items-center justify-center p-8"
       style={{
         fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
@@ -95,7 +95,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         {/* Logo */}
         <div className="mb-12">
           <div className="w-60 h-10 rounded-lg flex items-center justify-center" style={{backgroundColor: '#00829a'}}>
-            <span className="text-white font-bold">SISTEMA DE FACTURAS CAFÉ QUINDÍO</span>
+            <span className="text-white font-bold">DocuFlow</span>
           </div>
         </div>
 

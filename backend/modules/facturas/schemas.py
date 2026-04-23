@@ -423,3 +423,16 @@ class DevolverAFacturacionOut(BaseModel):
     usuario_facturacion: str
     
     model_config = {"from_attributes": True}
+
+
+# ========== Schema extracción IA desde PDF ==========
+
+class ExtraccionFacturaPdfOut(BaseModel):
+    """Respuesta del endpoint de extracción de datos de factura desde PDF con IA."""
+    proveedor: Optional[str] = None
+    numero_factura: Optional[str] = None
+    fecha_emision: Optional[str] = None
+    fecha_vencimiento: Optional[str] = None
+    total: Optional[str] = None
+    confianza: str = "baja"
+    campos_detectados: List[str] = []

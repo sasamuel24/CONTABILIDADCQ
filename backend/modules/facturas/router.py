@@ -30,8 +30,10 @@ from modules.facturas.schemas import (
     AsignarCarpetaRequest,
     AsignarCarpetaResponse,
     AsignarCarpetaTesoreriaRequest,
-    AsignarCarpetaTesoreriaResponse
+    AsignarCarpetaTesoreriaResponse,
+    ExtraccionFacturaPdfOut,
 )
+from fastapi import UploadFile, File
 from core.auth import require_api_key
 
 
@@ -733,5 +735,137 @@ async def devolver_a_facturacion(
     - La factura desaparece de la vista del Responsable
     """
     return await service.devolver_a_facturacion(factura_id, data.motivo)
+
+
+@router.post(
+    "/extraer-datos-pdf",
+    response_model=ExtraccionFacturaPdfOut,
+    summary="Extraer datos de factura pública desde PDF usando IA (Claude Sonnet)",
+)
+async def extraer_datos_factura_pdf(
+    file: UploadFile = File(..., description="PDF de la factura electrónica colombiana"),
+):
+    """
+    Recibe el PDF de una factura electrónica colombiana y usa Claude Sonnet para extraer
+    automáticamente: proveedor, número de factura, fecha de emisión, fecha de vencimiento
+    y valor total a pagar. Devuelve los campos con nivel de confianza.
+    """
+    import base64
+    import json
+    from anthropic import AsyncAnthropic
+    from core.config import settings
+
+    if not settings.anthropic_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Servicio de IA no configurado. Contacte al administrador.",
+        )
+
+    content_type = file.content_type or ""
+    if content_type != "application/pdf":
+        raise HTTPException(
+            status_code=422,
+            detail="Solo se aceptan archivos PDF.",
+        )
+
+    pdf_bytes = await file.read()
+    if len(pdf_bytes) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=422, detail="El PDF no puede superar 20 MB.")
+
+    pdf_b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
+
+    prompt = """Analiza este PDF de una factura electrónica colombiana (factura pública emitida a Café Quindío) y extrae los campos solicitados en formato JSON.
+Si un campo no está presente o no puedes determinarlo con certeza, usa null.
+Devuelve ÚNICAMENTE el objeto JSON, sin texto adicional, sin markdown, sin bloques de código.
+
+CONTEXTO: La factura fue emitida por un PROVEEDOR externo a la empresa Café Quindío (NIT 900273380).
+Debes extraer datos del EMISOR/PROVEEDOR (quien cobra), NUNCA de Café Quindío (quien paga).
+
+CAMPOS A EXTRAER:
+
+1. proveedor
+   - Razón social completa del EMISOR (encabezado del documento, junto a su NIT).
+   - Ejemplos: "CLARO S.A.", "EPM TELECOMUNICACIONES S.A. ESP", "SEGUROS BOLÍVAR S.A."
+   - NUNCA uses "Café Quindío", "CAFE QUINDIO" ni variantes.
+
+2. numero_factura
+   - Número completo de la factura electrónica, incluyendo prefijo alfanumérico.
+   - Puede aparecer como "Factura de Venta No.", "Factura Electrónica No.", "No. de Factura", etc.
+   - Ejemplos: "FE-001234", "SETP990012345", "FAC-2025-0089", "FEV-00001".
+
+3. fecha_emision
+   - Fecha de expedición/emisión en formato YYYY-MM-DD.
+   - Etiquetada como "Fecha de emisión", "Fecha factura", "Fecha de expedición", etc.
+
+4. fecha_vencimiento
+   - Fecha límite de pago en formato YYYY-MM-DD.
+   - Etiquetada como "Fecha de vencimiento", "Fecha límite de pago", "Vence", etc.
+   - Si no aparece explícitamente, usa null.
+
+5. total
+   - Valor total a pagar en pesos colombianos (COP), solo dígitos sin puntos ni comas ni símbolo $.
+   - Corresponde a "Total a pagar", "Valor total", "Gran total", "Total factura".
+   - Si hay descuentos e IVA ya incluidos, toma el monto final neto.
+   - Ejemplo: si el PDF dice "$1.250.000" → devuelve "1250000".
+
+6. confianza
+   - "alta"  → se detectaron 4 o 5 campos correctamente
+   - "media" → se detectaron 2 o 3 campos
+   - "baja"  → se detectó 0 o 1 campo
+
+7. campos_detectados
+   - Lista con los nombres de los campos que encontraste (excluyendo los que son null).
+   - Ejemplo: ["proveedor","numero_factura","fecha_emision","total"]
+
+Respuesta esperada (ejemplo):
+{"proveedor":"CLARO S.A.","numero_factura":"FE-2025-001234","fecha_emision":"2025-03-15","fecha_vencimiento":"2025-04-14","total":"3450000","confianza":"alta","campos_detectados":["proveedor","numero_factura","fecha_emision","fecha_vencimiento","total"]}"""
+
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+
+    message = await client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=512,
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": pdf_b64,
+                        },
+                    },
+                    {"type": "text", "text": prompt},
+                ],
+            }
+        ],
+    )
+
+    raw = message.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+
+    try:
+        datos = json.loads(raw)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=502,
+            detail="La IA no pudo interpretar el PDF. Verifica que sea una factura electrónica válida.",
+        )
+
+    return ExtraccionFacturaPdfOut(
+        proveedor=datos.get("proveedor"),
+        numero_factura=datos.get("numero_factura"),
+        fecha_emision=datos.get("fecha_emision"),
+        fecha_vencimiento=datos.get("fecha_vencimiento"),
+        total=str(datos["total"]) if datos.get("total") else None,
+        confianza=datos.get("confianza", "baja"),
+        campos_detectados=datos.get("campos_detectados", []),
+    )
 
 

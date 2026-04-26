@@ -210,11 +210,15 @@ export function DistribucionCCCOTable({
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>CC</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>CO</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>UN</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>CA</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 w-24" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>%</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>CC <span className="text-red-500">*</span></th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>CO <span className="text-red-500">*</span></th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                UN <span className="font-normal text-gray-400 text-xs">(Opcional)</span>
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                CA <span className="font-normal text-gray-400 text-xs">(Opcional)</span>
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700 w-24" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>% <span className="text-red-500">*</span></th>
               <th className="px-3 py-2 text-center text-xs font-semibold text-gray-700 w-16" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>Acciones</th>
             </tr>
           </thead>

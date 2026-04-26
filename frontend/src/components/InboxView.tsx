@@ -640,9 +640,9 @@ export function InboxView() {
                 </div>
               </div>
 
-              {/* Archivos de Soporte de Pago */}
+              {/* Archivos de Factura Radicada */}
               <div>
-                <h4 className="text-gray-900 mb-3">Soporte de Pago</h4>
+                <h4 className="text-gray-900 mb-3">Factura Radicada</h4>
                 {loadingFiles ? (
                   <div className="space-y-2">
                     {[1, 2].map((i) => (

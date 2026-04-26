@@ -1012,8 +1012,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const validarFormulario = (): { valido: boolean; errores: Record<string, string> } => {
     const nuevosErrores: Record<string, string> = {};
 
-    // Validar OC y APROBACIÓN solo si NO es gasto administrativo
-    if (!esGastoAdm) {
+    // Validar OC y APROBACIÓN solo si NO es gasto administrativo y NO requiere inventario
+    if (!esGastoAdm && !requiereInventario) {
       if (archivosOCExistentes.length === 0) {
         nuevosErrores.oc = 'Debe subir al menos una OC/OS (o marque como gasto administrativo)';
       }
@@ -1062,8 +1062,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       }
     }
 
-    // Validar Distribución CC/CO (solo si está habilitada)
-    if (distribRequerida) {
+    // Validar Distribución CC/CO (solo si está habilitada y no requiere inventario)
+    if (distribRequerida && !requiereInventario) {
       if (distribuciones.length === 0) {
         nuevosErrores.distribucion = 'Debe guardar al menos una distribución de CC/CO';
         console.log('❌ ERROR: No hay distribuciones guardadas');
@@ -1330,9 +1330,9 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               </div>
             </div>
 
-            {/* Soporte de Pago (Factura PDF) */}
+            {/* Factura Radicada (Factura PDF) */}
             <div>
-              <h4 className="text-gray-900 font-semibold mb-3">Soporte de Pago</h4>
+              <h4 className="text-gray-900 font-semibold mb-3">Factura Radicada</h4>
               {loadingArchivos ? (
                 <div className="text-sm text-gray-500">Cargando archivos...</div>
               ) : soportePagoFiles.length > 0 ? (
@@ -1468,7 +1468,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
             )}
 
             {/* Toggle: ¿Es Gasto Administrativo? */}
-            <div className="rounded-lg p-4">
+            {!requiereInventario && <div className="rounded-lg p-4">
               <div className="flex items-start gap-3">
                 <div className="flex-1">
                   <label className="flex items-center gap-3 cursor-pointer">
@@ -1496,10 +1496,10 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   </span>
                 )}
               </div>
-            </div>
+            </div>}
 
             {/* Botón Subir OC/OS - Múltiples archivos */}
-            <div>
+            {!requiereInventario && <div>
               <h4 className="text-gray-900 font-semibold mb-3">
                 OC / OS
                 {!esGastoAdm && <span className="text-red-600 ml-1">*</span>}
@@ -1619,10 +1619,10 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   )}
                 </div>
               )}
-            </div>
+            </div>}
 
             {/* Aprobación por correo electrónico */}
-            <div>
+            {!requiereInventario && <div>
               <h4 className="text-gray-900 font-semibold mb-3">
                 Aprobación de Gerencia
                 {!esGastoAdm && <span className="text-red-600 ml-1">*</span>}
@@ -1714,10 +1714,10 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   )}
                 </div>
               )}
-            </div>
+            </div>}
 
             {/* Distribución CC/CO */}
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+            {!requiereInventario && <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
               {/* Toggle requerida */}
               <div className="flex items-center justify-end mb-4">
                 <button
@@ -1762,7 +1762,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   requerida={distribRequerida}
                 />
               )}
-            </div>
+            </div>}
 
             {/* ¿Requiere Inventario? */}
             <div>
@@ -1774,6 +1774,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   <button
                     onClick={() => {
                       setRequiereInventario(true);
+                      setDistribRequerida(false);
                     }}
                     className={`px-8 py-2 rounded-lg font-medium transition-colors`}
                     style={{
@@ -1793,6 +1794,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   <button
                     onClick={() => {
                       setRequiereInventario(false);
+                      setDistribRequerida(true);
                       // Limpiar campos si se desactiva
                       setTipoIngreso('');
                       setOct('');

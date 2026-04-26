@@ -625,7 +625,12 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-gray-700 text-sm font-medium">Aprobación Gerencia:</span>
-                        {archivoAprobacionExistente ? (
+                        {factura.fecha_aprobacion_email ? (
+                          <div className="text-green-600 text-sm flex items-center gap-1">
+                            <CheckCircle className="w-4 h-4" />
+                            Aprobado por {factura.aprobado_por_nombre || 'gerencia'} (correo)
+                          </div>
+                        ) : archivoAprobacionExistente ? (
                           <div className="flex items-center gap-2">
                             <div className="text-green-600 text-sm flex items-center gap-1">
                               <CheckCircle className="w-4 h-4" />
@@ -703,9 +708,9 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                 </div>
               </div>
 
-              {/* Soporte de Pago (Factura PDF) */}
+              {/* Factura Radicada (Factura PDF) */}
               <div>
-                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Soporte de Pago</h4>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Factura Radicada</h4>
                 {loadingArchivos ? (
                   <div className="text-sm text-gray-500">Cargando archivos...</div>
                 ) : soportePagoFiles.length > 0 ? (

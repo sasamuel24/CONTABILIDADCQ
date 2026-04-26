@@ -9,7 +9,6 @@ import {
   type ComentarioCreate,
   type ComentarioUpdate
 } from '../lib/api';
-import { MOTIVOS_COMENTARIO } from '../lib/opciones';
 
 interface ComentariosFacturaProps {
   facturaId: string;
@@ -137,17 +136,23 @@ export function ComentariosFactura({ facturaId, currentUserId }: ComentariosFact
       {/* Formulario para nuevo comentario */}
       <form onSubmit={handleSubmitComentario} className="space-y-3 bg-white">
         <div>
-          <select
+          <textarea
             value={nuevoComentario}
             onChange={(e) => setNuevoComentario(e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00829a] focus:border-transparent"
+            placeholder="Escribe un comentario..."
+            rows={3}
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00829a] focus:border-transparent resize-none text-sm"
             disabled={submitting}
-          >
-            <option value="">— Seleccione un comentario predefinido —</option>
-            {MOTIVOS_COMENTARIO.map((motivo) => (
-              <option key={motivo} value={motivo}>{motivo}</option>
-            ))}
-          </select>
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                if (nuevoComentario.trim() && !submitting) {
+                  handleSubmitComentario(e as any);
+                }
+              }
+            }}
+          />
+          <p className="text-xs text-gray-400 mt-1">Ctrl + Enter para enviar</p>
         </div>
         <div className="flex justify-end">
           <button

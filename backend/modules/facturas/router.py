@@ -1,7 +1,7 @@
 """
 Router de FastAPI para el módulo de facturas.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from uuid import UUID
@@ -32,9 +32,11 @@ from modules.facturas.schemas import (
     AsignarCarpetaTesoreriaRequest,
     AsignarCarpetaTesoreriaResponse,
     ExtraccionFacturaPdfOut,
+    EnviarCorreoAprobacionIn,
+    AprobacionEmailOut,
 )
 from fastapi import UploadFile, File
-from core.auth import require_api_key
+from core.auth import require_api_key, get_current_user
 
 
 router = APIRouter(prefix="/facturas", tags=["Facturas"])
@@ -57,6 +59,25 @@ async def list_facturas(
 ):
     """Lista todas las facturas con paginación y filtros opcionales."""
     return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado)
+
+
+@router.get(
+    "/aprobar-por-token",
+    response_model=AprobacionEmailOut,
+    summary="Aprobar factura mediante token de email (público, sin autenticación)",
+)
+async def aprobar_por_token(
+    token: str = Query(..., description="Token de aprobación recibido en el correo"),
+    request: Request = None,
+    service: FacturaService = Depends(get_factura_service),
+):
+    """
+    Endpoint público (sin JWT). El gerente hace clic en el link del correo y esta ruta
+    valida el token y registra la aprobación de la factura.
+    """
+    ip = request.client.host if request and request.client else "unknown"
+    result = await service.aprobar_por_token(token, ip)
+    return AprobacionEmailOut(**result)
 
 
 @router.get("/{factura_id}", response_model=FacturaResponse)
@@ -867,5 +888,28 @@ Respuesta esperada (ejemplo):
         confianza=datos.get("confianza", "baja"),
         campos_detectados=datos.get("campos_detectados", []),
     )
+
+
+# =============================================================================
+# APROBACIÓN POR CORREO ELECTRÓNICO
+# =============================================================================
+
+@router.post(
+    "/{factura_id}/enviar-correo-aprobacion",
+    summary="Enviar correo de aprobación a un gerente seleccionado",
+)
+async def enviar_correo_aprobacion(
+    factura_id: UUID,
+    data: EnviarCorreoAprobacionIn,
+    service: FacturaService = Depends(get_factura_service),
+    _: dict = Depends(get_current_user),
+):
+    """
+    Genera un token de aprobación (válido 72 h) y envía un correo HTML al gerente
+    seleccionado con un botón para aprobar la factura sin necesidad de login.
+    """
+    return await service.enviar_correo_aprobacion(factura_id, data.aprobador_id)
+
+
 
 

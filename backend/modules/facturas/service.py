@@ -157,7 +157,11 @@ class FacturaService:
                 unidad_negocio_id=f.unidad_negocio_id,
                 unidad_negocio=f.unidad_negocio.codigo if f.unidad_negocio else None,
                 cuenta_auxiliar_id=f.cuenta_auxiliar_id,
-                cuenta_auxiliar=f.cuenta_auxiliar.codigo if f.cuenta_auxiliar else None
+                cuenta_auxiliar=f.cuenta_auxiliar.codigo if f.cuenta_auxiliar else None,
+                fecha_envio_gerencia=f.fecha_envio_gerencia,
+                fecha_aprobacion_email=f.fecha_aprobacion_email,
+                aprobado_por_nombre=f.aprobado_por_nombre,
+                aprobado_por_email=f.aprobado_por_email,
             ))
         
         page = (skip // limit) + 1 if limit > 0 else 1
@@ -198,7 +202,11 @@ class FacturaService:
             centro_operacion=factura.centro_operacion.nombre if factura.centro_operacion else None,
             created_at=factura.created_at,
             updated_at=factura.updated_at,
-            motivo_devolucion=factura.motivo_devolucion
+            motivo_devolucion=factura.motivo_devolucion,
+            fecha_envio_gerencia=factura.fecha_envio_gerencia,
+            fecha_aprobacion_email=factura.fecha_aprobacion_email,
+            aprobado_por_nombre=factura.aprobado_por_nombre,
+            aprobado_por_email=factura.aprobado_por_email,
         )
     
     async def get_factura_by_numero(self, numero_factura: str) -> FacturaResponse:
@@ -1741,7 +1749,7 @@ class FacturaService:
         logger.info(
             f"Factura {factura_id} devuelta exitosamente a Facturación (Usuario: {user_facturacion.nombre})"
         )
-        
+
         return {
             "factura_id": str(factura.id),
             "area_id": str(factura.area_id),
@@ -1749,5 +1757,126 @@ class FacturaService:
             "estado_actual": estado.label if estado else "Desconocido",
             "motivo_devolucion": factura.motivo_devolucion,
             "usuario_facturacion": user_facturacion.nombre
+        }
+
+    # =========================================================================
+    # APROBACIÓN POR CORREO ELECTRÓNICO
+    # =========================================================================
+
+    async def enviar_correo_aprobacion(
+        self,
+        factura_id: UUID,
+        aprobador_id: UUID,
+    ) -> dict:
+        """Genera un token de aprobación y envía el correo al gerente seleccionado."""
+        import secrets
+        from datetime import timezone, timedelta
+        from sqlalchemy import select
+        from db.models import Factura, AprobadorGerencia, TokenAprobacionFactura
+        from core.email_service import email_service
+        from core.config import settings
+
+        result = await self.db.execute(
+            select(Factura).where(Factura.id == factura_id)
+        )
+        factura = result.scalar_one_or_none()
+        if not factura:
+            raise HTTPException(status_code=404, detail="Factura no encontrada.")
+
+        result_apr = await self.db.execute(
+            select(AprobadorGerencia).where(
+                AprobadorGerencia.id == aprobador_id,
+                AprobadorGerencia.is_active == True,
+            )
+        )
+        aprobador = result_apr.scalar_one_or_none()
+        if not aprobador:
+            raise HTTPException(status_code=404, detail="Aprobador no encontrado o inactivo.")
+
+        token_str = secrets.token_urlsafe(48)
+        expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=72)
+
+        token_obj = TokenAprobacionFactura(
+            factura_id=factura.id,
+            token=token_str,
+            aprobador_email=aprobador.email,
+            aprobador_nombre=aprobador.nombre,
+            usado=False,
+            expires_at=expires_at,
+        )
+        self.db.add(token_obj)
+        factura.fecha_envio_gerencia = datetime.now(tz=timezone.utc)
+        await self.db.commit()
+
+        await email_service.enviar_solicitud_aprobacion_factura(
+            factura=factura,
+            aprobador_nombre=aprobador.nombre,
+            aprobador_email=aprobador.email,
+            token_str=token_str,
+        )
+
+        logger.info(
+            f"Correo de aprobación enviado para factura {factura.numero_factura} "
+            f"a {aprobador.email}"
+        )
+        return {"message": f"Correo de aprobación enviado a {aprobador.nombre} ({aprobador.email})."}
+
+    async def aprobar_por_token(self, token_str: str, ip: str) -> dict:
+        """Aprueba una factura usando el token recibido por email (endpoint público)."""
+        from datetime import timezone
+        from sqlalchemy import select
+        from db.models import Factura, TokenAprobacionFactura
+        from core.email_service import email_service
+        from core.config import settings
+
+        result = await self.db.execute(
+            select(TokenAprobacionFactura).where(TokenAprobacionFactura.token == token_str)
+        )
+        token_obj = result.scalar_one_or_none()
+        if not token_obj:
+            raise HTTPException(status_code=404, detail="Token no válido.")
+        if token_obj.usado:
+            raise HTTPException(status_code=400, detail="Este enlace ya fue utilizado anteriormente.")
+
+        now_utc = datetime.now(tz=timezone.utc)
+        if now_utc > token_obj.expires_at:
+            raise HTTPException(status_code=400, detail="El enlace de aprobación ha expirado (72 horas).")
+
+        token_obj.usado = True
+        token_obj.usado_at = now_utc
+        token_obj.usado_por_ip = ip
+
+        result_f = await self.db.execute(
+            select(Factura).where(Factura.id == token_obj.factura_id)
+        )
+        factura = result_f.scalar_one_or_none()
+        if not factura:
+            raise HTTPException(status_code=404, detail="Factura no encontrada.")
+
+        factura.fecha_aprobacion_email = now_utc
+        factura.aprobado_por_nombre = token_obj.aprobador_nombre
+        factura.aprobado_por_email = token_obj.aprobador_email
+
+        await self.db.commit()
+
+        # Notificar al responsable
+        responsable_email = getattr(settings, "email_responsable", None)
+        if responsable_email:
+            await email_service.enviar_notificacion_factura_aprobada(
+                factura=factura,
+                email_responsable=responsable_email,
+            )
+
+        logger.info(
+            f"Factura {factura.numero_factura} aprobada por token por {token_obj.aprobador_nombre}"
+        )
+        return {
+            "factura_id": str(factura.id),
+            "numero_factura": factura.numero_factura,
+            "proveedor": factura.proveedor,
+            "total": float(factura.total),
+            "aprobado_por_nombre": factura.aprobado_por_nombre,
+            "aprobado_por_email": factura.aprobado_por_email,
+            "fecha_aprobacion_email": factura.fecha_aprobacion_email,
         }
 

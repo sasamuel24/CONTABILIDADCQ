@@ -142,7 +142,11 @@ class FacturaListItem(BaseModel):
     unidad_negocio: Optional[str] = None
     cuenta_auxiliar_id: Optional[UUID] = None
     cuenta_auxiliar: Optional[str] = None
-    
+    fecha_envio_gerencia: Optional[datetime] = None
+    fecha_aprobacion_email: Optional[datetime] = None
+    aprobado_por_nombre: Optional[str] = None
+    aprobado_por_email: Optional[str] = None
+
     model_config = {"from_attributes": True}
 
 
@@ -160,7 +164,11 @@ class FacturaResponse(FacturaBase):
     motivo_devolucion: Optional[str] = None
     carpeta_id: Optional[UUID] = None
     carpeta: Optional[CarpetaEnFactura] = None
-    
+    fecha_envio_gerencia: Optional[datetime] = None
+    fecha_aprobacion_email: Optional[datetime] = None
+    aprobado_por_nombre: Optional[str] = None
+    aprobado_por_email: Optional[str] = None
+
     model_config = {"from_attributes": True}
 
 
@@ -436,3 +444,33 @@ class ExtraccionFacturaPdfOut(BaseModel):
     total: Optional[str] = None
     confianza: str = "baja"
     campos_detectados: List[str] = []
+
+
+# ========== Schemas aprobación por correo electrónico ==========
+
+class EnviarCorreoAprobacionIn(BaseModel):
+    """Payload para enviar correo de aprobación a un gerente."""
+    aprobador_id: UUID = Field(..., description="ID del aprobador seleccionado de la tabla aprobadores_gerencia")
+
+
+class AprobacionEmailOut(BaseModel):
+    """Respuesta del endpoint de aprobación por token."""
+    factura_id: UUID
+    numero_factura: str
+    proveedor: str
+    total: float
+    aprobado_por_nombre: str
+    aprobado_por_email: str
+    fecha_aprobacion_email: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class FacturaAprobacionEstadoOut(BaseModel):
+    """Estado de aprobación por email de una factura (para el frontend del Responsable)."""
+    fecha_envio_gerencia: Optional[datetime] = None
+    fecha_aprobacion_email: Optional[datetime] = None
+    aprobado_por_nombre: Optional[str] = None
+    aprobado_por_email: Optional[str] = None
+
+    model_config = {"from_attributes": True}

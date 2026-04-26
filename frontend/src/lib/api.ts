@@ -122,6 +122,10 @@ export interface FacturaListItem {
   unidad_negocio: string | null;
   cuenta_auxiliar_id: string | null;
   cuenta_auxiliar: string | null;
+  fecha_envio_gerencia: string | null;
+  fecha_aprobacion_email: string | null;
+  aprobado_por_nombre: string | null;
+  aprobado_por_email: string | null;
 }
 
 export interface FacturasPaginatedResponse {
@@ -150,6 +154,10 @@ export interface FacturaDetail {
   created_at: string;
   updated_at: string;
   motivo_devolucion: string | null;
+  fecha_envio_gerencia: string | null;
+  fecha_aprobacion_email: string | null;
+  aprobado_por_nombre: string | null;
+  aprobado_por_email: string | null;
 }
 
 export interface FacturaUpdate {
@@ -1929,4 +1937,112 @@ export async function extraerDatosFacturaPdf(file: File): Promise<ExtraccionFact
     method: 'POST',
     body: formData,
   });
+}
+
+// ─── Aprobadores de Gerencia ──────────────────────────────────────────────────
+
+export interface AprobadorGerencia {
+  id: string;
+  nombre: string;
+  cargo: string;
+  email: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AprobadorGerenciaCreate {
+  nombre: string;
+  cargo: string;
+  email: string;
+}
+
+export interface AprobadorGerenciaUpdate {
+  nombre?: string;
+  cargo?: string;
+  email?: string;
+}
+
+/** Lista todos los aprobadores (activos e inactivos) — para el panel admin */
+export async function getAprobadoresGerencia(): Promise<AprobadorGerencia[]> {
+  return fetchAPI<AprobadorGerencia[]>('/aprobadores-gerencia/');
+}
+
+/** Lista solo los aprobadores activos — para el selector al enviar correo */
+export async function getAprobadoresActivos(): Promise<AprobadorGerencia[]> {
+  return fetchAPI<AprobadorGerencia[]>('/aprobadores-gerencia/activos');
+}
+
+/** Crea un aprobador nuevo */
+export async function crearAprobadorGerencia(data: AprobadorGerenciaCreate): Promise<AprobadorGerencia> {
+  return fetchAPI<AprobadorGerencia>('/aprobadores-gerencia/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+/** Edita un aprobador existente */
+export async function actualizarAprobadorGerencia(
+  id: string,
+  data: AprobadorGerenciaUpdate,
+): Promise<AprobadorGerencia> {
+  return fetchAPI<AprobadorGerencia>(`/aprobadores-gerencia/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+/** Activa o desactiva un aprobador */
+export async function toggleAprobadorGerencia(id: string): Promise<AprobadorGerencia> {
+  return fetchAPI<AprobadorGerencia>(`/aprobadores-gerencia/${id}/toggle`, { method: 'PATCH' });
+}
+
+/** Elimina un aprobador permanentemente */
+export async function eliminarAprobadorGerencia(id: string): Promise<void> {
+  return fetchAPI<void>(`/aprobadores-gerencia/${id}`, { method: 'DELETE' });
+}
+
+// ─── Aprobación de Facturas por Correo ───────────────────────────────────────
+
+export interface AprobacionEmailOut {
+  factura_id: string;
+  numero_factura: string;
+  proveedor: string;
+  total: number;
+  aprobado_por_nombre: string;
+  aprobado_por_email: string;
+  fecha_aprobacion_email: string;
+}
+
+/** Envía correo de aprobación al gerente seleccionado */
+export async function enviarCorreoAprobacionFactura(
+  facturaId: string,
+  aprobadorId: string,
+): Promise<{ message: string }> {
+  return fetchAPI<{ message: string }>(`/facturas/${facturaId}/enviar-correo-aprobacion`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ aprobador_id: aprobadorId }),
+  });
+}
+
+/** Aprueba una factura usando el token del correo (endpoint público, sin auth) */
+export async function aprobarFacturaPorToken(token: string): Promise<AprobacionEmailOut> {
+  const API_BASE_URL_PUBLIC =
+    (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
+    'https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1/api/v1';
+  const resp = await fetch(
+    `${API_BASE_URL_PUBLIC}/facturas/aprobar-por-token?token=${encodeURIComponent(token)}`,
+  );
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: 'Error desconocido' }));
+    const detalle = Array.isArray(err.detail)
+      ? 'El enlace de aprobación es inválido o ha expirado (72 horas).'
+      : typeof err.detail === 'string'
+      ? err.detail
+      : `Error ${resp.status}`;
+    throw new Error(detalle);
+  }
+  return resp.json();
 }

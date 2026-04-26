@@ -12,6 +12,7 @@ import { TecnicoMantenimientoPage } from './pages/TecnicoMantenimientoPage';
 import { NoAutorizadoPage } from './pages/NoAutorizadoPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import { AprobarPaquetePage } from './pages/AprobarPaquetePage';
+import { AprobarFacturaPage } from './pages/AprobarFacturaPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Toaster } from './components/ui/sonner';
 
@@ -20,7 +21,10 @@ function AppRoutes() {
   const currentPath = window.location.pathname;
 
   // Rutas públicas que no necesitan auth ni loading
-  const isPublicPath = currentPath === '/aprobar-paquete' || currentPath === '/change-password';
+  const isPublicPath =
+    currentPath === '/aprobar-paquete' ||
+    currentPath === '/aprobar-factura' ||
+    currentPath === '/change-password';
 
   if (loading && !isPublicPath) {
     return (
@@ -55,6 +59,7 @@ function AppRoutes() {
       <Route path="/login" element={<LoginPage onLogin={() => {}} />} />
       <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route path="/aprobar-paquete" element={<AprobarPaquetePage />} />
+      <Route path="/aprobar-factura" element={<AprobarFacturaPage />} />
       <Route path="/no-autorizado" element={<NoAutorizadoPage />} />
 
       {/* Redirigir a change-password si es obligatorio */}

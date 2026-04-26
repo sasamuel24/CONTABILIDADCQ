@@ -640,4 +640,144 @@ class EmailService:
             logger.error(f"Error al enviar notificación de tesorería: {e}")
 
 
+    async def enviar_solicitud_aprobacion_factura(
+        self,
+        factura,
+        aprobador_nombre: str,
+        aprobador_email: str,
+        token_str: str,
+    ) -> None:
+        """Envía correo de solicitud de aprobación de factura al gerente seleccionado."""
+        try:
+            numero = factura.numero_factura
+            proveedor = factura.proveedor
+            total = float(factura.total)
+            fecha_emision = (
+                factura.fecha_emision.strftime("%d/%m/%Y")
+                if factura.fecha_emision else "—"
+            )
+            fecha_vencimiento = (
+                factura.fecha_vencimiento.strftime("%d/%m/%Y")
+                if getattr(factura, "fecha_vencimiento", None) else "—"
+            )
+            aprobacion_url = f"{settings.frontend_url}/aprobar-factura?token={token_str}"
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:640px;margin:0 auto">
+            <div style="background:#1a3c6e;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">Solicitud de Aprobación de Factura</h2>
+              <p style="color:#cce0ff;margin:4px 0 0">Sistema CONTABILIDADCQ</p>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>Estimado(a) <strong>{aprobador_nombre}</strong>,</p>
+              <p>Se requiere su aprobación para la siguiente factura:</p>
+
+              <table style="border-collapse:collapse;margin:16px 0;width:100%">
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold;width:180px">N° Factura:</td>
+                  <td style="padding:8px 14px">{numero}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Proveedor:</td>
+                  <td style="padding:8px 14px">{proveedor}</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Fecha Emisión:</td>
+                  <td style="padding:8px 14px">{fecha_emision}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Fecha Vencimiento:</td>
+                  <td style="padding:8px 14px">{fecha_vencimiento}</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Valor Total:</td>
+                  <td style="padding:8px 14px;font-size:1.15em;font-weight:bold;color:#1a3c6e">
+                    ${total:,.2f} COP
+                  </td>
+                </tr>
+              </table>
+
+              <p>Para aprobar esta factura, haga clic en el siguiente botón (válido por <strong>72 horas</strong>):</p>
+              <p style="margin:24px 0">
+                <a href="{aprobacion_url}"
+                   style="background:#1a6e3c;color:#fff;padding:12px 28px;border-radius:5px;
+                          text-decoration:none;font-weight:bold;display:inline-block;font-size:1em">
+                  &#10003;&nbsp; Aprobar Factura
+                </a>
+              </p>
+              <p style="color:#888;font-size:0.85em">
+                Si no puede hacer clic en el botón, copie y pegue este enlace en su navegador:<br>
+                <span style="color:#1a3c6e">{aprobacion_url}</span>
+              </p>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">
+                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+              </p>
+            </div>
+            </body></html>
+            """
+
+            subject = f"Aprobación Requerida — Factura {numero} | {proveedor}"
+            await self._send_mail(subject, body_html, aprobador_email)
+            logger.info(f"Email de solicitud de aprobación de factura {numero} enviado a {aprobador_email}")
+        except Exception as e:
+            logger.error(f"Error al enviar solicitud de aprobación de factura: {e}")
+
+    async def enviar_notificacion_factura_aprobada(
+        self,
+        factura,
+        email_responsable: str,
+    ) -> None:
+        """Notifica al responsable que la factura fue aprobada por el gerente vía email."""
+        try:
+            numero = factura.numero_factura
+            proveedor = factura.proveedor
+            total = float(factura.total)
+            aprobador_nombre = getattr(factura, "aprobado_por_nombre", None) or "el gerente"
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto">
+            <div style="background:#1a6e3c;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">&#10003; Factura Aprobada</h2>
+              <p style="color:#c8f7dc;margin:4px 0 0">Sistema CONTABILIDADCQ</p>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>La siguiente factura ha sido <strong>aprobada</strong> por {aprobador_nombre}
+                 y puede continuar su proceso.</p>
+              <table style="border-collapse:collapse;margin:16px 0;width:100%">
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold;width:180px">N° Factura:</td>
+                  <td style="padding:8px 14px">{numero}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Proveedor:</td>
+                  <td style="padding:8px 14px">{proveedor}</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Valor Total:</td>
+                  <td style="padding:8px 14px;font-size:1.1em;font-weight:bold;color:#1a6e3c">
+                    ${total:,.2f} COP
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Aprobado por:</td>
+                  <td style="padding:8px 14px">{aprobador_nombre}</td>
+                </tr>
+              </table>
+              <p style="margin-top:16px">La factura ha quedado registrada como aprobada en el sistema.</p>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">
+                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+              </p>
+            </div>
+            </body></html>
+            """
+
+            subject = f"Factura Aprobada — {numero} | {proveedor}"
+            await self._send_mail(subject, body_html, email_responsable)
+            logger.info(f"Notificación de factura aprobada enviada a {email_responsable} para factura {numero}")
+        except Exception as e:
+            logger.error(f"Error al enviar notificación de factura aprobada: {e}")
+
+
 email_service = EmailService()

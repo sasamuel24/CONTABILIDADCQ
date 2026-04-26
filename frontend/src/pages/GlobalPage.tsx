@@ -1,17 +1,19 @@
 import { useState } from 'react';
-import { LogOut, Users, LayoutDashboard, Building2 } from 'lucide-react';
+import { LogOut, Users, LayoutDashboard, Building2, UserCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { AdminUsuariosView } from '../components/AdminUsuariosView';
 import { AdminDashboardView } from '../components/AdminDashboardView';
 import { AdminAreasView } from '../components/AdminAreasView';
+import { AprobadoresGerenciaAdmin } from '../components/AprobadoresGerenciaAdmin';
 
-type Section = 'dashboard' | 'usuarios' | 'areas';
+type Section = 'dashboard' | 'usuarios' | 'areas' | 'aprobadores';
 
 const NAV_ITEMS: { key: Section; label: string; icon: React.ReactNode }[] = [
   { key: 'dashboard', label: 'Panel', icon: <LayoutDashboard className="w-5 h-5" /> },
   { key: 'usuarios', label: 'Usuarios', icon: <Users className="w-5 h-5" /> },
   { key: 'areas', label: 'Áreas', icon: <Building2 className="w-5 h-5" /> },
+  { key: 'aprobadores', label: 'Aprobadores', icon: <UserCheck className="w-5 h-5" /> },
 ];
 
 export function GlobalPage() {
@@ -78,6 +80,7 @@ export function GlobalPage() {
         {section === 'dashboard' && <AdminDashboardView />}
         {section === 'usuarios' && <AdminUsuariosView />}
         {section === 'areas' && <AdminAreasView />}
+        {section === 'aprobadores' && <AprobadoresGerenciaAdmin />}
       </div>
     </div>
   );

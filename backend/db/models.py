@@ -601,7 +601,17 @@ class Factura(Base, TimestampMixin):
         nullable=True,
         index=True
     )
-    
+
+    # Aprobación por correo electrónico
+    fecha_envio_gerencia: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    fecha_aprobacion_email: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    aprobado_por_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    aprobado_por_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Relaciones
     area: Mapped["Area"] = relationship(
         "Area",
@@ -667,6 +677,12 @@ class Factura(Base, TimestampMixin):
         cascade="all, delete-orphan",
         lazy="selectin",
         order_by="ComentarioFactura.created_at.desc()"
+    )
+    tokens_aprobacion: Mapped[List["TokenAprobacionFactura"]] = relationship(
+        "TokenAprobacionFactura",
+        back_populates="factura",
+        cascade="all, delete-orphan",
+        lazy="selectin",
     )
     carpeta: Mapped[Optional["Carpeta"]] = relationship(
         "Carpeta",
@@ -1336,3 +1352,52 @@ class TokenAprobacionPaquete(Base, TimestampMixin):
 
     def __repr__(self):
         return f"<TokenAprobacionPaquete(paquete={self.paquete_id}, usado={self.usado})>"
+
+
+class AprobadorGerencia(Base, TimestampMixin):
+    """Aprobadores externos (gerentes) que pueden aprobar facturas vía email."""
+    __tablename__ = "aprobadores_gerencia"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    nombre: Mapped[str] = mapped_column(String(150), nullable=False)
+    cargo: Mapped[str] = mapped_column(String(150), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    def __repr__(self):
+        return f"<AprobadorGerencia(nombre={self.nombre}, email={self.email})>"
+
+
+class TokenAprobacionFactura(Base, TimestampMixin):
+    """Token de un solo uso para aprobación de factura vía email (72 horas)."""
+    __tablename__ = "tokens_aprobacion_facturas"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    factura_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facturas.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    aprobador_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    aprobador_nombre: Mapped[str] = mapped_column(String(150), nullable=False)
+    usado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=False
+    )
+    usado_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    usado_por_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+
+    # Relaciones
+    factura: Mapped["Factura"] = relationship(
+        "Factura", back_populates="tokens_aprobacion", lazy="selectin"
+    )
+
+    def __repr__(self):
+        return f"<TokenAprobacionFactura(factura={self.factura_id}, usado={self.usado})>"

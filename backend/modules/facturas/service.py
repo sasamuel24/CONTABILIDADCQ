@@ -1813,6 +1813,10 @@ class FacturaService:
         pdf_bytes = None
         pdf_filename = None
         try:
+            import asyncio
+            from core.s3_service import s3_service
+            from pathlib import Path
+
             result_pdf = await self.db.execute(
                 select(File).where(
                     File.factura_id == factura.id,
@@ -1820,20 +1824,34 @@ class FacturaService:
                 ).limit(1)
             )
             pdf_file = result_pdf.scalar_one_or_none()
+
             if pdf_file:
                 if pdf_file.storage_provider == "local":
-                    from pathlib import Path
                     p = Path(pdf_file.storage_path)
                     if p.exists():
                         pdf_bytes = p.read_bytes()
                         pdf_filename = pdf_file.filename
+                    else:
+                        logger.warning(f"PDF local no existe en disco: {pdf_file.storage_path}")
                 elif pdf_file.storage_provider == "s3":
-                    import asyncio
-                    from core.s3_service import s3_service
                     pdf_bytes, _ = await asyncio.to_thread(
                         s3_service.get_file_with_metadata, pdf_file.storage_path
                     )
                     pdf_filename = pdf_file.filename
+            else:
+                # Fallback: buscar directamente en S3 si no hay registro en BD
+                logger.info(f"No hay registro FACTURA_PDF en BD para {factura.id}, buscando en S3...")
+                s3_prefix = f"dev/facturas/{factura.id}/FACTURA_PDF/"
+                s3_files = await asyncio.to_thread(s3_service.list_files_in_prefix, s3_prefix)
+                if s3_files:
+                    first = s3_files[0]
+                    pdf_bytes, _ = await asyncio.to_thread(
+                        s3_service.get_file_with_metadata, first["key"]
+                    )
+                    pdf_filename = first["filename"]
+                    logger.info(f"PDF encontrado en S3 via fallback: {first['key']}")
+                else:
+                    logger.warning(f"No se encontró FACTURA_PDF en BD ni en S3 para factura {factura.numero_factura}")
         except Exception as e:
             logger.warning(f"No se pudo obtener PDF para adjuntar al correo: {e}")
 

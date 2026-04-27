@@ -451,6 +451,7 @@ class ExtraccionFacturaPdfOut(BaseModel):
 class EnviarCorreoAprobacionIn(BaseModel):
     """Payload para enviar correo de aprobación a un gerente."""
     aprobador_id: UUID = Field(..., description="ID del aprobador seleccionado de la tabla aprobadores_gerencia")
+    comentario: Optional[str] = Field(None, description="Comentario de trazabilidad visible en el correo al gerente")
 
 
 class AprobacionEmailOut(BaseModel):

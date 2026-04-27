@@ -24,28 +24,43 @@ class EmailService:
             resp.raise_for_status()
             return resp.json()["access_token"]
 
-    async def _send_mail(self, subject: str, body_html: str, to_email: str) -> None:
+    async def _send_mail(
+        self,
+        subject: str,
+        body_html: str,
+        to_email: str,
+        attachments: Optional[list] = None,
+    ) -> None:
         """Envía un correo usando la API sendMail de Microsoft Graph."""
+        import base64
         token = await self._get_access_token()
         url = f"{self.GRAPH_BASE}/users/{settings.email_from}/sendMail"
-        payload = {
-            "message": {
-                "subject": subject,
-                "body": {
-                    "contentType": "HTML",
-                    "content": body_html,
-                },
-                "toRecipients": [
-                    {"emailAddress": {"address": to_email}}
-                ],
+        message: dict = {
+            "subject": subject,
+            "body": {
+                "contentType": "HTML",
+                "content": body_html,
             },
-            "saveToSentItems": True,
+            "toRecipients": [
+                {"emailAddress": {"address": to_email}}
+            ],
         }
+        if attachments:
+            message["attachments"] = [
+                {
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    "name": att["name"],
+                    "contentType": att.get("content_type", "application/pdf"),
+                    "contentBytes": base64.b64encode(att["content_bytes"]).decode("utf-8"),
+                }
+                for att in attachments
+            ]
+        payload = {"message": message, "saveToSentItems": True}
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
-        async with httpx.AsyncClient(timeout=20) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(url, json=payload, headers=headers)
             resp.raise_for_status()
 
@@ -646,6 +661,9 @@ class EmailService:
         aprobador_nombre: str,
         aprobador_email: str,
         token_str: str,
+        comentario: Optional[str] = None,
+        pdf_bytes: Optional[bytes] = None,
+        pdf_filename: Optional[str] = None,
     ) -> None:
         """Envía correo de solicitud de aprobación de factura al gerente seleccionado."""
         try:
@@ -661,6 +679,24 @@ class EmailService:
                 if getattr(factura, "fecha_vencimiento", None) else "—"
             )
             aprobacion_url = f"{settings.frontend_url}/aprobar-factura?token={token_str}"
+
+            # Bloque de comentario de trazabilidad (solo si se proporcionó)
+            comentario_html = ""
+            if comentario and comentario.strip():
+                comentario_html = f"""
+              <div style="margin:20px 0;padding:14px 18px;background:#fff8e1;border-left:4px solid #f59e0b;border-radius:4px">
+                <p style="margin:0 0 4px;font-size:0.85em;font-weight:bold;color:#92400e;text-transform:uppercase;letter-spacing:0.5px">
+                  Comentario de trazabilidad
+                </p>
+                <p style="margin:0;color:#78350f;font-size:0.95em;white-space:pre-wrap">{comentario.strip()}</p>
+              </div>"""
+
+            adjunto_html = ""
+            if pdf_bytes:
+                adjunto_html = """
+              <p style="margin:12px 0 0;color:#555;font-size:0.85em">
+                &#128206; Se adjunta el PDF de la factura a este correo.
+              </p>"""
 
             body_html = f"""
             <html><body style="font-family:Arial,sans-serif;color:#333;max-width:640px;margin:0 auto">
@@ -697,6 +733,8 @@ class EmailService:
                 </tr>
               </table>
 
+              {comentario_html}
+
               <p>Para aprobar esta factura, haga clic en el siguiente botón (válido por <strong>72 horas</strong>):</p>
               <p style="margin:24px 0">
                 <a href="{aprobacion_url}"
@@ -709,6 +747,7 @@ class EmailService:
                 Si no puede hacer clic en el botón, copie y pegue este enlace en su navegador:<br>
                 <span style="color:#1a3c6e">{aprobacion_url}</span>
               </p>
+              {adjunto_html}
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
               <p style="color:#aaa;font-size:0.8em">
                 Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
@@ -717,8 +756,12 @@ class EmailService:
             </body></html>
             """
 
+            attachments = None
+            if pdf_bytes and pdf_filename:
+                attachments = [{"name": pdf_filename, "content_type": "application/pdf", "content_bytes": pdf_bytes}]
+
             subject = f"Aprobación Requerida — Factura {numero} | {proveedor}"
-            await self._send_mail(subject, body_html, aprobador_email)
+            await self._send_mail(subject, body_html, aprobador_email, attachments=attachments)
             logger.info(f"Email de solicitud de aprobación de factura {numero} enviado a {aprobador_email}")
         except Exception as e:
             logger.error(f"Error al enviar solicitud de aprobación de factura: {e}")

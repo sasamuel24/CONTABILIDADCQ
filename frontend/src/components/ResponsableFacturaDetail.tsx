@@ -89,6 +89,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [correoAprobacionEnviado, setCorreoAprobacionEnviado] = useState(!!factura.fecha_envio_gerencia);
   const [facturaAprobadaEmail, setFacturaAprobadaEmail] = useState(!!factura.fecha_aprobacion_email);
   const [aprobadorNombreActual, setAprobadorNombreActual] = useState(factura.aprobado_por_nombre || '');
+  const [showModalComentarioAprobacion, setShowModalComentarioAprobacion] = useState(false);
+  const [comentarioAprobacion, setComentarioAprobacion] = useState('');
   
   // Estados de loading para eliminación
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
@@ -840,14 +842,20 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     }
   };
 
-  const handleEnviarCorreoAprobacion = async () => {
+  const handleEnviarCorreoAprobacion = () => {
     if (!selectedAprobadorId) {
       toast.error('Selecciona un aprobador antes de enviar el correo.');
       return;
     }
+    setComentarioAprobacion('');
+    setShowModalComentarioAprobacion(true);
+  };
+
+  const handleConfirmarEnvioAprobacion = async () => {
     setEnviandoCorreoAprobacion(true);
+    setShowModalComentarioAprobacion(false);
     try {
-      await enviarCorreoAprobacionFactura(factura.id, selectedAprobadorId);
+      await enviarCorreoAprobacionFactura(factura.id, selectedAprobadorId, comentarioAprobacion.trim() || undefined);
       setCorreoAprobacionEnviado(true);
       const aprobador = aprobadores.find(a => a.id === selectedAprobadorId);
       toast.success(`Correo enviado a ${aprobador?.nombre ?? 'el aprobador'}.`);
@@ -2260,6 +2268,70 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
           </div>
         </div>
       </div>
+
+      {/* Modal de comentario de trazabilidad para aprobación */}
+      {showModalComentarioAprobacion && (
+        <>
+          <div
+            className="fixed inset-0 z-50 backdrop-blur-lg"
+            style={{ backgroundColor: 'rgba(55, 65, 81, 0.75)' }}
+            onClick={() => setShowModalComentarioAprobacion(false)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto" onClick={e => e.stopPropagation()}>
+              <div className="p-6 border-b border-gray-200 rounded-t-lg" style={{ background: 'linear-gradient(to right, #1a3c6e, #1e5fa8)' }}>
+                <h3 className="text-lg font-semibold text-white" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
+                  Enviar solicitud de aprobación
+                </h3>
+                <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.85)', fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
+                  {aprobadores.find(a => a.id === selectedAprobadorId)?.nombre ?? 'Gerente'} · {aprobadores.find(a => a.id === selectedAprobadorId)?.cargo ?? ''}
+                </p>
+              </div>
+
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
+                    Comentario de trazabilidad <span className="text-gray-400 font-normal">(opcional)</span>
+                  </label>
+                  <textarea
+                    value={comentarioAprobacion}
+                    onChange={e => setComentarioAprobacion(e.target.value)}
+                    rows={4}
+                    placeholder="Describe brevemente el contexto o instrucciones para el gerente..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                    style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+                    maxLength={1000}
+                    autoFocus
+                  />
+                  <p className="text-xs text-gray-400 mt-1 text-right">{comentarioAprobacion.length}/1000</p>
+                </div>
+                <p className="text-xs text-gray-500" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
+                  El comentario aparecerá en el correo al gerente. Se adjuntará el PDF de la factura si está disponible.
+                </p>
+              </div>
+
+              <div className="p-6 border-t border-gray-200 flex gap-3 justify-end bg-gray-50 rounded-b-lg">
+                <button
+                  onClick={() => setShowModalComentarioAprobacion(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm"
+                  style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmarEnvioAprobacion}
+                  className="px-4 py-2 rounded-lg font-medium text-sm text-white transition-colors"
+                  style={{ backgroundColor: '#1a3c6e', fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#15305a'; }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1a3c6e'; }}
+                >
+                  Enviar correo
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modal de Devolución a Facturación */}
       {mostrarModalDevolucion && (

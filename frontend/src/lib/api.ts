@@ -2019,11 +2019,12 @@ export interface AprobacionEmailOut {
 export async function enviarCorreoAprobacionFactura(
   facturaId: string,
   aprobadorId: string,
+  comentario?: string,
 ): Promise<{ message: string }> {
   return fetchAPI<{ message: string }>(`/facturas/${facturaId}/enviar-correo-aprobacion`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ aprobador_id: aprobadorId }),
+    body: JSON.stringify({ aprobador_id: aprobadorId, ...(comentario ? { comentario } : {}) }),
   });
 }
 

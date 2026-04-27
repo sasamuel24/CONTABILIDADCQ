@@ -908,7 +908,7 @@ async def enviar_correo_aprobacion(
     Genera un token de aprobación (válido 72 h) y envía un correo HTML al gerente
     seleccionado con un botón para aprobar la factura sin necesidad de login.
     """
-    return await service.enviar_correo_aprobacion(factura_id, data.aprobador_id)
+    return await service.enviar_correo_aprobacion(factura_id, data.aprobador_id, data.comentario)
 
 
 

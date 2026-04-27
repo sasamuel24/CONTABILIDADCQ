@@ -1767,12 +1767,13 @@ class FacturaService:
         self,
         factura_id: UUID,
         aprobador_id: UUID,
+        comentario: Optional[str] = None,
     ) -> dict:
         """Genera un token de aprobación y envía el correo al gerente seleccionado."""
         import secrets
         from datetime import timezone, timedelta
         from sqlalchemy import select
-        from db.models import Factura, AprobadorGerencia, TokenAprobacionFactura
+        from db.models import Factura, AprobadorGerencia, TokenAprobacionFactura, File
         from core.email_service import email_service
         from core.config import settings
 
@@ -1808,11 +1809,42 @@ class FacturaService:
         factura.fecha_envio_gerencia = datetime.now(tz=timezone.utc)
         await self.db.commit()
 
+        # Intentar obtener el PDF de la factura para adjuntarlo
+        pdf_bytes = None
+        pdf_filename = None
+        try:
+            result_pdf = await self.db.execute(
+                select(File).where(
+                    File.factura_id == factura.id,
+                    File.doc_type == "FACTURA_PDF",
+                ).limit(1)
+            )
+            pdf_file = result_pdf.scalar_one_or_none()
+            if pdf_file:
+                if pdf_file.storage_provider == "local":
+                    from pathlib import Path
+                    p = Path(pdf_file.storage_path)
+                    if p.exists():
+                        pdf_bytes = p.read_bytes()
+                        pdf_filename = pdf_file.filename
+                elif pdf_file.storage_provider == "s3":
+                    import asyncio
+                    from core.s3_service import s3_service
+                    pdf_bytes, _ = await asyncio.to_thread(
+                        s3_service.get_file_with_metadata, pdf_file.storage_path
+                    )
+                    pdf_filename = pdf_file.filename
+        except Exception as e:
+            logger.warning(f"No se pudo obtener PDF para adjuntar al correo: {e}")
+
         await email_service.enviar_solicitud_aprobacion_factura(
             factura=factura,
             aprobador_nombre=aprobador.nombre,
             aprobador_email=aprobador.email,
             token_str=token_str,
+            comentario=comentario,
+            pdf_bytes=pdf_bytes,
+            pdf_filename=pdf_filename,
         )
 
         logger.info(

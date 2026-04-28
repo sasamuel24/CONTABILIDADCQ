@@ -946,6 +946,15 @@ async def ingesta_xml(
     )
     existing = dup.scalar_one_or_none()
     if existing:
+        # Si es duplicado pero nunca pasó por el sistema XML (ai_area_confianza es NULL),
+        # marcarlo como pendiente para que aparezca en el buzón y el radicador lo asigne
+        if existing.ai_area_confianza is None:
+            existing.ai_area_confianza = "nula"
+            existing.pendiente_confirmacion = True
+            existing.ai_area_razonamiento = "Factura detectada por buzón XML automático. Requiere asignación de área."
+            await db.commit()
+            await db.refresh(existing)
+
         area_nombre = existing.area.nombre if existing.area else None
         return IngestaXMLResultOut(
             factura_id=existing.id,

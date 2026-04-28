@@ -133,6 +133,7 @@ class FacturaService:
                 fecha_emision=f.fecha_emision,
                 fecha_vencimiento=f.fecha_vencimiento,
                 area=f.area.nombre if f.area else "Sin área",
+                area_id=f.area_id,
                 area_origen_id=f.area_origen_id,
                 total=float(f.total),
                 estado=f.estado.label if f.estado else "Sin estado",

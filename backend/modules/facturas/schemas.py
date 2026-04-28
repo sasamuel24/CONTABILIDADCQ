@@ -117,6 +117,7 @@ class FacturaListItem(BaseModel):
     fecha_emision: Optional[date]
     fecha_vencimiento: Optional[date]
     area: str
+    area_id: Optional[UUID] = None
     area_origen_id: Optional[UUID] = None
     total: float
     estado: str

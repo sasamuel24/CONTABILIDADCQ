@@ -156,11 +156,19 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 async def startup_event():
     """Evento ejecutado al iniciar la aplicación."""
     logger.info(f"Iniciando {settings.app_name} v{settings.app_version}")
-    try:
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+
+    def run_migrations():
         from alembic.config import Config
         from alembic import command
         alembic_cfg = Config("alembic.ini")
         command.upgrade(alembic_cfg, "head")
+
+    try:
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as pool:
+            await loop.run_in_executor(pool, run_migrations)
         logger.info("Migraciones de base de datos aplicadas correctamente.")
     except Exception as e:
         logger.error(f"Error al aplicar migraciones: {e}")

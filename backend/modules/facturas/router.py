@@ -34,6 +34,8 @@ from modules.facturas.schemas import (
     ExtraccionFacturaPdfOut,
     EnviarCorreoAprobacionIn,
     AprobacionEmailOut,
+    IngestaXMLIn,
+    IngestaXMLResultOut,
 )
 from fastapi import UploadFile, File
 from core.auth import require_api_key, get_current_user
@@ -893,6 +895,249 @@ Respuesta esperada (ejemplo):
 # =============================================================================
 # APROBACIÓN POR CORREO ELECTRÓNICO
 # =============================================================================
+
+# =============================================================================
+# INGESTA AUTOMÁTICA XML (N8N → backend)
+# =============================================================================
+
+@router.post(
+    "/ingesta-xml",
+    response_model=IngestaXMLResultOut,
+    summary="Ingestar factura electrónica desde XML DIAN (llamado por N8N)",
+)
+async def ingesta_xml(
+    payload: IngestaXMLIn,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(require_api_key),
+):
+    """
+    Recibe el XML AttachedDocument de una factura electrónica DIAN enviado por N8N.
+    - Parsea el XML y extrae todos los campos.
+    - Intenta asignar el área automáticamente por texto (ciudad, descripción).
+    - Si no hay match claro, llama a Claude para razonar la asignación.
+    - Si Claude tampoco puede determinarlo, la factura queda sin área (buzón).
+    - Retorna el resultado para que N8N pueda registrarlo.
+    """
+    import json
+    from sqlalchemy import select, func
+    from anthropic import AsyncAnthropic
+    from core.config import settings
+    from core.xml_parser import parse_xml_dian, FacturaDIAN
+    from db.models import Factura, Area, Estado
+
+    # 1. Parsear XML
+    try:
+        datos: FacturaDIAN = parse_xml_dian(payload.xml_content)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=f"XML inválido: {e}")
+
+    if datos.total is None or datos.total <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No se pudo extraer el total de la factura '{datos.numero_factura}'.",
+        )
+
+    # 2. Verificar duplicado (proveedor + numero_factura)
+    dup = await db.execute(
+        select(Factura).where(
+            Factura.proveedor == datos.proveedor,
+            Factura.numero_factura == datos.numero_factura,
+        )
+    )
+    existing = dup.scalar_one_or_none()
+    if existing:
+        area_nombre = existing.area.nombre if existing.area else None
+        return IngestaXMLResultOut(
+            factura_id=existing.id,
+            numero_factura=existing.numero_factura,
+            proveedor=existing.proveedor,
+            nit_proveedor=existing.nit_proveedor,
+            total=float(existing.total),
+            fecha_emision=existing.fecha_emision,
+            area_id=existing.area_id,
+            area_nombre=area_nombre,
+            ai_area_confianza=existing.ai_area_confianza or "nula",
+            ai_area_razonamiento=existing.ai_area_razonamiento,
+            pendiente_confirmacion=existing.pendiente_confirmacion,
+            estado=_estado_label(existing),
+            duplicado=True,
+        )
+
+    # 3. Cargar todas las áreas activas
+    areas_result = await db.execute(select(Area))
+    areas = areas_result.scalars().all()
+
+    # 4. Intentar asignación por texto (sin IA)
+    area_asignada = None
+    confianza = "nula"
+    razonamiento = None
+
+    textos_clave = " ".join([
+        datos.ciudad_receptor or "",
+        datos.direccion_receptor or "",
+        *datos.descripciones_items,
+        *datos.info_adicional.values(),
+    ]).upper()
+
+    for area in areas:
+        nombre_upper = area.nombre.upper()
+        # Excluir el área de "Facturación" o similar que es interna
+        if nombre_upper in ("FACTURACIÓN", "FACTURACION", "ADMINISTRATIVO"):
+            continue
+        if nombre_upper in textos_clave or area.code.upper() in textos_clave:
+            area_asignada = area
+            confianza = "alta"
+            razonamiento = f"Nombre de área '{area.nombre}' encontrado en datos del XML (ciudad/dirección/descripción)."
+            break
+
+    # 5. Si no hay match → llamar a Claude
+    if area_asignada is None and settings.anthropic_api_key:
+        areas_lista = "\n".join(
+            f"- code: {a.code}, nombre: {a.nombre}" for a in areas
+        )
+        contexto_factura = (
+            f"Proveedor: {datos.proveedor}\n"
+            f"NIT proveedor: {datos.nit_proveedor or 'N/A'}\n"
+            f"Tipo documento: {datos.tipo_documento or 'N/A'}\n"
+            f"Ciudad receptor: {datos.ciudad_receptor or 'N/A'}\n"
+            f"Dirección receptor: {datos.direccion_receptor or 'N/A'}\n"
+            f"Descripciones ítems: {'; '.join(datos.descripciones_items) or 'N/A'}\n"
+            f"Info adicional: {json.dumps(datos.info_adicional, ensure_ascii=False)}\n"
+        )
+        prompt = f"""Eres un asistente contable de Café Quindío. Analiza la siguiente factura electrónica colombiana y determina a cuál área interna de la empresa corresponde.
+
+FACTURA:
+{contexto_factura}
+
+ÁREAS DISPONIBLES:
+{areas_lista}
+
+REGLAS:
+- Si la factura menciona una ciudad o tienda específica, asígnala al área con ese nombre.
+- Si es un tiquete de transporte, asígnala al área de origen del viaje.
+- Si no puedes determinar el área con certeza, responde con confianza "baja" o "nula".
+- Nunca inventes un área que no esté en la lista.
+
+Responde ÚNICAMENTE con JSON válido, sin texto adicional:
+{{"area_code": "CODE_O_NULL", "confianza": "alta|media|baja|nula", "razonamiento": "explicación breve"}}"""
+
+        try:
+            client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+            message = await client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=256,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = message.content[0].text.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+                raw = raw.strip()
+            ai_resp = json.loads(raw)
+            ai_code = (ai_resp.get("area_code") or "").strip()
+            ai_conf = ai_resp.get("confianza", "nula")
+            ai_razon = ai_resp.get("razonamiento", "")
+
+            if ai_code and ai_code.upper() != "NULL":
+                for area in areas:
+                    if area.code.upper() == ai_code.upper():
+                        area_asignada = area
+                        confianza = ai_conf
+                        razonamiento = f"[IA] {ai_razon}"
+                        break
+            else:
+                confianza = "nula"
+                razonamiento = f"[IA] {ai_razon}" if ai_razon else "No se pudo identificar área."
+        except Exception:
+            confianza = "nula"
+            razonamiento = "Error al consultar IA. Requiere asignación manual."
+
+    # 6. Determinar estado de confirmación
+    pendiente = confianza not in ("alta",)
+
+    # 7. Obtener estado_id RECIBIDA (id=1)
+    estado_result = await db.execute(select(Estado).where(Estado.id == 1))
+    estado_recibida = estado_result.scalar_one_or_none()
+    if not estado_recibida:
+        raise HTTPException(status_code=500, detail="Estado RECIBIDA (id=1) no encontrado en BD.")
+
+    # 8. Crear la factura
+    nueva = Factura(
+        proveedor=datos.proveedor,
+        nit_proveedor=datos.nit_proveedor,
+        numero_factura=datos.numero_factura,
+        fecha_emision=datos.fecha_emision,
+        fecha_vencimiento=datos.fecha_vencimiento,
+        total=datos.total,
+        area_id=area_asignada.id if area_asignada else None,
+        estado_id=estado_recibida.id,
+        pendiente_confirmacion=pendiente,
+        ai_area_confianza=confianza,
+        ai_area_razonamiento=razonamiento,
+    )
+    db.add(nueva)
+    await db.commit()
+    await db.refresh(nueva)
+
+    return IngestaXMLResultOut(
+        factura_id=nueva.id,
+        numero_factura=nueva.numero_factura,
+        proveedor=nueva.proveedor,
+        nit_proveedor=nueva.nit_proveedor,
+        total=float(nueva.total),
+        fecha_emision=nueva.fecha_emision,
+        area_id=nueva.area_id,
+        area_nombre=area_asignada.nombre if area_asignada else None,
+        ai_area_confianza=confianza,
+        ai_area_razonamiento=razonamiento,
+        pendiente_confirmacion=pendiente,
+        estado=_estado_label(nueva),
+        duplicado=False,
+    )
+
+
+def _estado_label(f: "Factura") -> str:
+    if not f.area_id:
+        return "sin_asignar"
+    if f.pendiente_confirmacion:
+        return "pendiente_confirmacion"
+    return "auto_asignada"
+
+
+@router.post(
+    "/{factura_id}/confirmar-ingesta",
+    summary="Confirmar o reasignar área de factura pendiente de buzón XML",
+)
+async def confirmar_ingesta(
+    factura_id: UUID,
+    area_id: UUID = Query(..., description="UUID del área a asignar"),
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(get_current_user),
+):
+    """
+    El radicador confirma (o corrige) el área asignada automáticamente.
+    Marca pendiente_confirmacion=False para que la factura fluya normalmente.
+    """
+    from sqlalchemy import select
+    from db.models import Factura, Area
+
+    result = await db.execute(select(Factura).where(Factura.id == factura_id))
+    factura = result.scalar_one_or_none()
+    if not factura:
+        raise HTTPException(status_code=404, detail="Factura no encontrada.")
+
+    area_result = await db.execute(select(Area).where(Area.id == area_id))
+    area = area_result.scalar_one_or_none()
+    if not area:
+        raise HTTPException(status_code=404, detail="Área no encontrada.")
+
+    factura.area_id = area_id
+    factura.pendiente_confirmacion = False
+    await db.commit()
+
+    return {"factura_id": factura_id, "area_asignada": area.nombre, "confirmada": True}
+
 
 @router.post(
     "/{factura_id}/enviar-correo-aprobacion",

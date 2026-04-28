@@ -496,10 +496,10 @@ class Factura(Base, TimestampMixin):
     numero_factura: Mapped[str] = mapped_column(Text, nullable=False)
     fecha_emision: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     fecha_vencimiento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
-    area_id: Mapped[uuid.UUID] = mapped_column(
+    area_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("areas.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
         index=True
     )
     area_origen_id: Mapped[Optional[uuid.UUID]] = mapped_column(
@@ -601,6 +601,16 @@ class Factura(Base, TimestampMixin):
         nullable=True,
         index=True
     )
+
+    # NIT del proveedor (extraído del XML DIAN)
+    nit_proveedor: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Ingesta automática XML
+    pendiente_confirmacion: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    ai_area_confianza: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    ai_area_razonamiento: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Aprobación por correo electrónico
     fecha_envio_gerencia: Mapped[Optional[datetime]] = mapped_column(

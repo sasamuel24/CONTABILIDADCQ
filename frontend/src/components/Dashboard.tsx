@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Search, ChevronDown, TrendingUp, TrendingDown, MoreVertical, Reply, Circle, LayoutDashboard, Inbox, LogOut, PackageOpen, Users } from 'lucide-react';
+import { Search, ChevronDown, TrendingUp, TrendingDown, MoreVertical, Reply, Circle, LayoutDashboard, Inbox, LogOut, PackageOpen, Users, FileCode2 } from 'lucide-react';
 import { InboxView } from './InboxView';
 import { ResponsablePaquetesView } from './ResponsablePaquetesView';
 import { AdminUsuariosView } from './AdminUsuariosView';
+import { BuzonXMLView } from './BuzonXMLView';
 import { getDashboardMetrics, getAreas, getFacturas, DashboardMetrics, Area, FacturaListItem } from '../lib/api';
 
 interface DashboardProps {
@@ -201,6 +202,25 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
           </button>
 
           <button
+            onClick={() => setActiveSection('buzon-xml')}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2"
+            style={{
+              backgroundColor: activeSection === 'buzon-xml' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
+              color: activeSection === 'buzon-xml' ? '#00829a' : '#374151',
+              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+            }}
+            onMouseEnter={(e) => {
+              if (activeSection !== 'buzon-xml') e.currentTarget.style.backgroundColor = '#f9fafb';
+            }}
+            onMouseLeave={(e) => {
+              if (activeSection !== 'buzon-xml') e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            <FileCode2 className="w-5 h-5" />
+            <span>Buzón XML</span>
+          </button>
+
+          <button
             onClick={onLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-700 hover:bg-gray-50"
             style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
@@ -226,7 +246,9 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
 
         {/* Main Content */}
         <main className="flex-1 overflow-auto">
-          {activeSection === 'usuarios' ? (
+          {activeSection === 'buzon-xml' ? (
+            <BuzonXMLView />
+          ) : activeSection === 'usuarios' ? (
             <AdminUsuariosView />
           ) : activeSection === 'paquetes' ? (
             <div className={enDetallePaquetes ? 'p-4' : 'p-8'}>

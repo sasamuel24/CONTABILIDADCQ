@@ -146,6 +146,11 @@ class FacturaListItem(BaseModel):
     fecha_aprobacion_email: Optional[datetime] = None
     aprobado_por_nombre: Optional[str] = None
     aprobado_por_email: Optional[str] = None
+    # Ingesta XML automática
+    nit_proveedor: Optional[str] = None
+    pendiente_confirmacion: bool = False
+    ai_area_confianza: Optional[str] = None
+    ai_area_razonamiento: Optional[str] = None
 
     model_config = {"from_attributes": True}
 
@@ -475,3 +480,27 @@ class FacturaAprobacionEstadoOut(BaseModel):
     aprobado_por_email: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+# ========== Schemas ingesta automática XML ==========
+
+class IngestaXMLIn(BaseModel):
+    """Payload que envía N8N con el contenido del XML DIAN."""
+    xml_content: str = Field(..., description="Contenido completo del XML AttachedDocument")
+
+
+class IngestaXMLResultOut(BaseModel):
+    """Resultado del procesamiento de un XML de factura electrónica."""
+    factura_id: UUID
+    numero_factura: str
+    proveedor: str
+    nit_proveedor: Optional[str] = None
+    total: Optional[float] = None
+    fecha_emision: Optional[date] = None
+    area_id: Optional[UUID] = None
+    area_nombre: Optional[str] = None
+    ai_area_confianza: str          # alta | media | baja | nula
+    ai_area_razonamiento: Optional[str] = None
+    pendiente_confirmacion: bool
+    estado: str                     # auto_asignada | pendiente_confirmacion | sin_asignar
+    duplicado: bool = False

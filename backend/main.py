@@ -156,6 +156,14 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 async def startup_event():
     """Evento ejecutado al iniciar la aplicación."""
     logger.info(f"Iniciando {settings.app_name} v{settings.app_version}")
+    try:
+        from alembic.config import Config
+        from alembic import command
+        alembic_cfg = Config("alembic.ini")
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Migraciones de base de datos aplicadas correctamente.")
+    except Exception as e:
+        logger.error(f"Error al aplicar migraciones: {e}")
 
 
 @app.on_event("shutdown")

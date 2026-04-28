@@ -162,6 +162,10 @@ class FacturaService:
                 fecha_aprobacion_email=f.fecha_aprobacion_email,
                 aprobado_por_nombre=f.aprobado_por_nombre,
                 aprobado_por_email=f.aprobado_por_email,
+                nit_proveedor=f.nit_proveedor,
+                pendiente_confirmacion=f.pendiente_confirmacion,
+                ai_area_confianza=f.ai_area_confianza,
+                ai_area_razonamiento=f.ai_area_razonamiento,
             ))
         
         page = (skip // limit) + 1 if limit > 0 else 1

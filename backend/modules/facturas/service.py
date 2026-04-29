@@ -361,9 +361,10 @@ Responde ÚNICAMENTE con JSON válido:
                 else:
                     confianza = "nula"
                     razonamiento = f"[IA] {ai_razon}" if ai_razon else "No se pudo identificar área."
-            except Exception:
+            except Exception as e:
+                logger.error(f"[IA] Error al consultar Anthropic para factura {factura.numero_factura}: {e}")
                 confianza = "nula"
-                razonamiento = "Error al consultar IA. Requiere asignación manual."
+                razonamiento = f"Error al consultar IA: {str(e)[:120]}"
 
         # Actualizar la factura con los resultados
         factura.ai_area_confianza = confianza

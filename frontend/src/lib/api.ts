@@ -440,10 +440,6 @@ export async function getAreas(): Promise<AreaDetail[]> {
   return fetchAPI<AreaDetail[]>('/areas/');
 }
 
-export async function confirmarIngestaFactura(facturaId: string, areaId: string): Promise<void> {
-  await fetchAPI(`/facturas/${facturaId}/confirmar-ingesta?area_id=${areaId}`, { method: 'POST' });
-}
-
 /**
  * Crear una nueva área
  */

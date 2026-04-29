@@ -1244,60 +1244,6 @@ async def confirmar_ingesta(
     return {"factura_id": factura_id, "area_asignada": area.nombre, "confirmada": True}
 
 
-@router.get(
-    "/test-anthropic",
-    summary="Diagnóstico: verifica si la clave Anthropic está configurada y funciona",
-)
-async def test_anthropic():
-    """
-    Hace un ping mínimo a la API de Anthropic y reporta el resultado.
-    Útil para diagnosticar si la IA de asignación de áreas está operativa.
-    """
-    from core.config import settings
-    from anthropic import AsyncAnthropic, AuthenticationError, PermissionDeniedError
-
-    if not settings.anthropic_api_key:
-        return {
-            "ok": False,
-            "estado": "SIN_CLAVE",
-            "detalle": "La variable ANTHROPIC_API_KEY no está configurada en el servidor.",
-        }
-
-    try:
-        client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-        msg = await client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=10,
-            messages=[{"role": "user", "content": "di solo: ok"}],
-        )
-        respuesta = msg.content[0].text.strip()
-        return {
-            "ok": True,
-            "estado": "CONECTADO",
-            "modelo": "claude-haiku-4-5-20251001",
-            "respuesta_prueba": respuesta,
-            "detalle": "La IA está operativa y respondiendo correctamente.",
-        }
-    except AuthenticationError:
-        return {
-            "ok": False,
-            "estado": "CLAVE_INVALIDA",
-            "detalle": "La clave ANTHROPIC_API_KEY existe pero fue rechazada por Anthropic (inválida o revocada).",
-        }
-    except PermissionDeniedError:
-        return {
-            "ok": False,
-            "estado": "SIN_CREDITO",
-            "detalle": "La clave es válida pero la cuenta no tiene créditos disponibles.",
-        }
-    except Exception as e:
-        return {
-            "ok": False,
-            "estado": "ERROR",
-            "detalle": str(e),
-        }
-
-
 @router.post(
     "/{factura_id}/enviar-correo-aprobacion",
     summary="Enviar correo de aprobación a un gerente seleccionado",

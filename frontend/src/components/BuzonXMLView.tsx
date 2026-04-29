@@ -18,7 +18,7 @@ interface FacturaBuzon {
 
 type Area = AreaDetail;
 
-type Seccion = 'auto_asignadas' | 'pendientes' | 'sin_asignar';
+type Seccion = 'pendientes' | 'sin_asignar';
 
 const confianzaConfig: Record<string, { label: string; color: string; bg: string; icon: ReactElement }> = {
   alta:  { label: 'Alta',  color: 'text-green-700',  bg: 'bg-green-50 border-green-200',  icon: <CheckCircle className="w-4 h-4 text-green-600" /> },
@@ -83,20 +83,16 @@ export function BuzonXMLView() {
     }
   };
 
-  const autoAsignadas = facturas.filter(f => !f.pendiente_confirmacion && f.area_id);
-  const pendientes    = facturas.filter(f => f.pendiente_confirmacion && f.area_id);
-  const sinAsignar    = facturas.filter(f => !f.area_id);
+  // Solo muestra facturas pendientes — las confirmadas desaparecen del buzón
+  const pendientes = facturas.filter(f => f.pendiente_confirmacion && f.area_id);
+  const sinAsignar = facturas.filter(f => !f.area_id);
 
   const secciones: { key: Seccion; label: string; count: number; dot: string }[] = [
-    { key: 'auto_asignadas', label: 'Auto-asignadas',        count: autoAsignadas.length, dot: 'bg-green-500' },
-    { key: 'pendientes',     label: 'Pendientes confirmación', count: pendientes.length,   dot: 'bg-yellow-500' },
-    { key: 'sin_asignar',   label: 'Sin asignar',            count: sinAsignar.length,    dot: 'bg-red-500' },
+    { key: 'pendientes',   label: 'Pendientes confirmación', count: pendientes.length, dot: 'bg-yellow-500' },
+    { key: 'sin_asignar', label: 'Sin asignar',             count: sinAsignar.length, dot: 'bg-red-500' },
   ];
 
-  const facturasActivas =
-    seccion === 'auto_asignadas' ? autoAsignadas :
-    seccion === 'pendientes'     ? pendientes     :
-    sinAsignar;
+  const facturasActivas = seccion === 'pendientes' ? pendientes : sinAsignar;
 
   const puedeActualizar = !!areaSeleccionada && areaSeleccionada !== seleccionada?.area_id;
 
@@ -114,7 +110,7 @@ export function BuzonXMLView() {
       </div>
 
       {/* Tarjetas de sección */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 gap-4 mb-8">
         {secciones.map(s => (
           <button
             key={s.key}

@@ -46,6 +46,7 @@ class FacturaCreate(BaseModel):
     )
     unidad_negocio_id: Optional[UUID] = Field(None, description="ID de la unidad de negocio")
     cuenta_auxiliar_id: Optional[UUID] = Field(None, description="ID de la cuenta auxiliar")
+    xml_content: Optional[str] = Field(None, description="XML AttachedDocument DIAN para asignación automática de área por IA")
 
 
 class FacturaUpdate(BaseModel):

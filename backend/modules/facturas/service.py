@@ -232,8 +232,7 @@ class FacturaService:
         logger.info(f"Creando nueva factura: {factura_data.numero_factura}")
 
         # Evitar duplicado: si ya existe una factura con el mismo numero_factura
-        # (creada por el flujo XML simultáneo), devolver la existente en lugar de
-        # crear un segundo registro huérfano sin PDF.
+        # devolver la existente en lugar de crear un segundo registro huérfano sin PDF.
         existing = await self.repository.get_by_numero(factura_data.numero_factura)
         if existing:
             logger.info(
@@ -248,8 +247,137 @@ class FacturaService:
             factura_data.centro_operacion_id
         )
 
-        factura = await self.repository.create(factura_data.model_dump())
+        datos = factura_data.model_dump(exclude={"xml_content"})
+        factura = await self.repository.create(datos)
+
+        # Si viene xml_content, ejecutar asignación automática de área por IA
+        if factura_data.xml_content and self.db:
+            await self._asignar_area_ia(factura, factura_data.xml_content)
+
         return await self.get_factura(factura.id)
+
+    async def _asignar_area_ia(self, factura, xml_content: str) -> None:
+        """Asigna área automáticamente usando el XML DIAN y Claude Haiku."""
+        import json
+        import asyncio
+        from sqlalchemy import select
+        from db.models import Area
+        from core.config import settings
+        from core.xml_parser import parse_xml_dian
+
+        # Parsear XML para obtener datos ricos (ciudad, ítems, etc.)
+        try:
+            datos = parse_xml_dian(xml_content)
+        except Exception:
+            datos = None
+
+        areas_result = await self.db.execute(select(Area))
+        areas = areas_result.scalars().all()
+
+        area_asignada = None
+        confianza = "nula"
+        razonamiento = None
+
+        # 1. Intento por texto usando datos del XML + proveedor
+        if datos:
+            textos_clave = " ".join([
+                datos.ciudad_receptor or "",
+                datos.direccion_receptor or "",
+                *datos.descripciones_items,
+                *datos.info_adicional.values(),
+            ]).upper()
+        else:
+            textos_clave = (factura.proveedor or "").upper()
+
+        for area in areas:
+            nombre_upper = area.nombre.upper()
+            if nombre_upper in ("FACTURACIÓN", "FACTURACION", "ADMINISTRATIVO"):
+                continue
+            if nombre_upper in textos_clave or area.code.upper() in textos_clave:
+                area_asignada = area
+                confianza = "alta"
+                razonamiento = f"Nombre de área '{area.nombre}' encontrado en datos de la factura."
+                break
+
+        # 2. Si no hay match de texto, llamar a Claude Haiku
+        if area_asignada is None and settings.anthropic_api_key:
+            from anthropic import AsyncAnthropic
+            areas_lista = "\n".join(f"- code: {a.code}, nombre: {a.nombre}" for a in areas)
+            contexto = (
+                f"Proveedor: {factura.proveedor}\n"
+                f"Número factura: {factura.numero_factura}\n"
+            )
+            if datos:
+                contexto += (
+                    f"Ciudad receptor: {datos.ciudad_receptor or 'N/A'}\n"
+                    f"Dirección receptor: {datos.direccion_receptor or 'N/A'}\n"
+                    f"Descripciones ítems: {'; '.join(datos.descripciones_items) or 'N/A'}\n"
+                    f"Info adicional: {json.dumps(datos.info_adicional, ensure_ascii=False)}\n"
+                )
+
+            prompt = f"""Eres un asistente de contabilidad colombiano de Café Quindío.
+Asigna esta factura al área correcta basándote en los datos disponibles.
+
+{contexto}
+Áreas disponibles:
+{areas_lista}
+
+REGLAS:
+- Si la factura menciona una ciudad o tienda específica, asígnala al área con ese nombre.
+- Si es un tiquete de transporte, asígnala al área de origen del viaje.
+- Si no puedes determinar el área con certeza, responde con confianza "baja" o "nula".
+- Nunca inventes un área que no esté en la lista.
+
+Responde ÚNICAMENTE con JSON válido:
+{{"area_code": "CODE_O_NULL", "confianza": "alta|media|baja|nula", "razonamiento": "explicación breve"}}"""
+
+            try:
+                client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+                message = await client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=256,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                raw = message.content[0].text.strip()
+                if raw.startswith("```"):
+                    raw = raw[3:]
+                    if raw.startswith("json"):
+                        raw = raw[4:]
+                    raw = raw.strip()
+                if raw.endswith("```"):
+                    raw = raw[:-3].strip()
+                ai_resp = json.loads(raw)
+                ai_code = (ai_resp.get("area_code") or "").strip()
+                ai_conf = ai_resp.get("confianza", "nula")
+                ai_razon = ai_resp.get("razonamiento", "")
+
+                if ai_code and ai_code.upper() != "NULL":
+                    for area in areas:
+                        if area.code.upper() == ai_code.upper():
+                            area_asignada = area
+                            confianza = ai_conf
+                            razonamiento = f"[IA] {ai_razon}"
+                            break
+                else:
+                    confianza = "nula"
+                    razonamiento = f"[IA] {ai_razon}" if ai_razon else "No se pudo identificar área."
+            except Exception:
+                confianza = "nula"
+                razonamiento = "Error al consultar IA. Requiere asignación manual."
+
+        # Actualizar la factura con los resultados
+        factura.ai_area_confianza = confianza
+        factura.ai_area_razonamiento = razonamiento
+        factura.pendiente_confirmacion = confianza not in ("alta",)
+        if area_asignada:
+            factura.area_id = area_asignada.id
+
+        await self.db.commit()
+        await self.db.refresh(factura)
+        logger.info(
+            f"Área asignada a factura {factura.numero_factura}: "
+            f"{area_asignada.nombre if area_asignada else 'ninguna'} (confianza={confianza})"
+        )
     
     async def update_estado(
         self,

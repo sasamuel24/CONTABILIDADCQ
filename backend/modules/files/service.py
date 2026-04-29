@@ -96,7 +96,25 @@ class FileService:
             FileResponse con todos los datos del archivo registrado
         """
         logger.info(f"Registrando metadata de archivo para factura {factura_id}: {file_data.filename} con doc_type={doc_type}")
-        
+
+        # Evitar duplicado: si ya existe un FACTURA_PDF para esta factura,
+        # devolver el existente (N8N puede reintentar y no debe crear dobles)
+        if doc_type == "FACTURA_PDF":
+            existing = await self.repository.get_by_factura_and_doc_type(factura_id, doc_type)
+            if existing:
+                logger.info(f"Ya existe FACTURA_PDF para factura {factura_id}, devolviendo existente.")
+                return FileResponse(
+                    id=existing.id,
+                    factura_id=existing.factura_id,
+                    doc_type=existing.doc_type,
+                    storage_provider=existing.storage_provider,
+                    storage_path=existing.storage_path,
+                    filename=existing.filename,
+                    content_type=existing.content_type,
+                    size_bytes=existing.size_bytes,
+                    uploaded_at=existing.created_at,
+                )
+
         try:
             # Operación: Crear registro en BD con metadata del archivo y doc_type
             db_file_data = {

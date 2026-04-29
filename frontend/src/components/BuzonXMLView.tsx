@@ -1,6 +1,6 @@
 import { useState, useEffect, ReactElement } from 'react';
-import { CheckCircle, AlertCircle, XCircle, RefreshCw, X } from 'lucide-react';
-import { getAreas, getFacturas, confirmarIngestaFactura, AreaDetail } from '../lib/api';
+import { CheckCircle, AlertCircle, XCircle, RefreshCw, X, FileText, Eye, Download } from 'lucide-react';
+import { getAreas, getFacturas, confirmarIngestaFactura, getFacturaFilesByDocType, downloadFileById, AreaDetail, FileMiniOut } from '../lib/api';
 
 interface FacturaBuzon {
   id: string;
@@ -38,6 +38,8 @@ export function BuzonXMLView() {
   const [seleccionada, setSeleccionada] = useState<FacturaBuzon | null>(null);
   const [areaSeleccionada, setAreaSeleccionada] = useState('');
   const [actualizando, setActualizando] = useState(false);
+  const [pdfFiles, setPdfFiles] = useState<FileMiniOut[]>([]);
+  const [loadingPdf, setLoadingPdf] = useState(false);
 
   const cargarDatos = async () => {
     setIsLoading(true);
@@ -65,14 +67,49 @@ export function BuzonXMLView() {
 
   useEffect(() => { cargarDatos(); }, []);
 
-  const abrirDetalle = (f: FacturaBuzon) => {
+  const abrirDetalle = async (f: FacturaBuzon) => {
     setSeleccionada(f);
     setAreaSeleccionada(f.area_id || '');
+    setLoadingPdf(true);
+    try {
+      const files = await getFacturaFilesByDocType(f.id, 'FACTURA_PDF');
+      setPdfFiles(files);
+    } catch {
+      setPdfFiles([]);
+    } finally {
+      setLoadingPdf(false);
+    }
   };
 
   const cerrar = () => {
     setSeleccionada(null);
     setAreaSeleccionada('');
+    setPdfFiles([]);
+  };
+
+  const handlePreviewPdf = async (file: FileMiniOut) => {
+    try {
+      const blob = await downloadFileById(file.id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (e) {
+      console.error('Error previsualizando PDF:', e);
+    }
+  };
+
+  const handleDownloadPdf = async (file: FileMiniOut) => {
+    try {
+      const blob = await downloadFileById(file.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Error descargando PDF:', e);
+    }
   };
 
   const actualizarArea = async () => {
@@ -218,11 +255,11 @@ export function BuzonXMLView() {
 
             {/* Header panel */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100" style={{ backgroundColor: '#00829a' }}>
-              <div>
+              <div className="flex flex-col gap-1">
                 <span className="text-white font-semibold text-sm">{seleccionada.numero_factura}</span>
-                <span className="ml-3 px-2 py-0.5 rounded-full text-xs bg-white/20 text-white">Recibida por facturación</span>
+                <span className="px-2 py-0.5 rounded-full text-xs bg-white/20 text-white w-fit">Recibida por facturación</span>
               </div>
-              <button onClick={cerrar} className="text-white/70 hover:text-white">
+              <button onClick={cerrar} className="text-white/70 hover:text-white ml-3 shrink-0">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -253,8 +290,45 @@ export function BuzonXMLView() {
               )}
             </div>
 
+            {/* PDF de la factura */}
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h4 className="text-gray-900 font-medium text-sm mb-3">Documento PDF</h4>
+              {loadingPdf ? (
+                <p className="text-xs text-gray-400">Cargando...</p>
+              ) : pdfFiles.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">Sin PDF adjunto</p>
+              ) : (
+                <div className="space-y-2">
+                  {pdfFiles.map(file => (
+                    <div key={file.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg border border-gray-100">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="w-4 h-4 text-red-500 shrink-0" />
+                        <span className="text-xs text-gray-700 truncate max-w-[130px]">{file.filename}</span>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 ml-2">
+                        <button
+                          onClick={() => handlePreviewPdf(file)}
+                          className="p-1.5 rounded hover:bg-[#e0f5f7] text-gray-400 hover:text-[#00829a] transition-colors"
+                          title="Previsualizar PDF"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDownloadPdf(file)}
+                          className="p-1.5 rounded hover:bg-[#e0f5f7] text-gray-400 hover:text-[#00829a] transition-colors"
+                          title="Descargar PDF"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Cambiar Área */}
-            {(seleccionada.pendiente_confirmacion || !seleccionada.area_id) && (
+            {(seleccionada.pendiente_confirmacion || !seleccionada.area_id || seleccionada.area === 'Facturación') && (
               <div className="px-6 py-4 flex-1">
                 <h4 className="text-gray-900 mb-3">Cambiar Área</h4>
                 <div className="space-y-4">

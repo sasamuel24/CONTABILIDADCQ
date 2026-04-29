@@ -1,6 +1,7 @@
 import { useState, useEffect, ReactElement } from 'react';
 import { CheckCircle, AlertCircle, XCircle, RefreshCw, X, FileText, Eye, Download } from 'lucide-react';
 import { getAreas, getFacturas, confirmarIngestaFactura, getFacturaFilesByDocType, downloadFileById, AreaDetail, FileMiniOut } from '../lib/api';
+import { FilePreviewModal } from './FilePreviewModal';
 
 interface FacturaBuzon {
   id: string;
@@ -40,6 +41,7 @@ export function BuzonXMLView() {
   const [actualizando, setActualizando] = useState(false);
   const [pdfFiles, setPdfFiles] = useState<FileMiniOut[]>([]);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
 
   const cargarDatos = async () => {
     setIsLoading(true);
@@ -85,22 +87,6 @@ export function BuzonXMLView() {
     setSeleccionada(null);
     setAreaSeleccionada('');
     setPdfFiles([]);
-  };
-
-  const handlePreviewPdf = async (file: FileMiniOut) => {
-    // Abrir la ventana ANTES del await para evitar bloqueo de popups
-    const ventana = window.open('', '_blank');
-    try {
-      const blob = await downloadFileById(file.id);
-      const url = URL.createObjectURL(blob);
-      if (ventana) {
-        ventana.location.href = url;
-        setTimeout(() => URL.revokeObjectURL(url), 30000);
-      }
-    } catch (e) {
-      if (ventana) ventana.close();
-      console.error('Error previsualizando PDF:', e);
-    }
   };
 
   const handleDownloadPdf = async (file: FileMiniOut) => {
@@ -312,7 +298,7 @@ export function BuzonXMLView() {
                       </div>
                       <div className="flex items-center gap-1 shrink-0 ml-2">
                         <button
-                          onClick={() => handlePreviewPdf(file)}
+                          onClick={() => setPreviewFile(file)}
                           className="p-1.5 rounded hover:bg-[#e0f5f7] text-gray-400 hover:text-[#00829a] transition-colors"
                           title="Previsualizar PDF"
                         >
@@ -388,6 +374,19 @@ export function BuzonXMLView() {
           </div>
         )}
       </div>
+
+      {/* Modal de previsualización PDF — mismo que usa el resto de la app */}
+      {previewFile && (
+        <FilePreviewModal
+          fileId={previewFile.id}
+          filename={previewFile.filename}
+          contentType={previewFile.content_type}
+          storagePath={previewFile.storage_path ?? undefined}
+          facturaId={seleccionada?.id}
+          onClose={() => setPreviewFile(null)}
+          onDownload={() => handleDownloadPdf(previewFile)}
+        />
+      )}
     </div>
   );
 }

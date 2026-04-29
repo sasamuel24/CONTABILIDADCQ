@@ -937,10 +937,10 @@ async def ingesta_xml(
             detail=f"No se pudo extraer el total de la factura '{datos.numero_factura}'.",
         )
 
-    # 2. Verificar duplicado (proveedor + numero_factura)
+    # 2. Verificar duplicado por numero_factura (el proveedor puede venir con nombre
+    #    distinto entre el flujo XML y el flujo de correos PDF, por eso no se usa)
     dup = await db.execute(
         select(Factura).where(
-            Factura.proveedor == datos.proveedor,
             Factura.numero_factura == datos.numero_factura,
         )
     )

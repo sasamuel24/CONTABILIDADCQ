@@ -230,13 +230,24 @@ class FacturaService:
     async def create_factura(self, factura_data: FacturaCreate) -> FacturaResponse:
         """Crea una nueva factura."""
         logger.info(f"Creando nueva factura: {factura_data.numero_factura}")
-        
+
+        # Evitar duplicado: si ya existe una factura con el mismo numero_factura
+        # (creada por el flujo XML simultáneo), devolver la existente en lugar de
+        # crear un segundo registro huérfano sin PDF.
+        existing = await self.repository.get_by_numero(factura_data.numero_factura)
+        if existing:
+            logger.info(
+                f"Factura {factura_data.numero_factura} ya existe (id={existing.id}), "
+                "devolviendo registro existente en lugar de crear duplicado."
+            )
+            return await self.get_factura(existing.id)
+
         # Validar relación CC/CO
         await self._validate_centro_operacion(
             factura_data.centro_costo_id,
             factura_data.centro_operacion_id
         )
-        
+
         factura = await self.repository.create(factura_data.model_dump())
         return await self.get_factura(factura.id)
     

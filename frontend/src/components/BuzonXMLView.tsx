@@ -48,7 +48,11 @@ export function BuzonXMLView() {
       ]);
 
       const buzon: FacturaBuzon[] = (facturasResp.items || []).filter(
-        (f: any) => f.ai_area_confianza !== null && f.ai_area_confianza !== undefined
+        (f: any) =>
+          // Procesadas por IA (flujo XML con ai_area_confianza)
+          (f.ai_area_confianza !== null && f.ai_area_confianza !== undefined) ||
+          // Llegaron via N8N sin XML processing → quedaron en Facturación por defecto
+          (f.area === 'Facturación' && (f.ai_area_confianza === null || f.ai_area_confianza === undefined))
       );
       setFacturas(buzon);
       setAreas(areasResp || []);
@@ -85,10 +89,12 @@ export function BuzonXMLView() {
 
   // Auto-asignadas: Claude asignó con confianza alta y ya fluyeron al responsable
   const autoAsignadas = facturas.filter(f => !f.pendiente_confirmacion && f.area_id && f.ai_area_confianza === 'alta');
-  // Pendientes: necesitan que el radicador confirme el área — al confirmar desaparecen
-  const pendientes    = facturas.filter(f => f.pendiente_confirmacion && f.area_id);
-  // Sin asignar: no se detectó área — al asignar desaparecen
-  const sinAsignar    = facturas.filter(f => !f.area_id);
+  // Pendientes: IA asignó con confianza media/baja — el radicador confirma el área
+  const pendientes    = facturas.filter(f => f.pendiente_confirmacion && f.area_id && f.area !== 'Facturación');
+  // Sin asignar: sin área real o quedaron en Facturación por defecto (sin IA)
+  const sinAsignar    = facturas.filter(
+    f => !f.area_id || f.area === 'Facturación'
+  );
 
   const secciones: { key: Seccion; label: string; count: number; dot: string }[] = [
     { key: 'auto_asignadas', label: 'Auto-asignadas',         count: autoAsignadas.length, dot: 'bg-green-500' },

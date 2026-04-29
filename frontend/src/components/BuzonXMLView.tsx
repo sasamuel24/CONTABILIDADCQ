@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, AlertCircle, XCircle, RefreshCw, X } from 'lucide-react';
-import { API_BASE_URL } from '../lib/api';
+import { getAreas, getFacturas, confirmarIngestaFactura, AreaDetail } from '../lib/api';
 
 interface FacturaBuzon {
   id: string;
@@ -16,11 +16,7 @@ interface FacturaBuzon {
   ai_area_razonamiento?: string;
 }
 
-interface Area {
-  id: string;
-  nombre: string;
-  code: string;
-}
+type Area = AreaDetail;
 
 type Seccion = 'auto_asignadas' | 'pendientes' | 'sin_asignar';
 
@@ -43,27 +39,19 @@ export function BuzonXMLView() {
   const [areaSeleccionada, setAreaSeleccionada] = useState('');
   const [actualizando, setActualizando] = useState(false);
 
-  const token = localStorage.getItem('access_token');
-
   const cargarDatos = async () => {
     setIsLoading(true);
     try {
-      const [facturasRes, areasRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/facturas?limit=500`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch(`${API_BASE_URL}/areas`, {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+      const [facturasResp, areasResp] = await Promise.all([
+        getFacturas(0, 500),
+        getAreas(),
       ]);
-      const facturasData = await facturasRes.json();
-      const areasData = await areasRes.json();
 
-      const buzon: FacturaBuzon[] = (facturasData.items || []).filter(
+      const buzon: FacturaBuzon[] = (facturasResp.items || []).filter(
         (f: any) => f.ai_area_confianza !== null && f.ai_area_confianza !== undefined
       );
       setFacturas(buzon);
-      setAreas(areasData || []);
+      setAreas(areasResp || []);
     } catch (e) {
       console.error('Error cargando buzón XML:', e);
     } finally {
@@ -87,10 +75,7 @@ export function BuzonXMLView() {
     if (!seleccionada || !areaSeleccionada) return;
     setActualizando(true);
     try {
-      await fetch(
-        `${API_BASE_URL}/facturas/${seleccionada.id}/confirmar-ingesta?area_id=${areaSeleccionada}`,
-        { method: 'POST', headers: { Authorization: `Bearer ${token}` } }
-      );
+      await confirmarIngestaFactura(seleccionada.id, areaSeleccionada);
       await cargarDatos();
       cerrar();
     } finally {

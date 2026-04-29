@@ -97,8 +97,13 @@ export interface FacturaListItem {
   fecha_emision: string | null;
   fecha_vencimiento: string | null;
   area: string;
+  area_id: string | null;
   total: number;
   estado: string;
+  nit_proveedor: string | null;
+  pendiente_confirmacion: boolean;
+  ai_area_confianza: string | null;
+  ai_area_razonamiento: string | null;
   centro_costo: string | null;
   centro_operacion: string | null;
   centro_costo_id: string | null;
@@ -270,7 +275,7 @@ async function tryRefreshToken(): Promise<boolean> {
 /**
  * Helper para hacer requests con manejo de errores
  */
-async function fetchAPI<T>(
+export async function fetchAPI<T>(
   endpoint: string,
   options: RequestInit = {},
   skipAuthRedirect = false
@@ -435,6 +440,10 @@ export async function getAreas(): Promise<AreaDetail[]> {
   return fetchAPI<AreaDetail[]>('/areas/');
 }
 
+export async function confirmarIngestaFactura(facturaId: string, areaId: string): Promise<void> {
+  await fetchAPI(`/facturas/${facturaId}/confirmar-ingesta?area_id=${areaId}`, { method: 'POST' });
+}
+
 /**
  * Crear una nueva área
  */
@@ -488,6 +497,16 @@ export async function getFacturas(skip: number = 0, limit: number = 100, area_id
   if (area_id) params.append('area_id', area_id);
   if (area_origen_id) params.append('area_origen_id', area_origen_id);
   return fetchAPI<FacturasPaginatedResponse>(`/facturas/?${params.toString()}`);
+}
+
+/**
+ * Confirmar área de ingesta para una factura
+ */
+export async function confirmarIngestaFactura(facturaId: string, areaId: string): Promise<void> {
+  const params = new URLSearchParams({ area_id: areaId });
+  await fetchAPI<void>(`/facturas/${facturaId}/confirmar-ingesta?${params.toString()}`, {
+    method: 'POST',
+  });
 }
 
 export async function submitGadminTesoreria(facturaId: string): Promise<{ factura_id: string; area_actual: string; estado_actual: string }> {

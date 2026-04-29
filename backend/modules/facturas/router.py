@@ -955,6 +955,14 @@ async def ingesta_xml(
             await db.commit()
             await db.refresh(existing)
 
+        # Guardar PDF si N8N lo envió y la factura aún no tiene uno
+        if payload.pdf_base64:
+            await _guardar_pdf_ingesta(
+                db, existing.id,
+                payload.pdf_base64,
+                payload.pdf_filename or f"{existing.numero_factura}.pdf",
+            )
+
         area_nombre = existing.area.nombre if existing.area else None
         return IngestaXMLResultOut(
             factura_id=existing.id,
@@ -1089,6 +1097,14 @@ Responde ÚNICAMENTE con JSON válido, sin texto adicional:
     await db.commit()
     await db.refresh(nueva)
 
+    # Guardar PDF si N8N lo envió junto al XML
+    if payload.pdf_base64:
+        await _guardar_pdf_ingesta(
+            db, nueva.id,
+            payload.pdf_base64,
+            payload.pdf_filename or f"{datos.numero_factura}.pdf",
+        )
+
     return IngestaXMLResultOut(
         factura_id=nueva.id,
         numero_factura=nueva.numero_factura,
@@ -1112,6 +1128,86 @@ def _estado_label(f: "Factura") -> str:
     if f.pendiente_confirmacion:
         return "pendiente_confirmacion"
     return "auto_asignada"
+
+
+async def _guardar_pdf_ingesta(
+    db: "AsyncSession",
+    factura_id: "uuid.UUID",
+    pdf_base64: str,
+    pdf_filename: str,
+) -> None:
+    """Guarda el PDF enviado por N8N como FacturaArchivo(doc_type='FACTURA_PDF').
+    Si ya existe un PDF para esta factura, no hace nada (idempotente).
+    """
+    import base64
+    import io
+    import asyncio
+    import uuid
+    from datetime import datetime, timezone
+    from pathlib import Path
+    from sqlalchemy import select
+    from db.models import FacturaArchivo
+    from core.config import settings
+
+    # Idempotente: si ya existe FACTURA_PDF no crear otro
+    existing = await db.execute(
+        select(FacturaArchivo).where(
+            FacturaArchivo.factura_id == factura_id,
+            FacturaArchivo.doc_type == "FACTURA_PDF",
+        )
+    )
+    if existing.scalar_one_or_none():
+        return
+
+    try:
+        pdf_bytes = base64.b64decode(pdf_base64)
+    except Exception:
+        return  # base64 inválido, ignorar
+
+    safe_name = pdf_filename if pdf_filename else f"{factura_id}.pdf"
+    if not safe_name.lower().endswith(".pdf"):
+        safe_name += ".pdf"
+
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    new_filename = f"{timestamp}_{safe_name}"
+
+    use_s3 = bool(settings.aws_access_key_id and settings.s3_bucket)
+
+    if use_s3:
+        from core.s3_service import s3_service
+        s3_key = f"dev/facturas/{factura_id}/FACTURA_PDF/{new_filename}"
+        await asyncio.to_thread(
+            s3_service.upload_fileobj,
+            io.BytesIO(pdf_bytes),
+            s3_key,
+            "application/pdf",
+        )
+        archivo = FacturaArchivo(
+            factura_id=factura_id,
+            doc_type="FACTURA_PDF",
+            storage_provider="s3",
+            storage_path=s3_key,
+            filename=new_filename,
+            content_type="application/pdf",
+            size_bytes=len(pdf_bytes),
+        )
+    else:
+        base_path = Path("storage/facturas") / str(factura_id) / "FACTURA_PDF"
+        base_path.mkdir(parents=True, exist_ok=True)
+        file_path = base_path / new_filename
+        file_path.write_bytes(pdf_bytes)
+        archivo = FacturaArchivo(
+            factura_id=factura_id,
+            doc_type="FACTURA_PDF",
+            storage_provider="local",
+            storage_path=str(file_path),
+            filename=new_filename,
+            content_type="application/pdf",
+            size_bytes=len(pdf_bytes),
+        )
+
+    db.add(archivo)
+    await db.commit()
 
 
 @router.post(

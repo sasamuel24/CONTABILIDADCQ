@@ -488,6 +488,8 @@ class FacturaAprobacionEstadoOut(BaseModel):
 class IngestaXMLIn(BaseModel):
     """Payload que envía N8N con el contenido del XML DIAN."""
     xml_content: str = Field(..., description="Contenido completo del XML AttachedDocument")
+    pdf_base64: Optional[str] = Field(None, description="PDF de la factura codificado en base64 (enviado por N8N junto al XML)")
+    pdf_filename: Optional[str] = Field(None, description="Nombre del archivo PDF")
 
 
 class IngestaXMLResultOut(BaseModel):

@@ -88,12 +88,17 @@ export function BuzonXMLView() {
   };
 
   const handlePreviewPdf = async (file: FileMiniOut) => {
+    // Abrir la ventana ANTES del await para evitar bloqueo de popups
+    const ventana = window.open('', '_blank');
     try {
       const blob = await downloadFileById(file.id);
       const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      if (ventana) {
+        ventana.location.href = url;
+        setTimeout(() => URL.revokeObjectURL(url), 30000);
+      }
     } catch (e) {
+      if (ventana) ventana.close();
       console.error('Error previsualizando PDF:', e);
     }
   };

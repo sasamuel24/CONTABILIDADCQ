@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ReactElement } from 'react';
 import { CheckCircle, AlertCircle, XCircle, RefreshCw, X } from 'lucide-react';
 import { getAreas, getFacturas, confirmarIngestaFactura, AreaDetail } from '../lib/api';
 
@@ -6,21 +6,21 @@ interface FacturaBuzon {
   id: string;
   numero_factura: string;
   proveedor: string;
-  nit_proveedor?: string;
+  nit_proveedor: string | null;
   total: number;
-  fecha_emision?: string;
+  fecha_emision: string | null;
   area: string;
-  area_id?: string;
+  area_id: string | null;
   pendiente_confirmacion: boolean;
-  ai_area_confianza?: string;
-  ai_area_razonamiento?: string;
+  ai_area_confianza: string | null;
+  ai_area_razonamiento: string | null;
 }
 
 type Area = AreaDetail;
 
 type Seccion = 'auto_asignadas' | 'pendientes' | 'sin_asignar';
 
-const confianzaConfig: Record<string, { label: string; color: string; bg: string; icon: JSX.Element }> = {
+const confianzaConfig: Record<string, { label: string; color: string; bg: string; icon: ReactElement }> = {
   alta:  { label: 'Alta',  color: 'text-green-700',  bg: 'bg-green-50 border-green-200',  icon: <CheckCircle className="w-4 h-4 text-green-600" /> },
   media: { label: 'Media', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200', icon: <AlertCircle className="w-4 h-4 text-yellow-600" /> },
   baja:  { label: 'Baja',  color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200', icon: <AlertCircle className="w-4 h-4 text-orange-600" /> },

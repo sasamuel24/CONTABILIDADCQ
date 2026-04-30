@@ -66,7 +66,11 @@ export function BuzonXMLView() {
       ]);
 
       const buzon: FacturaBuzon[] = (facturasResp.items || []).filter((f: any) => {
+        // Debe haber pasado por el flujo de ingesta XML
+        if (f.ai_area_confianza === null || f.ai_area_confianza === undefined) return false;
+        // Debe tener NIT registrado
         if (!f.nit_proveedor) return false;
+        // El NIT debe estar en la tabla de proveedores conocidos
         const nit = f.nit_proveedor.trim().replace(/-/g, '').toUpperCase();
         return NITS_TABLA.has(nit);
       });

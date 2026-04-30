@@ -3,6 +3,20 @@ import { CheckCircle, AlertCircle, XCircle, RefreshCw, X, FileText, Eye, Downloa
 import { getAreas, getFacturas, confirmarIngestaFactura, getFacturaFilesByDocType, downloadFileById, AreaDetail, FileMiniOut } from '../lib/api';
 import { FilePreviewModal } from './FilePreviewModal';
 
+// NITs de proveedores cuyos facturas se gestionan en el buzón XML automático
+const NITS_TABLA = new Set([
+  "901761363","901373083","890928257","860000996","900080634",
+  "900040299","900718257","900277192","901731328","860530547",
+  "860016767","91440300MA5EM","900083863","800245795","890904478",
+  "890800718","800045797","901037119","LU24640654","860028580",
+  "800250778","860006127","890900608","805016704","901534331",
+  "900529276","860007538","860002063","900438907","890900424",
+  "891300241","901026869","901235670","860007955","900833934",
+  "890916575","900618834","860004922","1193389919","900973989",
+  "891903392","900813998","860524896","900208583","811006722",
+  "901597547","901554982",
+]);
+
 interface FacturaBuzon {
   id: string;
   numero_factura: string;
@@ -51,13 +65,11 @@ export function BuzonXMLView() {
         getAreas(),
       ]);
 
-      const buzon: FacturaBuzon[] = (facturasResp.items || []).filter(
-        (f: any) =>
-          // Procesadas por IA (flujo XML con ai_area_confianza)
-          (f.ai_area_confianza !== null && f.ai_area_confianza !== undefined) ||
-          // Llegaron via N8N sin XML processing → quedaron en Facturación por defecto
-          (f.area === 'Facturación' && (f.ai_area_confianza === null || f.ai_area_confianza === undefined))
-      );
+      const buzon: FacturaBuzon[] = (facturasResp.items || []).filter((f: any) => {
+        if (!f.nit_proveedor) return false;
+        const nit = f.nit_proveedor.trim().replace(/-/g, '').toUpperCase();
+        return NITS_TABLA.has(nit);
+      });
       setFacturas(buzon);
       setAreas(areasResp || []);
     } catch (e) {
@@ -115,14 +127,12 @@ export function BuzonXMLView() {
     }
   };
 
-  // Auto-asignadas: Claude asignó con confianza alta y ya fluyeron al responsable
-  const autoAsignadas = facturas.filter(f => !f.pendiente_confirmacion && f.area_id && f.ai_area_confianza === 'alta');
-  // Pendientes: IA asignó con confianza media/baja — el radicador confirma el área
-  const pendientes    = facturas.filter(f => f.pendiente_confirmacion && f.area_id && f.area !== 'Facturación');
-  // Sin asignar: sin área real o quedaron en Facturación por defecto (sin IA)
-  const sinAsignar    = facturas.filter(
-    f => !f.area_id || f.area === 'Facturación'
-  );
+  // Auto-asignadas: asignación directa por tabla NIT (confianza alta, ya fluyen al responsable)
+  const autoAsignadas = facturas.filter(f => !f.pendiente_confirmacion && !!f.area_id && f.ai_area_confianza === 'alta');
+  // Pendientes: tabla NIT con múltiples responsables o tienda ambigua (confianza media)
+  const pendientes    = facturas.filter(f => f.pendiente_confirmacion && !!f.area_id);
+  // Sin asignar: NIT conocido pero área no determinada (tienda no identificada, etc.)
+  const sinAsignar    = facturas.filter(f => !f.area_id);
 
   const secciones: { key: Seccion; label: string; count: number; dot: string }[] = [
     { key: 'auto_asignadas', label: 'Auto-asignadas',         count: autoAsignadas.length, dot: 'bg-green-500' },
@@ -319,7 +329,7 @@ export function BuzonXMLView() {
             </div>
 
             {/* Cambiar Área */}
-            {(seleccionada.pendiente_confirmacion || !seleccionada.area_id || seleccionada.area === 'Facturación') && (
+            {(seleccionada.pendiente_confirmacion || !seleccionada.area_id) && (
               <div className="px-6 py-4 flex-1">
                 <h4 className="text-gray-900 mb-3">Cambiar Área</h4>
                 <div className="space-y-4">

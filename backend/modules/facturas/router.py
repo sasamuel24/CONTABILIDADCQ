@@ -3,7 +3,7 @@ Router de FastAPI para el módulo de facturas.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from db.session import get_db
@@ -946,12 +946,24 @@ async def ingesta_xml(
     )
     existing = dup.scalar_one_or_none()
     if existing:
-        # Si es duplicado pero nunca pasó por el sistema XML (ai_area_confianza es NULL),
-        # marcarlo como pendiente para que aparezca en el buzón y el radicador lo asigne
+        # Si es duplicado de un NIT conocido pero sin área asignada aún,
+        # intentar asignar usando la tabla NIT
         if existing.ai_area_confianza is None:
-            existing.ai_area_confianza = "nula"
-            existing.pendiente_confirmacion = True
-            existing.ai_area_razonamiento = "Factura detectada por buzón XML automático. Requiere asignación de área."
+            from core.nit_responsable import get_responsables_por_nit as _grpn
+            responsables_dup = _grpn(existing.nit_proveedor or "")
+            if responsables_dup:
+                areas_dup = (await db.execute(select(Area))).scalars().all()
+                area_dup, conf_dup, razon_dup = _resolver_responsables_nit(
+                    responsables_dup, areas_dup, datos.ciudad_receptor, datos.direccion_receptor
+                )
+                existing.area_id = area_dup.id if area_dup else existing.area_id
+                existing.ai_area_confianza = conf_dup
+                existing.ai_area_razonamiento = razon_dup
+                existing.pendiente_confirmacion = conf_dup not in ("alta",)
+            else:
+                existing.ai_area_confianza = "nula"
+                existing.pendiente_confirmacion = True
+                existing.ai_area_razonamiento = "NIT no está en tabla de proveedores conocidos."
             await db.commit()
             await db.refresh(existing)
 
@@ -984,91 +996,20 @@ async def ingesta_xml(
     areas_result = await db.execute(select(Area))
     areas = areas_result.scalars().all()
 
-    # 4. Intentar asignación por texto (sin IA)
+    # 4. Resolver área por tabla de NITs conocidos
+    from core.nit_responsable import get_responsables_por_nit
+
     area_asignada = None
     confianza = "nula"
     razonamiento = None
 
-    textos_clave = " ".join([
-        datos.ciudad_receptor or "",
-        datos.direccion_receptor or "",
-        *datos.descripciones_items,
-        *datos.info_adicional.values(),
-    ]).upper()
-
-    for area in areas:
-        nombre_upper = area.nombre.upper()
-        # Excluir el área de "Facturación" o similar que es interna
-        if nombre_upper in ("FACTURACIÓN", "FACTURACION", "ADMINISTRATIVO"):
-            continue
-        if nombre_upper in textos_clave or area.code.upper() in textos_clave:
-            area_asignada = area
-            confianza = "alta"
-            razonamiento = f"Nombre de área '{area.nombre}' encontrado en datos del XML (ciudad/dirección/descripción)."
-            break
-
-    # 5. Si no hay match → llamar a Claude
-    if area_asignada is None and settings.anthropic_api_key:
-        areas_lista = "\n".join(
-            f"- code: {a.code}, nombre: {a.nombre}" for a in areas
+    responsables_nit = get_responsables_por_nit(datos.nit_proveedor or "")
+    if responsables_nit:
+        area_asignada, confianza, razonamiento = _resolver_responsables_nit(
+            responsables_nit, areas, datos.ciudad_receptor, datos.direccion_receptor
         )
-        contexto_factura = (
-            f"Proveedor: {datos.proveedor}\n"
-            f"NIT proveedor: {datos.nit_proveedor or 'N/A'}\n"
-            f"Tipo documento: {datos.tipo_documento or 'N/A'}\n"
-            f"Ciudad receptor: {datos.ciudad_receptor or 'N/A'}\n"
-            f"Dirección receptor: {datos.direccion_receptor or 'N/A'}\n"
-            f"Descripciones ítems: {'; '.join(datos.descripciones_items) or 'N/A'}\n"
-            f"Info adicional: {json.dumps(datos.info_adicional, ensure_ascii=False)}\n"
-        )
-        prompt = f"""Eres un asistente contable de Café Quindío. Analiza la siguiente factura electrónica colombiana y determina a cuál área interna de la empresa corresponde.
-
-FACTURA:
-{contexto_factura}
-
-ÁREAS DISPONIBLES:
-{areas_lista}
-
-REGLAS:
-- Si la factura menciona una ciudad o tienda específica, asígnala al área con ese nombre.
-- Si es un tiquete de transporte, asígnala al área de origen del viaje.
-- Si no puedes determinar el área con certeza, responde con confianza "baja" o "nula".
-- Nunca inventes un área que no esté en la lista.
-
-Responde ÚNICAMENTE con JSON válido, sin texto adicional:
-{{"area_code": "CODE_O_NULL", "confianza": "alta|media|baja|nula", "razonamiento": "explicación breve"}}"""
-
-        try:
-            client = AsyncAnthropic(api_key=settings.anthropic_api_key)
-            message = await client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=256,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            raw = message.content[0].text.strip()
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]
-                if raw.startswith("json"):
-                    raw = raw[4:]
-                raw = raw.strip()
-            ai_resp = json.loads(raw)
-            ai_code = (ai_resp.get("area_code") or "").strip()
-            ai_conf = ai_resp.get("confianza", "nula")
-            ai_razon = ai_resp.get("razonamiento", "")
-
-            if ai_code and ai_code.upper() != "NULL":
-                for area in areas:
-                    if area.code.upper() == ai_code.upper():
-                        area_asignada = area
-                        confianza = ai_conf
-                        razonamiento = f"[IA] {ai_razon}"
-                        break
-            else:
-                confianza = "nula"
-                razonamiento = f"[IA] {ai_razon}" if ai_razon else "No se pudo identificar área."
-        except Exception:
-            confianza = "nula"
-            razonamiento = "Error al consultar IA. Requiere asignación manual."
+    # NITs no conocidos: confianza permanece "nula", area_id=None.
+    # La factura no aparecerá en el buzón XML; se gestionará por Facturación.
 
     # 6. Determinar estado de confirmación
     pendiente = confianza not in ("alta",)
@@ -1128,6 +1069,128 @@ def _estado_label(f: "Factura") -> str:
     if f.pendiente_confirmacion:
         return "pendiente_confirmacion"
     return "auto_asignada"
+
+
+# ---------------------------------------------------------------------------
+# Helpers para resolución de área basada en tabla NIT
+# ---------------------------------------------------------------------------
+
+_KEYWORD_MATCHERS = {
+    "cedi":           lambda n: "CEDI" in n,
+    "marketing":      lambda n: "MARKETING" in n,
+    "mantenimiento":  lambda n: "MANTENIMIENTO" in n,
+    "compras":        lambda n: "COMPRA" in n,
+    "comercial":      lambda n: "COMERCIAL" in n,
+    "restaurante":    lambda n: "RESTAURANTE" in n or "RESTAURANT" in n,
+}
+
+_AREAS_GENERICAS = frozenset({
+    "FACTURACION", "FACTURACIÓN", "CONTABILIDAD",
+    "TESORERIA", "TESORERÍA", "ADMINISTRATIVO",
+})
+
+
+def _find_area_by_keyword(keyword: str, areas: list) -> "Any | None":
+    """Busca el primer área cuyo nombre coincide con el keyword dado."""
+    check = _KEYWORD_MATCHERS.get(keyword.lower())
+    if not check:
+        return None
+    for a in areas:
+        if check(a.nombre.upper()):
+            return a
+    return None
+
+
+def _find_tienda_by_location(areas: list, ciudad: "str | None", direccion: "str | None") -> "Any | None":
+    """
+    Busca un área de tienda cuyo nombre contenga la ciudad/dirección del XML.
+    Excluye áreas genéricas (contabilidad, tesorería, cedi, etc.).
+    """
+    ciudad_up = (ciudad or "").upper().strip()
+    dir_up = (direccion or "").upper().strip()
+
+    if not ciudad_up and not dir_up:
+        return None
+
+    candidatas = [
+        a for a in areas
+        if not any(g in a.nombre.upper() for g in _AREAS_GENERICAS)
+        and not any(check(a.nombre.upper()) for check in _KEYWORD_MATCHERS.values())
+    ]
+
+    if ciudad_up:
+        for a in candidatas:
+            if ciudad_up in a.nombre.upper():
+                return a
+
+    if dir_up:
+        palabras = [p for p in dir_up.split() if len(p) > 3]
+        for a in candidatas:
+            if any(p in a.nombre.upper() for p in palabras):
+                return a
+
+    return None
+
+
+def _resolver_responsables_nit(
+    responsables: list,
+    areas: list,
+    ciudad_receptor: "str | None",
+    direccion_receptor: "str | None",
+) -> tuple:
+    """
+    Dado el listado de keywords responsables para un NIT conocido, devuelve
+    (area | None, confianza: str, razonamiento: str).
+
+    - 1 keyword → intenta resolver directamente; confianza="alta" si se encuentra.
+    - N keywords → intenta el más específico; confianza="media", pendiente=True.
+    - "tiendas"  → usa ciudad/dirección del XML para identificar la tienda exacta.
+    """
+    opciones_str = " o ".join(r.capitalize() for r in responsables)
+
+    if len(responsables) == 1:
+        kw = responsables[0]
+        if kw == "tiendas":
+            tienda = _find_tienda_by_location(areas, ciudad_receptor, direccion_receptor)
+            if tienda:
+                return (tienda, "alta",
+                        f"NIT conocido → Tienda identificada: {tienda.nombre} "
+                        f"(ciudad receptor: {ciudad_receptor or 'N/A'}).")
+            return (None, "baja",
+                    f"NIT conocido → Responsable: Tiendas, pero no se identificó la tienda "
+                    f"para la ciudad '{ciudad_receptor or 'N/A'}'. Requiere asignación manual.")
+        area = _find_area_by_keyword(kw, areas)
+        if area:
+            return (area, "alta", f"NIT conocido → Área responsable: {area.nombre}.")
+        return (None, "baja",
+                f"NIT conocido → Responsable '{kw}', pero no se encontró el área en el sistema.")
+
+    # Múltiples opciones → siempre pendiente
+    best_area = None
+
+    # Prioridad: tiendas (más específico cuando hay ciudad)
+    if "tiendas" in responsables:
+        tienda = _find_tienda_by_location(areas, ciudad_receptor, direccion_receptor)
+        if tienda:
+            best_area = tienda
+            return (best_area, "media",
+                    f"NIT conocido → Múltiples responsables ({opciones_str}). "
+                    f"Tienda identificada: {tienda.nombre}. Requiere confirmación.")
+
+    # Fallback: primer keyword no-tiendas que exista en el sistema
+    for kw in responsables:
+        if kw == "tiendas":
+            continue
+        area = _find_area_by_keyword(kw, areas)
+        if area:
+            best_area = area
+            return (best_area, "media",
+                    f"NIT conocido → Múltiples responsables ({opciones_str}). "
+                    f"Asignado preliminarmente a {area.nombre}. Requiere confirmación.")
+
+    return (None, "baja",
+            f"NIT conocido → Múltiples responsables ({opciones_str}), "
+            "ningún área encontrada en el sistema. Requiere asignación manual.")
 
 
 async def _guardar_pdf_ingesta(

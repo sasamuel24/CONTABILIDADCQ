@@ -9,7 +9,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple, List
 from db.models import (
     PaqueteGasto, GastoLegalizacion, ArchivoGasto,
-    ComentarioPaquete, HistorialEstadoPaquete, TokenAprobacionPaquete, User, Rol
+    ComentarioPaquete, HistorialEstadoPaquete, TokenAprobacionPaquete, User, Rol,
+    AprobadorGerencia, Anticipo,
 )
 from sqlalchemy import select
 from core.s3_service import s3_service
@@ -71,10 +72,16 @@ class GastosService:
     # Paquetes
     # ------------------------------------------------------------------
 
-    async def crear_paquete(self, user_id: UUID, area_id: UUID, data: PaqueteCreate) -> PaqueteOut:
+    async def _crear_paquete_para_anticipo(
+        self,
+        user_id: UUID,
+        area_id: UUID,
+        data: PaqueteCreate,
+        area_code: str,
+        anticipo_id: UUID,
+    ) -> "PaqueteGasto":
+        """Crea un paquete de gastos vinculado a un anticipo. Llamado desde AnticipioService."""
         fecha_inicio, fecha_fin = _parse_semana(data.semana)
-
-        # Generar folio automático: PKG-{AÑO}-{N:05d}
         year_str, _ = data.semana.split('-W')
         year = int(year_str)
         max_num = await self.paquete_repo.max_folio_number_by_year(year)
@@ -88,6 +95,40 @@ class GastosService:
             fecha_fin=fecha_fin,
             estado="borrador",
             folio=folio,
+            tipo_flujo="general",
+            anticipo_id=anticipo_id,
+        )
+        await self.paquete_repo.create(paquete)
+        await self.historial_repo.create(HistorialEstadoPaquete(
+            paquete_id=paquete.id,
+            user_id=user_id,
+            estado_anterior=None,
+            estado_nuevo="borrador",
+        ))
+        return paquete
+
+    async def crear_paquete(
+        self, user_id: UUID, area_id: UUID, data: PaqueteCreate, area_code: str = ""
+    ) -> PaqueteOut:
+        fecha_inicio, fecha_fin = _parse_semana(data.semana)
+
+        # Generar folio automático: PKG-{AÑO}-{N:05d}
+        year_str, _ = data.semana.split('-W')
+        year = int(year_str)
+        max_num = await self.paquete_repo.max_folio_number_by_year(year)
+        folio = f"PKG-{year}-{max_num + 1:05d}"
+
+        tipo_flujo = "mantenimiento" if area_code.lower() == "mant" else "general"
+
+        paquete = PaqueteGasto(
+            user_id=user_id,
+            area_id=area_id,
+            semana=data.semana,
+            fecha_inicio=fecha_inicio,
+            fecha_fin=fecha_fin,
+            estado="borrador",
+            folio=folio,
+            tipo_flujo=tipo_flujo,
         )
         try:
             await self.paquete_repo.create(paquete)
@@ -120,6 +161,13 @@ class GastosService:
         paquetes, total = await self.paquete_repo.list_by_user(user_id, skip, limit)
         return [self._to_list_item(p) for p in paquetes], total
 
+    async def list_paquetes_mis_anticipos(
+        self, user_id: UUID, skip: int, limit: int
+    ) -> Tuple[List[PaqueteListItem], int]:
+        """Solo los paquetes del usuario que tienen anticipo vinculado."""
+        paquetes, total = await self.paquete_repo.list_by_user_con_anticipo(user_id, skip, limit)
+        return [self._to_list_item(p) for p in paquetes], total
+
     async def list_paquetes_admin(
         self, skip: int, limit: int, estado: Optional[str]
     ) -> Tuple[List[PaqueteListItem], int]:
@@ -128,14 +176,26 @@ class GastosService:
 
     # Workflow ---------------------------------------------------------------
 
-    async def enviar(self, paquete_id: UUID, user_id: UUID) -> PaqueteOut:
+    async def enviar(
+        self, paquete_id: UUID, user_id: UUID, aprobador_id: Optional[UUID] = None
+    ) -> PaqueteOut:
         paquete = await self._get_paquete_or_404(paquete_id)
         if paquete.estado not in ESTADOS_EDITABLE:
             raise HTTPException(status_code=400, detail="Solo paquetes en borrador o devuelto pueden enviarse.")
         if paquete.user_id != user_id:
-            raise HTTPException(status_code=403, detail="Solo el técnico propietario puede enviar el paquete.")
+            raise HTTPException(status_code=403, detail="Solo el propietario puede enviar el paquete.")
         if not paquete.gastos:
             raise HTTPException(status_code=400, detail="El paquete debe tener al menos un gasto antes de enviarse.")
+
+        # Para flujo general se requiere aprobador
+        if paquete.tipo_flujo == "general":
+            aprobador_id_efectivo = aprobador_id or paquete.aprobador_id
+            if not aprobador_id_efectivo:
+                raise HTTPException(status_code=400, detail="Debe seleccionar un aprobador para enviar este paquete.")
+            aprobador = await self.db.get(AprobadorGerencia, aprobador_id_efectivo)
+            if not aprobador or not aprobador.is_active:
+                raise HTTPException(status_code=400, detail="El aprobador seleccionado no es válido o está inactivo.")
+            paquete.aprobador_id = aprobador_id_efectivo
 
         anterior = paquete.estado
         paquete.estado = "en_revision"
@@ -146,13 +206,32 @@ class GastosService:
             estado_anterior=anterior, estado_nuevo="en_revision",
         ))
 
-        await self.db.commit()
+        if paquete.tipo_flujo == "general":
+            # Flujo general: genera token y envía correo directamente al aprobador
+            token_str = secrets.token_urlsafe(48)
+            expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=72)
+            token_obj = TokenAprobacionPaquete(
+                paquete_id=paquete.id,
+                token=token_str,
+                usado=False,
+                expires_at=expires_at,
+            )
+            await self.token_repo.create(token_obj)
+            paquete.fecha_envio_gerencia = datetime.now(tz=timezone.utc)
+            await self.db.commit()
 
-        # Notificar al responsable para que revise — él decidirá cuándo enviar el link al gerente
-        paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
-        await email_service.enviar_notificacion_nuevo_paquete_responsable(
-            paquete_actualizado, settings.email_responsable
-        )
+            paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
+            await email_service.enviar_solicitud_aprobacion(
+                paquete_actualizado, token_str,
+                email_override=aprobador.email,
+            )
+        else:
+            # Flujo mantenimiento: notificar al responsable para revisión previa
+            await self.db.commit()
+            paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
+            await email_service.enviar_notificacion_nuevo_paquete_responsable(
+                paquete_actualizado, settings.email_responsable
+            )
 
         return self._to_out(paquete_actualizado)
 
@@ -161,6 +240,16 @@ class GastosService:
         paquete = await self._get_paquete_or_404(paquete_id)
         if paquete.estado != "en_revision":
             raise HTTPException(status_code=400, detail="Solo se puede reenviar el correo cuando el paquete está en revisión.")
+
+        # Determinar email destino según tipo de flujo
+        email_override: Optional[str] = None
+        if paquete.tipo_flujo == "general":
+            if not paquete.aprobador_id:
+                raise HTTPException(status_code=400, detail="Este paquete no tiene aprobador asignado.")
+            aprobador = await self.db.get(AprobadorGerencia, paquete.aprobador_id)
+            if not aprobador:
+                raise HTTPException(status_code=404, detail="Aprobador no encontrado.")
+            email_override = aprobador.email
 
         token_str = secrets.token_urlsafe(48)
         expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=72)
@@ -175,7 +264,7 @@ class GastosService:
         await self.db.commit()
 
         paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
-        await email_service.enviar_solicitud_aprobacion(paquete_actualizado, token_str)
+        await email_service.enviar_solicitud_aprobacion(paquete_actualizado, token_str, email_override=email_override)
         logger.info(f"Correo de aprobación reenviado para paquete {paquete_id} por usuario {user_id}")
         return {"message": "Correo de aprobación reenviado correctamente."}
 
@@ -291,6 +380,20 @@ class GastosService:
         ))
         await self.db.commit()
         paquete_pagado = await self.paquete_repo.get_by_id(paquete_id)
+
+        # Si el paquete pertenece a un anticipo, verificar si todos sus paquetes
+        # quedaron pagados para cerrar el anticipo automáticamente.
+        if paquete_pagado.anticipo_id:
+            anticipo = await self.db.get(Anticipo, paquete_pagado.anticipo_id)
+            if anticipo and anticipo.estado == "activo":
+                todos_pagados = all(p.estado == "pagado" for p in anticipo.paquetes)
+                if todos_pagados:
+                    anticipo.estado = "cerrado"
+                    await self.db.commit()
+                    logger.info(
+                        f"Anticipo {anticipo.folio} cerrado automáticamente al quedar todos sus paquetes pagados."
+                    )
+
         await email_service.enviar_notificacion_pago_tecnico(paquete_pagado, paquete_pagado.tecnico.email)
         return self._to_out(paquete_pagado)
 
@@ -315,11 +418,35 @@ class GastosService:
     # Gastos
     # ------------------------------------------------------------------
 
+    async def _check_no_recibo_duplicado(
+        self,
+        paquete_id: UUID,
+        no_recibo: Optional[str],
+        exclude_gasto_id: Optional[UUID] = None,
+    ) -> None:
+        """Lanza 409 si ya existe un gasto con el mismo no_recibo en el paquete."""
+        if not no_recibo or not no_recibo.strip():
+            return
+        q = select(GastoLegalizacion).where(
+            GastoLegalizacion.paquete_id == paquete_id,
+            GastoLegalizacion.no_recibo.ilike(no_recibo.strip()),
+        )
+        if exclude_gasto_id:
+            q = q.where(GastoLegalizacion.id != exclude_gasto_id)
+        result = await self.db.execute(q)
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"El N° de factura/recibo '{no_recibo.strip()}' ya existe en este paquete.",
+            )
+
     async def agregar_gasto(
         self, paquete_id: UUID, user_id: UUID, data: GastoCreate
     ) -> GastoCreateResponse:
         paquete = await self._get_paquete_or_404(paquete_id)
         self._check_editable(paquete, user_id)
+
+        await self._check_no_recibo_duplicado(paquete_id, data.no_recibo)
 
         gasto = GastoLegalizacion(
             paquete_id=paquete_id,
@@ -365,6 +492,9 @@ class GastosService:
         paquete = await self._get_paquete_or_404(paquete_id)
         self._check_editable(paquete, user_id, user_role=user_role)
         gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
+
+        if data.no_recibo is not None:
+            await self._check_no_recibo_duplicado(paquete_id, data.no_recibo, exclude_gasto_id=gasto_id)
 
         for field, value in data.model_dump(exclude_none=True).items():
             setattr(gasto, field, value)
@@ -744,10 +874,26 @@ class GastosService:
             ))
             await self.db.commit()
 
-            # Notificar a Facturación y al técnico
+            # Notificar al propietario del paquete
             paquete_final = await self.paquete_repo.get_by_id(paquete.id)
-            await email_service.enviar_notificacion_aprobado(paquete_final, settings.email_responsable)
             await email_service.enviar_notificacion_paquete_aprobado_tecnico(paquete_final, paquete_final.tecnico.email)
+
+            # Notificar al equipo que procesa el siguiente paso según flujo
+            if paquete_final.tipo_flujo == "general":
+                # Para flujo general notificar a todos los usuarios de Facturación
+                try:
+                    result = await self.db.execute(
+                        select(User).join(Rol, User.role_id == Rol.id)
+                        .where(Rol.code.in_(["fact"]))
+                        .where(User.is_active == True)
+                    )
+                    fact_users = result.scalars().all()
+                    for u in fact_users:
+                        await email_service.enviar_notificacion_aprobado(paquete_final, u.email)
+                except Exception as e:
+                    logger.error(f"Error enviando notificaciones fact para paquete {paquete.id}: {e}")
+            else:
+                await email_service.enviar_notificacion_aprobado(paquete_final, settings.email_responsable)
 
             return self._to_out(paquete_final)
         except HTTPException:

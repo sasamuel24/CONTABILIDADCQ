@@ -1912,12 +1912,13 @@ Responde ÚNICAMENTE con JSON válido:
         factura_id: UUID,
         aprobador_id: UUID,
         comentario: Optional[str] = None,
+        solicitante_id: Optional[UUID] = None,
     ) -> dict:
         """Genera un token de aprobación y envía el correo al gerente seleccionado."""
         import secrets
         from datetime import timezone, timedelta
         from sqlalchemy import select
-        from db.models import Factura, AprobadorGerencia, TokenAprobacionFactura, File
+        from db.models import Factura, AprobadorGerencia, TokenAprobacionFactura, File, User
         from core.email_service import email_service
         from core.config import settings
 
@@ -1952,6 +1953,16 @@ Responde ÚNICAMENTE con JSON válido:
         self.db.add(token_obj)
         factura.fecha_envio_gerencia = datetime.now(tz=timezone.utc)
         await self.db.commit()
+
+        # Nombre de quien está solicitando la aprobación
+        solicitante_nombre = None
+        if solicitante_id:
+            result_user = await self.db.execute(
+                select(User).where(User.id == solicitante_id)
+            )
+            user_obj = result_user.scalar_one_or_none()
+            if user_obj:
+                solicitante_nombre = user_obj.nombre
 
         # Intentar obtener el PDF de la factura para adjuntarlo
         pdf_bytes = None
@@ -2007,6 +2018,7 @@ Responde ÚNICAMENTE con JSON válido:
             comentario=comentario,
             pdf_bytes=pdf_bytes,
             pdf_filename=pdf_filename,
+            solicitante_nombre=solicitante_nombre,
         )
 
         logger.info(

@@ -64,7 +64,9 @@ class EmailService:
             resp = await client.post(url, json=payload, headers=headers)
             resp.raise_for_status()
 
-    async def enviar_solicitud_aprobacion(self, paquete, token_str: str) -> None:
+    async def enviar_solicitud_aprobacion(
+        self, paquete, token_str: str, email_override: Optional[str] = None
+    ) -> None:
         """
         Envía correo de solicitud de aprobación al aprobador.
         paquete: instancia de PaqueteGasto con gastos cargados.
@@ -140,9 +142,10 @@ class EmailService:
             </body></html>
             """
 
-            subject = f"Solicitud de Aprobación - Paquete {folio} - Técnico {nombre_tecnico}"
-            await self._send_mail(subject, body_html, settings.email_approver)
-            logger.info(f"Email de solicitud de aprobación enviado para paquete {folio}")
+            subject = f"Solicitud de Aprobación - Paquete {folio} - {nombre_tecnico}"
+            destinatario = email_override if email_override else settings.email_approver
+            await self._send_mail(subject, body_html, destinatario)
+            logger.info(f"Email de solicitud de aprobación enviado para paquete {folio} → {destinatario}")
         except Exception as e:
             logger.error(f"Error al enviar email de solicitud de aprobación: {e}")
             # No propagamos el error para no bloquear el workflow principal
@@ -664,6 +667,7 @@ class EmailService:
         comentario: Optional[str] = None,
         pdf_bytes: Optional[bytes] = None,
         pdf_filename: Optional[str] = None,
+        solicitante_nombre: Optional[str] = None,
     ) -> None:
         """Envía correo de solicitud de aprobación de factura al gerente seleccionado."""
         try:
@@ -679,6 +683,15 @@ class EmailService:
                 if getattr(factura, "fecha_vencimiento", None) else "—"
             )
             aprobacion_url = f"{settings.frontend_url}/aprobar-factura?token={token_str}"
+
+            # Bloque del solicitante (quien envió la solicitud)
+            solicitante_html = ""
+            if solicitante_nombre:
+                solicitante_html = f"""
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold;width:180px">Solicitado por:</td>
+                  <td style="padding:8px 14px">{solicitante_nombre}</td>
+                </tr>"""
 
             # Bloque de comentario de trazabilidad (solo si se proporcionó)
             comentario_html = ""
@@ -731,6 +744,7 @@ class EmailService:
                     ${total:,.2f} COP
                   </td>
                 </tr>
+                {solicitante_html}
               </table>
 
               {comentario_html}

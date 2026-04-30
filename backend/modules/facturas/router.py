@@ -1315,13 +1315,17 @@ async def enviar_correo_aprobacion(
     factura_id: UUID,
     data: EnviarCorreoAprobacionIn,
     service: FacturaService = Depends(get_factura_service),
-    _: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Genera un token de aprobación (válido 72 h) y envía un correo HTML al gerente
     seleccionado con un botón para aprobar la factura sin necesidad de login.
     """
-    return await service.enviar_correo_aprobacion(factura_id, data.aprobador_id, data.comentario)
+    from uuid import UUID as _UUID
+    solicitante_id = _UUID(current_user["user_id"])
+    return await service.enviar_correo_aprobacion(
+        factura_id, data.aprobador_id, data.comentario, solicitante_id
+    )
 
 
 

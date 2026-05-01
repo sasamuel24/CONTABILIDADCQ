@@ -138,8 +138,8 @@ export function AprobadoresGerenciaAdmin() {
           <p className="text-sm">No hay aprobadores configurados. Agrega el primero.</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+          <table className="w-full min-w-[700px] text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Nombre</th>
@@ -154,7 +154,9 @@ export function AprobadoresGerenciaAdmin() {
                 <tr key={a.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-900">{a.nombre}</td>
                   <td className="px-4 py-3 text-gray-600">{a.cargo}</td>
-                  <td className="px-4 py-3 text-gray-600 font-mono text-xs">{a.email}</td>
+                  <td className="px-4 py-3 text-gray-600 font-mono text-xs max-w-[220px]">
+                    <span className="block truncate" title={a.email}>{a.email}</span>
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <span
                       className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"

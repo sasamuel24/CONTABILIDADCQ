@@ -29,6 +29,13 @@ class FacturaCreate(BaseModel):
     numero_factura: str = Field(..., description="Número de factura")
     fecha_emision: Optional[date] = Field(None, description="Fecha de emisión")
     fecha_vencimiento: Optional[date] = Field(None, description="Fecha de vencimiento")
+
+    @field_validator('fecha_emision', 'fecha_vencimiento', mode='before')
+    @classmethod
+    def empty_string_to_none(cls, v):
+        if v == "" or v == "0001-01-01":
+            return None
+        return v
     total: float = Field(..., gt=0, description="Monto total de la factura")
     area_id: UUID = Field(
         default=UUID("498e9fdb-25f5-42f9-beb8-92564ab6bdf4"),

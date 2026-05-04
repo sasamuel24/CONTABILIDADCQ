@@ -57,6 +57,33 @@ class PaqueteRepository:
         result = await self.db.execute(q)
         return list(result.scalars().all()), total
 
+    async def list_by_user_con_anticipo(
+        self, user_id: UUID, skip: int = 0, limit: int = 200
+    ) -> Tuple[List[PaqueteGasto], int]:
+        """Devuelve solo los paquetes del usuario que tienen anticipo asignado."""
+        count_q = select(func.count(PaqueteGasto.id)).where(
+            PaqueteGasto.user_id == user_id,
+            PaqueteGasto.anticipo_id.isnot(None),
+        )
+        total = (await self.db.execute(count_q)).scalar()
+
+        q = (
+            select(PaqueteGasto)
+            .options(
+                selectinload(PaqueteGasto.tecnico),
+                selectinload(PaqueteGasto.area),
+                selectinload(PaqueteGasto.comentarios).selectinload(ComentarioPaquete.user),
+            )
+            .where(
+                PaqueteGasto.user_id == user_id,
+                PaqueteGasto.anticipo_id.isnot(None),
+            )
+            .order_by(PaqueteGasto.created_at.desc())
+            .offset(skip).limit(limit)
+        )
+        result = await self.db.execute(q)
+        return list(result.scalars().all()), total
+
     async def list_all(
         self, skip: int = 0, limit: int = 100,
         estado: Optional[str] = None

@@ -23,6 +23,22 @@ class AreaBrief(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class AprobadorBrief(BaseModel):
+    id: UUID
+    nombre: str
+    cargo: str
+    email: str
+    model_config = {"from_attributes": True}
+
+
+class AnticipoBrief(BaseModel):
+    id: UUID
+    folio: str
+    monto: Decimal
+    descripcion: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
 class CentroCostoBrief(BaseModel):
     id: UUID
     nombre: str
@@ -163,6 +179,10 @@ class PaqueteCreate(BaseModel):
                         description="Semana ISO, ej: 2026-W09")
 
 
+class PaqueteEnviarRequest(BaseModel):
+    aprobador_id: Optional[UUID] = None
+
+
 class PaqueteDevolver(BaseModel):
     motivo: str = Field(..., min_length=5, max_length=2000)
 
@@ -174,6 +194,7 @@ class PaqueteOut(BaseModel):
     fecha_inicio: date
     fecha_fin: date
     estado: str
+    tipo_flujo: str = "mantenimiento"
     monto_total: Decimal
     monto_a_pagar: Optional[Decimal] = None
     total_documentos: int
@@ -184,6 +205,8 @@ class PaqueteOut(BaseModel):
     tecnico: UserBrief
     area: AreaBrief
     revisado_por: Optional[UserBrief]
+    aprobador: Optional[AprobadorBrief] = None
+    anticipo: Optional[AnticipoBrief] = None
     gastos: List[GastoOut] = []
     comentarios: List[ComentarioPaqueteOut] = []
     historial_estados: List[HistorialEstadoOut] = []
@@ -203,6 +226,7 @@ class PaqueteListItem(BaseModel):
     fecha_inicio: date
     fecha_fin: date
     estado: str
+    tipo_flujo: str = "mantenimiento"
     monto_total: Decimal
     monto_a_pagar: Optional[Decimal] = None
     total_documentos: int
@@ -211,6 +235,8 @@ class PaqueteListItem(BaseModel):
     comentario_devolucion: Optional[str] = None
     tiene_gastos_devueltos: bool = False
     tecnico: Optional[UserBrief] = None
+    aprobador: Optional[AprobadorBrief] = None
+    anticipo: Optional[AnticipoBrief] = None
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}

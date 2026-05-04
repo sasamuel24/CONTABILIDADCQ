@@ -32,6 +32,7 @@ from modules.distribucion_ccco.router import router as distribucion_ccco_router
 from modules.comentarios.router import router as comentarios_router
 from modules.gastos.router import router as gastos_router
 from modules.aprobadores_gerencia.router import router as aprobadores_gerencia_router
+from modules.anticipos.router import router as anticipos_router
 
 # Configuración central.
 # Aquí deshabilitas los docs por defecto para crear tus endpoints personalizados.
@@ -82,6 +83,7 @@ app.include_router(distribucion_ccco_router, prefix="/api/v1")
 app.include_router(comentarios_router, prefix="/api/v1")
 app.include_router(gastos_router, prefix="/api/v1")
 app.include_router(aprobadores_gerencia_router, prefix="/api/v1")
+app.include_router(anticipos_router, prefix="/api/v1")
 
 
 # Endpoints personalizados para documentación con CORS habilitado
@@ -156,22 +158,6 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 async def startup_event():
     """Evento ejecutado al iniciar la aplicación."""
     logger.info(f"Iniciando {settings.app_name} v{settings.app_version}")
-    import asyncio
-    from concurrent.futures import ThreadPoolExecutor
-
-    def run_migrations():
-        from alembic.config import Config
-        from alembic import command
-        alembic_cfg = Config("alembic.ini")
-        command.upgrade(alembic_cfg, "head")
-
-    try:
-        loop = asyncio.get_event_loop()
-        with ThreadPoolExecutor() as pool:
-            await loop.run_in_executor(pool, run_migrations)
-        logger.info("Migraciones de base de datos aplicadas correctamente.")
-    except Exception as e:
-        logger.error(f"Error al aplicar migraciones: {e}")
 
 
 @app.on_event("shutdown")

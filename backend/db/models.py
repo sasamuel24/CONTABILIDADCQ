@@ -1095,11 +1095,34 @@ class PaqueteGasto(Base, TimestampMixin):
         String(255), nullable=True
     )
 
+    # Flujo universal de legalización
+    tipo_flujo: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="mantenimiento", server_default="mantenimiento"
+    )
+    aprobador_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("aprobadores_gerencia.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+    anticipo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("anticipos.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
+
     # Relaciones
     tecnico: Mapped["User"] = relationship("User", foreign_keys=[user_id], lazy="selectin")
     area: Mapped["Area"] = relationship("Area", lazy="selectin")
     revisado_por: Mapped[Optional["User"]] = relationship(
         "User", foreign_keys=[revisado_por_user_id], lazy="selectin"
+    )
+    aprobador: Mapped[Optional["AprobadorGerencia"]] = relationship(
+        "AprobadorGerencia", foreign_keys=[aprobador_id], lazy="selectin"
+    )
+    anticipo: Mapped[Optional["Anticipo"]] = relationship(
+        "Anticipo", back_populates="paquetes", foreign_keys=[anticipo_id], lazy="selectin"
     )
     gastos: Mapped[List["GastoLegalizacion"]] = relationship(
         "GastoLegalizacion", back_populates="paquete",
@@ -1126,6 +1149,10 @@ class PaqueteGasto(Base, TimestampMixin):
         CheckConstraint(
             "estado IN ('borrador','en_revision','devuelto','aprobado','en_tesoreria','pagado')",
             name="check_estado_paquete_valid"
+        ),
+        CheckConstraint(
+            "tipo_flujo IN ('mantenimiento','general')",
+            name="check_tipo_flujo_valid"
         ),
     )
 
@@ -1362,6 +1389,38 @@ class TokenAprobacionPaquete(Base, TimestampMixin):
 
     def __repr__(self):
         return f"<TokenAprobacionPaquete(paquete={self.paquete_id}, usado={self.usado})>"
+
+
+class Anticipo(Base, TimestampMixin):
+    """Anticipo de tesorería asignado a un empleado para legalización posterior."""
+    __tablename__ = "anticipos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    folio: Mapped[str] = mapped_column(String(30), nullable=False, unique=True, index=True)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    assigned_to_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    monto: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, default="activo", index=True)
+
+    # Relaciones
+    creado_por: Mapped["User"] = relationship("User", foreign_keys=[created_by_user_id], lazy="selectin")
+    asignado_a: Mapped["User"] = relationship("User", foreign_keys=[assigned_to_user_id], lazy="selectin")
+    paquetes: Mapped[List["PaqueteGasto"]] = relationship(
+        "PaqueteGasto", back_populates="anticipo", lazy="selectin"
+    )
+
+    __table_args__ = (
+        CheckConstraint("monto > 0", name="check_anticipo_monto_positivo"),
+        CheckConstraint("estado IN ('activo', 'cerrado')", name="check_estado_anticipo_valid"),
+    )
+
+    def __repr__(self):
+        return f"<Anticipo(folio={self.folio}, estado={self.estado})>"
 
 
 class AprobadorGerencia(Base, TimestampMixin):

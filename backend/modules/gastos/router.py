@@ -12,7 +12,7 @@ from core.auth import get_current_user
 from db.models import User
 from modules.gastos.service import GastosService
 from modules.gastos.schemas import (
-    PaqueteCreate, PaqueteOut, PaqueteListResponse,
+    PaqueteCreate, PaqueteOut, PaqueteListResponse, PaqueteEnviarRequest,
     GastoCreate, GastoUpdate, GastoOut, GastoCreateResponse,
     ArchivoGastoOut, PaqueteDevolver, GastoDevolverRequest,
     PagarPaqueteIn, PagarMasivoIn, PagarMasivoOut,
@@ -58,16 +58,21 @@ async def list_paquetes(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     estado: Optional[str] = Query(None),
+    solo_mis_anticipos: bool = Query(False, description="Solo paquetes con anticipo del usuario actual"),
     svc: GastosService = Depends(_svc),
     user: User = Depends(_get_user_db),
 ):
     """
     - **Técnico**: devuelve solo sus propios paquetes.
     - **Admin / Contabilidad / Tesorería / Gerencia**: devuelve todos.
+    - **solo_mis_anticipos=true**: fuerza filtrar solo los propios con anticipo (sin importar el rol).
     """
     role = user.role.code.lower() if user.role else ""
     area = user.area.code.lower() if user.area else ""
-    if role in ROLES_ADMIN or area in ROLES_ADMIN:
+
+    if solo_mis_anticipos:
+        paquetes, total = await svc.list_paquetes_mis_anticipos(user.id, skip, limit)
+    elif role in ROLES_ADMIN or area in ROLES_ADMIN:
         paquetes, total = await svc.list_paquetes_admin(skip, limit, estado)
     else:
         paquetes, total = await svc.list_paquetes_tecnico(user.id, skip, limit)
@@ -87,7 +92,8 @@ async def crear_paquete(
 ):
     if not user.area_id:
         raise HTTPException(status_code=400, detail="El usuario no tiene un área asignada.")
-    return await svc.crear_paquete(user.id, user.area_id, data)
+    area_code = user.area.code.lower() if user.area else ""
+    return await svc.crear_paquete(user.id, user.area_id, data, area_code=area_code)
 
 
 @router.get(
@@ -131,14 +137,16 @@ async def get_paquete(
 @router.post(
     "/gastos/paquetes/{paquete_id}/enviar",
     response_model=PaqueteOut,
-    summary="Enviar paquete para revisión",
+    summary="Enviar paquete para revisión / aprobación",
 )
 async def enviar_paquete(
     paquete_id: UUID,
+    body: Optional[PaqueteEnviarRequest] = None,
     svc: GastosService = Depends(_svc),
     user: User = Depends(_get_user_db),
 ):
-    return await svc.enviar(paquete_id, user.id)
+    aprobador_id = body.aprobador_id if body else None
+    return await svc.enviar(paquete_id, user.id, aprobador_id=aprobador_id)
 
 
 @router.post(

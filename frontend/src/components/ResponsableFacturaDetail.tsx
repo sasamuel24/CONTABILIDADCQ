@@ -1193,16 +1193,6 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   };
 
   const handleEnviarTesoreria = () => {
-    if (soporteGastoFijoFiles.length === 0) {
-      setConfirmModalConfig({
-        title: 'Soporte requerido',
-        message: 'Debes adjuntar el Soporte de Gasto Fijo antes de enviar a Tesorería.',
-        type: 'warning',
-      });
-      setShowConfirmModal(true);
-      return;
-    }
-    // Abrir modal de carpeta antes de enviar (igual que Contabilidad)
     setShowCarpetaTesoreriaModal(true);
   };
 

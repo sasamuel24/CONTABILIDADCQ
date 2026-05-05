@@ -238,20 +238,35 @@ class FileService:
                 
                 try:
                     s3_files = s3_service.list_files_in_prefix(s3_prefix)
-                    
-                    # Convertir archivos de S3 a FileResponse
+
+                    if not s3_files:
+                        return []
+
+                    # Ordenar por fecha de subida y quedarse solo con el primero.
+                    # El PDF correcto siempre es el subido inmediatamente después de crear
+                    # la factura; los archivos ajenos llegan minutos u horas más tarde
+                    # cuando N8N reutiliza un factura_id incorrecto.
+                    s3_files.sort(key=lambda f: f['last_modified'])
+                    earliest = s3_files[0]
+
+                    if len(s3_files) > 1:
+                        logger.warning(
+                            f"S3 prefix {s3_prefix} tiene {len(s3_files)} archivos; "
+                            f"usando solo el más antiguo: {earliest['filename']}"
+                        )
+
                     return [FileResponse(
-                        id=UUID('00000000-0000-0000-0000-000000000000'),  # ID temporal
+                        id=UUID('00000000-0000-0000-0000-000000000000'),
                         factura_id=factura_id,
                         doc_type='FACTURA_PDF',
                         storage_provider='s3',
-                        storage_path=f['key'],
-                        filename=f['filename'],
+                        storage_path=earliest['key'],
+                        filename=earliest['filename'],
                         content_type='application/pdf',
-                        size_bytes=f['size_bytes'],
-                        uploaded_at=f['last_modified'],
-                        download_url=f['download_url']
-                    ) for f in s3_files]
+                        size_bytes=earliest['size_bytes'],
+                        uploaded_at=earliest['last_modified'],
+                        download_url=earliest['download_url']
+                    )]
                 except Exception as e:
                     logger.error(f"Error listando archivos desde S3: {e}")
         

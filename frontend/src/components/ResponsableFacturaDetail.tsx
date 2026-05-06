@@ -412,8 +412,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       
       // Mostrar modal de éxito
       const mensaje = nuevoValor 
-        ? 'Marcado como gasto administrativo. OC y Aprobación ya no son obligatorios.' 
-        : 'Desmarcado como gasto administrativo. OC y Aprobación son obligatorios.';
+        ? 'Marcado como gasto administrativo. Aprobación de Gerencia ya no es obligatoria.'
+        : 'Desmarcado como gasto administrativo. Aprobación de Gerencia es obligatoria.';
       
       const modalDiv = document.createElement('div');
       modalDiv.innerHTML = `
@@ -1018,11 +1018,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const validarFormulario = (): { valido: boolean; errores: Record<string, string> } => {
     const nuevosErrores: Record<string, string> = {};
 
-    // Validar OC y APROBACIÓN solo si NO es gasto administrativo y NO requiere inventario
+    // Validar APROBACIÓN solo si NO es gasto administrativo y NO requiere inventario
     if (!esGastoAdm && !requiereInventario) {
-      if (archivosOCExistentes.length === 0) {
-        nuevosErrores.oc = 'Debe subir al menos una OC/OS (o marque como gasto administrativo)';
-      }
       if (!facturaAprobadaEmail && !factura.fecha_aprobacion_email) {
         nuevosErrores.aprobacion = 'La factura debe ser aprobada por un gerente antes de enviar a Tesorería';
       }
@@ -1104,8 +1101,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     if (!valido) {
       // Crear mensaje más descriptivo
       const mensajesError = [];
-      if (!esGastoAdm && (nuevosErrores.oc || nuevosErrores.aprobacion)) {
-        mensajesError.push('• OC y Aprobación');
+      if (!esGastoAdm && nuevosErrores.aprobacion) {
+        mensajesError.push('• Aprobación de Gerencia');
       }
       if (nuevosErrores.distribucion) {
         mensajesError.push(`• Distribución CC/CO: ${nuevosErrores.distribucion}`);
@@ -1487,7 +1484,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                     <div>
                       <span className="text-sm font-semibold text-gray-900">¿Es gasto administrativo?</span>
                       <p className="text-xs text-gray-600 mt-1">
-                        Si está activo, OC y Aprobación no serán obligatorios para enviar a Contabilidad.
+                        Si está activo, la Aprobación de Gerencia no será obligatoria para enviar a Contabilidad.
                       </p>
                     </div>
                   </label>
@@ -1504,8 +1501,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
             {!requiereInventario && <div>
               <h4 className="text-gray-900 font-semibold mb-3">
                 OC / OS
-                {!esGastoAdm && <span className="text-red-600 ml-1">*</span>}
-                {esGastoAdm && <span className="text-xs text-gray-500 ml-2">(Opcional)</span>}
+                <span className="text-xs text-gray-500 ml-2">(Opcional)</span>
               </h4>
               
               {loadingArchivos ? (
@@ -1612,12 +1608,6 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   
                   {archivosOCExistentes.length === 0 && !archivoOC && (
                     <p className="text-xs text-gray-500 mt-2">No hay archivos cargados</p>
-                  )}
-                  {errores.oc && (
-                    <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" />
-                      {errores.oc}
-                    </p>
                   )}
                 </div>
               )}

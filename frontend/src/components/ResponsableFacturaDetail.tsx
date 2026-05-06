@@ -133,15 +133,15 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [soporteGastoFijoFiles, setSoporteGastoFijoFiles] = useState<FileMiniOut[]>([]);
   const [uploadingSoporteGastoFijo, setUploadingSoporteGastoFijo] = useState(false);
 
-  // Campos de Tienda
-  const [oct, setOct] = useState('');
-  const [ect, setEct] = useState('');
-  const [fpcTienda, setFpcTienda] = useState('');
+  // Campos de Tienda (multi-valor)
+  const [octList, setOctList] = useState<string[]>(['']);
+  const [ectList, setEctList] = useState<string[]>(['']);
+  const [fpcTiendaList, setFpcTiendaList] = useState<string[]>(['']);
 
-  // Campos de Almacén
-  const [occ, setOcc] = useState('');
-  const [edo, setEdo] = useState('');
-  const [fpcAlmacen, setFpcAlmacen] = useState('');
+  // Campos de Almacén (multi-valor)
+  const [occList, setOccList] = useState<string[]>(['']);
+  const [edoList, setEdoList] = useState<string[]>(['']);
+  const [fpcAlmacenList, setFpcAlmacenList] = useState<string[]>(['']);
 
   // Novedad
   const [tieneNovedad, setTieneNovedad] = useState(false);
@@ -304,21 +304,19 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
           
           // Cargar códigos según el tipo
           if (factura.destino_inventarios === 'TIENDA') {
-            const octCodigo = factura.inventarios_codigos.find(c => c.codigo === 'OCT');
-            const ectCodigo = factura.inventarios_codigos.find(c => c.codigo === 'ECT');
-            const fpcCodigo = factura.inventarios_codigos.find(c => c.codigo === 'FPC');
-            
-            if (octCodigo) setOct(octCodigo.valor);
-            if (ectCodigo) setEct(ectCodigo.valor);
-            if (fpcCodigo) setFpcTienda(fpcCodigo.valor);
+            const octVals = factura.inventarios_codigos.filter(c => c.codigo === 'OCT').map(c => c.valor);
+            const ectVals = factura.inventarios_codigos.filter(c => c.codigo === 'ECT').map(c => c.valor);
+            const fpcVals = factura.inventarios_codigos.filter(c => c.codigo === 'FPC').map(c => c.valor);
+            setOctList(octVals.length > 0 ? octVals : ['']);
+            setEctList(ectVals.length > 0 ? ectVals : ['']);
+            setFpcTiendaList(fpcVals.length > 0 ? fpcVals : ['']);
           } else if (factura.destino_inventarios === 'ALMACEN') {
-            const occCodigo = factura.inventarios_codigos.find(c => c.codigo === 'OCC');
-            const edoCodigo = factura.inventarios_codigos.find(c => c.codigo === 'EDO');
-            const fpcCodigo = factura.inventarios_codigos.find(c => c.codigo === 'FPC');
-            
-            if (occCodigo) setOcc(occCodigo.valor);
-            if (edoCodigo) setEdo(edoCodigo.valor);
-            if (fpcCodigo) setFpcAlmacen(fpcCodigo.valor);
+            const occVals = factura.inventarios_codigos.filter(c => c.codigo === 'OCC').map(c => c.valor);
+            const edoVals = factura.inventarios_codigos.filter(c => c.codigo === 'EDO').map(c => c.valor);
+            const fpcVals = factura.inventarios_codigos.filter(c => c.codigo === 'FPC').map(c => c.valor);
+            setOccList(occVals.length > 0 ? occVals : ['']);
+            setEdoList(edoVals.length > 0 ? edoVals : ['']);
+            setFpcAlmacenList(fpcVals.length > 0 ? fpcVals : ['']);
           }
         }
       } catch (error) {
@@ -500,17 +498,17 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       setSavingNovedad(true);
       
       // Construir payload con los datos actuales de inventarios
-      const codigos = tipoIngreso === 'tienda' 
+      const codigos = tipoIngreso === 'tienda'
         ? [
-            { codigo: 'OCT', valor: oct || '' },
-            { codigo: 'ECT', valor: ect || '' },
-            { codigo: 'FPC', valor: fpcTienda || '' }
-          ].filter(c => c.valor) // Solo enviar los que tienen valor
+            ...octList.filter(v => v.trim()).map(v => ({ codigo: 'OCT', valor: v })),
+            ...ectList.filter(v => v.trim()).map(v => ({ codigo: 'ECT', valor: v })),
+            ...fpcTiendaList.filter(v => v.trim()).map(v => ({ codigo: 'FPC', valor: v })),
+          ]
         : [
-            { codigo: 'OCC', valor: occ || '' },
-            { codigo: 'EDO', valor: edo || '' },
-            { codigo: 'FPC', valor: fpcAlmacen || '' }
-          ].filter(c => c.valor);
+            ...occList.filter(v => v.trim()).map(v => ({ codigo: 'OCC', valor: v })),
+            ...edoList.filter(v => v.trim()).map(v => ({ codigo: 'EDO', valor: v })),
+            ...fpcAlmacenList.filter(v => v.trim()).map(v => ({ codigo: 'FPC', valor: v })),
+          ];
 
       // Si tiene novedad, agregar el código NP
       if (tieneNovedad && numeroNotaCredito) {
@@ -615,11 +613,11 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         if (!tipoIngreso) {
           erroresValidacion.push('Debe seleccionar el tipo de ingreso (Tienda o Almacén)');
         }
-        if (tipoIngreso === 'tienda' && (!oct || !ect || !fpcTienda)) {
-          erroresValidacion.push('Debe completar todos los campos de Tienda (OCT, ECT, FPC)');
+        if (tipoIngreso === 'tienda' && (!octList.some(v => v.trim()) || !ectList.some(v => v.trim()) || !fpcTiendaList.some(v => v.trim()))) {
+          erroresValidacion.push('Debe completar al menos un valor en OCT, ECT y FPC');
         }
-        if (tipoIngreso === 'almacen' && (!occ || !edo || !fpcAlmacen)) {
-          erroresValidacion.push('Debe completar todos los campos de Almacén (OCC, EDO, FPC)');
+        if (tipoIngreso === 'almacen' && (!occList.some(v => v.trim()) || !edoList.some(v => v.trim()) || !fpcAlmacenList.some(v => v.trim()))) {
+          erroresValidacion.push('Debe completar al menos un valor en OCC, EDO y FPC');
         }
       }
 
@@ -652,15 +650,15 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       if (requiereInventario) {
         if (tipoIngreso === 'tienda') {
           codigosInventario.push(
-            { codigo: 'OCT', valor: oct },
-            { codigo: 'ECT', valor: ect },
-            { codigo: 'FPC', valor: fpcTienda }
+            ...octList.filter(v => v.trim()).map(v => ({ codigo: 'OCT', valor: v })),
+            ...ectList.filter(v => v.trim()).map(v => ({ codigo: 'ECT', valor: v })),
+            ...fpcTiendaList.filter(v => v.trim()).map(v => ({ codigo: 'FPC', valor: v }))
           );
         } else if (tipoIngreso === 'almacen') {
           codigosInventario.push(
-            { codigo: 'OCC', valor: occ },
-            { codigo: 'EDO', valor: edo },
-            { codigo: 'FPC', valor: fpcAlmacen }
+            ...occList.filter(v => v.trim()).map(v => ({ codigo: 'OCC', valor: v })),
+            ...edoList.filter(v => v.trim()).map(v => ({ codigo: 'EDO', valor: v })),
+            ...fpcAlmacenList.filter(v => v.trim()).map(v => ({ codigo: 'FPC', valor: v }))
           );
         }
       }
@@ -736,30 +734,30 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
     // Validar campos según el tipo
     if (tipoIngreso === 'tienda') {
-      if (!oct || !ect || !fpcTienda) {
-        alert('❌ Debe completar todos los campos de Tienda (OCT, ECT, FPC)');
+      if (!octList.some(v => v.trim()) || !ectList.some(v => v.trim()) || !fpcTiendaList.some(v => v.trim())) {
+        alert('❌ Debe completar al menos un valor en OCT, ECT y FPC');
         return;
       }
     } else if (tipoIngreso === 'almacen') {
-      if (!occ || !edo || !fpcAlmacen) {
-        alert('❌ Debe completar todos los campos de Almacén (OCC, EDO, FPC)');
+      if (!occList.some(v => v.trim()) || !edoList.some(v => v.trim()) || !fpcAlmacenList.some(v => v.trim())) {
+        alert('❌ Debe completar al menos un valor en OCC, EDO y FPC');
         return;
       }
     }
 
     try {
       setSavingInventarios(true);
-      
-      const codigos = tipoIngreso === 'tienda' 
+
+      const codigos = tipoIngreso === 'tienda'
         ? [
-            { codigo: 'OCT', valor: oct },
-            { codigo: 'ECT', valor: ect },
-            { codigo: 'FPC', valor: fpcTienda }
+            ...octList.filter(v => v.trim()).map(v => ({ codigo: 'OCT', valor: v })),
+            ...ectList.filter(v => v.trim()).map(v => ({ codigo: 'ECT', valor: v })),
+            ...fpcTiendaList.filter(v => v.trim()).map(v => ({ codigo: 'FPC', valor: v })),
           ]
         : [
-            { codigo: 'OCC', valor: occ },
-            { codigo: 'EDO', valor: edo },
-            { codigo: 'FPC', valor: fpcAlmacen }
+            ...occList.filter(v => v.trim()).map(v => ({ codigo: 'OCC', valor: v })),
+            ...edoList.filter(v => v.trim()).map(v => ({ codigo: 'EDO', valor: v })),
+            ...fpcAlmacenList.filter(v => v.trim()).map(v => ({ codigo: 'FPC', valor: v })),
           ];
 
       await updateFacturaInventarios(factura.id, {
@@ -1037,21 +1035,27 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       }
 
       if (tipoIngreso === 'tienda') {
-        if (!oct) nuevosErrores.oct = 'OCT es obligatorio';
-        else if (oct.length !== 5) nuevosErrores.oct = 'OCT debe tener exactamente 5 caracteres';
-        if (!ect) nuevosErrores.ect = 'ECT es obligatorio';
-        else if (ect.length !== 5) nuevosErrores.ect = 'ECT debe tener exactamente 5 caracteres';
-        if (!fpcTienda) nuevosErrores.fpcTienda = 'FPC es obligatorio';
-        else if (fpcTienda.length !== 7) nuevosErrores.fpcTienda = 'FPC debe tener exactamente 7 caracteres';
+        const octVals = octList.filter(v => v.trim());
+        const ectVals = ectList.filter(v => v.trim());
+        const fpcVals = fpcTiendaList.filter(v => v.trim());
+        if (octVals.length === 0) nuevosErrores.oct = 'Debe ingresar al menos un OCT';
+        else if (octVals.some(v => v.length !== 5)) nuevosErrores.oct = 'Cada OCT debe tener exactamente 5 caracteres';
+        if (ectVals.length === 0) nuevosErrores.ect = 'Debe ingresar al menos un ECT';
+        else if (ectVals.some(v => v.length !== 5)) nuevosErrores.ect = 'Cada ECT debe tener exactamente 5 caracteres';
+        if (fpcVals.length === 0) nuevosErrores.fpcTienda = 'Debe ingresar al menos un FPC';
+        else if (fpcVals.some(v => v.length !== 7)) nuevosErrores.fpcTienda = 'Cada FPC debe tener exactamente 7 caracteres';
       }
 
       if (tipoIngreso === 'almacen') {
-        if (!occ) nuevosErrores.occ = 'OCC es obligatorio';
-        else if (occ.length !== 5) nuevosErrores.occ = 'OCC debe tener exactamente 5 caracteres';
-        if (!edo) nuevosErrores.edo = 'EDO es obligatorio';
-        else if (edo.length !== 5) nuevosErrores.edo = 'EDO debe tener exactamente 5 caracteres';
-        if (!fpcAlmacen) nuevosErrores.fpcAlmacen = 'FPC es obligatorio';
-        else if (fpcAlmacen.length !== 7) nuevosErrores.fpcAlmacen = 'FPC debe tener exactamente 7 caracteres';
+        const occVals = occList.filter(v => v.trim());
+        const edoVals = edoList.filter(v => v.trim());
+        const fpcVals = fpcAlmacenList.filter(v => v.trim());
+        if (occVals.length === 0) nuevosErrores.occ = 'Debe ingresar al menos un OCC';
+        else if (occVals.some(v => v.length !== 5)) nuevosErrores.occ = 'Cada OCC debe tener exactamente 5 caracteres';
+        if (edoVals.length === 0) nuevosErrores.edo = 'EDO es obligatorio';
+        else if (edoVals.some(v => v.length !== 5)) nuevosErrores.edo = 'Cada EDO debe tener exactamente 5 caracteres';
+        if (fpcVals.length === 0) nuevosErrores.fpcAlmacen = 'Debe ingresar al menos un FPC';
+        else if (fpcVals.some(v => v.length !== 7)) nuevosErrores.fpcAlmacen = 'Cada FPC debe tener exactamente 7 caracteres';
       }
     }
 
@@ -1865,124 +1869,174 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
                   {/* Campos para TIENDA */}
                   {tipoIngreso === 'tienda' && (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            OCT <span className="text-red-600">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={oct}
-                            onChange={(e) => setOct(e.target.value)}
-                            maxLength={5}
-                            className={`w-full px-3 py-2 border rounded-lg ${
-                              mostrarValidacion && errores.oct ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                            placeholder="OCT"
-                          />
-                          {mostrarValidacion && errores.oct && (
-                            <p className="text-red-600 text-xs mt-1">{errores.oct}</p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            ECT <span className="text-red-600">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={ect}
-                            onChange={(e) => setEct(e.target.value)}
-                            maxLength={5}
-                            className={`w-full px-3 py-2 border rounded-lg ${
-                              mostrarValidacion && errores.ect ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                            placeholder="ECT"
-                          />
-                          {mostrarValidacion && errores.ect && (
-                            <p className="text-red-600 text-xs mt-1">{errores.ect}</p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            FPC <span className="text-red-600">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={fpcTienda}
-                            onChange={(e) => setFpcTienda(e.target.value)}
-                            maxLength={7}
-                            className={`w-full px-3 py-2 border rounded-lg ${
-                              mostrarValidacion && errores.fpcTienda ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                            placeholder="FPC"
-                          />
-                          {mostrarValidacion && errores.fpcTienda && (
-                            <p className="text-red-600 text-xs mt-1">{errores.fpcTienda}</p>
-                          )}
-                        </div>
+                    <div className="space-y-4">
+                      {/* OCT */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          OCT <span className="text-red-600">*</span>
+                        </label>
+                        {octList.map((val, idx) => (
+                          <div key={idx} className="flex items-center gap-2 mb-1">
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={(e) => { const n = [...octList]; n[idx] = e.target.value; setOctList(n); }}
+                              maxLength={5}
+                              className={`flex-1 px-3 py-2 border rounded-lg text-sm ${mostrarValidacion && errores.oct ? 'border-red-500' : 'border-gray-300'}`}
+                              placeholder="OCT"
+                            />
+                            {octList.length > 1 && (
+                              <button type="button" onClick={() => setOctList(octList.filter((_, i) => i !== idx))} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => setOctList([...octList, ''])} className="mt-1 text-xs font-medium px-2 py-1 rounded border border-dashed border-gray-300 text-gray-500 hover:border-[#00829a] hover:text-[#00829a] transition-colors">
+                          + Agregar OCT
+                        </button>
+                        {mostrarValidacion && errores.oct && <p className="text-red-600 text-xs mt-1">{errores.oct}</p>}
+                      </div>
+                      {/* ECT */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          ECT <span className="text-red-600">*</span>
+                        </label>
+                        {ectList.map((val, idx) => (
+                          <div key={idx} className="flex items-center gap-2 mb-1">
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={(e) => { const n = [...ectList]; n[idx] = e.target.value; setEctList(n); }}
+                              maxLength={5}
+                              className={`flex-1 px-3 py-2 border rounded-lg text-sm ${mostrarValidacion && errores.ect ? 'border-red-500' : 'border-gray-300'}`}
+                              placeholder="ECT"
+                            />
+                            {ectList.length > 1 && (
+                              <button type="button" onClick={() => setEctList(ectList.filter((_, i) => i !== idx))} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => setEctList([...ectList, ''])} className="mt-1 text-xs font-medium px-2 py-1 rounded border border-dashed border-gray-300 text-gray-500 hover:border-[#00829a] hover:text-[#00829a] transition-colors">
+                          + Agregar ECT
+                        </button>
+                        {mostrarValidacion && errores.ect && <p className="text-red-600 text-xs mt-1">{errores.ect}</p>}
+                      </div>
+                      {/* FPC Tienda */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          FPC <span className="text-red-600">*</span>
+                        </label>
+                        {fpcTiendaList.map((val, idx) => (
+                          <div key={idx} className="flex items-center gap-2 mb-1">
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={(e) => { const n = [...fpcTiendaList]; n[idx] = e.target.value; setFpcTiendaList(n); }}
+                              maxLength={7}
+                              className={`flex-1 px-3 py-2 border rounded-lg text-sm ${mostrarValidacion && errores.fpcTienda ? 'border-red-500' : 'border-gray-300'}`}
+                              placeholder="FPC"
+                            />
+                            {fpcTiendaList.length > 1 && (
+                              <button type="button" onClick={() => setFpcTiendaList(fpcTiendaList.filter((_, i) => i !== idx))} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => setFpcTiendaList([...fpcTiendaList, ''])} className="mt-1 text-xs font-medium px-2 py-1 rounded border border-dashed border-gray-300 text-gray-500 hover:border-[#00829a] hover:text-[#00829a] transition-colors">
+                          + Agregar FPC
+                        </button>
+                        {mostrarValidacion && errores.fpcTienda && <p className="text-red-600 text-xs mt-1">{errores.fpcTienda}</p>}
                       </div>
                     </div>
                   )}
 
                   {/* Campos para ALMACÉN */}
                   {tipoIngreso === 'almacen' && (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            OCC <span className="text-red-600">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={occ}
-                            onChange={(e) => setOcc(e.target.value)}
-                            maxLength={5}
-                            className={`w-full px-3 py-2 border rounded-lg ${
-                              mostrarValidacion && errores.occ ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                            placeholder="OCC"
-                          />
-                          {mostrarValidacion && errores.occ && (
-                            <p className="text-red-600 text-xs mt-1">{errores.occ}</p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            EDO <span className="text-red-600">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={edo}
-                            onChange={(e) => setEdo(e.target.value)}
-                            maxLength={5}
-                            className={`w-full px-3 py-2 border rounded-lg ${
-                              mostrarValidacion && errores.edo ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                            placeholder="EDO"
-                          />
-                          {mostrarValidacion && errores.edo && (
-                            <p className="text-red-600 text-xs mt-1">{errores.edo}</p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            FPC <span className="text-red-600">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={fpcAlmacen}
-                            onChange={(e) => setFpcAlmacen(e.target.value)}
-                            maxLength={7}
-                            className={`w-full px-3 py-2 border rounded-lg ${
-                              mostrarValidacion && errores.fpcAlmacen ? 'border-red-500' : 'border-gray-300'
-                            }`}
-                            placeholder="FPC"
-                          />
-                          {mostrarValidacion && errores.fpcAlmacen && (
-                            <p className="text-red-600 text-xs mt-1">{errores.fpcAlmacen}</p>
-                          )}
-                        </div>
+                    <div className="space-y-4">
+                      {/* OCC */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          OCC <span className="text-red-600">*</span>
+                        </label>
+                        {occList.map((val, idx) => (
+                          <div key={idx} className="flex items-center gap-2 mb-1">
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={(e) => { const n = [...occList]; n[idx] = e.target.value; setOccList(n); }}
+                              maxLength={5}
+                              className={`flex-1 px-3 py-2 border rounded-lg text-sm ${mostrarValidacion && errores.occ ? 'border-red-500' : 'border-gray-300'}`}
+                              placeholder="OCC"
+                            />
+                            {occList.length > 1 && (
+                              <button type="button" onClick={() => setOccList(occList.filter((_, i) => i !== idx))} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => setOccList([...occList, ''])} className="mt-1 text-xs font-medium px-2 py-1 rounded border border-dashed border-gray-300 text-gray-500 hover:border-[#00829a] hover:text-[#00829a] transition-colors">
+                          + Agregar OCC
+                        </button>
+                        {mostrarValidacion && errores.occ && <p className="text-red-600 text-xs mt-1">{errores.occ}</p>}
+                      </div>
+                      {/* EDO */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          EDO <span className="text-red-600">*</span>
+                        </label>
+                        {edoList.map((val, idx) => (
+                          <div key={idx} className="flex items-center gap-2 mb-1">
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={(e) => { const n = [...edoList]; n[idx] = e.target.value; setEdoList(n); }}
+                              maxLength={5}
+                              className={`flex-1 px-3 py-2 border rounded-lg text-sm ${mostrarValidacion && errores.edo ? 'border-red-500' : 'border-gray-300'}`}
+                              placeholder="EDO"
+                            />
+                            {edoList.length > 1 && (
+                              <button type="button" onClick={() => setEdoList(edoList.filter((_, i) => i !== idx))} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => setEdoList([...edoList, ''])} className="mt-1 text-xs font-medium px-2 py-1 rounded border border-dashed border-gray-300 text-gray-500 hover:border-[#00829a] hover:text-[#00829a] transition-colors">
+                          + Agregar EDO
+                        </button>
+                        {mostrarValidacion && errores.edo && <p className="text-red-600 text-xs mt-1">{errores.edo}</p>}
+                      </div>
+                      {/* FPC Almacén */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          FPC <span className="text-red-600">*</span>
+                        </label>
+                        {fpcAlmacenList.map((val, idx) => (
+                          <div key={idx} className="flex items-center gap-2 mb-1">
+                            <input
+                              type="text"
+                              value={val}
+                              onChange={(e) => { const n = [...fpcAlmacenList]; n[idx] = e.target.value; setFpcAlmacenList(n); }}
+                              maxLength={7}
+                              className={`flex-1 px-3 py-2 border rounded-lg text-sm ${mostrarValidacion && errores.fpcAlmacen ? 'border-red-500' : 'border-gray-300'}`}
+                              placeholder="FPC"
+                            />
+                            {fpcAlmacenList.length > 1 && (
+                              <button type="button" onClick={() => setFpcAlmacenList(fpcAlmacenList.filter((_, i) => i !== idx))} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded">
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => setFpcAlmacenList([...fpcAlmacenList, ''])} className="mt-1 text-xs font-medium px-2 py-1 rounded border border-dashed border-gray-300 text-gray-500 hover:border-[#00829a] hover:text-[#00829a] transition-colors">
+                          + Agregar FPC
+                        </button>
+                        {mostrarValidacion && errores.fpcAlmacen && <p className="text-red-600 text-xs mt-1">{errores.fpcAlmacen}</p>}
                       </div>
                     </div>
                   )}

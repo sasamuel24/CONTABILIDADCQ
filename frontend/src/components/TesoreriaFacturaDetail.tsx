@@ -58,12 +58,12 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
   // Estados para inventarios
   const [requiereInventario, setRequiereInventario] = useState(false);
   const [tipoIngreso, setTipoIngreso] = useState<'tienda' | 'almacen' | ''>('');
-  const [oct, setOct] = useState('');
-  const [ect, setEct] = useState('');
-  const [fpcTienda, setFpcTienda] = useState('');
-  const [occ, setOcc] = useState('');
-  const [edo, setEdo] = useState('');
-  const [fpcAlmacen, setFpcAlmacen] = useState('');
+  const [octList, setOctList] = useState<string[]>([]);
+  const [ectList, setEctList] = useState<string[]>([]);
+  const [fpcTiendaList, setFpcTiendaList] = useState<string[]>([]);
+  const [occList, setOccList] = useState<string[]>([]);
+  const [edoList, setEdoList] = useState<string[]>([]);
+  const [fpcAlmacenList, setFpcAlmacenList] = useState<string[]>([]);
 
   // Estados para novedad
   const [tieneNovedad, setTieneNovedad] = useState(false);
@@ -177,32 +177,18 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
     }
 
     // Cargar códigos de inventarios
-    factura.inventarios_codigos.forEach(codigo => {
-      switch (codigo.codigo) {
-        case 'OCT':
-          setOct(codigo.valor);
-          break;
-        case 'ECT':
-          setEct(codigo.valor);
-          break;
-        case 'FPC':
-          if (factura.destino_inventarios === 'TIENDA') {
-            setFpcTienda(codigo.valor);
-          } else {
-            setFpcAlmacen(codigo.valor);
-          }
-          break;
-        case 'OCC':
-          setOcc(codigo.valor);
-          break;
-        case 'EDO':
-          setEdo(codigo.valor);
-          break;
-        case 'NP':
-          setNumeroNotaCredito(codigo.valor);
-          break;
-      }
-    });
+    const codigos = factura.inventarios_codigos;
+    setOctList(codigos.filter(c => c.codigo === 'OCT').map(c => c.valor));
+    setEctList(codigos.filter(c => c.codigo === 'ECT').map(c => c.valor));
+    setOccList(codigos.filter(c => c.codigo === 'OCC').map(c => c.valor));
+    setEdoList(codigos.filter(c => c.codigo === 'EDO').map(c => c.valor));
+    if (factura.destino_inventarios === 'TIENDA') {
+      setFpcTiendaList(codigos.filter(c => c.codigo === 'FPC').map(c => c.valor));
+    } else {
+      setFpcAlmacenList(codigos.filter(c => c.codigo === 'FPC').map(c => c.valor));
+    }
+    const npCodigo = codigos.find(c => c.codigo === 'NP');
+    if (npCodigo) setNumeroNotaCredito(npCodigo.valor);
   }, [factura]);
 
   // Cargar datos de anticipo
@@ -865,66 +851,40 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                     </div>
 
                     {tipoIngreso === 'tienda' && (
-                      <div className="grid grid-cols-3 gap-3 pt-3 border-t border-gray-200">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">OCT</label>
-                          <input
-                            type="text"
-                            value={oct}
-                            disabled
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">ECT</label>
-                          <input
-                            type="text"
-                            value={ect}
-                            disabled
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">FPC</label>
-                          <input
-                            type="text"
-                            value={fpcTienda}
-                            disabled
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                          />
-                        </div>
+                      <div className="space-y-2 pt-3 border-t border-gray-200">
+                        {[{ label: 'OCT', list: octList }, { label: 'ECT', list: ectList }, { label: 'FPC', list: fpcTiendaList }].map(({ label, list }) => (
+                          <div key={label}>
+                            <span className="block text-xs font-medium text-gray-600 mb-1">{label}</span>
+                            {list.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {list.map((v, i) => (
+                                  <span key={i} className="px-2 py-1 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono rounded">{v}</span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
 
                     {tipoIngreso === 'almacen' && (
-                      <div className="grid grid-cols-3 gap-3 pt-3 border-t border-gray-200">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">OCC</label>
-                          <input
-                            type="text"
-                            value={occ}
-                            disabled
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">EDO</label>
-                          <input
-                            type="text"
-                            value={edo}
-                            disabled
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">FPC</label>
-                          <input
-                            type="text"
-                            value={fpcAlmacen}
-                            disabled
-                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                          />
-                        </div>
+                      <div className="space-y-2 pt-3 border-t border-gray-200">
+                        {[{ label: 'OCC', list: occList }, { label: 'EDO', list: edoList }, { label: 'FPC', list: fpcAlmacenList }].map(({ label, list }) => (
+                          <div key={label}>
+                            <span className="block text-xs font-medium text-gray-600 mb-1">{label}</span>
+                            {list.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {list.map((v, i) => (
+                                  <span key={i} className="px-2 py-1 bg-blue-50 border border-blue-200 text-blue-700 text-xs font-mono rounded">{v}</span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

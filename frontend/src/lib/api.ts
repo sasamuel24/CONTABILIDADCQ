@@ -852,6 +852,50 @@ export async function updateFacturaCuentaAuxiliar(
 }
 
 // ============================================
+// CRUD CATÁLOGOS CONTABLES (Admin)
+// ============================================
+
+export async function createCentroCosto(data: { nombre: string; activo?: boolean }): Promise<CentroCosto> {
+  return fetchAPI<CentroCosto>('/centros-costo', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function updateCentroCosto(id: string, data: { nombre?: string; activo?: boolean }): Promise<CentroCosto> {
+  return fetchAPI<CentroCosto>(`/centros-costo/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export async function deleteCentroCosto(id: string): Promise<void> {
+  await fetchAPI(`/centros-costo/${id}`, { method: 'DELETE' });
+}
+
+export async function createCentroOperacion(data: { nombre: string; centro_costo_id: string; activo?: boolean }): Promise<CentroOperacion> {
+  return fetchAPI<CentroOperacion>('/centros-operacion', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function updateCentroOperacion(id: string, data: { nombre?: string; centro_costo_id?: string; activo?: boolean }): Promise<CentroOperacion> {
+  return fetchAPI<CentroOperacion>(`/centros-operacion/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+export async function deleteCentroOperacion(id: string): Promise<void> {
+  await fetchAPI(`/centros-operacion/${id}`, { method: 'DELETE' });
+}
+
+export async function createUnidadNegocio(data: { codigo: string; descripcion: string; activa?: boolean }): Promise<UnidadNegocio> {
+  return fetchAPI<UnidadNegocio>('/unidades-negocio', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function updateUnidadNegocio(id: string, data: { codigo?: string; descripcion?: string; activa?: boolean }): Promise<UnidadNegocio> {
+  return fetchAPI<UnidadNegocio>(`/unidades-negocio/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+export async function deleteUnidadNegocio(id: string): Promise<void> {
+  await fetchAPI(`/unidades-negocio/${id}`, { method: 'DELETE' });
+}
+
+export async function createCuentaAuxiliar(data: { codigo: string; descripcion: string; activa?: boolean }): Promise<CuentaAuxiliar> {
+  return fetchAPI<CuentaAuxiliar>('/cuentas-auxiliares', { method: 'POST', body: JSON.stringify(data) });
+}
+export async function updateCuentaAuxiliar(id: string, data: { codigo?: string; descripcion?: string; activa?: boolean }): Promise<CuentaAuxiliar> {
+  return fetchAPI<CuentaAuxiliar>(`/cuentas-auxiliares/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+}
+export async function deleteCuentaAuxiliar(id: string): Promise<void> {
+  await fetchAPI(`/cuentas-auxiliares/${id}`, { method: 'DELETE' });
+}
+
+// ============================================
 // INVENTARIOS
 // ============================================
 
@@ -1511,12 +1555,27 @@ export interface HistorialEstadoOut {
   created_at: string;
 }
 
+export interface AprobadorBrief {
+  id: string;
+  nombre: string;
+  cargo: string;
+  email: string;
+}
+
+export interface AnticipoBrief {
+  id: string;
+  folio: string;
+  monto: number;
+  descripcion: string | null;
+}
+
 export interface PaqueteOut {
   id: string;
   semana: string;
   fecha_inicio: string;
   fecha_fin: string;
   estado: EstadoPaquete;
+  tipo_flujo: 'mantenimiento' | 'general';
   monto_total: number;
   monto_a_pagar: number | null;
   total_documentos: number;
@@ -1528,6 +1587,8 @@ export interface PaqueteOut {
   tecnico: { id: string; nombre: string; email: string };
   area: { id: string; nombre: string };
   revisado_por: { id: string; nombre: string; email: string } | null;
+  aprobador: AprobadorBrief | null;
+  anticipo: AnticipoBrief | null;
   gastos: GastoOut[];
   comentarios: ComentarioPaqueteOut[];
   historial_estados: HistorialEstadoOut[];
@@ -1545,6 +1606,7 @@ export interface PaqueteListItem {
   fecha_inicio: string;
   fecha_fin: string;
   estado: EstadoPaquete;
+  tipo_flujo: 'mantenimiento' | 'general';
   monto_total: number;
   monto_a_pagar: number | null;
   total_documentos: number;
@@ -1554,6 +1616,8 @@ export interface PaqueteListItem {
   tiene_gastos_devueltos: boolean;
   folio?: string | null;
   tecnico: { id: string; nombre: string; email: string } | null;
+  aprobador: AprobadorBrief | null;
+  anticipo: AnticipoBrief | null;
   created_at: string;
   updated_at: string;
 }
@@ -1593,12 +1657,13 @@ export interface GastoUpdate {
 
 /** Listar paquetes (técnico ve los suyos; admin ve todos) */
 export async function listPaquetesGastos(
-  params: { skip?: number; limit?: number; estado?: EstadoPaquete } = {}
+  params: { skip?: number; limit?: number; estado?: EstadoPaquete; solo_mis_anticipos?: boolean } = {}
 ): Promise<PaqueteListResponse> {
   const q = new URLSearchParams();
   if (params.skip !== undefined) q.set('skip', String(params.skip));
   if (params.limit !== undefined) q.set('limit', String(params.limit));
   if (params.estado) q.set('estado', params.estado);
+  if (params.solo_mis_anticipos) q.set('solo_mis_anticipos', 'true');
   return fetchAPI<PaqueteListResponse>(`/gastos/paquetes?${q.toString()}`);
 }
 
@@ -1618,9 +1683,16 @@ export async function createPaqueteGasto(semana: string): Promise<PaqueteOut> {
 
 // --- Workflow ---------------------------------------------------------------
 
-/** Técnico envía el paquete para revisión */
-export async function enviarPaquete(paqueteId: string): Promise<PaqueteOut> {
-  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/enviar`, { method: 'POST' });
+/** Envía el paquete para revisión/aprobación. Para flujo general incluye aprobador_id. */
+export async function enviarPaquete(
+  paqueteId: string,
+  aprobadorId?: string
+): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/enviar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(aprobadorId ? { aprobador_id: aprobadorId } : {}),
+  });
 }
 
 /** Admin aprueba el paquete */
@@ -2041,6 +2113,100 @@ export async function enviarCorreoAprobacionFactura(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ aprobador_id: aprobadorId, ...(comentario ? { comentario } : {}) }),
   });
+}
+
+// =============================================================================
+// ANTICIPOS
+// =============================================================================
+
+export interface AnticipoPaqueteBrief {
+  id: string;
+  folio: string | null;
+  semana: string;
+  estado: string;
+  monto_total: number;
+  monto_a_pagar: number | null;
+  created_at: string;
+}
+
+export interface AnticipoOut {
+  id: string;
+  folio: string;
+  creado_por: { id: string; nombre: string; email: string };
+  asignado_a: { id: string; nombre: string; email: string };
+  monto: number;
+  descripcion: string | null;
+  estado: 'activo' | 'cerrado';
+  paquetes: AnticipoPaqueteBrief[];
+  monto_legalizado: number;
+  diferencia: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AnticipoListItem {
+  id: string;
+  folio: string;
+  asignado_a: { id: string; nombre: string; email: string };
+  monto: number;
+  descripcion: string | null;
+  estado: 'activo' | 'cerrado';
+  total_paquetes: number;
+  monto_legalizado: number;
+  diferencia: number;
+  created_at: string;
+}
+
+export interface AnticipoListResponse {
+  anticipos: AnticipoListItem[];
+  total: number;
+}
+
+export interface AnticipoCreate {
+  assigned_to_user_id: string;
+  monto: number;
+  descripcion?: string;
+  semana: string;
+}
+
+/** Listar anticipos (solo Tesorería/Admin) */
+export async function listAnticipos(
+  params: { skip?: number; limit?: number; estado?: string } = {}
+): Promise<AnticipoListResponse> {
+  const q = new URLSearchParams();
+  if (params.skip !== undefined) q.set('skip', String(params.skip));
+  if (params.limit !== undefined) q.set('limit', String(params.limit));
+  if (params.estado) q.set('estado', params.estado);
+  return fetchAPI<AnticipoListResponse>(`/anticipos?${q.toString()}`);
+}
+
+/** Listar anticipos asignados al usuario autenticado */
+export async function listMisAnticipos(
+  params: { estado?: string } = {}
+): Promise<AnticipoListResponse> {
+  const q = new URLSearchParams();
+  if (params.estado) q.set('estado', params.estado);
+  const qs = q.toString();
+  return fetchAPI<AnticipoListResponse>(`/anticipos/mis-anticipos${qs ? `?${qs}` : ''}`);
+}
+
+/** Crear anticipo y su paquete inicial */
+export async function createAnticipo(data: AnticipoCreate): Promise<AnticipoOut> {
+  return fetchAPI<AnticipoOut>('/anticipos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+/** Detalle de un anticipo */
+export async function getAnticipo(anticipoId: string): Promise<AnticipoOut> {
+  return fetchAPI<AnticipoOut>(`/anticipos/${anticipoId}`);
+}
+
+/** Cerrar un anticipo */
+export async function cerrarAnticipo(anticipoId: string): Promise<AnticipoOut> {
+  return fetchAPI<AnticipoOut>(`/anticipos/${anticipoId}/cerrar`, { method: 'PATCH' });
 }
 
 /** Aprueba una factura usando el token del correo (endpoint público, sin auth) */

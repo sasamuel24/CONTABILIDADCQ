@@ -1501,7 +1501,6 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
             {!requiereInventario && <div>
               <h4 className="text-gray-900 font-semibold mb-3">
                 OC / OS
-                <span className="text-xs text-gray-500 ml-2">(Opcional)</span>
               </h4>
               
               {loadingArchivos ? (

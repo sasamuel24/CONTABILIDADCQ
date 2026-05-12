@@ -1,5 +1,90 @@
 import { useState, useEffect } from 'react';
-import { Search, FileText, ChevronDown, ChevronUp, ChevronsUpDown, Filter, Download, X, Eye, AlertCircle, Trash2 } from 'lucide-react';
+import { Search, FileText, ChevronDown, ChevronUp, ChevronsUpDown, Filter, Download, X, Eye, AlertCircle, Trash2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { getUserRoleCode, type FacturaListItem } from '../lib/api';
+
+// ── Calcula qué le falta a una factura para poder enviarse a Contabilidad ──────
+function getMissingItems(f: FacturaListItem): string[] {
+  const out: string[] = [];
+
+  if (!f.centro_costo_id)       out.push('Centro de Costo (CC)');
+  if (!f.centro_operacion_id)   out.push('Centro de Operación (CO)');
+  if (!f.intervalo_entrega_contabilidad) out.push('Intervalo de entrega a Contabilidad');
+
+  if (f.tiene_anticipo && f.porcentaje_anticipo == null)
+    out.push('Porcentaje de anticipo');
+
+  if (f.requiere_entrada_inventarios) {
+    if (!f.destino_inventarios) {
+      out.push('Destino de inventarios (Tienda / Almacén)');
+    } else {
+      const codigos = new Set((f.inventarios_codigos ?? []).map(c => c.codigo));
+      const requeridos = f.destino_inventarios === 'TIENDA'
+        ? ['OCT', 'ECT', 'FPC']
+        : ['OCC', 'EDO', 'FPC'];
+      if (f.presenta_novedad) requeridos.push('NP');
+      const faltantes = requeridos.filter(c => !codigos.has(c));
+      if (faltantes.length) out.push(`Códigos de inventario: ${faltantes.join(', ')}`);
+    }
+  }
+
+  return out;
+}
+
+// ── Badge con tooltip de pendientes ───────────────────────────────────────────
+function ChecklistBadge({ factura }: { factura: FacturaListItem }) {
+  const [show, setShow] = useState(false);
+  const missing = getMissingItems(factura);
+  const FONT = "'Neutra Text', 'Montserrat', sans-serif";
+
+  if (missing.length === 0) {
+    return (
+      <span
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200"
+        style={{ fontFamily: FONT }}
+      >
+        <CheckCircle2 className="w-3 h-3 shrink-0" />
+        Listo
+      </span>
+    );
+  }
+
+  return (
+    <div
+      className="relative inline-block"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <span
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 cursor-help"
+        style={{ fontFamily: FONT }}
+      >
+        <AlertTriangle className="w-3 h-3 shrink-0" />
+        {missing.length} pendiente{missing.length > 1 ? 's' : ''}
+      </span>
+
+      {show && (
+        <div
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-[200] w-60 bg-gray-900 text-white rounded-lg shadow-2xl p-3"
+          style={{ fontFamily: FONT }}
+        >
+          <p className="text-xs font-semibold text-amber-300 mb-2">
+            Falta para enviar a Contabilidad:
+          </p>
+          <ul className="space-y-1">
+            {missing.map(m => (
+              <li key={m} className="flex items-start gap-1.5 text-xs text-gray-200">
+                <span className="text-amber-400 shrink-0 mt-0.5">•</span>
+                {m}
+              </li>
+            ))}
+          </ul>
+          {/* Flecha apuntando hacia abajo */}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 type SortDir = 'asc' | 'desc' | null;
 type InboxSortCol = 'proveedor' | 'numero_factura' | 'area' | 'fecha_emision' | 'fecha_vencimiento' | 'total' | 'estado';
@@ -49,6 +134,7 @@ const statusConfig: Record<string, { color: string; bgColor: string }> = {
 
 export function InboxView() {
   const { user } = useAuth();
+  const esResponsable = getUserRoleCode(user) === 'responsable';
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('Todos');
   const [facturas, setFacturas] = useState<FacturaListItem[]>([]);
@@ -454,12 +540,13 @@ export function InboxView() {
                     <td className="px-6 py-4 text-right"><div className="h-4 bg-gray-200 rounded w-16 ml-auto"></div></td>
                     <td className="px-6 py-4"><div className="h-6 bg-gray-200 rounded-full w-20"></div></td>
                     <td className="px-6 py-4 text-center"><div className="h-8 w-8 bg-gray-200 rounded mx-auto"></div></td>
+                    <td className="px-6 py-4 text-center"><div className="h-6 bg-gray-200 rounded-full w-20 mx-auto"></div></td>
                   </tr>
                 ))
               ) : currentFacturas.length === 0 ? (
                 // Empty state
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center">
+                  <td colSpan={9} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center text-gray-500">
                       <FileText className="w-12 h-12 mb-3 text-gray-400" />
                       <p className="text-lg font-medium text-gray-700 mb-1">
@@ -525,6 +612,11 @@ export function InboxView() {
                         </div>
                       ) : (
                         <span className="text-gray-400 text-sm">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
+                      {esResponsable && (
+                        <ChecklistBadge factura={factura} />
                       )}
                     </td>
                   </tr>

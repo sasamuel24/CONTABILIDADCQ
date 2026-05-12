@@ -731,8 +731,8 @@ export function InboxView() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-col gap-1.5 items-start">
-                        <span className={`px-3 py-1 rounded-full border text-sm ${statusConfig[factura.estado]?.bgColor || 'bg-gray-100 border-gray-200'} ${statusConfig[factura.estado]?.color || 'text-gray-700'}`}>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className={`px-3 py-1 rounded-full border text-sm whitespace-nowrap ${statusConfig[factura.estado]?.bgColor || 'bg-gray-100 border-gray-200'} ${statusConfig[factura.estado]?.color || 'text-gray-700'}`}>
                           {factura.estado}
                         </span>
                         {factura.motivo_devolucion && (

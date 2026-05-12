@@ -27,6 +27,7 @@ import { ResponsableFacturaDetail } from './ResponsableFacturaDetail';
 import { ContabilidadFacturaDetail } from './ContabilidadFacturaDetail';
 import { TesoreriaFacturaDetail } from './TesoreriaFacturaDetail';
 import { FilePreviewModal } from './FilePreviewModal';
+import { SearchableSelect } from './SearchableSelect';
 
 interface AreaWithCount extends Area {
   count: number;
@@ -788,19 +789,12 @@ export function InboxView() {
                     <label className="block text-gray-700 mb-2">
                       Área Responsable
                     </label>
-                    <select
+                    <SearchableSelect
+                      options={areas.map(a => ({ value: a.id, label: a.nombre }))}
                       value={areaSeleccionada}
-                      onChange={(e) => setAreaSeleccionada(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
-                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
-                      onBlur={(e) => e.target.style.boxShadow = ''}
-                    >
-                      <option value="">Seleccionar área...</option>
-                      {areas.map(area => (
-                        <option key={area.id} value={area.id}>{area.nombre}</option>
-                      ))}
-                    </select>
+                      onChange={setAreaSeleccionada}
+                      placeholder="Seleccionar área..."
+                    />
                   </div>
                   <button
                     onClick={() => areaSeleccionada && handleAreaChange(selectedFactura.id, areaSeleccionada)}

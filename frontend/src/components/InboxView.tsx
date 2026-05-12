@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, FileText, ChevronDown, ChevronUp, ChevronsUpDown, Filter, Download, X, Eye, AlertCircle, Trash2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { getUserRoleCode, type FacturaListItem } from '../lib/api';
 
@@ -33,15 +34,29 @@ function getMissingItems(f: FacturaListItem): string[] {
 // ── Badge con popover de pendientes (clic para abrir) ────────────────────────
 function ChecklistBadge({ factura }: { factura: FacturaListItem }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const missing = getMissingItems(factura);
   const FONT = "'Neutra Text', 'Montserrat', sans-serif";
+
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+    setOpen(v => !v);
+  }
 
   // Cerrar al hacer clic fuera
   useEffect(() => {
     if (!open) return;
     function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (
+        popRef.current && !popRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false);
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -60,10 +75,11 @@ function ChecklistBadge({ factura }: { factura: FacturaListItem }) {
   }
 
   return (
-    <div ref={ref} className="relative inline-block">
+    <>
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={handleClick}
         className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
         style={{ fontFamily: FONT }}
       >
@@ -71,10 +87,11 @@ function ChecklistBadge({ factura }: { factura: FacturaListItem }) {
         {missing.length} pendiente{missing.length > 1 ? 's' : ''}
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
-          className="absolute right-0 mt-1 z-[300] w-64 bg-white border border-amber-200 rounded-xl shadow-2xl overflow-hidden"
-          style={{ fontFamily: FONT }}
+          ref={popRef}
+          className="fixed w-64 bg-white border border-amber-200 rounded-xl shadow-2xl overflow-hidden"
+          style={{ top: pos.top, right: pos.right, zIndex: 9999, fontFamily: FONT }}
         >
           {/* Header */}
           <div className="flex items-center justify-between bg-amber-50 px-3 py-2 border-b border-amber-100">
@@ -85,14 +102,14 @@ function ChecklistBadge({ factura }: { factura: FacturaListItem }) {
               </span>
             </div>
             <button
-              onClick={() => setOpen(false)}
+              onClick={e => { e.stopPropagation(); setOpen(false); }}
               className="text-amber-400 hover:text-amber-600 transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* Lista de pendientes */}
+          {/* Lista */}
           <ul className="p-3 space-y-2">
             {missing.map(m => (
               <li key={m} className="flex items-start gap-2">
@@ -110,9 +127,10 @@ function ChecklistBadge({ factura }: { factura: FacturaListItem }) {
               Abre la factura para completar los datos
             </p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
 

@@ -336,10 +336,10 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   };
 
   const handleDevolverAResponsable = async () => {
-    if (!motivoDevolucion) {
+    if (!motivoDevolucion.trim() || motivoDevolucion.trim().length < 10) {
       setConfirmModalConfig({
         title: 'Motivo Requerido',
-        message: 'Debe seleccionar un motivo de devolución.',
+        message: 'El motivo debe tener al menos 10 caracteres.',
         type: 'warning'
       });
       setShowConfirmModal(true);
@@ -1014,80 +1014,77 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
           />
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
             <div className="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto" onClick={(e) => e.stopPropagation()}>
-            <div style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}} className="p-6 border-b border-gray-200 rounded-t-lg">
-              <h3 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="text-lg font-semibold text-white">Devolver a Responsable</h3>
-              <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif', opacity: 0.9}} className="text-sm text-white mt-1">
-                La factura será devuelta al área responsable para correcciones
-              </p>
-            </div>
-            
-            <div className="p-6">
-              <label style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="block text-sm font-medium text-gray-700 mb-2">
-                Motivo de devolución <span className="text-red-600">*</span>
-              </label>
-              <select
-                value={motivoDevolucion}
-                onChange={(e) => setMotivoDevolucion(e.target.value)}
-                style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent"
-                disabled={enviandoDevolucion}
-              >
-                <option value="">— Seleccione un motivo —</option>
-                {MOTIVOS_DEVOLUCION.map((motivo) => (
-                  <option key={motivo} value={motivo}>{motivo}</option>
-                ))}
-              </select>
+            {/* Header */}
+            <div className="px-6 py-4 rounded-t-lg flex items-center gap-3" style={{background: '#dc2626'}}>
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{backgroundColor: 'rgba(255,255,255,0.2)'}}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-white text-base" style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}}>
+                  Devolver a Responsable
+                </h3>
+                <p className="text-xs mt-0.5" style={{color: 'rgba(255,255,255,0.85)', fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}}>
+                  La factura quedará marcada como <strong>DEVUELTA</strong>
+                </p>
+              </div>
             </div>
 
-            <div className="p-6 border-t border-gray-200 flex gap-3 justify-end bg-gray-50 rounded-b-lg">
-              <button
-                onClick={() => {
-                  setMostrarModalDevolucion(false);
-                  setMotivoDevolucion('');
-                }}
+            {/* Body */}
+            <div className="px-6 pt-5 pb-4">
+              <label className="block text-sm font-semibold text-gray-800 mb-1" style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}}>
+                Motivo de devolución <span className="text-red-500">*</span>
+              </label>
+              <p className="text-xs text-gray-400 mb-2.5" style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}}>
+                Mínimo 10 caracteres · máximo 100
+              </p>
+              <textarea
+                value={motivoDevolucion}
+                onChange={(e) => { if (e.target.value.length <= 100) setMotivoDevolucion(e.target.value); }}
+                placeholder="Ej: Falta documento de soporte, datos incorrectos en la factura…"
+                rows={3}
+                maxLength={100}
                 disabled={enviandoDevolucion}
+                className="w-full px-3 py-2.5 border rounded-lg resize-none text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-400"
                 style={{
                   fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
-                  transition: 'all 0.2s'
+                  borderColor: motivoDevolucion.trim().length > 0 && motivoDevolucion.trim().length < 10 ? '#fca5a5' : '#e5e7eb',
                 }}
-                onMouseEnter={(e) => !enviandoDevolucion && (e.currentTarget.style.backgroundColor = '#f3f4f6')}
-                onMouseLeave={(e) => !enviandoDevolucion && (e.currentTarget.style.backgroundColor = 'white')}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg"
+              />
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-red-400" style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif', minHeight: 16}}>
+                  {motivoDevolucion.trim().length > 0 && motivoDevolucion.trim().length < 10
+                    ? `Faltan ${10 - motivoDevolucion.trim().length} caracteres más`
+                    : ''}
+                </p>
+                <span className="text-xs" style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif', color: motivoDevolucion.length >= 90 ? '#dc2626' : '#9ca3af'}}>
+                  {motivoDevolucion.length}/100
+                </span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-5 flex gap-2 justify-end">
+              <button
+                onClick={() => { setMostrarModalDevolucion(false); setMotivoDevolucion(''); }}
+                disabled={enviandoDevolucion}
+                className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}}
               >
                 Cancelar
               </button>
-              {motivoDevolucion && (
-                <button
-                  onClick={handleDevolverAResponsable}
-                  disabled={enviandoDevolucion}
-                  style={{
-                    fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
-                    backgroundColor: enviandoDevolucion ? '#9ca3af' : '#0d9488',
-                    color: enviandoDevolucion ? '#9ca3af' : 'white',
-                    transition: 'all 0.2s',
-                    cursor: enviandoDevolucion ? 'not-allowed' : 'pointer'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!enviandoDevolucion) {
-                      e.currentTarget.style.backgroundColor = '#0f766e';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!enviandoDevolucion) {
-                      e.currentTarget.style.backgroundColor = '#0d9488';
-                    }
-                  }}
-                  onFocus={(e) => {
-                    if (!enviandoDevolucion) {
-                      e.currentTarget.style.boxShadow = '0 0 0 2px rgba(220, 38, 38, 0.5)';
-                    }
-                  }}
-                  onBlur={(e) => e.currentTarget.style.boxShadow = 'none'}
-                  className="px-4 py-2 rounded-lg font-medium"
-                >
-                  {enviandoDevolucion ? 'Devolviendo...' : 'Confirmar Devolución'}
-                </button>
-              )}
+              <button
+                onClick={handleDevolverAResponsable}
+                disabled={enviandoDevolucion || motivoDevolucion.trim().length < 10}
+                className="px-5 py-2 rounded-lg text-sm font-semibold transition-all"
+                style={{
+                  fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                  backgroundColor: (enviandoDevolucion || motivoDevolucion.trim().length < 10) ? '#e5e7eb' : '#dc2626',
+                  color: (enviandoDevolucion || motivoDevolucion.trim().length < 10) ? '#9ca3af' : 'white',
+                  cursor: (enviandoDevolucion || motivoDevolucion.trim().length < 10) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {enviandoDevolucion ? 'Devolviendo…' : 'Confirmar Devolución'}
+              </button>
             </div>
           </div>
           </div>

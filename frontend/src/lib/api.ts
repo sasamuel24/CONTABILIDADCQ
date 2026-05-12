@@ -2251,3 +2251,26 @@ export async function aprobarFacturaPorToken(token: string): Promise<AprobacionE
   }
   return resp.json();
 }
+
+// ─── Historial de Facturas por Área (Responsable) ────────────────────────────
+
+export interface HistorialFacturaItem {
+  id: string;
+  numero_factura: string;
+  proveedor: string;
+  total: number;
+  estado_id: number;
+  estado_label: string;
+  estado_code: string;
+  es_finalizada: boolean;
+  area_nombre: string;
+  assigned_at: string | null;
+  fecha_envio_contabilidad: string | null;
+  fecha_envio_tesoreria: string | null;
+  fecha_cierre: string | null;
+  created_at: string | null;
+}
+
+export async function getHistorialArea(): Promise<HistorialFacturaItem[]> {
+  return fetchAPI<HistorialFacturaItem[]>('/facturas/historial-area');
+}

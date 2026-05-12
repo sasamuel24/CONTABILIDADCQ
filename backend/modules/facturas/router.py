@@ -50,6 +50,17 @@ def get_factura_service(db: AsyncSession = Depends(get_db)) -> FacturaService:
     return FacturaService(repository, db)
 
 
+@router.get("/historial-area", response_model=list)
+async def historial_area(
+    current_user: dict = Depends(get_current_user),
+    service: FacturaService = Depends(get_factura_service),
+):
+    """Historial de facturas que han pasado por el área del usuario responsable."""
+    from uuid import UUID as _UUID
+    user_id = _UUID(current_user["user_id"])
+    return await service.historial_area(user_id)
+
+
 @router.get("/", response_model=FacturasPaginatedResponse)
 async def list_facturas(
     skip: int = 0,

@@ -622,6 +622,17 @@ class Factura(Base, TimestampMixin):
     aprobado_por_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     aprobado_por_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Historial de tránsito por etapas del flujo
+    fecha_envio_contabilidad: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    fecha_envio_tesoreria: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    fecha_cierre: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+
     # Relaciones
     area: Mapped["Area"] = relationship(
         "Area",

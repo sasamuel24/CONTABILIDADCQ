@@ -128,21 +128,30 @@ class AsignacionRepository:
     ):
         """Actualiza los campos de asignación en la factura y su estado según el área."""
         from datetime import datetime
-        
+
+        CONTABILIDAD_AREA_ID = '725f5e5a-49d3-4e44-800f-f5ff21e187ac'
+        TESORERIA_AREA_ID = 'b067adcd-13ff-420f-9389-42bfaa78cf9f'
+
         factura.area_id = area_id
         factura.assigned_to_user_id = responsable_user_id
         factura.assigned_at = datetime.utcnow()
-        
+
+        # Guardar área de origen (la del responsable) si no está ya establecida
+        # y el área asignada no es Contabilidad ni Tesorería
+        if (
+            factura.area_origen_id is None
+            and str(area_id) not in (CONTABILIDAD_AREA_ID, TESORERIA_AREA_ID)
+        ):
+            factura.area_origen_id = area_id
+
         # Actualizar estado según el área
-        # Contabilidad: 725f5e5a-49d3-4e44-800f-f5ff21e187ac -> Estado 3 "En contabilidad"
-        # Tesorería: b067adcd-13ff-420f-9389-42bfaa78cf9f -> Estado 7 "Pendiente en Tesoreria"
-        if str(area_id) == '725f5e5a-49d3-4e44-800f-f5ff21e187ac':
+        if str(area_id) == CONTABILIDAD_AREA_ID:
             factura.estado_id = 3  # En contabilidad
-        elif str(area_id) == 'b067adcd-13ff-420f-9389-42bfaa78cf9f':
+        elif str(area_id) == TESORERIA_AREA_ID:
             factura.estado_id = 7  # Pendiente en Tesoreria
         else:
             factura.estado_id = 2  # Estado "Asignada" para otras áreas
-        
+
         await self.db.flush()
     
     async def get_asignacion_with_relations(

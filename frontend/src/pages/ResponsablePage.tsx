@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Inbox, LogOut, PackageOpen, UploadCloud, FolderInput, Banknote } from 'lucide-react';
+import { Inbox, LogOut, PackageOpen, UploadCloud, Banknote, History } from 'lucide-react';
 import { InboxView } from '../components/InboxView';
 import { ResponsablePaquetesView } from '../components/ResponsablePaquetesView';
 import { GastosAdminSubidaView } from '../components/GastosAdminSubidaView';
 import { GastosAdminTrazabilidadView } from '../components/GastosAdminTrazabilidadView';
+import { ResponsableHistorialView } from '../components/ResponsableHistorialView';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-type Seccion = 'bandeja' | 'paquetes' | 'subida' | 'trazabilidad';
+type Seccion = 'bandeja' | 'paquetes' | 'subida' | 'trazabilidad' | 'historial';
 
 export function ResponsablePage() {
   const { user, logout } = useAuth();
@@ -24,7 +25,8 @@ export function ResponsablePage() {
   const esGadmin = user?.area?.code === 'GADMIN';
 
   const NAV: { id: Seccion; label: string; icon: React.ReactNode }[] = [
-    { id: 'bandeja',  label: 'Bandeja de Entrada',  icon: <Inbox className="w-5 h-5" /> },
+    { id: 'bandeja',   label: 'Bandeja de Entrada',    icon: <Inbox className="w-5 h-5" /> },
+    { id: 'historial', label: 'Historial de Facturas',  icon: <History className="w-5 h-5" /> },
     ...(esMant ? [{ id: 'paquetes' as Seccion, label: 'Paquetes de Gastos', icon: <PackageOpen className="w-5 h-5" /> }] : []),
     ...(esGadmin ? [
       { id: 'subida' as Seccion, label: 'Subida Manual de Facturas', icon: <UploadCloud className="w-5 h-5" /> },
@@ -138,6 +140,7 @@ export function ResponsablePage() {
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
         {seccion === 'bandeja' && <InboxView />}
+        {seccion === 'historial' && <ResponsableHistorialView />}
         {seccion === 'subida' && esGadmin && <GastosAdminSubidaView />}
         {seccion === 'trazabilidad' && esGadmin && <GastosAdminTrazabilidadView />}
         {seccion === 'paquetes' && esMant && (

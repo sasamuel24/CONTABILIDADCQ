@@ -1222,10 +1222,11 @@ Responde ÚNICAMENTE con JSON válido:
         factura.estado_id = estado_contabilidad.id
         factura.assigned_to_user_id = None
         factura.assigned_at = datetime.utcnow()
-        
+        factura.fecha_envio_contabilidad = datetime.utcnow()
+
         # Limpiar motivo de devolución al reenviar
         factura.motivo_devolucion = None
-        
+
         # Commit de cambios
         await self.db.commit()
         await self.db.refresh(factura)
@@ -1370,25 +1371,26 @@ Responde ÚNICAMENTE con JSON válido:
         factura.estado_id = TESORERIA_ESTADO_ID
         factura.assigned_to_user_id = None
         factura.assigned_at = datetime.utcnow()
-        
+        factura.fecha_envio_tesoreria = datetime.utcnow()
+
         # Commit de cambios
         await self.db.commit()
         await self.db.refresh(factura)
-        
+
         # Obtener códigos para respuesta
         codigos_result = await self.db.execute(
             select(FacturaInventarioCodigo)
             .where(FacturaInventarioCodigo.factura_id == factura_id)
         )
         codigos = codigos_result.scalars().all()
-        
+
         # Obtener archivos para respuesta
         files_result = await self.db.execute(
             select(File)
             .where(File.factura_id == factura_id)
         )
         files = files_result.scalars().all()
-        
+
         logger.info(
             f"Factura {factura_id} enviada a TESORERIA exitosamente. "
             f"Área: {area_tesoreria.nombre}, Estado: {estado_tesoreria.label}"
@@ -1595,25 +1597,26 @@ Responde ÚNICAMENTE con JSON válido:
         
         # Actualizar factura
         factura.estado_id = ESTADO_FINALIZADO_ID
-        
+        factura.fecha_cierre = datetime.utcnow()
+
         # Commit de cambios
         await self.db.commit()
         await self.db.refresh(factura)
-        
+
         # Obtener códigos para respuesta
         codigos_result = await self.db.execute(
             select(FacturaInventarioCodigo)
             .where(FacturaInventarioCodigo.factura_id == factura_id)
         )
         codigos = codigos_result.scalars().all()
-        
+
         # Obtener todos los archivos para respuesta
         all_files_result = await self.db.execute(
             select(File)
             .where(File.factura_id == factura_id)
         )
         files = all_files_result.scalars().all()
-        
+
         logger.info(
             f"Factura {factura_id} pagada en TESORERIA exitosamente. "
             f"Estado: {estado_finalizado.label}"
@@ -2096,4 +2099,87 @@ Responde ÚNICAMENTE con JSON válido:
             "aprobado_por_email": factura.aprobado_por_email,
             "fecha_aprobacion_email": factura.fecha_aprobacion_email,
         }
+
+    async def historial_area(self, user_id: UUID) -> list:
+        """
+        Retorna el historial de facturas que pasaron por el área del usuario responsable.
+        Usa tres estrategias combinadas para máxima cobertura:
+          1. factura_asignaciones con area_id == area del usuario
+          2. facturas donde area_origen_id == area del usuario (historial migration / XML)
+          3. facturas actualmente en el área (bandeja activa)
+        """
+        from sqlalchemy import select
+        from db.models import User, Factura, FacturaAsignacion
+
+        result = await self.db.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+
+        if not user or not user.area_id:
+            return []
+
+        area_id = user.area_id
+        fecha_por_factura: dict = {}
+
+        # Estrategia 1: asignaciones formales al área
+        asign_result = await self.db.execute(
+            select(FacturaAsignacion.factura_id, FacturaAsignacion.created_at)
+            .where(FacturaAsignacion.area_id == area_id)
+            .order_by(FacturaAsignacion.created_at.asc())
+        )
+        for row in asign_result.all():
+            fid = row.factura_id
+            if fid not in fecha_por_factura:
+                fecha_por_factura[fid] = row.created_at
+
+        # Estrategia 2: facturas con area_origen_id apuntando al área
+        origen_result = await self.db.execute(
+            select(Factura.id, Factura.assigned_at)
+            .where(Factura.area_origen_id == area_id)
+        )
+        for row in origen_result.all():
+            fid = row.id
+            if fid not in fecha_por_factura:
+                fecha_por_factura[fid] = row.assigned_at
+
+        # Estrategia 3: facturas actualmente en el área (bandeja)
+        current_result = await self.db.execute(
+            select(Factura.id, Factura.assigned_at)
+            .where(Factura.area_id == area_id)
+        )
+        for row in current_result.all():
+            fid = row.id
+            if fid not in fecha_por_factura:
+                fecha_por_factura[fid] = row.assigned_at
+
+        if not fecha_por_factura:
+            return []
+
+        factura_ids = list(fecha_por_factura.keys())
+
+        facturas_result = await self.db.execute(
+            select(Factura).where(Factura.id.in_(factura_ids))
+        )
+        facturas = facturas_result.scalars().all()
+
+        items = []
+        for f in facturas:
+            items.append({
+                "id": str(f.id),
+                "numero_factura": f.numero_factura,
+                "proveedor": f.proveedor,
+                "total": float(f.total),
+                "estado_id": f.estado_id,
+                "estado_label": f.estado.label if f.estado else "",
+                "estado_code": f.estado.code if f.estado else "",
+                "es_finalizada": f.estado.is_final if f.estado else False,
+                "area_nombre": user.area.nombre if user.area else "",
+                "assigned_at": (fecha_por_factura[f.id].isoformat() if fecha_por_factura[f.id] else None),
+                "fecha_envio_contabilidad": f.fecha_envio_contabilidad.isoformat() if f.fecha_envio_contabilidad else None,
+                "fecha_envio_tesoreria": f.fecha_envio_tesoreria.isoformat() if f.fecha_envio_tesoreria else None,
+                "fecha_cierre": f.fecha_cierre.isoformat() if f.fecha_cierre else None,
+                "created_at": f.created_at.isoformat() if f.created_at else None,
+            })
+
+        items.sort(key=lambda x: x["assigned_at"] or "", reverse=True)
+        return items
 

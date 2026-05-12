@@ -1,5 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Search, FileText, ChevronDown, Filter, Download, X, Eye, AlertCircle, Trash2 } from 'lucide-react';
+import { Search, FileText, ChevronDown, ChevronUp, ChevronsUpDown, Filter, Download, X, Eye, AlertCircle, Trash2 } from 'lucide-react';
+
+type SortDir = 'asc' | 'desc' | null;
+type InboxSortCol = 'proveedor' | 'numero_factura' | 'area' | 'fecha_emision' | 'fecha_vencimiento' | 'total' | 'estado';
+
+function SortIconInbox({ col, sortCol, sortDir }: { col: InboxSortCol; sortCol: InboxSortCol | null; sortDir: SortDir }) {
+  if (sortCol !== col) return <ChevronsUpDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />;
+  if (sortDir === 'asc') return <ChevronUp className="w-3.5 h-3.5 text-[#00829a] shrink-0" />;
+  return <ChevronDown className="w-3.5 h-3.5 text-[#00829a] shrink-0" />;
+}
 import {
   getFacturas,
   getAreas,
@@ -53,7 +62,15 @@ export function InboxView() {
   const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [sortCol, setSortCol] = useState<InboxSortCol | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
   const itemsPerPage = 10;
+
+  function handleSort(col: InboxSortCol) {
+    if (sortCol !== col) { setSortCol(col); setSortDir('asc'); setCurrentPage(1); }
+    else if (sortDir === 'asc') { setSortDir('desc'); setCurrentPage(1); }
+    else { setSortCol(null); setSortDir(null); }
+  }
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -282,8 +299,32 @@ export function InboxView() {
     }), {})
   };
 
-  const totalPages = Math.ceil(filteredFacturas.length / itemsPerPage);
-  const currentFacturas = filteredFacturas.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  // Resetear página al cambiar filtros
+  const handleSearchChange = (v: string) => { setSearchQuery(v); setCurrentPage(1); };
+  const handleStatusChange = (v: string) => { setSelectedStatus(v); setCurrentPage(1); };
+
+  const sortedFacturas = [...filteredFacturas].sort((a, b) => {
+    if (!sortCol || !sortDir) return 0;
+    let av: string | number, bv: string | number;
+    switch (sortCol) {
+      case 'proveedor':         av = a.proveedor;         bv = b.proveedor;         break;
+      case 'numero_factura':    av = a.numero_factura;    bv = b.numero_factura;    break;
+      case 'area':              av = a.area || '';         bv = b.area || '';         break;
+      case 'fecha_emision':     av = a.fecha_emision     ? new Date(a.fecha_emision).getTime()     : 0; bv = b.fecha_emision     ? new Date(b.fecha_emision).getTime()     : 0; break;
+      case 'fecha_vencimiento': av = a.fecha_vencimiento ? new Date(a.fecha_vencimiento).getTime() : 0; bv = b.fecha_vencimiento ? new Date(b.fecha_vencimiento).getTime() : 0; break;
+      case 'total':             av = a.total;             bv = b.total;             break;
+      case 'estado':            av = a.estado || '';       bv = b.estado || '';       break;
+      default: return 0;
+    }
+    if (typeof av === 'string') {
+      const cmp = av.localeCompare(bv as string, 'es', { sensitivity: 'base' });
+      return sortDir === 'asc' ? cmp : -cmp;
+    }
+    return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
+  });
+
+  const totalPages = Math.ceil(sortedFacturas.length / itemsPerPage);
+  const currentFacturas = sortedFacturas.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="h-full">
@@ -373,43 +414,28 @@ export function InboxView() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="text-left px-6 py-3 text-gray-600">
-                  <div className="flex items-center gap-1">
-                    Proveedor
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-                </th>
-                <th className="text-left px-6 py-3 text-gray-600">
-                  <div className="flex items-center gap-1">
-                    N° Factura
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-                </th>
-                <th className="text-left px-6 py-3 text-gray-600">
-                  <div className="flex items-center gap-1">
-                    Area Receptora
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-                </th>
-                <th className="text-left px-6 py-3 text-gray-600">
-                  <div className="flex items-center gap-1">
-                    Fecha Emisión
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-                </th>
-                <th className="text-left px-6 py-3 text-gray-600">
-                  <div className="flex items-center gap-1">
-                    Fecha Vencimiento
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-                </th>
-                <th className="text-right px-6 py-3 text-gray-600">
-                  <div className="flex items-center justify-end gap-1">
-                    Total a Pagar
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
-                </th>
-                <th className="text-left px-6 py-3 text-gray-600">Estado</th>
+                {(
+                  [
+                    { col: 'proveedor',         label: 'Proveedor',          align: 'left'  },
+                    { col: 'numero_factura',    label: 'N° Factura',         align: 'left'  },
+                    { col: 'area',              label: 'Area Receptora',     align: 'left'  },
+                    { col: 'fecha_emision',     label: 'Fecha Emisión',      align: 'left'  },
+                    { col: 'fecha_vencimiento', label: 'Fecha Vencimiento',  align: 'left'  },
+                    { col: 'total',             label: 'Total a Pagar',      align: 'right' },
+                    { col: 'estado',            label: 'Estado',             align: 'left'  },
+                  ] as { col: InboxSortCol; label: string; align: 'left' | 'right' }[]
+                ).map(({ col, label, align }) => (
+                  <th
+                    key={col}
+                    className={`px-6 py-3 text-gray-600 cursor-pointer select-none hover:bg-gray-100 transition-colors text-${align}`}
+                    onClick={() => handleSort(col)}
+                  >
+                    <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
+                      {label}
+                      <SortIconInbox col={col} sortCol={sortCol} sortDir={sortDir} />
+                    </div>
+                  </th>
+                ))}
                 <th className="text-center px-6 py-3 text-gray-600">PDF</th>
                 <th className="text-center px-6 py-3 text-gray-600">Acciones</th>
               </tr>

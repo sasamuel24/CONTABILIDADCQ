@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Search, RefreshCw, CheckCircle2, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, RefreshCw, CheckCircle2, Clock, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { getHistorialArea, type HistorialFacturaItem } from '../lib/api';
+
+type SortDir = 'asc' | 'desc' | null;
+type HistSortCol = 'numero_factura' | 'proveedor' | 'total' | 'estado_label' | 'assigned_at' | 'fecha_envio_contabilidad' | 'fecha_envio_tesoreria' | 'fecha_cierre';
+
+function SortIconHist({ col, sortCol, sortDir }: { col: HistSortCol; sortCol: HistSortCol | null; sortDir: SortDir }) {
+  if (sortCol !== col) return <ChevronsUpDown className="w-3 h-3 text-gray-400 shrink-0" />;
+  if (sortDir === 'asc') return <ChevronUp className="w-3 h-3 text-[#00829a] shrink-0" />;
+  return <ChevronDown className="w-3 h-3 text-[#00829a] shrink-0" />;
+}
 
 const FONT = "'Neutra Text', 'Montserrat', sans-serif";
 
@@ -61,6 +70,14 @@ export function ResponsableHistorialView() {
   const [search, setSearch] = useState('');
   const [filterEstado, setFilterEstado] = useState('todos');
   const [page, setPage] = useState(1);
+  const [sortCol, setSortCol] = useState<HistSortCol | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+
+  function handleSort(col: HistSortCol) {
+    if (sortCol !== col) { setSortCol(col); setSortDir('asc'); setPage(1); }
+    else if (sortDir === 'asc') { setSortDir('desc'); setPage(1); }
+    else { setSortCol(null); setSortDir(null); }
+  }
 
   const cargar = async () => {
     try {
@@ -90,8 +107,30 @@ export function ResponsableHistorialView() {
     return matchSearch && matchEstado;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const sorted = [...filtered].sort((a, b) => {
+    if (!sortCol || !sortDir) return 0;
+    const dateMs = (v: string | null) => v ? new Date(v).getTime() : 0;
+    let av: string | number, bv: string | number;
+    switch (sortCol) {
+      case 'numero_factura':            av = a.numero_factura;  bv = b.numero_factura;  break;
+      case 'proveedor':                 av = a.proveedor;       bv = b.proveedor;       break;
+      case 'total':                     av = a.total;           bv = b.total;           break;
+      case 'estado_label':              av = a.estado_label;    bv = b.estado_label;    break;
+      case 'assigned_at':               av = dateMs(a.assigned_at);               bv = dateMs(b.assigned_at);               break;
+      case 'fecha_envio_contabilidad':  av = dateMs(a.fecha_envio_contabilidad);  bv = dateMs(b.fecha_envio_contabilidad);  break;
+      case 'fecha_envio_tesoreria':     av = dateMs(a.fecha_envio_tesoreria);     bv = dateMs(b.fecha_envio_tesoreria);     break;
+      case 'fecha_cierre':              av = dateMs(a.fecha_cierre);              bv = dateMs(b.fecha_cierre);              break;
+      default: return 0;
+    }
+    if (typeof av === 'string') {
+      const cmp = av.localeCompare(bv as string, 'es', { sensitivity: 'base' });
+      return sortDir === 'asc' ? cmp : -cmp;
+    }
+    return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
+  });
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / ITEMS_PER_PAGE));
+  const paginated = sorted.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   const handleSearch = (v: string) => { setSearch(v); setPage(1); };
   const handleEstado = (v: string) => { setFilterEstado(v); setPage(1); };
@@ -169,13 +208,29 @@ export function ResponsableHistorialView() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50">
-                    {['N° Factura', 'Proveedor', 'Total', 'Estado', 'Flujo', 'Recibida en Área', 'Contabilidad', 'Tesorería', 'Cierre'].map(col => (
+                    {(
+                      [
+                        { col: 'numero_factura',           label: 'N° Factura'       },
+                        { col: 'proveedor',                label: 'Proveedor'         },
+                        { col: 'total',                    label: 'Total'             },
+                        { col: 'estado_label',             label: 'Estado'            },
+                        { col: null,                       label: 'Flujo'             },
+                        { col: 'assigned_at',              label: 'Recibida en Área'  },
+                        { col: 'fecha_envio_contabilidad', label: 'Contabilidad'      },
+                        { col: 'fecha_envio_tesoreria',    label: 'Tesorería'         },
+                        { col: 'fecha_cierre',             label: 'Cierre'            },
+                      ] as { col: HistSortCol | null; label: string }[]
+                    ).map(({ col, label }) => (
                       <th
-                        key={col}
-                        className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap"
+                        key={label}
+                        className={`px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap ${col ? 'cursor-pointer select-none hover:bg-gray-100 transition-colors' : ''}`}
                         style={{ fontFamily: FONT }}
+                        onClick={() => col && handleSort(col)}
                       >
-                        {col}
+                        <div className="flex items-center gap-1">
+                          {label}
+                          {col && <SortIconHist col={col} sortCol={sortCol} sortDir={sortDir} />}
+                        </div>
                       </th>
                     ))}
                   </tr>

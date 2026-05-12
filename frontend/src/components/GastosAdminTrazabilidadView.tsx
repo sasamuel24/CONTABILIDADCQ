@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Search, FileText, Calendar, DollarSign, Building2, Activity, RefreshCw } from 'lucide-react';
+import { Search, FileText, Calendar, DollarSign, Building2, Activity, RefreshCw, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { getFacturas, type FacturaListItem } from '../lib/api';
+
+type SortDir = 'asc' | 'desc' | null;
+type TrazSortCol = 'numero_factura' | 'fecha_emision' | 'fecha_vencimiento' | 'proveedor' | 'area' | 'total' | 'estado';
+
+function SortIconTraz({ col, sortCol, sortDir }: { col: TrazSortCol; sortCol: TrazSortCol | null; sortDir: SortDir }) {
+  if (sortCol !== col) return <ChevronsUpDown className="w-3 h-3 text-gray-400 shrink-0" />;
+  if (sortDir === 'asc') return <ChevronUp className="w-3 h-3 text-[#00829a] shrink-0" />;
+  return <ChevronDown className="w-3 h-3 text-[#00829a] shrink-0" />;
+}
 
 const GADMIN_AREA_ID = 'c1589d0c-736b-4af4-89f2-81900d2dac16';
 
@@ -31,7 +40,15 @@ export function GastosAdminTrazabilidadView() {
   const [search, setSearch] = useState('');
   const [filterEstado, setFilterEstado] = useState('todos');
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortCol, setSortCol] = useState<TrazSortCol | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
   const itemsPerPage = 20;
+
+  function handleSort(col: TrazSortCol) {
+    if (sortCol !== col) { setSortCol(col); setSortDir('asc'); setCurrentPage(1); }
+    else if (sortDir === 'asc') { setSortDir('desc'); setCurrentPage(1); }
+    else { setSortCol(null); setSortDir(null); }
+  }
 
   const cargar = async () => {
     try {
@@ -68,8 +85,28 @@ export function GastosAdminTrazabilidadView() {
     return ok && okEstado;
   });
 
-  const totalPages = Math.ceil(filtradas.length / itemsPerPage);
-  const paginadas = filtradas.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const ordenadas = [...filtradas].sort((a, b) => {
+    if (!sortCol || !sortDir) return 0;
+    let av: string | number, bv: string | number;
+    switch (sortCol) {
+      case 'numero_factura':    av = a.numero_factura;    bv = b.numero_factura;    break;
+      case 'proveedor':         av = a.proveedor;         bv = b.proveedor;         break;
+      case 'area':              av = a.area || '';         bv = b.area || '';         break;
+      case 'fecha_emision':     av = a.fecha_emision     ? new Date(a.fecha_emision).getTime()     : 0; bv = b.fecha_emision     ? new Date(b.fecha_emision).getTime()     : 0; break;
+      case 'fecha_vencimiento': av = a.fecha_vencimiento ? new Date(a.fecha_vencimiento).getTime() : 0; bv = b.fecha_vencimiento ? new Date(b.fecha_vencimiento).getTime() : 0; break;
+      case 'total':             av = a.total;             bv = b.total;             break;
+      case 'estado':            av = a.estado || '';       bv = b.estado || '';       break;
+      default: return 0;
+    }
+    if (typeof av === 'string') {
+      const cmp = av.localeCompare(bv as string, 'es', { sensitivity: 'base' });
+      return sortDir === 'asc' ? cmp : -cmp;
+    }
+    return sortDir === 'asc' ? (av as number) - (bv as number) : (bv as number) - (av as number);
+  });
+
+  const totalPages = Math.ceil(ordenadas.length / itemsPerPage);
+  const paginadas = ordenadas.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   useEffect(() => { setCurrentPage(1); }, [search, filterEstado]);
 
@@ -171,25 +208,29 @@ export function GastosAdminTrazabilidadView() {
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <div className="flex items-center gap-2"><FileText className="w-4 h-4" /><span>N° Factura</span></div>
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <div className="flex items-center gap-2"><Calendar className="w-4 h-4" /><span>Fecha Emisión</span></div>
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <div className="flex items-center gap-2"><Calendar className="w-4 h-4" /><span>Vencimiento</span></div>
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <div className="flex items-center gap-2"><Building2 className="w-4 h-4" /><span>Proveedor</span></div>
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <div className="flex items-center gap-2"><Activity className="w-4 h-4" /><span>Ubicación</span></div>
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      <div className="flex items-center gap-2"><DollarSign className="w-4 h-4" /><span>Total</span></div>
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                    {(
+                      [
+                        { col: 'numero_factura',    label: 'N° Factura',     icon: <FileText className="w-3.5 h-3.5" />    },
+                        { col: 'fecha_emision',     label: 'Fecha Emisión',  icon: <Calendar className="w-3.5 h-3.5" />   },
+                        { col: 'fecha_vencimiento', label: 'Vencimiento',    icon: <Calendar className="w-3.5 h-3.5" />   },
+                        { col: 'proveedor',         label: 'Proveedor',      icon: <Building2 className="w-3.5 h-3.5" />  },
+                        { col: 'area',              label: 'Ubicación',      icon: <Activity className="w-3.5 h-3.5" />   },
+                        { col: 'total',             label: 'Total',          icon: <DollarSign className="w-3.5 h-3.5" /> },
+                        { col: 'estado',            label: 'Estado',         icon: null },
+                      ] as { col: TrazSortCol; label: string; icon: React.ReactNode }[]
+                    ).map(({ col, label, icon }) => (
+                      <th
+                        key={col}
+                        className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort(col)}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          {icon}
+                          <span>{label}</span>
+                          <SortIconTraz col={col} sortCol={sortCol} sortDir={sortDir} />
+                        </div>
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">

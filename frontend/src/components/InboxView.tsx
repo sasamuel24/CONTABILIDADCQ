@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, FileText, ChevronDown, ChevronUp, ChevronsUpDown, Filter, Download, X, Eye, AlertCircle, Trash2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Search, FileText, ChevronDown, ChevronUp, ChevronsUpDown, Filter, Download, X, Eye, AlertCircle, Trash2, CheckCircle2, AlertTriangle, Undo2 } from 'lucide-react';
 import { getUserRoleCode, type FacturaListItem } from '../lib/api';
 
 // ── Calcula qué le falta a una factura para poder enviarse a Contabilidad ──────
@@ -192,6 +192,75 @@ const statusConfig: Record<string, { color: string; bgColor: string }> = {
   'Pagada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
   'Rechazada': { color: 'text-red-700', bgColor: 'bg-red-50 border-red-200' },
 };
+
+// ── Badge "Devuelta" con tooltip del motivo ───────────────────────────────────
+function DevueltaBadge({ motivo }: { motivo: string }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const FONT = "'Neutra Text', 'Montserrat', sans-serif";
+
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, left: r.left });
+    }
+    setOpen(v => !v);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (
+        popRef.current && !popRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleClick}
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors"
+        style={{
+          fontFamily: FONT,
+          backgroundColor: '#fff7ed',
+          borderColor: '#fed7aa',
+          color: '#c2410c',
+        }}
+      >
+        <Undo2 className="w-3 h-3 shrink-0" />
+        Devuelta
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={popRef}
+          className="fixed bg-white border border-orange-200 rounded-xl shadow-2xl overflow-hidden"
+          style={{ top: pos.top, left: pos.left, zIndex: 9999, width: 260, fontFamily: FONT }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-orange-100" style={{backgroundColor: '#fff7ed'}}>
+            <Undo2 className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+            <span className="text-xs font-semibold text-orange-800">Motivo de devolución</span>
+            <button onClick={() => setOpen(false)} className="ml-auto text-orange-300 hover:text-orange-600">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <p className="px-3 py-3 text-sm text-gray-700 leading-snug">{motivo}</p>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
 
 export function InboxView() {
   const { user } = useAuth();
@@ -620,9 +689,13 @@ export function InboxView() {
                 </tr>
               ) : (
                 currentFacturas.map((factura) => (
-                  <tr 
-                    key={factura.id} 
-                    className="hover:bg-gray-50 transition-colors cursor-pointer" 
+                  <tr
+                    key={factura.id}
+                    className={`transition-colors cursor-pointer ${
+                      factura.motivo_devolucion
+                        ? 'border-l-4 border-orange-400 bg-orange-50/40 hover:bg-orange-50/70'
+                        : 'border-l-4 border-transparent hover:bg-gray-50'
+                    }`}
                     onClick={() => handleRowClick(factura)}
                   >
                     <td className="px-6 py-4">
@@ -658,9 +731,14 @@ export function InboxView() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full border text-sm ${statusConfig[factura.estado]?.bgColor || 'bg-gray-100 border-gray-200'} ${statusConfig[factura.estado]?.color || 'text-gray-700'}`}>
-                        {factura.estado}
-                      </span>
+                      <div className="flex flex-col gap-1.5 items-start">
+                        <span className={`px-3 py-1 rounded-full border text-sm ${statusConfig[factura.estado]?.bgColor || 'bg-gray-100 border-gray-200'} ${statusConfig[factura.estado]?.color || 'text-gray-700'}`}>
+                          {factura.estado}
+                        </span>
+                        {factura.motivo_devolucion && (
+                          <DevueltaBadge motivo={factura.motivo_devolucion} />
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-center">
                       {factura.files && factura.files.length > 0 ? (

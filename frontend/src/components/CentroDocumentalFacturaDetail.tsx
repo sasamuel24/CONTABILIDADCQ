@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, FileText, Calendar, DollarSign, Building2, CheckCircle, Clock, AlertCircle, Download, Eye } from 'lucide-react';
+import { X, FileText, Calendar, DollarSign, Building2, CheckCircle, Clock, AlertCircle, Download, Eye, Trash2 } from 'lucide-react';
 import type { FacturaListItem, FileMiniOut } from '../lib/api';
-import { getFacturaFilesByDocType, downloadFileById } from '../lib/api';
+import { getFacturaFilesByDocType, downloadFileById, deleteFactura } from '../lib/api';
 import { FilePreviewModal } from './FilePreviewModal';
 import { ComentariosFactura } from './ComentariosFactura';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 interface CentroDocumentalFacturaDetailProps {
   factura: FacturaListItem;
   onClose: () => void;
+  onDelete?: (facturaId: string) => void;
 }
 
 interface ProcessStep {
@@ -17,7 +18,7 @@ interface ProcessStep {
   date?: string;
 }
 
-export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocumentalFacturaDetailProps) {
+export function CentroDocumentalFacturaDetail({ factura, onClose, onDelete }: CentroDocumentalFacturaDetailProps) {
   const { user } = useAuth();
   const [archivosOC, setArchivosOC] = useState<FileMiniOut[]>([]);
   const [archivoAprobacion, setArchivoAprobacion] = useState<FileMiniOut | null>(null);
@@ -26,6 +27,8 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
   const [facturaPrincipal, setFacturaPrincipal] = useState<FileMiniOut | null>(null);
   const [loadingArchivos, setLoadingArchivos] = useState(true);
   const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Estados del proceso
   const getProcessSteps = (): ProcessStep[] => {
@@ -158,6 +161,21 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
       document.body.removeChild(a);
     } catch (error) {
       console.error('Error descargando archivo:', error);
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteFactura(factura.id);
+      onDelete?.(factura.id);
+      onClose();
+    } catch (error) {
+      console.error('Error eliminando factura:', error);
+      alert('Error al eliminar la factura. Inténtalo de nuevo.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -599,25 +617,77 @@ export function CentroDocumentalFacturaDetail({ factura, onClose }: CentroDocume
             </div>
 
             {/* Footer */}
-            <div className="border-t border-gray-200 p-4 bg-gray-50 rounded-b-lg flex justify-end">
+            <div style={{borderTop:'1px solid #e5e7eb', padding:'16px 24px', backgroundColor:'#f9fafb', borderRadius:'0 0 8px 8px', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                style={{display:'flex', alignItems:'center', gap:'8px', padding:'10px 18px', backgroundColor:'#dc2626', color:'white', border:'none', borderRadius:'8px', cursor:'pointer', fontFamily:'Neutra Text Book, Montserrat, sans-serif', fontSize:'14px', fontWeight:'500'}}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#b91c1c')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#dc2626')}
+              >
+                <Trash2 style={{width:16, height:16}} />
+                Eliminar Factura
+              </button>
               <button
                 onClick={onClose}
-                style={{
-                  fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
-                  backgroundColor: '#00829a',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#14aab8'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#00829a'}
-                className="px-6 py-2 text-white rounded-lg flex items-center gap-2"
+                style={{display:'flex', alignItems:'center', gap:'8px', padding:'10px 24px', backgroundColor:'#00829a', color:'white', border:'none', borderRadius:'8px', cursor:'pointer', fontFamily:'Neutra Text Book, Montserrat, sans-serif', fontSize:'14px'}}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#14aab8')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#00829a')}
               >
                 Cerrar
-                <X className="w-4 h-4" />
+                <X style={{width:16, height:16}} />
               </button>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Modal de confirmación de eliminación */}
+      {showDeleteConfirm && (
+        <>
+          <div
+            onClick={() => setShowDeleteConfirm(false)}
+            style={{position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.5)', zIndex:9999}}
+          />
+          <div style={{position:'fixed', inset:0, zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px'}}>
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{backgroundColor:'white', borderRadius:'12px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)', padding:'24px', maxWidth:'400px', width:'100%'}}
+            >
+              <div style={{display:'flex', alignItems:'center', gap:'12px', marginBottom:'16px'}}>
+                <div style={{width:40, height:40, backgroundColor:'#fee2e2', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>
+                  <Trash2 style={{width:20, height:20, color:'#dc2626'}} />
+                </div>
+                <div>
+                  <h3 style={{margin:0, fontFamily:'Neutra Text Demi, Montserrat, sans-serif', fontSize:'16px', fontWeight:600, color:'#111827'}}>
+                    Eliminar Factura
+                  </h3>
+                  <p style={{margin:0, fontSize:'13px', color:'#6b7280'}}>{factura.numero_factura}</p>
+                </div>
+              </div>
+              <p style={{fontSize:'14px', color:'#374151', marginBottom:'24px', lineHeight:1.6}}>
+                ¿Estás seguro de que deseas eliminar esta factura? Esta acción no se puede deshacer.
+              </p>
+              <div style={{display:'flex', gap:'12px'}}>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  style={{flex:1, padding:'10px', border:'1px solid #d1d5db', borderRadius:'8px', backgroundColor:'white', color:'#374151', cursor:'pointer', fontFamily:'Neutra Text Book, Montserrat, sans-serif', fontSize:'14px'}}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                  style={{flex:1, padding:'10px', border:'none', borderRadius:'8px', backgroundColor: isDeleting ? '#f87171' : '#dc2626', color:'white', cursor: isDeleting ? 'not-allowed' : 'pointer', fontFamily:'Neutra Text Book, Montserrat, sans-serif', fontSize:'14px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px'}}
+                >
+                  <Trash2 style={{width:16, height:16}} />
+                  {isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Modal de vista previa */}
       {previewFile && (

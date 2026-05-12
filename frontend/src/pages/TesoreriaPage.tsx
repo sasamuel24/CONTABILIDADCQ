@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { FolderOpen, LogOut, FolderTree, PackageOpen } from 'lucide-react';
+import { FolderOpen, LogOut, FolderTree, PackageOpen, Banknote } from 'lucide-react';
 import { ExploradorArchivosTesoreria } from '../components/ExploradorArchivosTesoreria';
 import { CarpetasTesoreriaView } from '../components/CarpetasTesoreriaView';
 import { TesoreriaPaquetesView } from '../components/TesoreriaPaquetesView';
+import { AnticiposView } from '../components/AnticiposView';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 export function TesoreriaPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'inbox' | 'carpetas' | 'paquetes'>('inbox');
+  const [activeView, setActiveView] = useState<'inbox' | 'carpetas' | 'paquetes' | 'anticipos'>('inbox');
 
   const handleLogout = () => {
     logout();
@@ -76,7 +77,7 @@ export function TesoreriaPage() {
             Carpetas programación de pagos
           </button>
 
-          <button 
+          <button
             onClick={() => setActiveView('paquetes')}
             style={{
               fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
@@ -98,6 +99,30 @@ export function TesoreriaPage() {
           >
             <PackageOpen className="w-5 h-5" />
             Paquetes de Gastos
+          </button>
+
+          <button
+            onClick={() => setActiveView('anticipos')}
+            style={{
+              fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+              backgroundColor: activeView === 'anticipos' ? '#e0f5f7' : 'transparent',
+              color: activeView === 'anticipos' ? '#00829a' : '#6b7280',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (activeView !== 'anticipos') {
+                e.currentTarget.style.backgroundColor = '#f3f4f6';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeView !== 'anticipos') {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }
+            }}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg"
+          >
+            <Banknote className="w-5 h-5" />
+            Anticipos
           </button>
         </nav>
 
@@ -143,6 +168,7 @@ export function TesoreriaPage() {
         {activeView === 'inbox' && <ExploradorArchivosTesoreria />}
         {activeView === 'carpetas' && <CarpetasTesoreriaView />}
         {activeView === 'paquetes' && <TesoreriaPaquetesView />}
+        {activeView === 'anticipos' && <AnticiposView />}
       </div>
     </div>
   );

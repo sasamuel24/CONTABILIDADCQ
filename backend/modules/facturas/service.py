@@ -178,6 +178,17 @@ class FacturaService:
             per_page=limit
         )
     
+    async def delete_factura(self, factura_id: UUID) -> None:
+        """Elimina una factura y sus registros relacionados."""
+        logger.info(f"Eliminando factura con ID: {factura_id}")
+        factura = await self.repository.get_by_id(factura_id)
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+        await self.repository.delete(factura)
+
     async def get_factura(self, factura_id: UUID) -> FacturaResponse:
         """Obtiene una factura por ID."""
         logger.info(f"Obteniendo factura con ID: {factura_id}")

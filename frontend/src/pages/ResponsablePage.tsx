@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Inbox, LogOut, PackageOpen, UploadCloud, FolderInput } from 'lucide-react';
+import { Inbox, LogOut, PackageOpen, UploadCloud, FolderInput, Banknote } from 'lucide-react';
 import { InboxView } from '../components/InboxView';
 import { ResponsablePaquetesView } from '../components/ResponsablePaquetesView';
 import { GastosAdminSubidaView } from '../components/GastosAdminSubidaView';
@@ -71,6 +71,20 @@ export function ResponsablePage() {
               </button>
             );
           })}
+
+          {/* Legalización de Anticipo — acceso directo */}
+          <button
+            onClick={() => navigate('/mis-anticipo')}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg transition-all"
+            style={{
+              color: '#1d4ed8',
+              backgroundColor: 'rgba(29,78,216,0.07)',
+              fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+            }}
+          >
+            <Banknote className="w-5 h-5" />
+            Legalizar Anticipo
+          </button>
         </nav>
 
         {/* User Menu */}

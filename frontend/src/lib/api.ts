@@ -18,13 +18,27 @@ export interface AreaInfo {
   nombre: string;
 }
 
+export interface RoleInfo {
+  id: string;
+  code: string;
+  nombre: string;
+  descripcion?: string;
+  is_active: boolean;
+}
+
 export interface UserMe {
   id: string;
   nombre: string;
   email: string;
-  role: string;
+  role: string | RoleInfo;
   must_change_password: boolean;
   area: AreaInfo | null;
+}
+
+export function getUserRoleCode(user: UserMe | null | undefined): string {
+  if (!user) return '';
+  if (typeof user.role === 'string') return user.role;
+  return user.role?.code ?? '';
 }
 
 export interface DashboardMetrics {
@@ -680,6 +694,15 @@ export async function downloadFileById(fileId: string): Promise<Blob> {
   }
 
   return response.blob();
+}
+
+/**
+ * Eliminar factura por ID
+ */
+export async function deleteFactura(facturaId: string): Promise<void> {
+  await fetchAPI(`/facturas/${facturaId}`, {
+    method: 'DELETE',
+  });
 }
 
 /**

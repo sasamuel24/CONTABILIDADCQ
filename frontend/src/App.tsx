@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { getUserRoleCode } from './lib/api';
 import { LoginPage } from './components/LoginPage';
 import { GlobalPage } from './pages/GlobalPage';
 import { FacturacionPage } from './pages/FacturacionPage';
@@ -9,6 +10,7 @@ import { TesoreriaPage } from './pages/TesoreriaPage';
 import { GerenciaPage } from './pages/GerenciaPage';
 import { CentroDocumentalPage } from './pages/CentroDocumentalPage';
 import { TecnicoMantenimientoPage } from './pages/TecnicoMantenimientoPage';
+import { LegalizacionPage } from './pages/LegalizacionPage';
 import { NoAutorizadoPage } from './pages/NoAutorizadoPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import { AprobarPaquetePage } from './pages/AprobarPaquetePage';
@@ -41,7 +43,7 @@ function AppRoutes() {
   }
 
   const roleRedirect = () => {
-    const r = user?.role?.toLowerCase();
+    const r = getUserRoleCode(user).toLowerCase();
     if (r === 'admin') return '/global';
     if (r === 'fact') return '/facturacion';
     if (r === 'responsable') return '/responsable';
@@ -50,6 +52,7 @@ function AppRoutes() {
     if (r === 'gerencia') return '/gerencia';
     if (r === 'tecnico' || r === 'mant') return '/tecnico-mantenimiento';
     if (r === 'direccion') return '/centro-documental';
+    if (r === 'user') return '/legalizacion';
     return '/no-autorizado';
   };
 
@@ -128,6 +131,22 @@ function AppRoutes() {
             element={
               <ProtectedRoute allowedRoles={['direccion']}>
                 <CentroDocumentalPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/legalizacion"
+            element={
+              <ProtectedRoute allowedRoles={['user', 'admin']}>
+                <LegalizacionPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mis-anticipo"
+            element={
+              <ProtectedRoute>
+                <LegalizacionPage modoAnticipo={true} />
               </ProtectedRoute>
             }
           />

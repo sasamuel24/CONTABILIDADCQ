@@ -643,6 +643,7 @@ export function CentroDocumentalPage() {
         <CentroDocumentalFacturaDetail
           factura={selectedFactura}
           onClose={() => setSelectedFactura(null)}
+          onDelete={(id) => setFacturas(prev => prev.filter(f => f.id !== id))}
         />
       )}
     </div>

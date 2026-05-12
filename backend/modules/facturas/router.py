@@ -118,6 +118,16 @@ async def create_factura(
     return await service.create_factura(factura)
 
 
+@router.delete("/{factura_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_factura(
+    factura_id: UUID,
+    service: FacturaService = Depends(get_factura_service),
+    _user: dict = Depends(get_current_user)
+):
+    """Elimina una factura por ID. Solo accesible para roles radicacion y director."""
+    await service.delete_factura(factura_id)
+
+
 @router.patch("/{factura_id}", response_model=FacturaResponse)
 async def update_factura(
     factura_id: UUID,

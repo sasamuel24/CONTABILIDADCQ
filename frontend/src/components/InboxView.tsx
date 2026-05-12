@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Search, FileText, ChevronDown, Filter, Download, X, Eye, AlertCircle } from 'lucide-react';
-import { 
-  getFacturas, 
-  getAreas, 
+import { Search, FileText, ChevronDown, Filter, Download, X, Eye, AlertCircle, Trash2 } from 'lucide-react';
+import {
+  getFacturas,
+  getAreas,
   updateFactura,
   getFacturaFilesByDocType,
   API_BASE_URL,
   downloadFileById,
+  deleteFactura,
   type FacturaListItem,
   type Area,
   type FacturaUpdate,
@@ -50,6 +51,8 @@ export function InboxView() {
   const [soportePagoFiles, setSoportePagoFiles] = useState<FileMiniOut[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const itemsPerPage = 10;
 
   // Cargar datos iniciales
@@ -203,6 +206,7 @@ export function InboxView() {
     setSelectedFactura(null);
     setAreaSeleccionada('');
     setSoportePagoFiles([]);
+    setShowDeleteConfirm(false);
   };
 
   const handleDownloadFile = (storageProvider: string, storagePath: string, filename: string) => {
@@ -244,6 +248,22 @@ export function InboxView() {
     } catch (error) {
       console.error('Error descargando archivo:', error);
       alert('Error al descargar el archivo');
+    }
+  };
+
+  const handleDeleteFactura = async () => {
+    if (!selectedFactura) return;
+    setIsDeleting(true);
+    try {
+      await deleteFactura(selectedFactura.id);
+      setFacturas(prev => prev.filter(f => f.id !== selectedFactura.id));
+      closeDrawer();
+    } catch (error) {
+      console.error('Error eliminando factura:', error);
+      alert('Error al eliminar la factura. Inténtalo de nuevo.');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -788,11 +808,21 @@ export function InboxView() {
                     </div>
 
                     {/* Footer */}
-                    <div className="border-t border-gray-200 p-4 sm:p-6 bg-gray-50 rounded-b-lg">
+                    <div style={{borderTop:'1px solid #e5e7eb', padding:'16px 24px', backgroundColor:'#f9fafb', borderRadius:'0 0 8px 8px', display:'flex', gap:'12px', alignItems:'center'}}>
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        style={{display:'flex', alignItems:'center', gap:'8px', padding:'10px 18px', backgroundColor:'#dc2626', color:'white', border:'none', borderRadius:'8px', cursor:'pointer', fontFamily:"'Neutra Text', 'Montserrat', sans-serif", fontSize:'14px', fontWeight:'500'}}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#b91c1c')}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#dc2626')}
+                      >
+                        <Trash2 style={{width:16, height:16}} />
+                        Eliminar Factura
+                      </button>
                       <button
                         onClick={closeDrawer}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
-                        style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                        style={{flex:1, padding:'10px 18px', border:'1px solid #d1d5db', borderRadius:'8px', color:'#374151', backgroundColor:'white', cursor:'pointer', fontFamily:"'Neutra Text', 'Montserrat', sans-serif", fontSize:'14px'}}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f3f4f6')}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'white')}
                       >
                         Cerrar
                       </button>
@@ -802,6 +832,54 @@ export function InboxView() {
               </div>
             </>
           )}
+        </>
+      )}
+
+      {/* Modal de confirmación de eliminación */}
+      {showDeleteConfirm && selectedFactura && (
+        <>
+          <div
+            onClick={() => setShowDeleteConfirm(false)}
+            style={{position:'fixed', inset:0, backgroundColor:'rgba(0,0,0,0.5)', zIndex:9999}}
+          />
+          <div style={{position:'fixed', inset:0, zIndex:10000, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px'}}>
+            <div
+              onClick={e => e.stopPropagation()}
+              style={{backgroundColor:'white', borderRadius:'12px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)', padding:'24px', maxWidth:'400px', width:'100%'}}
+            >
+              <div style={{display:'flex', alignItems:'center', gap:'12px', marginBottom:'16px'}}>
+                <div style={{width:40, height:40, backgroundColor:'#fee2e2', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>
+                  <Trash2 style={{width:20, height:20, color:'#dc2626'}} />
+                </div>
+                <div>
+                  <h3 style={{margin:0, fontFamily:"'Neutra Text', 'Montserrat', sans-serif", fontSize:'16px', fontWeight:600, color:'#111827'}}>
+                    Eliminar Factura
+                  </h3>
+                  <p style={{margin:0, fontSize:'13px', color:'#6b7280'}}>{selectedFactura.numero_factura}</p>
+                </div>
+              </div>
+              <p style={{fontSize:'14px', color:'#374151', marginBottom:'24px', lineHeight:1.6}}>
+                ¿Estás seguro de que deseas eliminar esta factura? Esta acción no se puede deshacer.
+              </p>
+              <div style={{display:'flex', gap:'12px'}}>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={isDeleting}
+                  style={{flex:1, padding:'10px', border:'1px solid #d1d5db', borderRadius:'8px', backgroundColor:'white', color:'#374151', cursor:'pointer', fontFamily:"'Neutra Text', 'Montserrat', sans-serif", fontSize:'14px'}}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDeleteFactura}
+                  disabled={isDeleting}
+                  style={{flex:1, padding:'10px', border:'none', borderRadius:'8px', backgroundColor: isDeleting ? '#f87171' : '#dc2626', color:'white', cursor: isDeleting ? 'not-allowed' : 'pointer', fontFamily:"'Neutra Text', 'Montserrat', sans-serif", fontSize:'14px', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px'}}
+                >
+                  <Trash2 style={{width:16, height:16}} />
+                  {isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
+                </button>
+              </div>
+            </div>
+          </div>
         </>
       )}
 

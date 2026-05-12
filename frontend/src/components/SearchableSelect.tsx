@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Search, X } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 
 const FONT = "'Neutra Text', 'Montserrat', sans-serif";
 
@@ -108,18 +108,15 @@ export function SearchableSelect({
         >
           {/* Buscador */}
           <div className="p-2 border-b border-gray-100">
-            <div className="relative">
-              <input
-                ref={inputRef}
-                type="text"
-                value={query}
-                onChange={e => setQuery(e.target.value)}
-                placeholder="Buscar..."
-                className="w-full pl-3 pr-8 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00829a]/30"
-                style={{ fontFamily: FONT }}
-              />
-              <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
-            </div>
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Buscar..."
+              className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-[#00829a]/30"
+              style={{ fontFamily: FONT }}
+            />
           </div>
 
           {/* Lista */}

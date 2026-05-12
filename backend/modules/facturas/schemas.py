@@ -205,7 +205,7 @@ class InventarioCodigoIn(BaseModel):
     @classmethod
     def validate_codigo(cls, v: str) -> str:
         """Valida que el código sea uno de los permitidos."""
-        allowed = {'OCT', 'ECT', 'FPC', 'OCC', 'EDO', 'NP'}
+        allowed = {'OCT', 'ECT', 'FPC', 'OCC', 'EDO', 'NP', 'NSC', 'DCC', 'ECD'}
         if v.upper() not in allowed:
             raise ValueError(f"Código '{v}' no permitido. Debe ser uno de: {allowed}")
         return v.upper()

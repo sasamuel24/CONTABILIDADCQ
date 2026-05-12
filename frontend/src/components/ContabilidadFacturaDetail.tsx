@@ -81,6 +81,11 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   const [occList, setOccList] = useState<string[]>([]);
   const [edoList, setEdoList] = useState<string[]>([]);
   const [fpcAlmacenList, setFpcAlmacenList] = useState<string[]>([]);
+  // Opcionales
+  const [nscList, setNscList] = useState<string[]>([]);
+  const [dccList, setDccList] = useState<string[]>([]);
+  const [npOpcList, setNpOpcList] = useState<string[]>([]);
+  const [ecdList, setEcdList] = useState<string[]>([]);
 
   // Estados para novedad
   const [tieneNovedad, setTieneNovedad] = useState(false);
@@ -180,6 +185,10 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
     }
     const npCodigo = codigos.find(c => c.codigo === 'NP');
     if (npCodigo) setNumeroNotaCredito(npCodigo.valor);
+    setNscList(codigos.filter(c => c.codigo === 'NSC').map(c => c.valor));
+    setDccList(codigos.filter(c => c.codigo === 'DCC').map(c => c.valor));
+    setNpOpcList(codigos.filter(c => c.codigo === 'NP' && !factura.presenta_novedad).map(c => c.valor));
+    setEcdList(codigos.filter(c => c.codigo === 'ECD').map(c => c.valor));
   }, [factura]);
 
   // Cargar datos de anticipo
@@ -845,6 +854,37 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                               )}
                             </div>
                           ))}
+                        </div>
+                      )}
+
+                      {/* Códigos opcionales */}
+                      {[
+                        { label: 'NSC', list: nscList },
+                        { label: 'DCC', list: dccList },
+                        { label: 'NP (opcional)', list: npOpcList },
+                        { label: 'ECD', list: ecdList },
+                      ].filter(({ list }) => list.length > 0).length > 0 && (
+                        <div className="pt-3 border-t border-dashed border-gray-200 mt-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2" style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}}>
+                            Códigos opcionales
+                          </p>
+                          <div className="space-y-1.5">
+                            {[
+                              { label: 'NSC', list: nscList },
+                              { label: 'DCC', list: dccList },
+                              { label: 'NP',  list: npOpcList },
+                              { label: 'ECD', list: ecdList },
+                            ].filter(({ list }) => list.length > 0).map(({ label, list }) => (
+                              <div key={label} className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-gray-500 w-10">{label}</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {list.map((v, i) => (
+                                    <span key={i} className="px-2 py-0.5 bg-purple-50 border border-purple-200 text-purple-700 text-xs font-mono rounded">{v}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </>

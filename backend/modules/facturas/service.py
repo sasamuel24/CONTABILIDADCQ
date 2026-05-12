@@ -735,18 +735,10 @@ Responde ÚNICAMENTE con JSON válido:
         
         payload_codes = {c.codigo.upper() for c in inventarios_data.codigos}
         
-        # Validar: Si presenta_novedad=false, NP NO puede venir
-        if not inventarios_data.presenta_novedad and 'NP' in payload_codes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "message": "Inventarios inválido",
-                    "extra_codes": ["NP"],
-                    "error": "NP no puede incluirse cuando presenta_novedad=false"
-                }
-            )
-        
-        # Validar códigos faltantes
+        # Códigos opcionales permitidos en cualquier caso
+        OPTIONAL_CODES = {"NSC", "DCC", "ECD", "NP"}
+
+        # Validar códigos faltantes (solo requeridos)
         missing_codes = required_codes - payload_codes
         if missing_codes:
             raise HTTPException(
@@ -757,9 +749,9 @@ Responde ÚNICAMENTE con JSON válido:
                     "error": f"Faltan códigos requeridos: {sorted(list(missing_codes))}"
                 }
             )
-        
-        # Validar códigos extras (no permitidos)
-        extra_codes = payload_codes - required_codes
+
+        # Validar códigos extras (se permiten los opcionales)
+        extra_codes = payload_codes - required_codes - OPTIONAL_CODES
         if extra_codes:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1131,14 +1123,11 @@ Responde ÚNICAMENTE con JSON válido:
                 if missing:
                     missing_codes.extend(sorted(list(missing)))
                 
-                # Validar extras
-                extra = existing_codes - required_codes
+                # Validar extras (permitir opcionales NSC, DCC, ECD, NP)
+                OPTIONAL_CODES = {"NSC", "DCC", "ECD", "NP"}
+                extra = existing_codes - required_codes - OPTIONAL_CODES
                 if extra:
                     extra_codes.extend(sorted(list(extra)))
-                
-                # Validar que NP no esté si presenta_novedad=false
-                if not factura.presenta_novedad and 'NP' in existing_codes:
-                    extra_codes.append('NP')
                 
                 # Validar valores no vacíos
                 for codigo in codigos:

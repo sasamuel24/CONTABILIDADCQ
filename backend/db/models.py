@@ -884,7 +884,7 @@ class FacturaInventarioCodigo(Base):
         index=True
     )
     codigo: Mapped[str] = mapped_column(
-        Enum('OCT', 'ECT', 'FPC', 'OCC', 'EDO', 'NP', name='codigo_inventario_enum'),
+        Enum('OCT', 'ECT', 'FPC', 'OCC', 'EDO', 'NP', 'NSC', 'DCC', 'ECD', name='codigo_inventario_enum'),
         nullable=False
     )
     valor: Mapped[str] = mapped_column(

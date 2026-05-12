@@ -143,6 +143,12 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [edoList, setEdoList] = useState<string[]>(['']);
   const [fpcAlmacenList, setFpcAlmacenList] = useState<string[]>(['']);
 
+  // Códigos opcionales (NSC, DCC, NP, ECD)
+  const [nscList, setNscList] = useState<string[]>(['']);
+  const [dccList, setDccList] = useState<string[]>(['']);
+  const [npOpcList, setNpOpcList] = useState<string[]>(['']);
+  const [ecdList, setEcdList] = useState<string[]>(['']);
+
   // Novedad
   const [tieneNovedad, setTieneNovedad] = useState(false);
   const [numeroNotaCredito, setNumeroNotaCredito] = useState('');
@@ -318,6 +324,15 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
             setEdoList(edoVals.length > 0 ? edoVals : ['']);
             setFpcAlmacenList(fpcVals.length > 0 ? fpcVals : ['']);
           }
+          // Opcionales (aplican para cualquier destino)
+          const nscVals = factura.inventarios_codigos.filter(c => c.codigo === 'NSC').map(c => c.valor);
+          const dccVals = factura.inventarios_codigos.filter(c => c.codigo === 'DCC').map(c => c.valor);
+          const npOpcVals = factura.inventarios_codigos.filter(c => c.codigo === 'NP').map(c => c.valor);
+          const ecdVals = factura.inventarios_codigos.filter(c => c.codigo === 'ECD').map(c => c.valor);
+          setNscList(nscVals.length > 0 ? nscVals : ['']);
+          setDccList(dccVals.length > 0 ? dccVals : ['']);
+          setNpOpcList(npOpcVals.length > 0 ? npOpcVals : ['']);
+          setEcdList(ecdVals.length > 0 ? ecdVals : ['']);
         }
       } catch (error) {
         console.error('Error cargando inventarios:', error);
@@ -510,10 +525,20 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
             ...fpcAlmacenList.filter(v => v.trim()).map(v => ({ codigo: 'FPC', valor: v })),
           ];
 
-      // Si tiene novedad, agregar el código NP
+      // Si tiene novedad, agregar el código NP (del toggle)
       if (tieneNovedad && numeroNotaCredito) {
         codigos.push({ codigo: 'NP', valor: numeroNotaCredito });
       }
+
+      // Agregar códigos opcionales (NSC, DCC, NP sin novedad, ECD)
+      const nscVal = nscList.find(v => v.trim());
+      const dccVal = dccList.find(v => v.trim());
+      const npOpcVal = npOpcList.find(v => v.trim());
+      const ecdVal = ecdList.find(v => v.trim());
+      if (nscVal) codigos.push({ codigo: 'NSC', valor: nscVal });
+      if (dccVal) codigos.push({ codigo: 'DCC', valor: dccVal });
+      if (npOpcVal && !tieneNovedad) codigos.push({ codigo: 'NP', valor: npOpcVal });
+      if (ecdVal) codigos.push({ codigo: 'ECD', valor: ecdVal });
 
       await updateFacturaInventarios(factura.id, {
         requiere_entrada_inventarios: requiereInventario,
@@ -663,10 +688,20 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         }
       }
 
-      // Si tiene novedad, agregar código NP
+      // Si tiene novedad, agregar código NP (del toggle)
       if (tieneNovedad && numeroNotaCredito) {
         codigosInventario.push({ codigo: 'NP', valor: numeroNotaCredito });
       }
+
+      // Códigos opcionales
+      const nscValG = nscList.find(v => v.trim());
+      const dccValG = dccList.find(v => v.trim());
+      const npOpcValG = npOpcList.find(v => v.trim());
+      const ecdValG = ecdList.find(v => v.trim());
+      if (nscValG) codigosInventario.push({ codigo: 'NSC', valor: nscValG });
+      if (dccValG) codigosInventario.push({ codigo: 'DCC', valor: dccValG });
+      if (npOpcValG && !tieneNovedad) codigosInventario.push({ codigo: 'NP', valor: npOpcValG });
+      if (ecdValG) codigosInventario.push({ codigo: 'ECD', valor: ecdValG });
 
       await updateFacturaInventarios(factura.id, {
         requiere_entrada_inventarios: requiereInventario,
@@ -2038,6 +2073,54 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ── Códigos Opcionales ───────────────────────────────── */}
+              {requiereInventario && (
+                <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                    Códigos opcionales
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    {([
+                      { label: 'NSC', list: nscList, setList: setNscList },
+                      { label: 'DCC', list: dccList, setList: setDccList },
+                      { label: 'NP',  list: npOpcList, setList: setNpOpcList, hidden: tieneNovedad },
+                      { label: 'ECD', list: ecdList, setList: setEcdList },
+                    ] as { label: string; list: string[]; setList: (v: string[]) => void; hidden?: boolean }[])
+                      .filter(f => !f.hidden)
+                      .map(({ label, list, setList }) => (
+                        <div key={label}>
+                          <label className="block text-sm font-medium text-gray-600 mb-1" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                            {label}
+                          </label>
+                          {list.map((val, idx) => (
+                            <div key={idx} className="flex items-center gap-2 mb-1">
+                              <input
+                                type="text"
+                                value={val}
+                                onChange={(e) => { const n = [...list]; n[idx] = e.target.value; setList(n); }}
+                                placeholder={label}
+                                className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#00829a]"
+                                style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                              />
+                              {list.length > 1 && (
+                                <button type="button" onClick={() => setList(list.filter((_, i) => i !== idx))} className="text-gray-400 hover:text-red-500 text-xs">✕</button>
+                              )}
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setList([...list, ''])}
+                            className="mt-0.5 text-xs font-medium px-2 py-1 rounded border border-dashed border-gray-300 text-gray-500 hover:border-[#00829a] hover:text-[#00829a] transition-colors"
+                            style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                          >
+                            + Agregar {label}
+                          </button>
+                        </div>
+                      ))}
+                  </div>
                 </div>
               )}
             </div>

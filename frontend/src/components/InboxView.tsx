@@ -28,6 +28,14 @@ function getMissingItems(f: FacturaListItem): string[] {
     }
   }
 
+  // Archivo OC u OS requerido (salvo gastos administrativos)
+  if (!f.es_gasto_adm) {
+    const docTypes = new Set((f.files ?? []).map(file => file.doc_type));
+    if (!docTypes.has('OC') && !docTypes.has('OS')) {
+      out.push('Archivo OC u OS');
+    }
+  }
+
   return out;
 }
 
@@ -214,40 +222,38 @@ export function InboxView() {
     }
   }, [user]);
 
-  const loadInboxData = async () => {
-    setIsLoading(true);
+  const loadInboxData = async (silent = false) => {
+    if (!silent) setIsLoading(true);
     setError(null);
     
     // Validar que el usuario tenga área asignada
     if (!user?.area?.nombre) {
       setError('Tu usuario no tiene un área asignada. Contacta al administrador.');
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
       return;
     }
-    
+
     try {
       const [facturasData, areasData] = await Promise.all([
-        getFacturas(0, 1000), // Cargar todas las facturas
+        getFacturas(0, 1000),
         getAreas(),
       ]);
-      
-      // Filtrar facturas por área del usuario
+
       let facturasDelArea = facturasData.items.filter(
         f => f.area === user.area?.nombre
       );
-      
-      // Si el usuario es de tesorería, excluir facturas pagadas (van a carpetas)
+
       if (user.role === 'tesoreria') {
         facturasDelArea = facturasDelArea.filter(f => f.estado !== 'Pagada');
       }
-      
+
       setFacturas(facturasDelArea);
       setAreas(areasData);
     } catch (err) {
       console.error('Error al cargar datos:', err);
-      setError('Error al cargar los datos del inbox');
+      if (!silent) setError('Error al cargar los datos del inbox');
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   };
 
@@ -359,6 +365,7 @@ export function InboxView() {
     setAreaSeleccionada('');
     setSoportePagoFiles([]);
     setShowDeleteConfirm(false);
+    loadInboxData(true); // refresca datos en background para que el checklist refleje cambios guardados
   };
 
   const handleDownloadFile = (storageProvider: string, storagePath: string, filename: string) => {

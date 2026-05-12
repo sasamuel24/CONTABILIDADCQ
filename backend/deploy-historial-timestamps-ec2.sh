@@ -58,10 +58,10 @@ if [ $? -eq 0 ]; then
     alembic current
     echo ""
     echo "Reiniciando servicio backend..."
-    sudo systemctl restart backend
+    sudo systemctl restart contabilidadcq
     echo ""
     echo "Verificando estado del servicio:"
-    sudo systemctl status backend --no-pager
+    sudo systemctl status contabilidadcq --no-pager
     echo ""
     echo "Para ver los logs en tiempo real:"
     echo "  sudo journalctl -u backend -f"

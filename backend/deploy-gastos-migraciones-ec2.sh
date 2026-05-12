@@ -71,7 +71,7 @@ if [ $? -eq 0 ]; then
     alembic current
     echo ""
     echo "Pasos siguientes:"
-    echo "  1. Reiniciar backend: sudo systemctl restart backend"
+    echo "  1. Reiniciar backend: sudo systemctl restart contabilidadcq"
     echo "  2. Verificar logs:    sudo journalctl -u backend -f"
     echo ""
 else

@@ -160,7 +160,7 @@ echo "🔄 8. Reiniciando servicio backend..."
 
 # Intentar con systemctl primero
 if sudo systemctl list-units --all | grep -q "backend.service"; then
-    sudo systemctl restart backend
+    sudo systemctl restart contabilidadcq
     if [ $? -eq 0 ]; then
         print_success "Servicio backend reiniciado (systemctl)"
     else

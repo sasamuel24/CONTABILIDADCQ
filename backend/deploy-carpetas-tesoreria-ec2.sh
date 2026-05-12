@@ -113,8 +113,8 @@ if [ $? -eq 0 ]; then
     echo ""
     echo -e "${YELLOW}📝 SIGUIENTE PASO:${NC}"
     echo "  Reinicia el servicio backend:"
-    echo "  sudo systemctl restart backend"
-    echo "  sudo systemctl status backend"
+    echo "  sudo systemctl restart contabilidadcq"
+    echo "  sudo systemctl status contabilidadcq"
     echo ""
 else
     echo ""

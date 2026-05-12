@@ -64,7 +64,7 @@ if [ $? -eq 0 ]; then
     echo ""
     
     echo "Siguiente paso:"
-    echo "  1. Reiniciar el servicio backend: sudo systemctl restart backend"
+    echo "  1. Reiniciar el servicio backend: sudo systemctl restart contabilidadcq"
     echo "  2. Verificar logs: sudo journalctl -u backend -f"
     echo ""
 else

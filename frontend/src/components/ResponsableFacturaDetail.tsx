@@ -677,7 +677,15 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         codigos: codigosInventario.length > 0 ? codigosInventario : undefined
       });
 
-      // 2. Guardar Anticipo e Intervalo
+      // 2. Guardar CC / CO (si están seleccionados)
+      if (centroCosto && centroOperacion) {
+        await updateFacturaCentros(factura.id, {
+          centro_costo_id: centroCosto,
+          centro_operacion_id: centroOperacion,
+        });
+      }
+
+      // 3. Guardar Anticipo e Intervalo
       const porcentaje = tieneAnticipo && porcentajeAnticipo ? parseFloat(porcentajeAnticipo) : null;
       await updateFacturaAnticipo(factura.id, {
         tiene_anticipo: tieneAnticipo,
@@ -694,7 +702,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
     } catch (error: any) {
       console.error('Error guardando cambios:', error);
-      alert(`❌ Error al guardar cambios: ${error.message || 'Error desconocido'}`);
+      const detalle = error?.detail?.message || error?.detail || error.message || 'Error desconocido';
+      alert(`❌ Error al guardar: ${detalle}`);
     } finally {
       setSavingInventarios(false);
       setSavingNovedad(false);

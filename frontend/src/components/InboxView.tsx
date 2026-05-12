@@ -36,6 +36,11 @@ function getMissingItems(f: FacturaListItem): string[] {
     }
   }
 
+  // Aprobación de Gerencia (salvo gastos administrativos)
+  if (!f.es_gasto_adm && !f.fecha_aprobacion_email) {
+    out.push('Aprobación de Gerencia');
+  }
+
   return out;
 }
 

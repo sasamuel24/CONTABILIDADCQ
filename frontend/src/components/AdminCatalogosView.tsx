@@ -192,34 +192,31 @@ function TabCentroCosto() {
 
 function TabCentroOperacion() {
   const [lista, setLista] = useState<CentroOperacion[]>([]);
-  const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nuevoCodigo, setNuevoCodigo] = useState('');
   const [nuevoNombre, setNuevoNombre] = useState('');
-  const [nuevoCCId, setNuevoCCId] = useState('');
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editNombre, setEditNombre] = useState('');
-  const [editCCId, setEditCCId] = useState('');
 
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const [cos, ccs] = await Promise.all([getCentrosOperacion(false), getCentrosCosto(false)]);
+      const cos = await getCentrosOperacion(false);
       setLista(cos);
-      setCentrosCosto(ccs);
     } catch { toast.error('Error al cargar'); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { cargar(); }, [cargar]);
 
   const handleCrear = async () => {
+    if (!nuevoCodigo.trim()) { toast.warning('Ingrese el código'); return; }
     if (!nuevoNombre.trim()) { toast.warning('Ingrese un nombre'); return; }
-    if (!nuevoCCId) { toast.warning('Seleccione el Centro de Costo'); return; }
     setSaving(true);
     try {
-      const nuevo = await createCentroOperacion({ nombre: nuevoNombre.trim(), centro_costo_id: nuevoCCId });
+      const nuevo = await createCentroOperacion({ codigo: nuevoCodigo.trim(), nombre: nuevoNombre.trim() });
       setLista(prev => [nuevo, ...prev]);
-      setNuevoNombre(''); setNuevoCCId('');
+      setNuevoCodigo(''); setNuevoNombre('');
       toast.success('Centro de Operación creado');
     } catch { toast.error('Error al crear'); } finally { setSaving(false); }
   };
@@ -227,7 +224,7 @@ function TabCentroOperacion() {
   const handleGuardarEdicion = async (id: string) => {
     if (!editNombre.trim()) { toast.warning('Ingrese un nombre'); return; }
     try {
-      const actualizado = await updateCentroOperacion(id, { nombre: editNombre.trim(), centro_costo_id: editCCId || undefined });
+      const actualizado = await updateCentroOperacion(id, { nombre: editNombre.trim() });
       setLista(prev => prev.map(c => c.id === id ? actualizado : c));
       setEditId(null);
       toast.success('Actualizado');
@@ -255,19 +252,11 @@ function TabCentroOperacion() {
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
         <p className="text-sm font-semibold text-gray-700 mb-3">Nuevo Centro de Operación</p>
         <div className="flex items-end gap-3 flex-wrap">
-          <div className="flex-1 min-w-[180px]">
-            <FieldInput label="Nombre" value={nuevoNombre} onChange={setNuevoNombre} placeholder="Ej: Logística Norte" required />
+          <div className="w-28">
+            <FieldInput label="Código" value={nuevoCodigo} onChange={setNuevoCodigo} placeholder="Ej: 025" required />
           </div>
-          <div className="flex-1 min-w-[180px] flex flex-col gap-1">
-            <label className="text-xs font-medium text-gray-600">Centro de Costo <span className="text-red-500">*</span></label>
-            <select
-              value={nuevoCCId}
-              onChange={e => setNuevoCCId(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00829a]/30 focus:border-[#00829a]"
-            >
-              <option value="">— Seleccionar —</option>
-              {centrosCosto.filter(c => c.activo).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
+          <div className="flex-1 min-w-[200px]">
+            <FieldInput label="Nombre" value={nuevoNombre} onChange={setNuevoNombre} placeholder="Ej: CAFE QUINDIO EXPRESS EVENTOS" required />
           </div>
           <button
             onClick={handleCrear}
@@ -290,8 +279,8 @@ function TabCentroOperacion() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Código</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Nombre</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Centro de Costo</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
@@ -299,6 +288,9 @@ function TabCentroOperacion() {
             <tbody className="divide-y divide-gray-100">
               {lista.map(co => (
                 <tr key={co.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{co.codigo}</span>
+                  </td>
                   <td className="px-4 py-3">
                     {editId === co.id ? (
                       <input
@@ -312,19 +304,6 @@ function TabCentroOperacion() {
                       <span className="text-gray-800 font-medium">{co.nombre}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3">
-                    {editId === co.id ? (
-                      <select
-                        value={editCCId}
-                        onChange={e => setEditCCId(e.target.value)}
-                        className="px-2 py-1 border border-[#00829a] rounded text-sm focus:outline-none"
-                      >
-                        {centrosCosto.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                      </select>
-                    ) : (
-                      <span className="text-gray-500 text-xs">{co.centro_costo_nombre ?? '—'}</span>
-                    )}
-                  </td>
                   <td className="px-4 py-3 text-center"><ActiveBadge activo={co.activo} /></td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
@@ -335,7 +314,7 @@ function TabCentroOperacion() {
                         </>
                       ) : (
                         <>
-                          <button onClick={() => { setEditId(co.id); setEditNombre(co.nombre); setEditCCId(co.centro_costo_id); }} className="p-1.5 rounded hover:bg-gray-100 text-gray-500" title="Editar"><Pencil className="w-4 h-4" /></button>
+                          <button onClick={() => { setEditId(co.id); setEditNombre(co.nombre); }} className="p-1.5 rounded hover:bg-gray-100 text-gray-500" title="Editar"><Pencil className="w-4 h-4" /></button>
                           <button onClick={() => handleToggle(co)} className="p-1.5 rounded hover:bg-gray-100" title={co.activo ? 'Desactivar' : 'Activar'}>
                             {co.activo ? <ToggleRight className="w-4 h-4 text-green-600" /> : <ToggleLeft className="w-4 h-4 text-gray-400" />}
                           </button>

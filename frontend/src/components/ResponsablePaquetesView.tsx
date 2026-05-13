@@ -1082,12 +1082,12 @@ function DetallePaqueteResponsable({
                             >
                               <option value="">-- Seleccionar --</option>
                               {coFiltrados.map((c) => (
-                                <option key={c.id} value={c.id}>{c.nombre}</option>
+                                <option key={c.id} value={c.id}>{c.codigo} - {c.nombre}</option>
                               ))}
                             </select>
                           ) : (
                             <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                              {g.centro_operacion?.nombre ?? '—'}
+                              {g.centro_operacion ? `${g.centro_operacion.nombre}` : '—'}
                             </span>
                           )}
                         </td>

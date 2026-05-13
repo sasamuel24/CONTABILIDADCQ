@@ -901,10 +901,10 @@ export async function deleteCentroCosto(id: string): Promise<void> {
   await fetchAPI(`/centros-costo/${id}`, { method: 'DELETE' });
 }
 
-export async function createCentroOperacion(data: { nombre: string; centro_costo_id: string; activo?: boolean }): Promise<CentroOperacion> {
+export async function createCentroOperacion(data: { codigo: string; nombre: string; activo?: boolean }): Promise<CentroOperacion> {
   return fetchAPI<CentroOperacion>('/centros-operacion', { method: 'POST', body: JSON.stringify(data) });
 }
-export async function updateCentroOperacion(id: string, data: { nombre?: string; centro_costo_id?: string; activo?: boolean }): Promise<CentroOperacion> {
+export async function updateCentroOperacion(id: string, data: { codigo?: string; nombre?: string; activo?: boolean }): Promise<CentroOperacion> {
   return fetchAPI<CentroOperacion>(`/centros-operacion/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 }
 export async function deleteCentroOperacion(id: string): Promise<void> {

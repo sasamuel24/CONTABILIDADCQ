@@ -281,7 +281,7 @@ export function InboxView() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [sortCol, setSortCol] = useState<InboxSortCol | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
-  const itemsPerPage = 10;
+  const itemsPerPage = 20;
 
   function handleSort(col: InboxSortCol) {
     if (sortCol !== col) { setSortCol(col); setSortDir('asc'); setCurrentPage(1); }

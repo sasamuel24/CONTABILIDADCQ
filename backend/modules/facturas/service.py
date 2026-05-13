@@ -613,31 +613,56 @@ Responde ÚNICAMENTE con JSON válido:
             )
         
         # Caso 1: No requiere entrada de inventarios
+        # La novedad (presenta_novedad + código NP) se gestiona de forma independiente.
         if not inventarios_data.requiere_entrada_inventarios:
-            logger.info(f"Factura {factura_id} no requiere inventarios - limpiando datos")
+            logger.info(f"Factura {factura_id} no requiere inventarios - limpiando datos de inventario")
 
-            # Actualizar factura
             factura.requiere_entrada_inventarios = False
             factura.destino_inventarios = None
-            factura.presenta_novedad = False
-            
-            # Eliminar todos los códigos existentes
-            codigos_existentes = (await self.db.execute(
+            factura.presenta_novedad = bool(inventarios_data.presenta_novedad)
+
+            # Obtener códigos existentes
+            result_existentes = await self.db.execute(
                 select(FacturaInventarioCodigo)
                 .where(FacturaInventarioCodigo.factura_id == factura_id)
-            )).scalars().all()
-            
-            for codigo in codigos_existentes:
-                await self.db.delete(codigo)
-            
+            )
+            codigos_existentes = {c.codigo: c for c in result_existentes.scalars().all()}
+
+            # Eliminar todos los códigos EXCEPTO NP (que se maneja con novedad)
+            for cod, obj in codigos_existentes.items():
+                if cod != 'NP':
+                    await self.db.delete(obj)
+
+            # Manejar código NP según presenta_novedad
+            np_payload = next((c for c in (inventarios_data.codigos or []) if c.codigo.upper() == 'NP'), None)
+            if inventarios_data.presenta_novedad and np_payload:
+                # UPSERT del código NP
+                if 'NP' in codigos_existentes:
+                    codigos_existentes['NP'].valor = np_payload.valor
+                else:
+                    self.db.add(FacturaInventarioCodigo(
+                        factura_id=factura_id,
+                        codigo='NP',
+                        valor=np_payload.valor
+                    ))
+            else:
+                # Sin novedad: eliminar NP si existía
+                if 'NP' in codigos_existentes:
+                    await self.db.delete(codigos_existentes['NP'])
+
             await self.db.commit()
             await self.db.refresh(factura)
-            
+
+            codigos_out = []
+            if inventarios_data.presenta_novedad and np_payload:
+                from modules.facturas.schemas import InventarioCodigoOut
+                codigos_out = [InventarioCodigoOut(codigo='NP', valor=np_payload.valor, created_at=factura.updated_at)]
+
             return InventariosOut(
                 factura_id=factura.id,
                 requiere_entrada_inventarios=False,
                 destino_inventarios=None,
-                codigos=[]
+                codigos=codigos_out
             )
         
         # Caso 2: Requiere entrada de inventarios

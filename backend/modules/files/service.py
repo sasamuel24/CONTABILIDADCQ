@@ -20,9 +20,10 @@ class FileService:
     """Servicio que contiene la lógica de negocio de archivos."""
     
     ALLOWED_DOC_TYPES = {
-        "OC", "OS", "OCT", "ECT", "OCC", "EDO", 
+        "OC", "OS", "OCT", "ECT", "OCC", "EDO",
         "FCP", "FPC", "EGRESO", "SOPORTE_PAGO", "FACTURA_PDF",
-        "APROBACION_GERENCIA", "PEC", "EC", "PCE", "PED"
+        "APROBACION_GERENCIA", "PEC", "EC", "PCE", "PED",
+        "NOTA_CREDITO",
     }
     
     # Content types permitidos por doc_type

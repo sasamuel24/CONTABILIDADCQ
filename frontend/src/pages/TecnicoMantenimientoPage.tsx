@@ -610,21 +610,18 @@ function CardGasto({
             </label>
             {bloqueado ? (
               <p className={inputReadCls}>
-                {centrosCosto.find(c => c.id === fila.centroCostoId)?.nombre || '—'}
+                {(() => { const cc = centrosCosto.find(c => c.id === fila.centroCostoId); return cc ? `${cc.codigo} - ${cc.nombre}` : '—'; })()}
               </p>
             ) : (
               <select
                 value={fila.centroCostoId}
-                onChange={(e) => {
-                  onCampo(fila.localId, 'centroCostoId', e.target.value);
-                  onCampo(fila.localId, 'centroOperacionId', '');
-                }}
+                onChange={(e) => onCampo(fila.localId, 'centroCostoId', e.target.value)}
                 className={selectCls}
                 style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
               >
                 <option value="">-- Seleccionar --</option>
                 {centrosCosto.map(c => (
-                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                  <option key={c.id} value={c.id}>{c.codigo} - {c.nombre}</option>
                 ))}
               </select>
             )}
@@ -636,22 +633,19 @@ function CardGasto({
             </label>
             {bloqueado ? (
               <p className={inputReadCls}>
-                {centrosOperacion.find(c => c.id === fila.centroOperacionId)?.nombre || '—'}
+                {(() => { const co = centrosOperacion.find(c => c.id === fila.centroOperacionId); return co ? `${co.codigo} - ${co.nombre}` : '—'; })()}
               </p>
             ) : (
               <select
                 value={fila.centroOperacionId}
                 onChange={(e) => onCampo(fila.localId, 'centroOperacionId', e.target.value)}
-                disabled={!fila.centroCostoId}
-                className={`${selectCls} disabled:opacity-50 disabled:cursor-not-allowed`}
+                className={selectCls}
                 style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
               >
                 <option value="">-- Seleccionar --</option>
-                {centrosOperacion
-                  .filter(c => !fila.centroCostoId || c.centro_costo_id === fila.centroCostoId)
-                  .map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre}</option>
-                  ))}
+                {centrosOperacion.map(c => (
+                  <option key={c.id} value={c.id}>{c.codigo} - {c.nombre}</option>
+                ))}
               </select>
             )}
           </div>

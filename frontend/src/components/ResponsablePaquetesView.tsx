@@ -1060,12 +1060,12 @@ function DetallePaqueteResponsable({
                             >
                               <option value="">-- Seleccionar --</option>
                               {centrosCosto.map((c) => (
-                                <option key={c.id} value={c.id}>{c.nombre}</option>
+                                <option key={c.id} value={c.id}>{c.codigo} - {c.nombre}</option>
                               ))}
                             </select>
                           ) : (
                             <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                              {g.centro_costo?.nombre ?? '—'}
+                              {g.centro_costo ? `${g.centro_costo.nombre}` : '—'}
                             </span>
                           )}
                         </td>
@@ -1076,8 +1076,7 @@ function DetallePaqueteResponsable({
                             <select
                               value={asig.centroOperacionId}
                               onChange={(e) => setAsignacion(g.id, 'centroOperacionId', e.target.value)}
-                              disabled={!asig.centroCostoId}
-                              className={`${selectCls} disabled:opacity-50`}
+                              className={selectCls}
                               style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
                             >
                               <option value="">-- Seleccionar --</option>

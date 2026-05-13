@@ -77,11 +77,13 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   // Estados para archivos existentes (ya subidos)
   const [archivosOCExistentes, setArchivosOCExistentes] = useState<FileMiniOut[]>([]);
   const [soportePagoFiles, setSoportePagoFiles] = useState<FileMiniOut[]>([]);
+  const [notaCreditoFiles, setNotaCreditoFiles] = useState<FileMiniOut[]>([]);
   const [loadingArchivos, setLoadingArchivos] = useState(true);
 
   // Estados de loading para uploads
   const [uploadingOC, setUploadingOC] = useState(false);
   const [uploadingInventario, setUploadingInventario] = useState(false);
+  const [uploadingNotaCredito, setUploadingNotaCredito] = useState(false);
 
   // Estados para aprobación por correo electrónico
   const [aprobadores, setAprobadores] = useState<AprobadorGerencia[]>([]);
@@ -205,17 +207,19 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       try {
         setLoadingArchivos(true);
 
-        const [archivosOC, archivosSoportePago, archivosSoporteGastoFijo, aprobadoresActivos] = await Promise.all([
+        const [archivosOC, archivosSoportePago, archivosSoporteGastoFijo, aprobadoresActivos, archivosNC] = await Promise.all([
           getFacturaFilesByDocType(factura.id, 'OC'),
           getFacturaFilesByDocType(factura.id, 'FACTURA_PDF'),
           getFacturaFilesByDocType(factura.id, 'SOPORTE_PAGO'),
           getAprobadoresActivos(),
+          getFacturaFilesByDocType(factura.id, 'NOTA_CREDITO'),
         ]);
 
         setArchivosOCExistentes(archivosOC);
         setSoportePagoFiles(archivosSoportePago);
         setSoporteGastoFijoFiles(archivosSoporteGastoFijo);
         setAprobadores(aprobadoresActivos);
+        setNotaCreditoFiles(archivosNC);
       } catch (error) {
         console.error('Error cargando archivos existentes:', error);
       } finally {
@@ -975,8 +979,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     }
   };
 
-  const handleDeleteFile = async (fileId: string, tipo: 'oc' | 'aprobacion') => {
-    const tipoTexto = tipo === 'oc' ? 'OC/OS' : 'Aprobación de Gerencia';
+  const handleDeleteFile = async (fileId: string, tipo: 'oc' | 'aprobacion' | 'notacredito') => {
+    const tipoTexto = tipo === 'oc' ? 'OC/OS' : tipo === 'notacredito' ? 'Nota Crédito' : 'Aprobación de Gerencia';
     
     setConfirmModalConfig({
       title: 'Eliminar Archivo',
@@ -995,6 +999,9 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
           } else if (tipo === 'aprobacion') {
             setArchivoAprobacionExistente(null);
             toast.success('Archivo de Aprobación eliminado correctamente');
+          } else if (tipo === 'notacredito') {
+            setNotaCreditoFiles(prev => prev.filter(f => f.id !== fileId));
+            toast.success('Archivo de Nota Crédito eliminado correctamente');
           }
         } catch (error: any) {
           console.error('Error eliminando archivo:', error);
@@ -1049,6 +1056,11 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
           setLoading = setUploadingInventario;
           setArchivo = setArchivoInventario;
           break;
+        case 'notacredito':
+          docType = 'NOTA_CREDITO';
+          setLoading = setUploadingNotaCredito;
+          setArchivo = setArchivoNotaCredito;
+          break;
         default:
           return;
       }
@@ -1080,6 +1092,14 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
             content_type: response.content_type,
             uploaded_at: response.created_at
           });
+        } else if (tipo === 'notacredito') {
+          setNotaCreditoFiles(prev => [...prev, {
+            id: response.file_id,
+            filename: response.filename,
+            doc_type: response.doc_type,
+            content_type: response.content_type,
+            uploaded_at: response.created_at
+          }]);
         }
         
         // Limpiar error si existía
@@ -2383,7 +2403,49 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                       <p className="text-red-600 text-xs mt-1">{errores.numeroNotaCredito}</p>
                     )}
                   </div>
-                  
+
+                  {/* Adjuntar PDF de Nota Crédito */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      PDF Nota Crédito <span className="text-gray-400 text-xs font-normal">(opcional)</span>
+                    </label>
+                    {notaCreditoFiles.length > 0 && (
+                      <div className="space-y-2 mb-2">
+                        {notaCreditoFiles.map((archivo) => (
+                          <div key={archivo.id} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-2.5">
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                              <span className="text-sm text-blue-800 font-medium truncate max-w-[200px]">{archivo.filename}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button onClick={() => handlePreviewFile(archivo)} className="p-1.5 rounded hover:bg-blue-100 text-blue-600" title="Ver">
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => handleDownloadById(archivo)} className="p-1.5 rounded hover:bg-blue-100 text-blue-600" title="Descargar">
+                                <Download className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFile(archivo.id, 'notacredito')}
+                                disabled={deletingFileId === archivo.id}
+                                className="p-1.5 rounded hover:bg-red-100 text-red-500" title="Eliminar"
+                              >
+                                {deletingFileId === archivo.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleFileUpload('notacredito')}
+                      disabled={uploadingNotaCredito}
+                      className="flex items-center gap-2 px-3 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-[#00829a] hover:text-[#00829a] transition-colors"
+                    >
+                      {uploadingNotaCredito ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                      {uploadingNotaCredito ? 'Subiendo…' : 'Adjuntar PDF'}
+                    </button>
+                  </div>
 
                 </div>
               )}

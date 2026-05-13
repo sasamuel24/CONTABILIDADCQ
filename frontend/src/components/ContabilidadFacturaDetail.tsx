@@ -75,6 +75,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   const [archivoAprobacionExistente, setArchivoAprobacionExistente] = useState<FileMiniOut | null>(null);
   const [archivoInventarioExistente, setArchivoInventarioExistente] = useState<FileMiniOut | null>(null);
   const [soportePagoFiles, setSoportePagoFiles] = useState<FileMiniOut[]>([]);
+  const [notaCreditoFiles, setNotaCreditoFiles] = useState<FileMiniOut[]>([]);
   const [loadingArchivos, setLoadingArchivos] = useState(true);
 
   // Estados para centros
@@ -137,17 +138,19 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
       try {
         setLoadingArchivos(true);
         
-        const [archivosOC, archivosAprobacion, archivosInventario, archivosSoportePago] = await Promise.all([
+        const [archivosOC, archivosAprobacion, archivosInventario, archivosSoportePago, archivosNC] = await Promise.all([
           getFacturaFilesByDocType(factura.id, 'OC'),
           getFacturaFilesByDocType(factura.id, 'APROBACION_GERENCIA'),
           getFacturaFilesByDocType(factura.id, 'SOPORTE_INVENTARIO'),
-          getFacturaFilesByDocType(factura.id, 'FACTURA_PDF')
+          getFacturaFilesByDocType(factura.id, 'FACTURA_PDF'),
+          getFacturaFilesByDocType(factura.id, 'NOTA_CREDITO'),
         ]);
-        
+
         setArchivosOCExistentes(archivosOC);
         if (archivosAprobacion.length > 0) setArchivoAprobacionExistente(archivosAprobacion[0]);
         if (archivosInventario.length > 0) setArchivoInventarioExistente(archivosInventario[0]);
         setSoportePagoFiles(archivosSoportePago);
+        setNotaCreditoFiles(archivosNC);
       } catch (error) {
         console.error('Error cargando archivos:', error);
       } finally {
@@ -925,16 +928,53 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                   </div>
                   
                   {tieneNovedad && (
-                    <div className="pt-3 border-t border-gray-200">
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Número de Nota Crédito (NP)
-                      </label>
-                      <input
-                        type="text"
-                        value={numeroNotaCredito}
-                        disabled
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
-                      />
+                    <div className="pt-3 border-t border-gray-200 space-y-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Número de Nota Crédito (NP)
+                        </label>
+                        <input
+                          type="text"
+                          value={numeroNotaCredito}
+                          disabled
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
+                        />
+                      </div>
+                      {notaCreditoFiles.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            PDF Nota Crédito
+                          </label>
+                          <div className="space-y-2">
+                            {notaCreditoFiles.map((archivo) => (
+                              <div key={archivo.id} className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-2.5">
+                                <div className="flex items-center gap-2">
+                                  <FileText className="w-4 h-4 text-blue-600 shrink-0" />
+                                  <span className="text-sm text-blue-800 font-medium truncate max-w-[220px]">{archivo.filename}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => setPreviewFile(archivo)}
+                                    className="p-1.5 rounded hover:bg-blue-100 text-blue-600"
+                                    title="Ver"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      try { await downloadFileById(archivo.id, archivo.filename); } catch {}
+                                    }}
+                                    className="p-1.5 rounded hover:bg-blue-100 text-blue-600"
+                                    title="Descargar"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

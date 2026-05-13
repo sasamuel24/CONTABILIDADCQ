@@ -26,6 +26,7 @@ import {
   deleteFacturaFile,
   getAprobadoresActivos,
   enviarCorreoAprobacionFactura,
+  enviarAprobacionDual,
   getFacturaById,
 } from '../lib/api';
 import { DistribucionCCCOTable } from './DistribucionCCCOTable';
@@ -91,6 +92,20 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [aprobadorNombreActual, setAprobadorNombreActual] = useState(factura.aprobado_por_nombre || '');
   const [showModalComentarioAprobacion, setShowModalComentarioAprobacion] = useState(false);
   const [comentarioAprobacion, setComentarioAprobacion] = useState('');
+
+  // Aprobación dual (Gerencia Operaciones + Calidad Café)
+  const [aprobadorOpsId, setAprobadorOpsId] = useState('');
+  const [aprobadorCalidadId, setAprobadorCalidadId] = useState('');
+  const [enviandoAprobacionDual, setEnviandoAprobacionDual] = useState(false);
+  const [aprobacionDualEnviada, setAprobacionDualEnviada] = useState(
+    !!(factura.fecha_envio_aprobacion_ops) || !!(factura.fecha_envio_aprobacion_calidad)
+  );
+  const [aprobacionOpsOk, setAprobacionOpsOk] = useState(!!(factura.fecha_aprobacion_ops));
+  const [aprobacionCalidadOk, setAprobacionCalidadOk] = useState(!!(factura.fecha_aprobacion_calidad));
+  // Activo si ya fueron enviadas las solicitudes de aprobación
+  const [habilitarAprobacionDual, setHabilitarAprobacionDual] = useState(
+    !!(factura.fecha_envio_aprobacion_ops) || !!(factura.fecha_envio_aprobacion_calidad)
+  );
   
   // Estados de loading para eliminación
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
@@ -901,12 +916,52 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       setCorreoAprobacionEnviado(true);
       const aprobador = aprobadores.find(a => a.id === selectedAprobadorId);
       toast.success(`Correo enviado a ${aprobador?.nombre ?? 'el aprobador'}.`);
-    } catch (e: any) {
-      toast.error(e.message || 'Error al enviar el correo de aprobación.');
+    } catch (error: any) {
+      toast.error(`Error al enviar correo: ${error.message || 'Error desconocido'}`);
     } finally {
       setEnviandoCorreoAprobacion(false);
     }
   };
+
+  const handleEnviarAprobacionDual = async () => {
+    if (!aprobadorOpsId || !aprobadorCalidadId) {
+      toast.warning('Selecciona ambos aprobadores para continuar');
+      return;
+    }
+    if (aprobadorOpsId === aprobadorCalidadId) {
+      toast.warning('Los dos aprobadores deben ser personas distintas');
+      return;
+    }
+    try {
+      setEnviandoAprobacionDual(true);
+      const res = await enviarAprobacionDual(factura.id, aprobadorOpsId, aprobadorCalidadId);
+      const enviados = res.aprobaciones_enviadas.filter(a => a.enviado).length;
+      setAprobacionDualEnviada(true);
+      toast.success(`Correos enviados a ${enviados} aprobador${enviados !== 1 ? 'es' : ''}`);
+    } catch (error: any) {
+      toast.error(`Error: ${error.message || 'No se pudo enviar'}`);
+    } finally {
+      setEnviandoAprobacionDual(false);
+    }
+  };
+
+  const handleVerificarAprobacionDual = async () => {
+    try {
+      const data = await getFacturaById(factura.id);
+      const opsOk = !!data.fecha_aprobacion_ops;
+      const calOk = !!data.fecha_aprobacion_calidad;
+      setAprobacionOpsOk(opsOk);
+      setAprobacionCalidadOk(calOk);
+      if (opsOk && calOk) {
+        toast.success('¡Ambas aprobaciones recibidas! Ya puedes enviar a Contabilidad.');
+      } else {
+        toast.info('Aún faltan aprobaciones pendientes.');
+      }
+    } catch {
+      toast.error('Error al verificar estado de aprobaciones');
+    }
+  };
+
 
   const [verificandoAprobacion, setVerificandoAprobacion] = useState(false);
 
@@ -1869,28 +1924,30 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                       ¿Este ingreso corresponde a? <span className="text-red-600">*</span>
                     </label>
                     <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="tipoIngreso"
-                          value="tienda"
-                          checked={tipoIngreso === 'tienda'}
-                          onChange={(e) => setTipoIngreso(e.target.value as 'tienda')}
-                          className="w-4 h-4 text-blue-600"
-                        />
-                        <span className="text-gray-700">Tienda</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="tipoIngreso"
-                          value="almacen"
-                          checked={tipoIngreso === 'almacen'}
-                          onChange={(e) => setTipoIngreso(e.target.value as 'almacen')}
-                          className="w-4 h-4 text-blue-600"
-                        />
-                        <span className="text-gray-700">Almacén / Inventarios</span>
-                      </label>
+                      {(['tienda', 'almacen'] as const).map((val) => (
+                        <label key={val} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="tipoIngreso"
+                            value={val}
+                            checked={tipoIngreso === val}
+                            onChange={async () => {
+                              setTipoIngreso(val);
+                              try {
+                                await updateFacturaInventarios(factura.id, {
+                                  requiere_entrada_inventarios: true,
+                                  destino_inventarios: val === 'tienda' ? 'TIENDA' : 'ALMACEN',
+                                  presenta_novedad: presentaNovedad,
+                                });
+                              } catch { /* silencioso, el usuario guardará con el botón */ }
+                            }}
+                            className="w-4 h-4 text-blue-600"
+                          />
+                          <span className="text-gray-700">
+                            {val === 'tienda' ? 'Tienda' : 'Almacén / Inventarios'}
+                          </span>
+                        </label>
+                      ))}
                     </div>
                     {mostrarValidacion && errores.tipoIngreso && (
                       <p className="text-red-600 text-sm mt-1 flex items-center gap-1">
@@ -2077,7 +2134,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               )}
 
               {/* ── Códigos Opcionales ───────────────────────────────── */}
-              {requiereInventario && (
+              {requiereInventario && tipoIngreso === 'almacen' && (
                 <div className="mt-4 pt-4 border-t border-dashed border-gray-200">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
                     Códigos opcionales
@@ -2124,6 +2181,141 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 </div>
               )}
             </div>
+
+            {/* ── Aprobación Dual (Gerencia Operaciones + Calidad Café) — OPCIONAL ── */}
+            {requiereInventario && tipoIngreso === 'almacen' && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <h4 className="font-semibold text-gray-900 mb-2" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                  Aprobación Dual
+                </h4>
+                {/* Checkbox de activación */}
+                <label className="flex items-start gap-3 cursor-pointer mb-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors select-none">
+                  <input
+                    type="checkbox"
+                    checked={habilitarAprobacionDual}
+                    onChange={e => setHabilitarAprobacionDual(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded cursor-pointer"
+                    style={{ accentColor: '#00829a' }}
+                  />
+                  <span className="text-sm text-gray-700 leading-snug" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                    Esta factura requiere aprobación dual
+                    <span className="block text-xs text-gray-400 mt-0.5">
+                      Solo para facturas de café que ingresan al inventario CEDI — requiere visto bueno de Gerencia Operaciones y Calidad Café.
+                    </span>
+                  </span>
+                </label>
+
+                {habilitarAprobacionDual && (
+                  <div className="space-y-3">
+
+                    {/* ── Ambas aprobadas ── */}
+                    {aprobacionOpsOk && aprobacionCalidadOk ? (
+                      <div className="space-y-2">
+                        {[
+                          { label: 'Gerencia Operaciones', nombre: factura.aprobado_ops_nombre },
+                          { label: 'Calidad Café',          nombre: factura.aprobado_calidad_nombre },
+                        ].map(({ label, nombre }) => (
+                          <div key={label} className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-green-50 border-green-200 text-xs text-green-800" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                            <CheckCircle className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                            <span><span className="font-semibold">{label}:</span> aprobado por {nombre || '—'}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                    /* ── Correos enviados, esperando ── */
+                    ) : aprobacionDualEnviada ? (
+                      <div className="space-y-2">
+                        {[
+                          { label: 'Gerencia Operaciones', ok: aprobacionOpsOk, nombre: factura.aprobado_ops_nombre },
+                          { label: 'Calidad Café',          ok: aprobacionCalidadOk, nombre: factura.aprobado_calidad_nombre },
+                        ].map(({ label, ok, nombre }) => (
+                          <div key={label} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs ${ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`} style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                            {ok
+                              ? <CheckCircle className="w-3.5 h-3.5 text-green-600 shrink-0" />
+                              : <Send className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
+                            <span>
+                              <span className="font-semibold">{label}:</span>{' '}
+                              {ok ? `aprobado por ${nombre || '—'}` : 'correo enviado — esperando aprobación'}
+                            </span>
+                          </div>
+                        ))}
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={handleVerificarAprobacionDual}
+                            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                            style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            Verificar aprobaciones
+                          </button>
+                          {/* Re-enviar */}
+                          <button
+                            type="button"
+                            onClick={handleEnviarAprobacionDual}
+                            disabled={enviandoAprobacionDual || !aprobadorOpsId || !aprobadorCalidadId}
+                            className="px-3 py-2 rounded-lg text-xs border border-dashed border-gray-300 text-gray-500 hover:border-[#00829a] hover:text-[#00829a] transition-colors"
+                            style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                          >
+                            Reenviar
+                          </button>
+                        </div>
+                        {/* Selectores visibles solo para reenvío */}
+                        <div className="space-y-2 pt-1">
+                          {[
+                            { label: 'Gerencia Operaciones', value: aprobadorOpsId, setter: setAprobadorOpsId },
+                            { label: 'Calidad Café', value: aprobadorCalidadId, setter: setAprobadorCalidadId },
+                          ].map(({ label, value, setter }) => (
+                            <div key={label}>
+                              <label className="block text-xs font-medium text-gray-500 mb-1" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>{label}</label>
+                              <select value={value} onChange={e => setter(e.target.value)}
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00829a]"
+                                style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                                <option value="">— Seleccionar aprobador —</option>
+                                {aprobadores.map(a => <option key={a.id} value={a.id}>{a.nombre} · {a.cargo}</option>)}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                    /* ── Sin enviar aún: selectores ── */
+                    ) : (
+                      <div className="space-y-2">
+                        {[
+                          { label: 'Gerencia Operaciones', value: aprobadorOpsId, setter: setAprobadorOpsId },
+                          { label: 'Calidad Café', value: aprobadorCalidadId, setter: setAprobadorCalidadId },
+                        ].map(({ label, value, setter }) => (
+                          <div key={label}>
+                            <label className="block text-xs font-medium text-gray-600 mb-1" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>{label}</label>
+                            <select value={value} onChange={e => setter(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00829a]"
+                              style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                              <option value="">— Seleccionar aprobador —</option>
+                              {aprobadores.map(a => <option key={a.id} value={a.id}>{a.nombre} · {a.cargo}</option>)}
+                            </select>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={handleEnviarAprobacionDual}
+                          disabled={enviandoAprobacionDual || !aprobadorOpsId || !aprobadorCalidadId}
+                          className="w-full py-2 rounded-lg text-sm font-semibold transition-all mt-1"
+                          style={{
+                            fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                            backgroundColor: (!aprobadorOpsId || !aprobadorCalidadId || enviandoAprobacionDual) ? '#e5e7eb' : '#00829a',
+                            color: (!aprobadorOpsId || !aprobadorCalidadId || enviandoAprobacionDual) ? '#9ca3af' : 'white',
+                            cursor: (!aprobadorOpsId || !aprobadorCalidadId || enviandoAprobacionDual) ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {enviandoAprobacionDual ? 'Enviando…' : '✉ Enviar solicitudes de aprobación'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ¿Producto incorrecto / novedad? */}
             <div>

@@ -633,6 +633,23 @@ class Factura(Base, TimestampMixin):
         TIMESTAMP(timezone=True), nullable=True
     )
 
+    # Aprobación dual (Gerencia Operaciones + Calidad Café) para inventario ALMACEN
+    aprobacion_ops_aprobador_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("aprobadores_gerencia.id", ondelete="SET NULL"), nullable=True
+    )
+    fecha_envio_aprobacion_ops: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    fecha_aprobacion_ops: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    aprobado_ops_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    aprobado_ops_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    aprobacion_calidad_aprobador_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("aprobadores_gerencia.id", ondelete="SET NULL"), nullable=True
+    )
+    fecha_envio_aprobacion_calidad: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    fecha_aprobacion_calidad: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    aprobado_calidad_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    aprobado_calidad_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
     # Relaciones
     area: Mapped["Area"] = relationship(
         "Area",
@@ -1465,6 +1482,8 @@ class TokenAprobacionFactura(Base, TimestampMixin):
     token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
     aprobador_email: Mapped[str] = mapped_column(String(255), nullable=False)
     aprobador_nombre: Mapped[str] = mapped_column(String(150), nullable=False)
+    # Tipo: None = aprobación gerencia estándar, 'OPS' = Gerencia Operaciones, 'CALIDAD' = Calidad Café
+    tipo_aprobacion: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     usado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     expires_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False

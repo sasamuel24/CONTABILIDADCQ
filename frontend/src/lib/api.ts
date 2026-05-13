@@ -145,6 +145,15 @@ export interface FacturaListItem {
   fecha_aprobacion_email: string | null;
   aprobado_por_nombre: string | null;
   aprobado_por_email: string | null;
+  // Aprobación dual
+  fecha_envio_aprobacion_ops: string | null;
+  fecha_aprobacion_ops: string | null;
+  aprobado_ops_nombre: string | null;
+  aprobado_ops_email: string | null;
+  fecha_envio_aprobacion_calidad: string | null;
+  fecha_aprobacion_calidad: string | null;
+  aprobado_calidad_nombre: string | null;
+  aprobado_calidad_email: string | null;
 }
 
 export interface FacturasPaginatedResponse {
@@ -177,6 +186,15 @@ export interface FacturaDetail {
   fecha_aprobacion_email: string | null;
   aprobado_por_nombre: string | null;
   aprobado_por_email: string | null;
+  // Aprobación dual
+  fecha_envio_aprobacion_ops: string | null;
+  fecha_aprobacion_ops: string | null;
+  aprobado_ops_nombre: string | null;
+  aprobado_ops_email: string | null;
+  fecha_envio_aprobacion_calidad: string | null;
+  fecha_aprobacion_calidad: string | null;
+  aprobado_calidad_nombre: string | null;
+  aprobado_calidad_email: string | null;
 }
 
 export interface FacturaUpdate {
@@ -2273,4 +2291,16 @@ export interface HistorialFacturaItem {
 
 export async function getHistorialArea(): Promise<HistorialFacturaItem[]> {
   return fetchAPI<HistorialFacturaItem[]>('/facturas/historial-area');
+}
+
+// ─── Aprobación Dual (Gerencia Operaciones + Calidad Café) ───────────────────
+
+export async function enviarAprobacionDual(
+  facturaId: string,
+  aprobadorOpsId: string,
+  aprobadorCalidadId: string,
+): Promise<{ factura_id: string; aprobaciones_enviadas: { tipo: string; email: string; enviado: boolean }[] }> {
+  return fetchAPI(`/facturas/${facturaId}/enviar-aprobacion-dual?aprobador_ops_id=${aprobadorOpsId}&aprobador_calidad_id=${aprobadorCalidadId}`, {
+    method: 'POST',
+  });
 }

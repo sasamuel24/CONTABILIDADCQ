@@ -163,6 +163,14 @@ class FacturaService:
                 fecha_aprobacion_email=f.fecha_aprobacion_email,
                 aprobado_por_nombre=f.aprobado_por_nombre,
                 aprobado_por_email=f.aprobado_por_email,
+                fecha_envio_aprobacion_ops=f.fecha_envio_aprobacion_ops,
+                fecha_aprobacion_ops=f.fecha_aprobacion_ops,
+                aprobado_ops_nombre=f.aprobado_ops_nombre,
+                aprobado_ops_email=f.aprobado_ops_email,
+                fecha_envio_aprobacion_calidad=f.fecha_envio_aprobacion_calidad,
+                fecha_aprobacion_calidad=f.fecha_aprobacion_calidad,
+                aprobado_calidad_nombre=f.aprobado_calidad_nombre,
+                aprobado_calidad_email=f.aprobado_calidad_email,
                 nit_proveedor=f.nit_proveedor,
                 pendiente_confirmacion=f.pendiente_confirmacion,
                 ai_area_confianza=f.ai_area_confianza,
@@ -223,8 +231,16 @@ class FacturaService:
             fecha_aprobacion_email=factura.fecha_aprobacion_email,
             aprobado_por_nombre=factura.aprobado_por_nombre,
             aprobado_por_email=factura.aprobado_por_email,
+            fecha_envio_aprobacion_ops=factura.fecha_envio_aprobacion_ops,
+            fecha_aprobacion_ops=factura.fecha_aprobacion_ops,
+            aprobado_ops_nombre=factura.aprobado_ops_nombre,
+            aprobado_ops_email=factura.aprobado_ops_email,
+            fecha_envio_aprobacion_calidad=factura.fecha_envio_aprobacion_calidad,
+            fecha_aprobacion_calidad=factura.fecha_aprobacion_calidad,
+            aprobado_calidad_nombre=factura.aprobado_calidad_nombre,
+            aprobado_calidad_email=factura.aprobado_calidad_email,
         )
-    
+
     async def get_factura_by_numero(self, numero_factura: str) -> FacturaResponse:
         """Obtiene una factura por número."""
         logger.info(f"Obteniendo factura con número: {numero_factura}")
@@ -1158,7 +1174,14 @@ Responde ÚNICAMENTE con JSON válido:
         #     if 'NOTA_CREDITO' not in file_types:
         #         missing_files.append('NOTA_CREDITO')
         
-        # ========== SI HAY ERRORES, RETORNAR 400 ==========
+        # ========== VALIDACIÓN: APROBACIÓN DUAL para inventario ALMACEN ==========
+        # Solo bloquea si el proceso fue iniciado pero no completado
+        if factura.requiere_entrada_inventarios and factura.destino_inventarios == 'ALMACEN':
+            if factura.fecha_envio_aprobacion_ops and not factura.fecha_aprobacion_ops:
+                missing_fields.append("aprobacion_gerencia_operaciones")
+            if factura.fecha_envio_aprobacion_calidad and not factura.fecha_aprobacion_calidad:
+                missing_fields.append("aprobacion_calidad_cafe")
+
         if missing_fields or missing_codes or extra_codes or missing_files:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -1170,7 +1193,7 @@ Responde ÚNICAMENTE con JSON válido:
                     "missing_files": missing_files
                 }
             )
-        
+
         # ========== VALIDACIÓN EXITOSA: REASIGNAR A CONTABILIDAD ==========
         
         # Buscar área CONTABILIDAD
@@ -2171,4 +2194,128 @@ Responde ÚNICAMENTE con JSON válido:
 
         items.sort(key=lambda x: x["assigned_at"] or "", reverse=True)
         return items
+
+    # =========================================================================
+    # APROBACIÓN DUAL (Gerencia Operaciones + Calidad Café) — Inventario ALMACEN
+    # =========================================================================
+
+    async def enviar_aprobacion_dual(
+        self,
+        factura_id: UUID,
+        aprobador_ops_id: UUID,
+        aprobador_calidad_id: UUID,
+        solicitante_id: Optional[UUID] = None,
+    ) -> dict:
+        """
+        Envía correos de aprobación dual a Gerencia Operaciones y Calidad Café.
+        Solo aplica cuando requiere_entrada_inventarios=True y destino=ALMACEN.
+        """
+        import secrets
+        from datetime import timezone, timedelta
+        from sqlalchemy import select
+        from db.models import Factura, AprobadorGerencia, TokenAprobacionFactura, User
+        from core.email_service import email_service
+        from core.config import settings
+
+        factura = (await self.db.execute(select(Factura).where(Factura.id == factura_id))).scalar_one_or_none()
+        if not factura:
+            raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+        aprobador_ops = (await self.db.execute(select(AprobadorGerencia).where(AprobadorGerencia.id == aprobador_ops_id))).scalar_one_or_none()
+        aprobador_calidad = (await self.db.execute(select(AprobadorGerencia).where(AprobadorGerencia.id == aprobador_calidad_id))).scalar_one_or_none()
+
+        if not aprobador_ops:
+            raise HTTPException(status_code=404, detail="Aprobador Operaciones no encontrado")
+        if not aprobador_calidad:
+            raise HTTPException(status_code=404, detail="Aprobador Calidad no encontrado")
+
+        expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=72)
+        base_url = getattr(settings, 'frontend_url', 'http://localhost:5173')
+
+        resultados = []
+        for aprobador, tipo, campo_envio, campo_id in [
+            (aprobador_ops,     'OPS',     'fecha_envio_aprobacion_ops',     'aprobacion_ops_aprobador_id'),
+            (aprobador_calidad, 'CALIDAD', 'fecha_envio_aprobacion_calidad', 'aprobacion_calidad_aprobador_id'),
+        ]:
+            token_str = secrets.token_urlsafe(48)
+            token_obj = TokenAprobacionFactura(
+                factura_id=factura.id,
+                token=token_str,
+                aprobador_email=aprobador.email,
+                aprobador_nombre=aprobador.nombre,
+                tipo_aprobacion=tipo,
+                usado=False,
+                expires_at=expires_at,
+            )
+            self.db.add(token_obj)
+            setattr(factura, campo_envio, datetime.now(tz=timezone.utc))
+            setattr(factura, campo_id, aprobador.id)
+
+            try:
+                await email_service.enviar_solicitud_aprobacion_factura(
+                    factura=factura,
+                    aprobador_nombre=aprobador.nombre,
+                    aprobador_email=aprobador.email,
+                    token_str=token_str,
+                    comentario=f"Aprobación {'Gerencia Operaciones' if tipo == 'OPS' else 'Calidad Café'} requerida",
+                )
+                resultados.append({"tipo": tipo, "email": aprobador.email, "enviado": True})
+            except Exception as e:
+                logger.error(f"Error enviando correo aprobación dual {tipo}: {e}")
+                resultados.append({"tipo": tipo, "email": aprobador.email, "enviado": False})
+
+        await self.db.commit()
+        return {"factura_id": str(factura.id), "aprobaciones_enviadas": resultados}
+
+    async def aprobar_por_token_dual(self, token: str, ip: str) -> dict:
+        """Procesa la aprobación de un token de aprobación dual (OPS o CALIDAD)."""
+        import secrets
+        from datetime import timezone
+        from sqlalchemy import select
+        from db.models import Factura, TokenAprobacionFactura
+
+        now_utc = datetime.now(tz=timezone.utc)
+        result = await self.db.execute(select(TokenAprobacionFactura).where(TokenAprobacionFactura.token == token))
+        token_obj = result.scalar_one_or_none()
+
+        if not token_obj or token_obj.tipo_aprobacion not in ('OPS', 'CALIDAD'):
+            return None  # no es token dual — delegar al handler estándar
+
+        if token_obj.usado:
+            raise HTTPException(status_code=400, detail="Este enlace ya fue utilizado.")
+        if token_obj.expires_at < now_utc:
+            raise HTTPException(status_code=400, detail="El enlace ha expirado (72 horas).")
+
+        token_obj.usado = True
+        token_obj.usado_at = now_utc
+        token_obj.usado_por_ip = ip
+
+        result_f = await self.db.execute(select(Factura).where(Factura.id == token_obj.factura_id))
+        factura = result_f.scalar_one_or_none()
+        if not factura:
+            raise HTTPException(status_code=404, detail="Factura no encontrada.")
+
+        if token_obj.tipo_aprobacion == 'OPS':
+            factura.fecha_aprobacion_ops = now_utc
+            factura.aprobado_ops_nombre = token_obj.aprobador_nombre
+            factura.aprobado_ops_email = token_obj.aprobador_email
+        else:
+            factura.fecha_aprobacion_calidad = now_utc
+            factura.aprobado_calidad_nombre = token_obj.aprobador_nombre
+            factura.aprobado_calidad_email = token_obj.aprobador_email
+
+        await self.db.commit()
+
+        tipo_label = "Gerencia Operaciones" if token_obj.tipo_aprobacion == 'OPS' else "Calidad Café"
+        return {
+            "factura_id": str(factura.id),
+            "numero_factura": factura.numero_factura,
+            "proveedor": factura.proveedor,
+            "total": float(factura.total),
+            "tipo_aprobacion": token_obj.tipo_aprobacion,
+            "aprobado_por_nombre": token_obj.aprobador_nombre,
+            "aprobado_por_email": token_obj.aprobador_email,
+            "fecha_aprobacion_email": now_utc,
+            "mensaje": f"Aprobación de {tipo_label} registrada exitosamente. Gracias.",
+        }
 

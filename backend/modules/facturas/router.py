@@ -87,10 +87,38 @@ async def aprobar_por_token(
     """
     Endpoint público (sin JWT). El gerente hace clic en el link del correo y esta ruta
     valida el token y registra la aprobación de la factura.
+    Maneja tanto aprobaciones estándar como duales (OPS/CALIDAD).
     """
     ip = request.client.host if request and request.client else "unknown"
+    # Intentar primero como aprobación dual
+    dual_result = await service.aprobar_por_token_dual(token, ip)
+    if dual_result is not None:
+        return dual_result
+    # Fallback a aprobación estándar
     result = await service.aprobar_por_token(token, ip)
     return AprobacionEmailOut(**result)
+
+
+@router.post(
+    "/{factura_id}/enviar-aprobacion-dual",
+    summary="Enviar correos de aprobación dual (Gerencia Operaciones + Calidad Café)",
+)
+async def enviar_aprobacion_dual(
+    factura_id: UUID,
+    aprobador_ops_id: UUID = Query(..., description="ID del aprobador Gerencia Operaciones"),
+    aprobador_calidad_id: UUID = Query(..., description="ID del aprobador Calidad Café"),
+    current_user: dict = Depends(get_current_user),
+    service: FacturaService = Depends(get_factura_service),
+):
+    """Envía correos de aprobación dual para facturas con entrada a inventario ALMACEN."""
+    from uuid import UUID as _UUID
+    solicitante_id = _UUID(current_user["user_id"])
+    return await service.enviar_aprobacion_dual(
+        factura_id=factura_id,
+        aprobador_ops_id=aprobador_ops_id,
+        aprobador_calidad_id=aprobador_calidad_id,
+        solicitante_id=solicitante_id,
+    )
 
 
 @router.get("/{factura_id}", response_model=FacturaResponse)

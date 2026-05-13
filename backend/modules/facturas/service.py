@@ -615,28 +615,7 @@ Responde ÚNICAMENTE con JSON válido:
         # Caso 1: No requiere entrada de inventarios
         if not inventarios_data.requiere_entrada_inventarios:
             logger.info(f"Factura {factura_id} no requiere inventarios - limpiando datos")
-            
-            # Validación: Si no requiere inventarios, NO puede venir presenta_novedad=true ni código NP
-            if inventarios_data.presenta_novedad is True:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail={
-                        "message": "Inventarios inválido",
-                        "error": "presenta_novedad no puede ser true cuando requiere_entrada_inventarios=false"
-                    }
-                )
-            
-            if inventarios_data.codigos:
-                payload_codes = {c.codigo.upper() for c in inventarios_data.codigos}
-                if 'NP' in payload_codes:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail={
-                            "message": "Inventarios inválido",
-                            "error": "No puede incluir código NP cuando requiere_entrada_inventarios=false"
-                        }
-                    )
-            
+
             # Actualizar factura
             factura.requiere_entrada_inventarios = False
             factura.destino_inventarios = None

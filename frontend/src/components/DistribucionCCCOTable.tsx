@@ -204,8 +204,8 @@ export function DistribucionCCCOTable({
         <table className="w-full border-collapse">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>CC <span className="text-red-500">*</span></th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>CO <span className="text-red-500">*</span></th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>CC <span className="text-red-500">*</span></th>
               <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
                 UN <span className="font-normal text-gray-400 text-xs">(Opcional)</span>
               </th>
@@ -222,6 +222,25 @@ export function DistribucionCCCOTable({
 
               return (
                 <tr key={row.tempId} className="border-b border-gray-100 hover:bg-gray-50">
+                  {/* Centro de Operación */}
+                  <td className="px-3 py-2">
+                    <select
+                      value={row.centro_operacion_id}
+                      onChange={(e) => actualizarFila(row.tempId, 'centro_operacion_id', e.target.value)}
+                      className={`w-full px-2 py-1 text-sm border rounded focus:outline-none ${
+                        errores[`${row.tempId}_co`] ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+                      onBlur={(e) => e.target.style.boxShadow = ''}
+                    >
+                      <option value="">Seleccionar</option>
+                      {cosDisponibles.map(co => (
+                        <option key={co.id} value={co.id}>{co.codigo} - {co.nombre}</option>
+                      ))}
+                    </select>
+                  </td>
+
                   {/* Centro de Costo */}
                   <td className="px-3 py-2">
                     <select
@@ -237,26 +256,6 @@ export function DistribucionCCCOTable({
                       <option value="">Seleccionar</option>
                       {centrosCosto.map(cc => (
                         <option key={cc.id} value={cc.id}>{cc.codigo} - {cc.nombre}</option>
-                      ))}
-                    </select>
-                  </td>
-
-                  {/* Centro de Operación */}
-                  <td className="px-3 py-2">
-                    <select
-                      value={row.centro_operacion_id}
-                      onChange={(e) => actualizarFila(row.tempId, 'centro_operacion_id', e.target.value)}
-                      disabled={!row.centro_costo_id}
-                      className={`w-full px-2 py-1 text-sm border rounded focus:outline-none ${
-                        errores[`${row.tempId}_co`] ? 'border-red-500' : 'border-gray-300'
-                      } ${!row.centro_costo_id ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
-                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
-                      onBlur={(e) => e.target.style.boxShadow = ''}
-                    >
-                      <option value="">Seleccionar</option>
-                      {cosDisponibles.map(co => (
-                        <option key={co.id} value={co.id}>{co.codigo} - {co.nombre}</option>
                       ))}
                     </select>
                   </td>

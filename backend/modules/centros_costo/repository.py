@@ -10,46 +10,33 @@ from db.models import CentroCosto
 
 
 class CentroCostoRepository:
-    """Repositorio para gestionar operaciones de centros de costo."""
-    
     def __init__(self, db: AsyncSession):
         self.db = db
-    
+
     async def create(self, data: dict) -> CentroCosto:
-        """Crea un nuevo centro de costo."""
         centro = CentroCosto(**data)
         self.db.add(centro)
         await self.db.flush()
         await self.db.refresh(centro)
         return centro
-    
+
     async def get_by_id(self, centro_id: UUID) -> Optional[CentroCosto]:
-        """Obtiene un centro de costo por ID."""
-        result = await self.db.execute(
-            select(CentroCosto).where(CentroCosto.id == centro_id)
-        )
+        result = await self.db.execute(select(CentroCosto).where(CentroCosto.id == centro_id))
         return result.scalar_one_or_none()
-    
-    async def get_by_nombre(self, nombre: str) -> Optional[CentroCosto]:
-        """Obtiene un centro de costo por nombre."""
-        result = await self.db.execute(
-            select(CentroCosto).where(CentroCosto.nombre == nombre)
-        )
+
+    async def get_by_codigo(self, codigo: str) -> Optional[CentroCosto]:
+        result = await self.db.execute(select(CentroCosto).where(CentroCosto.codigo == codigo))
         return result.scalar_one_or_none()
-    
+
     async def get_all(self, activos_only: bool = False) -> List[CentroCosto]:
-        """Obtiene todos los centros de costo."""
         query = select(CentroCosto)
-        
         if activos_only:
             query = query.where(CentroCosto.activo == True)
-        
-        query = query.order_by(CentroCosto.nombre)
+        query = query.order_by(CentroCosto.codigo)
         result = await self.db.execute(query)
         return result.scalars().all()
-    
+
     async def update(self, centro: CentroCosto, data: dict) -> CentroCosto:
-        """Actualiza un centro de costo."""
         for key, value in data.items():
             if value is not None:
                 setattr(centro, key, value)

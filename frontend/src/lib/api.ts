@@ -745,6 +745,7 @@ export function getFilePreviewUrl(fileId: string): string {
 
 export interface CentroCosto {
   id: string;
+  codigo: string;
   nombre: string;
   activo: boolean;
   created_at: string;
@@ -891,10 +892,10 @@ export async function updateFacturaCuentaAuxiliar(
 // CRUD CATÁLOGOS CONTABLES (Admin)
 // ============================================
 
-export async function createCentroCosto(data: { nombre: string; activo?: boolean }): Promise<CentroCosto> {
+export async function createCentroCosto(data: { codigo: string; nombre: string; activo?: boolean }): Promise<CentroCosto> {
   return fetchAPI<CentroCosto>('/centros-costo', { method: 'POST', body: JSON.stringify(data) });
 }
-export async function updateCentroCosto(id: string, data: { nombre?: string; activo?: boolean }): Promise<CentroCosto> {
+export async function updateCentroCosto(id: string, data: { codigo?: string; nombre?: string; activo?: boolean }): Promise<CentroCosto> {
   return fetchAPI<CentroCosto>(`/centros-costo/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 }
 export async function deleteCentroCosto(id: string): Promise<void> {

@@ -236,7 +236,7 @@ export function DistribucionCCCOTable({
                     >
                       <option value="">Seleccionar</option>
                       {centrosCosto.map(cc => (
-                        <option key={cc.id} value={cc.id}>{cc.nombre}</option>
+                        <option key={cc.id} value={cc.id}>{cc.codigo} - {cc.nombre}</option>
                       ))}
                     </select>
                   </td>

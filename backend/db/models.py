@@ -191,16 +191,21 @@ class Estado(Base):
 class CentroCosto(Base, TimestampMixin):
     """Modelo de Centros de Costo."""
     __tablename__ = "centros_costo"
-    
+
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4
     )
+    codigo: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        unique=True,
+        index=True
+    )
     nombre: Mapped[str] = mapped_column(
         Text,
         nullable=False,
-        unique=True,
         index=True
     )
     activo: Mapped[bool] = mapped_column(

@@ -56,6 +56,7 @@ function FieldInput({ label, value, onChange, placeholder, required }: {
 function TabCentroCosto() {
   const [lista, setLista] = useState<CentroCosto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nuevoCodigo, setNuevoCodigo] = useState('');
   const [nuevoNombre, setNuevoNombre] = useState('');
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -69,12 +70,13 @@ function TabCentroCosto() {
   useEffect(() => { cargar(); }, [cargar]);
 
   const handleCrear = async () => {
+    if (!nuevoCodigo.trim()) { toast.warning('Ingrese el código'); return; }
     if (!nuevoNombre.trim()) { toast.warning('Ingrese un nombre'); return; }
     setSaving(true);
     try {
-      const nuevo = await createCentroCosto({ nombre: nuevoNombre.trim() });
+      const nuevo = await createCentroCosto({ codigo: nuevoCodigo.trim(), nombre: nuevoNombre.trim() });
       setLista(prev => [nuevo, ...prev]);
-      setNuevoNombre('');
+      setNuevoCodigo(''); setNuevoNombre('');
       toast.success('Centro de Costo creado');
     } catch { toast.error('Error al crear'); } finally { setSaving(false); }
   };
@@ -110,9 +112,12 @@ function TabCentroCosto() {
       {/* Formulario nuevo */}
       <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
         <p className="text-sm font-semibold text-gray-700 mb-3">Nuevo Centro de Costo</p>
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
-            <FieldInput label="Nombre" value={nuevoNombre} onChange={setNuevoNombre} placeholder="Ej: Administración" required />
+        <div className="flex items-end gap-3 flex-wrap">
+          <div className="w-28">
+            <FieldInput label="Código" value={nuevoCodigo} onChange={setNuevoCodigo} placeholder="Ej: 0501" required />
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <FieldInput label="Nombre" value={nuevoNombre} onChange={setNuevoNombre} placeholder="Ej: GERENCIA GENERAL" required />
           </div>
           <button
             onClick={handleCrear}
@@ -136,6 +141,7 @@ function TabCentroCosto() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider w-20">Código</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Nombre</th>
                 <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
@@ -144,6 +150,9 @@ function TabCentroCosto() {
             <tbody className="divide-y divide-gray-100">
               {lista.map(cc => (
                 <tr key={cc.id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{cc.codigo}</span>
+                  </td>
                   <td className="px-4 py-3">
                     {editId === cc.id ? (
                       <input

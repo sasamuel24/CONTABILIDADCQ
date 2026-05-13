@@ -774,10 +774,10 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                             return (
                               <tr key={index} className="border-b border-gray-200 hover:bg-gray-100">
                                 <td className="py-2 px-3 text-gray-900">
-                                  {cc ? cc.nombre : 'N/A'}
+                                  {cc ? `${cc.codigo} - ${cc.nombre}` : 'N/A'}
                                 </td>
                                 <td className="py-2 px-3 text-gray-900">
-                                  {co ? co.nombre : 'N/A'}
+                                  {co ? `${co.codigo} - ${co.nombre}` : 'N/A'}
                                 </td>
                                 <td className="py-2 px-3 text-gray-700">
                                   {un ? `${un.codigo} - ${un.descripcion}` : '-'}

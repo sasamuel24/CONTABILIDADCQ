@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, CheckCircle, AlertCircle, Download, FileText, Eye } from 'lucide-react';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, DistribucionCCCO, UnidadNegocio, CuentaAuxiliar } from '../lib/api';
-import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares, downloadFileById } from '../lib/api';
+import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares, downloadFileById, updateFactura } from '../lib/api';
 import { MOTIVOS_DEVOLUCION } from '../lib/opciones';
 import { FilePreviewModal } from './FilePreviewModal';
 import { ConfirmModal } from './ConfirmModal';
@@ -39,7 +39,29 @@ interface ChecklistItem {
 export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFacturaDetailProps) {
   const { user } = useAuth();
   const [procesando, setProcesando] = useState(false);
-  
+  const [enviandoGastosFijos, setEnviandoGastosFijos] = useState(false);
+
+  const GADMIN_AREA_ID = 'c1589d0c-736b-4af4-89f2-81900d2dac16';
+
+  const handleEnviarGastosFijos = async () => {
+    try {
+      setEnviandoGastosFijos(true);
+      await updateFactura(factura.id, { area_id: GADMIN_AREA_ID });
+      setShowConfirmModal(true);
+      setConfirmModalConfig({
+        title: 'Factura Enviada',
+        message: 'La factura fue enviada exitosamente a Gastos Fijos Café Quindío.',
+        type: 'success',
+        onConfirm: () => onClose(),
+      });
+    } catch (error: any) {
+      console.error('Error enviando a Gastos Fijos:', error);
+      alert('Error al enviar la factura a Gastos Fijos. Intente de nuevo.');
+    } finally {
+      setEnviandoGastosFijos(false);
+    }
+  };
+
   // Estados para modal de devolución
   const [mostrarModalDevolucion, setMostrarModalDevolucion] = useState(false);
   const [motivoDevolucion, setMotivoDevolucion] = useState('');
@@ -1005,6 +1027,32 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                 className="px-6 py-2 rounded-lg"
               >
                 Devolver a Responsable
+              </button>
+              <button
+                onClick={handleEnviarGastosFijos}
+                disabled={enviandoGastosFijos || procesando}
+                style={{
+                  fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                  backgroundColor: 'transparent',
+                  borderColor: (enviandoGastosFijos || procesando) ? '#d1d5db' : '#7c3aed',
+                  color: (enviandoGastosFijos || procesando) ? '#9ca3af' : '#7c3aed',
+                  borderWidth: '2px',
+                  transition: 'all 0.2s',
+                  cursor: (enviandoGastosFijos || procesando) ? 'not-allowed' : 'pointer',
+                }}
+                onMouseEnter={(e) => {
+                  if (!enviandoGastosFijos && !procesando) {
+                    e.currentTarget.style.backgroundColor = 'rgba(124, 58, 237, 0.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!enviandoGastosFijos && !procesando) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }
+                }}
+                className="px-6 py-2 rounded-lg"
+              >
+                {enviandoGastosFijos ? 'Enviando...' : 'Enviar a Gastos Fijos'}
               </button>
               <button
                 onClick={handleIniciarAprobacion}

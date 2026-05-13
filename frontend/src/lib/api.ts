@@ -753,9 +753,8 @@ export interface CentroCosto {
 
 export interface CentroOperacion {
   id: string;
+  codigo: string;
   nombre: string;
-  centro_costo_id: string;
-  centro_costo_nombre?: string;
   activo: boolean;
   created_at: string;
   updated_at: string;
@@ -806,14 +805,10 @@ export async function getCentrosCosto(activosOnly: boolean = true): Promise<Cent
  * Obtener todos los centros de operación
  */
 export async function getCentrosOperacion(
-  centroCostoId?: string, 
   activosOnly: boolean = true
 ): Promise<CentroOperacion[]> {
   const params = new URLSearchParams();
   params.append('activos_only', activosOnly.toString());
-  if (centroCostoId) {
-    params.append('centro_costo_id', centroCostoId);
-  }
   return fetchAPI<CentroOperacion[]>(`/centros-operacion?${params.toString()}`);
 }
 

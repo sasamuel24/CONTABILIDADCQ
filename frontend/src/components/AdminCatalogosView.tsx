@@ -204,7 +204,7 @@ function TabCentroOperacion() {
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const [cos, ccs] = await Promise.all([getCentrosOperacion(undefined, false), getCentrosCosto(false)]);
+      const [cos, ccs] = await Promise.all([getCentrosOperacion(false), getCentrosCosto(false)]);
       setLista(cos);
       setCentrosCosto(ccs);
     } catch { toast.error('Error al cargar'); } finally { setLoading(false); }

@@ -280,20 +280,12 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     cargarCuentasAuxiliares();
   }, []);
 
-  // Cargar centros de operación al montar el componente (todos, sin filtro)
+  // Cargar centros de operación al montar el componente
   useEffect(() => {
     const cargarCentrosOperacion = async () => {
       try {
-        // Cargar todos los centros de operación sin filtrar por CC
-        const todosCentrosCosto = await getCentrosCosto(true);
-        const allCentrosOperacion = [];
-        
-        for (const cc of todosCentrosCosto) {
-          const centros = await getCentrosOperacion(cc.id, true);
-          allCentrosOperacion.push(...centros);
-        }
-        
-        setCentrosOperacion(allCentrosOperacion);
+        const centros = await getCentrosOperacion(true);
+        setCentrosOperacion(centros);
       } catch (error) {
         console.error('Error cargando centros de operación:', error);
       } finally {

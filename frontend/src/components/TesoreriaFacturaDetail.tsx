@@ -152,8 +152,8 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
           if (cc) setCentroCosto(cc);
         }
 
-        if (factura.centro_operacion_id && factura.centro_costo_id) {
-          const centrosOp = await getCentrosOperacion(factura.centro_costo_id, true);
+        if (factura.centro_operacion_id) {
+          const centrosOp = await getCentrosOperacion(true);
           const co = centrosOp.find(c => c.id === factura.centro_operacion_id);
           if (co) setCentroOperacion(co);
         }
@@ -226,12 +226,7 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
         setUnidadesNegocio(un);
         setCuentasAuxiliares(ca);
         
-        // Cargar todos los COs
-        const allCOs: CentroOperacion[] = [];
-        for (const centro of cc) {
-          const cos = await getCentrosOperacion(centro.id, true);
-          allCOs.push(...cos);
-        }
+        const allCOs = await getCentrosOperacion(true);
         setCentrosOperacionCompletos(allCOs);
       } catch (error) {
         console.error('Error cargando distribución:', error);

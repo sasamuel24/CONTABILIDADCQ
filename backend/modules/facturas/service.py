@@ -37,39 +37,6 @@ class FacturaService:
         self.repository = repository
         self.db = db
     
-    async def _validate_centro_operacion(
-        self, 
-        centro_costo_id: Optional[UUID],
-        centro_operacion_id: Optional[UUID]
-    ):
-        """Valida que el centro de operación pertenezca al centro de costo."""
-        if centro_operacion_id and not centro_costo_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No se puede asignar un Centro de Operación sin un Centro de Costo"
-            )
-        
-        if centro_operacion_id and centro_costo_id and self.db:
-            from db.models import CentroOperacion
-            from sqlalchemy import select
-            
-            result = await self.db.execute(
-                select(CentroOperacion).where(CentroOperacion.id == centro_operacion_id)
-            )
-            centro_op = result.scalar_one_or_none()
-            
-            if not centro_op:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Centro de Operación con ID {centro_operacion_id} no encontrado"
-                )
-            
-            if centro_op.centro_costo_id != centro_costo_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="El Centro de Operación seleccionado no pertenece al Centro de Costo especificado"
-                )
-    
     async def list_facturas(
         self,
         skip: int = 0,
@@ -268,11 +235,6 @@ class FacturaService:
             )
             return await self.get_factura(existing.id)
 
-        # Validar relación CC/CO
-        await self._validate_centro_operacion(
-            factura_data.centro_costo_id,
-            factura_data.centro_operacion_id
-        )
 
         datos = factura_data.model_dump(exclude={"xml_content"})
         factura = await self.repository.create(datos)
@@ -549,9 +511,6 @@ Responde ÚNICAMENTE con JSON válido:
         # Obtener valores actuales o nuevos
         centro_costo_id = factura_data.centro_costo_id if factura_data.centro_costo_id is not None else factura.centro_costo_id
         centro_operacion_id = factura_data.centro_operacion_id if factura_data.centro_operacion_id is not None else factura.centro_operacion_id
-        
-        # Validar relación CC/CO
-        await self._validate_centro_operacion(centro_costo_id, centro_operacion_id)
         
         # Lógica: Si se asigna un área nueva, cambiar estado a "Asignada" (estado_id = 2)
         update_data = factura_data.model_dump(exclude_unset=True)

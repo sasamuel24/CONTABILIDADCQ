@@ -210,11 +210,6 @@ class CentroCosto(Base, TimestampMixin):
     )
     
     # Relaciones
-    operaciones: Mapped[List["CentroOperacion"]] = relationship(
-        "CentroOperacion",
-        back_populates="centro_costo",
-        lazy="selectin"
-    )
     facturas: Mapped[List["Factura"]] = relationship(
         "Factura",
         back_populates="centro_costo",
@@ -229,16 +224,16 @@ class CentroCosto(Base, TimestampMixin):
 class CentroOperacion(Base, TimestampMixin):
     """Modelo de Centros de Operación."""
     __tablename__ = "centros_operacion"
-    
+
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4
     )
-    centro_costo_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("centros_costo.id", ondelete="RESTRICT"),
+    codigo: Mapped[str] = mapped_column(
+        String(10),
         nullable=False,
+        unique=True,
         index=True
     )
     nombre: Mapped[str] = mapped_column(
@@ -251,31 +246,17 @@ class CentroOperacion(Base, TimestampMixin):
         nullable=False,
         default=True
     )
-    
+
     # Relaciones
-    centro_costo: Mapped["CentroCosto"] = relationship(
-        "CentroCosto",
-        back_populates="operaciones",
-        lazy="selectin"
-    )
     facturas: Mapped[List["Factura"]] = relationship(
         "Factura",
         back_populates="centro_operacion",
         foreign_keys="Factura.centro_operacion_id",
         lazy="selectin"
     )
-    
-    # Constraints
-    __table_args__ = (
-        UniqueConstraint(
-            "centro_costo_id",
-            "nombre",
-            name="uq_centro_operacion_cc_nombre"
-        ),
-    )
-    
+
     def __repr__(self):
-        return f"<CentroOperacion(id={self.id}, nombre={self.nombre})>"
+        return f"<CentroOperacion(id={self.id}, codigo={self.codigo}, nombre={self.nombre})>"
 
 
 class UnidadNegocio(Base, TimestampMixin):

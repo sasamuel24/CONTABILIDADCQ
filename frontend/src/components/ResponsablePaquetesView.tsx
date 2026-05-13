@@ -1029,9 +1029,7 @@ function DetallePaqueteResponsable({
                 <tbody>
                   {gastosVisibles.map((g, idx) => {
                     const asig = asignaciones[g.id] ?? { centroCostoId: '', centroOperacionId: '', cuentaAuxiliarId: '', dirty: false };
-                    const coFiltrados = centrosOperacion.filter(
-                      (c) => !asig.centroCostoId || c.centro_costo_id === asig.centroCostoId
-                    );
+                    const coFiltrados = centrosOperacion;
                     return (
                       <tr
                         key={g.id}

@@ -109,14 +109,8 @@ export function DistribucionCCCOTable({
         if (campo === 'centro_costo_id') {
           nuevaFila.centro_operacion_id = '';
           
-          // Cargar centros de operación para este centro de costo
-          if (valor) {
-            const cosFiltrados = centrosOperacion.filter(co => co.centro_costo_id === valor);
-            setCentrosOperacionPorCosto(prev => ({
-              ...prev,
-              [tempId]: cosFiltrados
-            }));
-          }
+          // Resetear CO al cambiar CC
+          setCentrosOperacionPorCosto(prev => ({ ...prev, [tempId]: centrosOperacion }));
         }
         
         return nuevaFila;
@@ -224,8 +218,7 @@ export function DistribucionCCCOTable({
           </thead>
           <tbody>
             {rows.map((row, index) => {
-              const cosDisponibles = centrosOperacionPorCosto[row.tempId] || 
-                centrosOperacion.filter(co => co.centro_costo_id === row.centro_costo_id);
+              const cosDisponibles = centrosOperacionPorCosto[row.tempId] ?? centrosOperacion;
 
               return (
                 <tr key={row.tempId} className="border-b border-gray-100 hover:bg-gray-50">

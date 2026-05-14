@@ -1,14 +1,63 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, FolderInput, Archive } from 'lucide-react';
-import { getFacturas, type FacturaListItem, type CarpetaTesoreria } from '../lib/api';
+import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, FolderInput, Archive, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { getFacturas, getCarpetasTesoreria, type FacturaListItem, type CarpetaTesoreria } from '../lib/api';
 import { CarpetasPanelTesoreria } from './CarpetasPanelTesoreria';
 import { AsignarCarpetaTesoreriaModal } from './AsignarCarpetaTesoreriaModal';
 import { CentroDocumentalFacturaDetail } from './CentroDocumentalFacturaDetail';
 
+// Aplana el árbol de carpetas en filas para el Excel
+function flattenCarpetas(
+  carpetas: CarpetaTesoreria[],
+  allFacturas: Map<string, FacturaListItem>,
+  parentPath = ''
+): Record<string, string | number>[] {
+  const rows: Record<string, string | number>[] = [];
+  for (const carpeta of carpetas) {
+    const ruta = parentPath ? `${parentPath} > ${carpeta.nombre}` : carpeta.nombre;
+    const facturaIds = carpeta.facturas?.map(f => f.id) || [];
+    if (facturaIds.length === 0 && (!carpeta.children || carpeta.children.length === 0)) {
+      rows.push({
+        'Carpeta': ruta,
+        'N° Factura': '',
+        'Proveedor': '',
+        'Área': '',
+        'Total': '',
+        'Estado': '',
+        'Fecha Emisión': '',
+        'PDF Egreso': carpeta.archivo_egreso_url ? 'Sí' : 'No',
+        'Creada': new Date(carpeta.created_at).toLocaleDateString('es-ES'),
+      });
+    } else {
+      for (const ref of carpeta.facturas || []) {
+        const f = allFacturas.get(ref.id);
+        rows.push({
+          'Carpeta': ruta,
+          'N° Factura': f?.numero_factura || ref.id,
+          'Proveedor': f?.proveedor || '',
+          'Área': f?.area || '',
+          'Total': f ? f.total : '',
+          'Estado': f?.estado || '',
+          'Fecha Emisión': f?.fecha_emision
+            ? new Date(f.fecha_emision).toLocaleDateString('es-ES')
+            : '',
+          'PDF Egreso': carpeta.archivo_egreso_url ? 'Sí' : 'No',
+          'Creada': new Date(carpeta.created_at).toLocaleDateString('es-ES'),
+        });
+      }
+    }
+    if (carpeta.children?.length) {
+      rows.push(...flattenCarpetas(carpeta.children, allFacturas, ruta));
+    }
+  }
+  return rows;
+}
+
 export function CarpetasTesoreriaView() {
   // Estados
   const [facturas, setFacturas] = useState<FacturaListItem[]>([]);
+  const [carpetas, setCarpetas] = useState<CarpetaTesoreria[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,9 +89,13 @@ export function CarpetasTesoreriaView() {
       try {
         setIsLoading(true);
         setError(null);
-        const facturasResponse = await getFacturas(0, 10000);
+        const [facturasResponse, carpetasData] = await Promise.all([
+          getFacturas(0, 10000),
+          getCarpetasTesoreria(),
+        ]);
         const facturasCerradas = facturasResponse.items.filter(f => f.estado === 'Pagada');
         setFacturas(facturasCerradas);
+        setCarpetas(carpetasData);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al cargar datos';
         setError(message);
@@ -156,9 +209,13 @@ export function CarpetasTesoreriaView() {
 
   const handleAsignarSuccess = async () => {
     try {
-      const facturasResponse = await getFacturas(0, 10000);
+      const [facturasResponse, carpetasData] = await Promise.all([
+        getFacturas(0, 10000),
+        getCarpetasTesoreria(),
+      ]);
       const facturasCerradas = facturasResponse.items.filter(f => f.estado === 'Pagada');
       setFacturas(facturasCerradas);
+      setCarpetas(carpetasData);
       setSeleccionados(new Set());
       if (vistaActual === 'sin-archivar') setCurrentPage(1);
       setShowAsignarModal(false);
@@ -185,6 +242,48 @@ export function CarpetasTesoreriaView() {
   const todosSeleccionados = sortedFacturas.length > 0 && seleccionados.size === sortedFacturas.length;
   const algunoSeleccionado = seleccionados.size > 0 && seleccionados.size < sortedFacturas.length;
 
+  const exportarFacturasExcel = () => {
+    const rows = sortedFacturas.map(f => ({
+      'N° Factura': f.numero_factura,
+      'Fecha Emisión': f.fecha_emision
+        ? new Date(f.fecha_emision).toLocaleDateString('es-ES')
+        : '',
+      'Fecha Vencimiento': f.fecha_vencimiento
+        ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES')
+        : '',
+      'Proveedor': f.proveedor,
+      'Área': f.area,
+      'Total': f.total,
+      'Estado': f.estado,
+      'Carpeta': f.carpeta_tesoreria?.nombre || '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 22 }, { wch: 16 }, { wch: 18 }, { wch: 40 },
+      { wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 30 },
+    ];
+    const wb = XLSX.utils.book_new();
+    const label = vistaActual === 'sin-archivar'
+      ? 'Facturas Sin Archivar'
+      : selectedCarpeta?.nombre?.slice(0, 30) || 'Carpeta';
+    XLSX.utils.book_append_sheet(wb, ws, label);
+    XLSX.writeFile(wb, `${label.replace(/[^a-zA-Z0-9 ]/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
+  const exportarCarpetasExcel = () => {
+    const facturasMap = new Map(facturas.map(f => [f.id, f]));
+    const rows = flattenCarpetas(carpetas, facturasMap);
+    if (rows.length === 0) return;
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 40 }, { wch: 22 }, { wch: 40 }, { wch: 20 },
+      { wch: 14 }, { wch: 12 }, { wch: 16 }, { wch: 10 }, { wch: 14 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Carpetas');
+    XLSX.writeFile(wb, `Carpetas_Programacion_Pagos_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+
   return (
     <div className="flex-1 bg-white">
       <div className="h-full flex flex-col">
@@ -200,6 +299,43 @@ export function CarpetasTesoreriaView() {
                   ? `${filteredFacturas.length} facturas pendientes de archivar`
                   : `${filteredFacturas.length} facturas en esta carpeta`}
               </p>
+            </div>
+            {/* Botones de exportar */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={exportarFacturasExcel}
+                disabled={sortedFacturas.length === 0}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{
+                  fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                  borderColor: '#16a34a',
+                  color: '#16a34a',
+                  backgroundColor: 'white',
+                }}
+                onMouseEnter={(e) => { if (sortedFacturas.length > 0) { e.currentTarget.style.backgroundColor = '#f0fdf4'; } }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
+                title="Exportar facturas visibles a Excel"
+              >
+                <Download className="w-4 h-4" />
+                Exportar Facturas
+              </button>
+              <button
+                onClick={exportarCarpetasExcel}
+                disabled={carpetas.length === 0}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{
+                  fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                  borderColor: '#00829a',
+                  color: '#00829a',
+                  backgroundColor: 'white',
+                }}
+                onMouseEnter={(e) => { if (carpetas.length > 0) { e.currentTarget.style.backgroundColor = '#e0f5f7'; } }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'white'; }}
+                title="Exportar todas las carpetas con sus facturas a Excel"
+              >
+                <Download className="w-4 h-4" />
+                Exportar Carpetas
+              </button>
             </div>
           </div>
         </div>

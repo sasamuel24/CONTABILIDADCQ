@@ -584,10 +584,10 @@ function DetallePaqueteResponsable({
   const puedeActuar = paquete.estado === 'en_revision' && esResponsable;
   const puedeEnviarTesoreria = paquete.estado === 'aprobado' && esFact;
   const puedeDevolverComoFact = paquete.estado === 'aprobado' && esFact;
-  // Facturación puede gestionar doc contable cuando está aprobado
-  const puedeGestionarDocContable = verDocContable && esFact;
   // Doc contable visible (para ver/descargar) desde aprobado en adelante
   const verDocContable = ['aprobado', 'en_tesoreria', 'pagado'].includes(paquete.estado);
+  // Facturación puede gestionar doc contable en cualquier estado visible
+  const puedeGestionarDocContable = verDocContable && esFact;
   // CM PDF: facturación puede subir cuando aprobado; todos ven si existe
   const puedeGestionarCmPdf = paquete.estado === 'aprobado' && esFact;
 

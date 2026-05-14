@@ -52,6 +52,15 @@ function contarFacturasRecursivo(carpeta: Carpeta): number {
   return count;
 }
 
+// Devuelve true si la carpeta (o alguna subcarpeta) tiene al menos una factura no pagada
+function tienePendientes(carpeta: Carpeta, allFacturas: Map<string, FacturaListItem>): boolean {
+  if (carpeta.facturas?.some(ref => {
+    const f = allFacturas.get(ref.id);
+    return f && f.estado !== 'Pagada';
+  })) return true;
+  return (carpeta.children || []).some(child => tienePendientes(child, allFacturas));
+}
+
 // Encontrar una carpeta por ID en el árbol
 function findCarpetaById(carpetas: Carpeta[], id: string): Carpeta | null {
   for (const carpeta of carpetas) {
@@ -155,18 +164,22 @@ export function ExploradorArchivosTesoreria() {
   // Items visibles en la vista actual
   const visibleFolders = useMemo(() => {
     const folders = currentFolder ? (currentFolder.children || []) : carpetasRaiz;
-    if (!searchQuery) return folders;
-    return folders.filter(f => 
+    // Solo filtrar por pendientes cuando estamos en la raíz (no dentro de una carpeta)
+    const conPendientes = !currentFolder
+      ? folders.filter(f => tienePendientes(f, allFacturas))
+      : folders;
+    if (!searchQuery) return conPendientes;
+    return conPendientes.filter(f =>
       f.nombre.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [currentFolder, carpetasRaiz, searchQuery]);
+  }, [currentFolder, carpetasRaiz, searchQuery, allFacturas]);
 
   const visibleFacturas = useMemo(() => {
     const facturaRefs = currentFolder?.facturas || [];
     const facturas = facturaRefs
       .map(ref => allFacturas.get(ref.id))
-      .filter((f): f is FacturaListItem => f !== undefined);
-    
+      .filter((f): f is FacturaListItem => f !== undefined && f.estado !== 'Pagada');
+
     if (!searchQuery) return facturas;
     return facturas.filter(f =>
       f.numero_factura.toLowerCase().includes(searchQuery.toLowerCase()) ||

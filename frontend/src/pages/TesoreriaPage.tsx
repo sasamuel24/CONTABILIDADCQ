@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FolderOpen, LogOut, FolderTree, PackageOpen, Banknote } from 'lucide-react';
+import { FolderOpen, LogOut, FolderTree, PackageOpen, Banknote, Globe } from 'lucide-react';
 import { ExploradorArchivosTesoreria } from '../components/ExploradorArchivosTesoreria';
 import { CarpetasTesoreriaView } from '../components/CarpetasTesoreriaView';
 import { TesoreriaPaquetesView } from '../components/TesoreriaPaquetesView';
@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 export function TesoreriaPage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [activeView, setActiveView] = useState<'inbox' | 'carpetas' | 'paquetes' | 'anticipos'>('inbox');
+  const [activeView, setActiveView] = useState<'inbox' | 'carpetas' | 'paquetes' | 'anticipos' | 'explorador-global'>('inbox');
 
   const handleLogout = () => {
     logout();
@@ -50,10 +50,34 @@ export function TesoreriaPage() {
             className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg"
           >
             <FolderTree className="w-5 h-5" />
-            Explorador de Archivos
+            Carpetas Pendientes por Pagar
           </button>
 
-          <button 
+          <button
+            onClick={() => setActiveView('explorador-global')}
+            style={{
+              fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+              backgroundColor: activeView === 'explorador-global' ? '#e0f5f7' : 'transparent',
+              color: activeView === 'explorador-global' ? '#00829a' : '#6b7280',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (activeView !== 'explorador-global') {
+                e.currentTarget.style.backgroundColor = '#f3f4f6';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeView !== 'explorador-global') {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }
+            }}
+            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg"
+          >
+            <Globe className="w-5 h-5" />
+            Explorador de Archivos Global
+          </button>
+
+          <button
             onClick={() => setActiveView('carpetas')}
             style={{
               fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
@@ -165,7 +189,8 @@ export function TesoreriaPage() {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto">
-        {activeView === 'inbox' && <ExploradorArchivosTesoreria />}
+        {activeView === 'inbox' && <ExploradorArchivosTesoreria filtroPendientes={true} />}
+        {activeView === 'explorador-global' && <ExploradorArchivosTesoreria filtroPendientes={false} />}
         {activeView === 'carpetas' && <CarpetasTesoreriaView />}
         {activeView === 'paquetes' && <TesoreriaPaquetesView />}
         {activeView === 'anticipos' && <AnticiposView />}

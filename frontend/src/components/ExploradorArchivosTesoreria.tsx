@@ -95,7 +95,11 @@ function buildBreadcrumbPath(carpetas: Carpeta[], targetId: string): Carpeta[] {
   return path;
 }
 
-export function ExploradorArchivosTesoreria() {
+interface ExploradorArchivosTesoreriaProps {
+  filtroPendientes?: boolean;
+}
+
+export function ExploradorArchivosTesoreria({ filtroPendientes = true }: ExploradorArchivosTesoreriaProps) {
   const [carpetasRaiz, setCarpetasRaiz] = useState<Carpeta[]>([]);
   const [allFacturas, setAllFacturas] = useState<Map<string, FacturaListItem>>(new Map());
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -164,8 +168,8 @@ export function ExploradorArchivosTesoreria() {
   // Items visibles en la vista actual
   const visibleFolders = useMemo(() => {
     const folders = currentFolder ? (currentFolder.children || []) : carpetasRaiz;
-    // Solo filtrar por pendientes cuando estamos en la raíz (no dentro de una carpeta)
-    const conPendientes = !currentFolder
+    // Solo filtrar por pendientes en la raíz cuando filtroPendientes está activo
+    const conPendientes = (filtroPendientes && !currentFolder)
       ? folders.filter(f => tienePendientes(f, allFacturas))
       : folders;
     if (!searchQuery) return conPendientes;
@@ -178,7 +182,7 @@ export function ExploradorArchivosTesoreria() {
     const facturaRefs = currentFolder?.facturas || [];
     const facturas = facturaRefs
       .map(ref => allFacturas.get(ref.id))
-      .filter((f): f is FacturaListItem => f !== undefined && f.estado !== 'Pagada');
+      .filter((f): f is FacturaListItem => f !== undefined && (!filtroPendientes || f.estado !== 'Pagada'));
 
     if (!searchQuery) return facturas;
     return facturas.filter(f =>
@@ -362,17 +366,19 @@ export function ExploradorArchivosTesoreria() {
               <FolderTree className="w-5 h-5" style={{ color: '#00829a' }} />
             </div>
             <div>
-              <h2 
-                style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }} 
+              <h2
+                style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}
                 className="text-xl font-bold text-gray-900"
               >
-                Explorador de Archivos
+                {filtroPendientes ? 'Carpetas Pendientes por Pagar' : 'Explorador de Archivos Global'}
               </h2>
-              <p 
-                style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} 
+              <p
+                style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
                 className="text-sm text-gray-500"
               >
-                Carpetas asignadas desde Contabilidad
+                {filtroPendientes
+                  ? 'Solo carpetas con facturas pendientes de pago'
+                  : 'Todas las carpetas asignadas desde Contabilidad'}
               </p>
             </div>
           </div>
@@ -836,7 +842,9 @@ export function ExploradorArchivosTesoreria() {
                     ? `No se encontraron resultados para "${searchQuery}"` 
                     : currentFolder 
                       ? 'Esta carpeta no contiene subcarpetas ni facturas' 
-                      : 'Las carpetas aparecerán aquí cuando Contabilidad asigne facturas'
+                      : filtroPendientes
+                    ? 'No hay carpetas con facturas pendientes de pago'
+                    : 'Las carpetas aparecerán aquí cuando Contabilidad asigne facturas'
                   }
                 </p>
               </div>

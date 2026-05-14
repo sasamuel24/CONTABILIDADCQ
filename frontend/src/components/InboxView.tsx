@@ -510,8 +510,10 @@ export function InboxView() {
   };
 
   const filteredFacturas = facturas.filter(f => {
-    const matchesSearch = f.proveedor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         f.numero_factura.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = f.proveedor.toLowerCase().includes(q) ||
+                         f.numero_factura.toLowerCase().includes(q) ||
+                         (f.nit_proveedor?.toLowerCase().includes(q) ?? false);
     const matchesStatus = selectedStatus === 'Todos' || f.estado === selectedStatus;
     return matchesSearch && matchesStatus;
   });
@@ -603,7 +605,7 @@ export function InboxView() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por proveedor o número de factura..."
+              placeholder="Buscar por NIT, proveedor o número de factura..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none"

@@ -237,7 +237,9 @@ class FacturaService:
             return await self.get_factura(existing.id)
 
 
-        datos = factura_data.model_dump(exclude={"xml_content"})
+        datos = factura_data.model_dump(exclude={"xml_content", "nit"})
+        if factura_data.nit:
+            datos["nit_proveedor"] = factura_data.nit
         factura = await self.repository.create(datos)
 
         # Si viene xml_content, ejecutar asignación automática de área por IA

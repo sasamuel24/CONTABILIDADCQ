@@ -42,7 +42,6 @@ export function DistribucionCCCOTable({
 }: Props) {
   const [rows, setRows] = useState<DistribucionRow[]>([]);
   const [errores, setErrores] = useState<Record<string, string>>({});
-  const [centrosOperacionPorCosto, setCentrosOperacionPorCosto] = useState<Record<string, CentroOperacion[]>>({});
 
   // Debug: ver qué datos están llegando
   useEffect(() => {
@@ -103,17 +102,7 @@ export function DistribucionCCCOTable({
   const actualizarFila = (tempId: string, campo: keyof DistribucionRow, valor: string) => {
     setRows(rows.map(r => {
       if (r.tempId === tempId) {
-        const nuevaFila = { ...r, [campo]: valor };
-        
-        // Si cambia el centro de costo, resetear centro de operación
-        if (campo === 'centro_costo_id') {
-          nuevaFila.centro_operacion_id = '';
-          
-          // Resetear CO al cambiar CC
-          setCentrosOperacionPorCosto(prev => ({ ...prev, [tempId]: centrosOperacion }));
-        }
-        
-        return nuevaFila;
+        return { ...r, [campo]: valor };
       }
       return r;
     }));
@@ -218,8 +207,6 @@ export function DistribucionCCCOTable({
           </thead>
           <tbody>
             {rows.map((row, index) => {
-              const cosDisponibles = centrosOperacionPorCosto[row.tempId] ?? centrosOperacion;
-
               return (
                 <tr key={row.tempId} className="border-b border-gray-100 hover:bg-gray-50">
                   {/* Centro de Operación */}
@@ -235,7 +222,7 @@ export function DistribucionCCCOTable({
                       onBlur={(e) => e.target.style.boxShadow = ''}
                     >
                       <option value="">Seleccionar</option>
-                      {cosDisponibles.map(co => (
+                      {centrosOperacion.map(co => (
                         <option key={co.id} value={co.id}>{co.codigo} - {co.nombre}</option>
                       ))}
                     </select>

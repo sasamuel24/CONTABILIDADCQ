@@ -639,6 +639,7 @@ export function InboxView() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="px-6 py-3 text-gray-600 text-left">NIT</th>
                 {(
                   [
                     { col: 'proveedor',         label: 'Proveedor',          align: 'left'  },
@@ -661,7 +662,6 @@ export function InboxView() {
                     </div>
                   </th>
                 ))}
-                <th className="px-6 py-3 text-gray-600 text-left">NIT</th>
                 <th className="text-center px-6 py-3 text-gray-600">PDF</th>
                 <th className="text-center px-6 py-3 text-gray-600">Acciones</th>
               </tr>
@@ -671,6 +671,7 @@ export function InboxView() {
                 // Loading skeleton
                 Array(5).fill(0).map((_, i) => (
                   <tr key={i} className="animate-pulse">
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-32"></div></td>
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
@@ -678,7 +679,6 @@ export function InboxView() {
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
                     <td className="px-6 py-4 text-right"><div className="h-4 bg-gray-200 rounded w-16 ml-auto"></div></td>
                     <td className="px-6 py-4"><div className="h-6 bg-gray-200 rounded-full w-20"></div></td>
-                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
                     <td className="px-6 py-4 text-center"><div className="h-8 w-8 bg-gray-200 rounded mx-auto"></div></td>
                     <td className="px-6 py-4 text-center"><div className="h-6 bg-gray-200 rounded-full w-20 mx-auto"></div></td>
                   </tr>
@@ -709,6 +709,11 @@ export function InboxView() {
                     }`}
                     onClick={() => handleRowClick(factura)}
                   >
+                    <td className="px-6 py-4">
+                      <div className="text-gray-600 font-mono text-sm whitespace-nowrap">
+                        {factura.nit_proveedor || <span className="text-gray-300">—</span>}
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="text-gray-900">{factura.proveedor}</div>
                     </td>
@@ -752,11 +757,6 @@ export function InboxView() {
                             devueltaPor={factura.devuelta_por_nombre}
                           />
                         )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-gray-600 font-mono text-sm whitespace-nowrap">
-                        {factura.nit_proveedor || <span className="text-gray-300">—</span>}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">

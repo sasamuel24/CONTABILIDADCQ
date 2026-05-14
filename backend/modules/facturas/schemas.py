@@ -518,6 +518,7 @@ class IngestaXMLIn(BaseModel):
     xml_content: str = Field(..., description="Contenido completo del XML AttachedDocument")
     pdf_base64: Optional[str] = Field(None, description="PDF de la factura codificado en base64 (enviado por N8N junto al XML)")
     pdf_filename: Optional[str] = Field(None, description="Nombre del archivo PDF")
+    nit: Optional[str] = Field(None, description="NIT del proveedor enviado explícitamente por N8N (complementa o reemplaza el extraído del XML)")
 
 
 class IngestaXMLResultOut(BaseModel):

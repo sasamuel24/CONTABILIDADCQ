@@ -1013,6 +1013,9 @@ async def ingesta_xml(
     )
     existing = dup.scalar_one_or_none()
     if existing:
+        # Si N8N envía el NIT explícitamente y la factura existente no lo tiene, actualizarlo
+        if payload.nit and not existing.nit_proveedor:
+            existing.nit_proveedor = payload.nit
         # Si es duplicado de un NIT conocido pero sin área asignada aún,
         # intentar asignar usando la tabla NIT
         if existing.ai_area_confianza is None:
@@ -1088,9 +1091,11 @@ async def ingesta_xml(
         raise HTTPException(status_code=500, detail="Estado RECIBIDA (id=1) no encontrado en BD.")
 
     # 8. Crear la factura
+    # El NIT puede venir explícito desde N8N (payload.nit) o extraído del XML (datos.nit_proveedor)
+    nit_final = payload.nit or datos.nit_proveedor
     nueva = Factura(
         proveedor=datos.proveedor,
-        nit_proveedor=datos.nit_proveedor,
+        nit_proveedor=nit_final,
         numero_factura=datos.numero_factura,
         fecha_emision=datos.fecha_emision,
         fecha_vencimiento=datos.fecha_vencimiento,

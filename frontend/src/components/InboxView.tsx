@@ -661,6 +661,7 @@ export function InboxView() {
                     </div>
                   </th>
                 ))}
+                <th className="px-6 py-3 text-gray-600 text-left">NIT</th>
                 <th className="text-center px-6 py-3 text-gray-600">PDF</th>
                 <th className="text-center px-6 py-3 text-gray-600">Acciones</th>
               </tr>
@@ -677,6 +678,7 @@ export function InboxView() {
                     <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
                     <td className="px-6 py-4 text-right"><div className="h-4 bg-gray-200 rounded w-16 ml-auto"></div></td>
                     <td className="px-6 py-4"><div className="h-6 bg-gray-200 rounded-full w-20"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
                     <td className="px-6 py-4 text-center"><div className="h-8 w-8 bg-gray-200 rounded mx-auto"></div></td>
                     <td className="px-6 py-4 text-center"><div className="h-6 bg-gray-200 rounded-full w-20 mx-auto"></div></td>
                   </tr>
@@ -684,7 +686,7 @@ export function InboxView() {
               ) : currentFacturas.length === 0 ? (
                 // Empty state
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center">
+                  <td colSpan={10} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center text-gray-500">
                       <FileText className="w-12 h-12 mb-3 text-gray-400" />
                       <p className="text-lg font-medium text-gray-700 mb-1">
@@ -750,6 +752,11 @@ export function InboxView() {
                             devueltaPor={factura.devuelta_por_nombre}
                           />
                         )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-gray-600 font-mono text-sm whitespace-nowrap">
+                        {factura.nit_proveedor || <span className="text-gray-300">—</span>}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">

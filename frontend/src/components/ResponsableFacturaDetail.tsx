@@ -1129,8 +1129,11 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const validarFormulario = (): { valido: boolean; errores: Record<string, string> } => {
     const nuevosErrores: Record<string, string> = {};
 
-    // Validar APROBACIÓN solo si NO es gasto administrativo y NO requiere inventario
-    if (!esGastoAdm && !requiereInventario) {
+    // Validar APROBACIÓN solo si NO es gasto administrativo, NO requiere inventario
+    // y NO pertenece al área Financiera (Compras) que no requiere aprobación de gerencia
+    const FINANCIERA_AREA_ID = 'a38a557e-09af-4b8e-ba08-528769d19208';
+    const esFinanciera = factura.area_id === FINANCIERA_AREA_ID || factura.area_origen_id === FINANCIERA_AREA_ID;
+    if (!esGastoAdm && !requiereInventario && !esFinanciera) {
       if (!facturaAprobadaEmail && !factura.fecha_aprobacion_email) {
         nuevosErrores.aprobacion = 'La factura debe ser aprobada por un gerente antes de enviar a Tesorería';
       }

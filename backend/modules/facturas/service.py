@@ -989,7 +989,40 @@ Responde ÚNICAMENTE con JSON válido:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Factura con ID {factura_id} no encontrada"
             )
-        
+
+        # Área Financiera (Compras) — sin restricciones, pasa directamente a Contabilidad
+        FINANCIERA_AREA_ID = UUID("a38a557e-09af-4b8e-ba08-528769d19208")
+        if factura.area_id == FINANCIERA_AREA_ID:
+            area_result = await self.db.execute(
+                select(Area).where(Area.nombre.ilike("%contabilidad%"))
+            )
+            area_contabilidad = area_result.scalar_one_or_none()
+            if not area_contabilidad:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Área CONTABILIDAD no encontrada"
+                )
+            estado_result = await self.db.execute(
+                select(Estado).where(Estado.id == 3)
+            )
+            estado_contabilidad = estado_result.scalar_one_or_none()
+            factura.area_id = area_contabilidad.id
+            factura.estado_id = estado_contabilidad.id if estado_contabilidad else 3
+            factura.assigned_to_user_id = None
+            factura.assigned_at = datetime.utcnow()
+            await self.db.commit()
+            await self.db.refresh(factura)
+            logger.info(f"Factura {factura_id} (Financiera/Compras) enviada a Contabilidad sin restricciones.")
+            return {
+                "factura_id": str(factura.id),
+                "area_id": str(factura.area_id),
+                "area_nombre": area_contabilidad.nombre,
+                "estado_actual": estado_contabilidad.label if estado_contabilidad else "Contabilidad",
+                "missing_fields": [],
+                "missing_codes": [],
+                "extra_codes": [],
+            }
+
         # Acumuladores de errores
         missing_fields = []
         missing_codes = []

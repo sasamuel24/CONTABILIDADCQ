@@ -353,11 +353,10 @@ export function DistribucionCCCOTable({
         <button
           onClick={validarYGuardar}
           disabled={saving || rows.length === 0}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-all border-2"
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-all"
           style={{
-            backgroundColor: saving || rows.length === 0 ? '#f3f4f6' : 'transparent',
-            borderColor: saving || rows.length === 0 ? '#d1d5db' : '#00829a',
-            color: saving || rows.length === 0 ? '#9ca3af' : '#00829a',
+            backgroundColor: saving || rows.length === 0 ? '#9ca3af' : '#00829a',
+            color: 'white',
             cursor: saving || rows.length === 0 ? 'not-allowed' : 'pointer',
             fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
             fontSize: '0.875rem',
@@ -365,14 +364,12 @@ export function DistribucionCCCOTable({
           }}
           onMouseEnter={(e) => {
             if (!saving && rows.length > 0) {
-              e.currentTarget.style.backgroundColor = 'rgba(20, 170, 184, 0.05)';
-              e.currentTarget.style.borderColor = '#14aab8';
+              e.currentTarget.style.backgroundColor = '#14aab8';
             }
           }}
           onMouseLeave={(e) => {
             if (!saving && rows.length > 0) {
-              e.currentTarget.style.backgroundColor = 'transparent';
-              e.currentTarget.style.borderColor = '#00829a';
+              e.currentTarget.style.backgroundColor = '#00829a';
             }
           }}
         >

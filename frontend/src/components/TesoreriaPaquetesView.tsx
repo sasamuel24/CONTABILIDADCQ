@@ -836,6 +836,7 @@ export function TesoreriaPaquetesView() {
           onPagado={() => {
             setPaqueteDetalleId(null);
             cargar();
+            if (tab === 'trazabilidad') cargarTrazabilidad();
           }}
         />
       </div>
@@ -1060,8 +1061,11 @@ export function TesoreriaPaquetesView() {
                         const cfg = ESTADOS_CONFIG[p.estado] ?? ESTADOS_CONFIG['borrador'];
                         return (
                           <tr key={p.id}
-                            className="border-t border-gray-100"
+                            className="border-t border-gray-100 cursor-pointer"
+                            onClick={() => setPaqueteDetalleId(p.id)}
                             style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#f8fafc' }}
+                            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#e0f5f7')}
+                            onMouseLeave={e => (e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#fff' : '#f8fafc')}
                           >
                             <td className="px-5 py-3 font-semibold" style={{ color: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', fontSize: 12 }}>
                               {p.folio ?? '—'}

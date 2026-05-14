@@ -1746,6 +1746,14 @@ export async function aprobarPaquete(paqueteId: string): Promise<PaqueteOut> {
 }
 
 /** Admin devuelve el paquete con un motivo */
+/** Tesorería devuelve paquete en_tesoreria a Facturación (estado aprobado) */
+export async function devolverPaqueteAFacturacion(paqueteId: string, motivo: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/devolver-a-facturacion`, {
+    method: 'POST',
+    body: JSON.stringify({ motivo }),
+  });
+}
+
 export async function devolverPaquete(paqueteId: string, motivo: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/devolver`, {
     method: 'POST',

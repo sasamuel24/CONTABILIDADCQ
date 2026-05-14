@@ -184,6 +184,24 @@ async def aprobar_paquete(
 
 
 @router.post(
+    "/gastos/paquetes/{paquete_id}/devolver-a-facturacion",
+    response_model=PaqueteOut,
+    summary="Tesorería devuelve un paquete a Facturación",
+)
+async def devolver_paquete_a_facturacion(
+    paquete_id: UUID,
+    data: PaqueteDevolver,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    area = user.area.code.lower() if user.area else ""
+    if role not in {"admin", "tesoreria", "tes"} and area not in {"admin", "tesoreria", "tes"}:
+        raise HTTPException(status_code=403, detail="Solo Tesorería puede devolver paquetes a Facturación.")
+    return await svc.devolver_a_facturacion(paquete_id, user.id, data.motivo)
+
+
+@router.post(
     "/gastos/paquetes/{paquete_id}/enviar-tesoreria",
     response_model=PaqueteOut,
     summary="Enviar paquete aprobado a Tesorería (facturación/admin)",

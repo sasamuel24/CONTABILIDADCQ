@@ -310,6 +310,27 @@ class GastosService:
         await self.db.commit()
         return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
 
+    async def devolver_a_facturacion(self, paquete_id: UUID, user_id: UUID, motivo: str) -> PaqueteOut:
+        """Tesorería devuelve un paquete en_tesoreria a Facturación (estado aprobado)."""
+        paquete = await self._get_paquete_or_404(paquete_id)
+        if paquete.estado != "en_tesoreria":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Solo paquetes en estado 'en_tesoreria' pueden devolverse a Facturación. Estado actual: {paquete.estado}"
+            )
+        paquete.estado = "aprobado"
+        await self.paquete_repo.save(paquete)
+        await self.comentario_repo.create(ComentarioPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            texto=motivo, tipo="devolucion",
+        ))
+        await self.historial_repo.create(HistorialEstadoPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            estado_anterior="en_tesoreria", estado_nuevo="aprobado",
+        ))
+        await self.db.commit()
+        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+
     async def enviar_tesoreria(self, paquete_id: UUID, user_id: UUID) -> PaqueteOut:
         paquete = await self._get_paquete_or_404(paquete_id)
         if paquete.estado != "aprobado":

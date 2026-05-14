@@ -11,6 +11,7 @@ import {
   getPaqueteGasto,
   pagarPaquete,
   pagarPaquetesMasivo,
+  devolverPaqueteAFacturacion,
   getAprobacionGerenciaDownloadUrl,
   getDocContableDownloadUrl,
   getCmPdfGastoDownloadUrl,
@@ -87,6 +88,9 @@ function DetalleAuditoriaTes({
     const hoy = new Date();
     return hoy.toISOString().slice(0, 10);
   });
+  const [modalDevolverOpen, setModalDevolverOpen] = useState(false);
+  const [motivoDevolucion, setMotivoDevolucion] = useState('');
+  const [loadingDevolver, setLoadingDevolver] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -123,6 +127,23 @@ function DetalleAuditoriaTes({
       toast.error(msg);
     } finally {
       setLoadingPagar(false);
+    }
+  };
+
+  const handleConfirmarDevolucion = async () => {
+    if (!paquete || motivoDevolucion.trim().length < 5) return;
+    setLoadingDevolver(true);
+    try {
+      await devolverPaqueteAFacturacion(paquete.id, motivoDevolucion.trim());
+      toast.success('Paquete devuelto a Facturación');
+      setModalDevolverOpen(false);
+      setMotivoDevolucion('');
+      onPagado(); // recarga la lista
+    } catch (e: unknown) {
+      const msg = (e as { detail?: string })?.detail ?? 'Error al devolver el paquete';
+      toast.error(msg);
+    } finally {
+      setLoadingDevolver(false);
     }
   };
 
@@ -430,15 +451,25 @@ function DetalleAuditoriaTes({
                   </p>
                 )}
               </div>
-              <button
-                onClick={handleAbrirModalPagar}
-                disabled={loadingPagar}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: '#0e7490', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-              >
-                <Wallet className="w-4 h-4" />
-                Registrar Pago
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => { setMotivoDevolucion(''); setModalDevolverOpen(true); }}
+                  disabled={loadingPagar}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold border transition-colors hover:bg-red-50 disabled:opacity-50"
+                  style={{ color: '#dc2626', borderColor: '#fca5a5', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                >
+                  ↩ Devolver a Facturación
+                </button>
+                <button
+                  onClick={handleAbrirModalPagar}
+                  disabled={loadingPagar}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ backgroundColor: '#0e7490', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                >
+                  <Wallet className="w-4 h-4" />
+                  Registrar Pago
+                </button>
+              </div>
             </div>
           )}
 
@@ -517,6 +548,55 @@ function DetalleAuditoriaTes({
                 Pagado el {fmtFecha(paquete.fecha_pago.slice(0, 10))}
               </span>
             </div>
+          )}
+
+          {/* Modal: motivo de devolución a Facturación */}
+          {modalDevolverOpen && createPortal(
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={(e) => { if (e.target === e.currentTarget) setModalDevolverOpen(false); }}
+            >
+              <div
+                style={{ background: '#fff', borderRadius: 14, padding: '28px 28px 24px', width: '100%', maxWidth: 420, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', fontSize: 16, fontWeight: 700, marginBottom: 6, color: '#111827' }}>
+                  Devolver paquete a Facturación
+                </p>
+                <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 18 }}>
+                  El paquete volverá al estado <strong>Aprobado</strong> y será visible para Facturación.
+                </p>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  Motivo de devolución <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <textarea
+                  value={motivoDevolucion}
+                  onChange={(e) => setMotivoDevolucion(e.target.value)}
+                  placeholder="Describa el motivo por el cual devuelve el paquete a Facturación..."
+                  rows={4}
+                  style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'Neutra Text Book, Montserrat, sans-serif', resize: 'vertical', boxSizing: 'border-box' }}
+                />
+                <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Mínimo 5 caracteres</p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+                  <button
+                    onClick={() => setModalDevolverOpen(false)}
+                    disabled={loadingDevolver}
+                    style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#374151', border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmarDevolucion}
+                    disabled={loadingDevolver || motivoDevolucion.trim().length < 5}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#fff', background: loadingDevolver || motivoDevolucion.trim().length < 5 ? '#9ca3af' : '#dc2626', border: 'none', cursor: loadingDevolver || motivoDevolucion.trim().length < 5 ? 'not-allowed' : 'pointer', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    {loadingDevolver ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin" /> : '↩'}
+                    Confirmar devolución
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
           )}
         </div>
 

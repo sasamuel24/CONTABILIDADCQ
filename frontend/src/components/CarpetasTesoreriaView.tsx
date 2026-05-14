@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, FolderInput, Archive, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { getFacturas, getCarpetasTesoreria, type FacturaListItem, type CarpetaTesoreria } from '../lib/api';
+import { getFacturas, getCarpetasTesoreria, devolverFacturaATesoreria, type FacturaListItem, type CarpetaTesoreria } from '../lib/api';
 import { CarpetasPanelTesoreria } from './CarpetasPanelTesoreria';
 import { AsignarCarpetaTesoreriaModal } from './AsignarCarpetaTesoreriaModal';
 import { CentroDocumentalFacturaDetail } from './CentroDocumentalFacturaDetail';
@@ -75,6 +75,10 @@ export function CarpetasTesoreriaView() {
 
   // Detalle de factura
   const [selectedFactura, setSelectedFactura] = useState<FacturaListItem | null>(null);
+
+  // Devolución a tesorería
+  const [facturaADevolver, setFacturaADevolver] = useState<FacturaListItem | null>(null);
+  const [isDevolving, setIsDevolving] = useState(false);
 
   // Ordenamiento
   const [sortColumn, setSortColumn] = useState<keyof FacturaListItem>('fecha_emision');
@@ -241,6 +245,28 @@ export function CarpetasTesoreriaView() {
 
   const todosSeleccionados = sortedFacturas.length > 0 && seleccionados.size === sortedFacturas.length;
   const algunoSeleccionado = seleccionados.size > 0 && seleccionados.size < sortedFacturas.length;
+
+  const handleConfirmarDevolucion = async () => {
+    if (!facturaADevolver) return;
+    setIsDevolving(true);
+    try {
+      await devolverFacturaATesoreria(facturaADevolver.id);
+      const [facturasResponse, carpetasData] = await Promise.all([
+        getFacturas(0, 10000),
+        getCarpetasTesoreria(),
+      ]);
+      const facturasCerradas = facturasResponse.items.filter(f => f.estado === 'Pagada');
+      setFacturas(facturasCerradas);
+      setCarpetas(carpetasData);
+      setSeleccionados(new Set());
+    } catch (err) {
+      console.error('Error al devolver factura:', err);
+      alert(err instanceof Error ? err.message : 'Error al devolver la factura');
+    } finally {
+      setIsDevolving(false);
+      setFacturaADevolver(null);
+    }
+  };
 
   const exportarFacturasExcel = () => {
     const rows = sortedFacturas.map(f => ({
@@ -525,21 +551,38 @@ export function CarpetasTesoreriaView() {
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               {vistaActual === 'sin-archivar' && (
-                                <button
-                                  onClick={(e) => handleAsignarCarpeta(factura, e)}
-                                  style={{
-                                    fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
-                                    backgroundColor: '#00829a',
-                                    transition: 'background-color 0.2s',
-                                  }}
-                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#14aab8'}
-                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#00829a'}
-                                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg"
-                                  title="Asignar a carpeta"
-                                >
-                                  <FolderInput className="w-3.5 h-3.5" />
-                                  <span>Archivar</span>
-                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={(e) => handleAsignarCarpeta(factura, e)}
+                                    style={{
+                                      fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                                      backgroundColor: '#00829a',
+                                      transition: 'background-color 0.2s',
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#14aab8'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#00829a'}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg"
+                                    title="Asignar a carpeta"
+                                  >
+                                    <FolderInput className="w-3.5 h-3.5" />
+                                    <span>Archivar</span>
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setFacturaADevolver(factura); }}
+                                    style={{
+                                      fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                                      borderColor: '#dc2626',
+                                      color: '#dc2626',
+                                      transition: 'background-color 0.2s',
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fef2f2'}
+                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                    className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border bg-transparent"
+                                    title="Devolver a Pendientes por Pagar"
+                                  >
+                                    <span>↩ Devolver</span>
+                                  </button>
+                                </div>
                               )}
                               {vistaActual === 'carpeta' && factura.carpeta_tesoreria && (
                                 <div className="flex items-center gap-2">
@@ -641,6 +684,67 @@ export function CarpetasTesoreriaView() {
           factura={selectedFactura}
           onClose={() => setSelectedFactura(null)}
         />
+      )}
+
+      {/* Modal confirmación devolución */}
+      {facturaADevolver && createPortal(
+        <div
+          className="fixed inset-0 flex items-center justify-center"
+          style={{ zIndex: 10000, backgroundColor: 'rgba(0,0,0,0.45)' }}
+          onClick={() => { if (!isDevolving) setFacturaADevolver(null); }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full mx-4"
+            style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-red-600 text-lg">↩</span>
+              </div>
+              <div>
+                <h3 style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }} className="text-base font-bold text-gray-900">
+                  Devolver factura a Pendientes por Pagar
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">Esta acción revierte el estado Pagada</p>
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3 mb-5 text-sm text-gray-700">
+              <p><span className="font-semibold">Factura:</span> {facturaADevolver.numero_factura}</p>
+              <p><span className="font-semibold">Proveedor:</span> {facturaADevolver.proveedor}</p>
+              <p><span className="font-semibold">Total:</span> ${facturaADevolver.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+            </div>
+            <p className="text-sm text-gray-600 mb-5">
+              La factura volverá al módulo <strong>Carpetas Pendientes por Pagar</strong>
+            {facturaADevolver.carpeta?.nombre
+              ? <> en su carpeta original: <strong>{facturaADevolver.carpeta.nombre}</strong>.</>
+              : <> en su carpeta original.</>
+            }
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setFacturaADevolver(null)}
+                disabled={isDevolving}
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarDevolucion}
+                disabled={isDevolving}
+                className="px-4 py-2 text-sm rounded-lg text-white font-semibold transition-colors disabled:opacity-60 flex items-center gap-2"
+                style={{ backgroundColor: isDevolving ? '#9ca3af' : '#dc2626' }}
+                onMouseEnter={(e) => { if (!isDevolving) e.currentTarget.style.backgroundColor = '#b91c1c'; }}
+                onMouseLeave={(e) => { if (!isDevolving) e.currentTarget.style.backgroundColor = '#dc2626'; }}
+              >
+                {isDevolving ? (
+                  <><span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" />Procesando...</>
+                ) : '↩ Confirmar Devolución'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

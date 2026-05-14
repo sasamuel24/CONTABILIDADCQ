@@ -1911,6 +1911,52 @@ Responde ÚNICAMENTE con JSON válido:
             "usuario_facturacion": user_facturacion.nombre,
         }
 
+    async def devolver_a_tesoreria_sin_pagar(self, factura_id: UUID) -> dict:
+        """
+        Revierte una factura de estado 'Pagada' a 'En Tesorería' (estado_id=7).
+        Limpia la carpeta de tesorería asignada para que aparezca en la raíz
+        de Carpetas Pendientes por Pagar.
+        Solo permitido si la factura está en estado Pagada (estado_id=5).
+        """
+        from sqlalchemy import select, update
+        from db.models import Factura, Estado
+
+        PAGADA_ESTADO_ID = 5
+        TESORERIA_ESTADO_ID = 7
+
+        result = await self.db.execute(select(Factura).where(Factura.id == factura_id))
+        factura = result.scalar_one_or_none()
+
+        if not factura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Factura con ID {factura_id} no encontrada"
+            )
+
+        if factura.estado_id != PAGADA_ESTADO_ID:
+            result_estado = await self.db.execute(
+                select(Estado).where(Estado.id == factura.estado_id)
+            )
+            estado_actual = result_estado.scalar_one_or_none()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Solo se puede devolver una factura en estado Pagada. Estado actual: {estado_actual.label if estado_actual else 'Desconocido'}"
+            )
+
+        factura.estado_id = TESORERIA_ESTADO_ID
+        factura.carpeta_tesoreria_id = None
+
+        await self.db.commit()
+        await self.db.refresh(factura)
+
+        logger.info(f"Factura {factura_id} devuelta a Tesorería (sin pagar). carpeta_tesoreria_id limpiada.")
+
+        return {
+            "factura_id": str(factura.id),
+            "estado_actual": "En Tesorería",
+            "carpeta_tesoreria_id": None,
+        }
+
     # =========================================================================
     # APROBACIÓN POR CORREO ELECTRÓNICO
     # =========================================================================

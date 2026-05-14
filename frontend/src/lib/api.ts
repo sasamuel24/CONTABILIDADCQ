@@ -1084,6 +1084,12 @@ export async function updateFacturaEstado(
   });
 }
 
+// ==================== DEVOLUCIÓN A TESORERÍA (REVERTIR PAGO) ====================
+
+export async function devolverFacturaATesoreria(facturaId: string): Promise<{ factura_id: string; estado_actual: string; carpeta_tesoreria_id: null }> {
+  return fetchAPI(`/facturas/${facturaId}/devolver-a-tesoreria`, { method: 'POST' });
+}
+
 // ==================== DEVOLUCIÓN A RESPONSABLE ====================
 
 export interface DevolverAResponsableRequest {

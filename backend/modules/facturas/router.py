@@ -812,6 +812,22 @@ async def devolver_a_facturacion(
 
 
 @router.post(
+    "/{factura_id}/devolver-a-tesoreria",
+    status_code=status.HTTP_200_OK,
+)
+async def devolver_a_tesoreria_sin_pagar(
+    factura_id: UUID,
+    service: FacturaService = Depends(get_factura_service),
+    _: dict = Depends(get_current_user),
+):
+    """
+    Revierte una factura Pagada al estado En Tesorería y limpia su carpeta asignada.
+    Permite que vuelva a aparecer en Carpetas Pendientes por Pagar.
+    """
+    return await service.devolver_a_tesoreria_sin_pagar(factura_id)
+
+
+@router.post(
     "/extraer-datos-pdf",
     response_model=ExtraccionFacturaPdfOut,
     summary="Extraer datos de factura pública desde PDF usando IA (Claude Sonnet)",

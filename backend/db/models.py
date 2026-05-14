@@ -581,6 +581,10 @@ class Factura(Base, TimestampMixin):
         Text,
         nullable=True
     )
+    devuelta_por_nombre: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True
+    )
     cuenta_auxiliar_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("cuentas_auxiliares.id", ondelete="RESTRICT"),

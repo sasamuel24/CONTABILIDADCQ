@@ -194,7 +194,7 @@ const statusConfig: Record<string, { color: string; bgColor: string }> = {
 };
 
 // ── Badge "Devuelta" con tooltip del motivo ───────────────────────────────────
-function DevueltaBadge({ motivo }: { motivo: string }) {
+function DevueltaBadge({ motivo, devueltaPor }: { motivo: string; devueltaPor?: string | null }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -249,12 +249,21 @@ function DevueltaBadge({ motivo }: { motivo: string }) {
         >
           <div className="flex items-center gap-2 px-3 py-2 border-b border-orange-100" style={{backgroundColor: '#fff7ed'}}>
             <Undo2 className="w-3.5 h-3.5 text-orange-600 shrink-0" />
-            <span className="text-xs font-semibold text-orange-800">Motivo de devolución</span>
+            <span className="text-xs font-semibold text-orange-800">Factura devuelta</span>
             <button onClick={() => setOpen(false)} className="ml-auto text-orange-300 hover:text-orange-600">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
-          <p className="px-3 py-3 text-sm text-gray-700 leading-snug">{motivo}</p>
+          {devueltaPor && (
+            <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
+              <span className="text-xs text-orange-700 font-semibold">Devuelta por:</span>
+              <span className="text-xs text-orange-900 font-bold">{devueltaPor}</span>
+            </div>
+          )}
+          <div className="px-3 pt-1 pb-0.5">
+            <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Motivo</span>
+          </div>
+          <p className="px-3 pb-3 pt-0.5 text-sm text-gray-700 leading-snug">{motivo}</p>
         </div>,
         document.body
       )}
@@ -736,7 +745,10 @@ export function InboxView() {
                           {factura.estado}
                         </span>
                         {factura.motivo_devolucion && (
-                          <DevueltaBadge motivo={factura.motivo_devolucion} />
+                          <DevueltaBadge
+                            motivo={factura.motivo_devolucion}
+                            devueltaPor={factura.devuelta_por_nombre}
+                          />
                         )}
                       </div>
                     </td>
@@ -861,7 +873,12 @@ export function InboxView() {
                   <div className="flex items-start gap-3">
                     <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
-                      <h4 className="text-red-900 font-semibold mb-1">Factura Devuelta por Responsable</h4>
+                      <h4 className="text-red-900 font-semibold mb-1">
+                        Factura Devuelta
+                        {selectedFactura.devuelta_por_nombre && (
+                          <span className="font-normal"> — por <strong>{selectedFactura.devuelta_por_nombre}</strong></span>
+                        )}
+                      </h4>
                       <p className="text-red-700 text-sm mb-2">
                         Esta factura fue devuelta para correcciones. Por favor revise y corrija antes de reasignar.
                       </p>

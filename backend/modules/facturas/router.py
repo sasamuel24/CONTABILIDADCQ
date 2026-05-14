@@ -759,6 +759,7 @@ async def close_tesoreria(
 async def devolver_a_responsable(
     factura_id: UUID,
     data: DevolverAResponsableIn,
+    current_user: dict = Depends(get_current_user),
     service: FacturaService = Depends(get_factura_service)
 ):
     """
@@ -776,7 +777,7 @@ async def devolver_a_responsable(
     - Contabilidad puede rechazar una factura y devolverla al Responsable del área
     - El responsable verá el motivo de devolución y podrá corregir
     """
-    return await service.devolver_a_responsable(factura_id, data.motivo)
+    return await service.devolver_a_responsable(factura_id, data.motivo, current_user["user_id"])
 
 
 @router.post(
@@ -787,6 +788,7 @@ async def devolver_a_responsable(
 async def devolver_a_facturacion(
     factura_id: UUID,
     data: DevolverAFacturacionIn,
+    current_user: dict = Depends(get_current_user),
     service: FacturaService = Depends(get_factura_service)
 ):
     """
@@ -806,7 +808,7 @@ async def devolver_a_facturacion(
     - Facturación verá el motivo de devolución y podrá corregir
     - La factura desaparece de la vista del Responsable
     """
-    return await service.devolver_a_facturacion(factura_id, data.motivo)
+    return await service.devolver_a_facturacion(factura_id, data.motivo, current_user["user_id"])
 
 
 @router.post(

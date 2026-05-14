@@ -131,6 +131,7 @@ export interface FacturaListItem {
   intervalo_entrega_contabilidad: string | null;
   es_gasto_adm: boolean;
   motivo_devolucion: string | null;
+  devuelta_por_nombre: string | null;
   area_origen_id: string | null;
   files: FileMiniOut[];
   carpeta_id: string | null;
@@ -182,6 +183,7 @@ export interface FacturaDetail {
   created_at: string;
   updated_at: string;
   motivo_devolucion: string | null;
+  devuelta_por_nombre: string | null;
   fecha_envio_gerencia: string | null;
   fecha_aprobacion_email: string | null;
   aprobado_por_nombre: string | null;

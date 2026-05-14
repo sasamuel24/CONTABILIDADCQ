@@ -142,6 +142,7 @@ class FacturaListItem(BaseModel):
     intervalo_entrega_contabilidad: Optional[str] = None
     es_gasto_adm: bool = False
     motivo_devolucion: Optional[str] = None
+    devuelta_por_nombre: Optional[str] = None
     files: List[FileMiniOut] = []
     carpeta_id: Optional[UUID] = None
     carpeta: Optional[CarpetaEnFactura] = None
@@ -185,6 +186,7 @@ class FacturaResponse(FacturaBase):
     created_at: datetime
     updated_at: datetime
     motivo_devolucion: Optional[str] = None
+    devuelta_por_nombre: Optional[str] = None
     carpeta_id: Optional[UUID] = None
     carpeta: Optional[CarpetaEnFactura] = None
     fecha_envio_gerencia: Optional[datetime] = None

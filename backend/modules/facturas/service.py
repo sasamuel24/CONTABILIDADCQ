@@ -117,6 +117,7 @@ class FacturaService:
                 intervalo_entrega_contabilidad=f.intervalo_entrega_contabilidad,
                 es_gasto_adm=f.es_gasto_adm,
                 motivo_devolucion=f.motivo_devolucion,
+                devuelta_por_nombre=f.devuelta_por_nombre,
                 files=files_out,
                 carpeta_id=f.carpeta_id,
                 carpeta=carpeta_out,
@@ -1724,7 +1725,8 @@ Responde ÚNICAMENTE con JSON válido:
     async def devolver_a_responsable(
         self,
         factura_id: UUID,
-        motivo: str
+        motivo: str,
+        user_id: str
     ) -> dict:
         """
         Devuelve una factura de Contabilidad al Área Responsable original.
@@ -1732,8 +1734,8 @@ Responde ÚNICAMENTE con JSON válido:
         Usa area_origen_id que nunca cambia durante el ciclo de vida de la factura.
         """
         from sqlalchemy import select
-        from db.models import Factura, Estado, Area
-        
+        from db.models import Factura, Estado, Area, User
+
         logger.info(f"Devolviendo factura {factura_id} a Responsable. Motivo: {motivo}")
         
         # Obtener factura
@@ -1766,10 +1768,17 @@ Responde ÚNICAMENTE con JSON válido:
                 detail="La factura no tiene un área de origen asignada. No se puede devolver."
             )
         
+        # Capturar nombre del usuario que devuelve
+        result_user = await self.db.execute(
+            select(User).where(User.id == user_id)
+        )
+        user_devuelve = result_user.scalar_one_or_none()
+
         # Devolver a área origen (que nunca cambia)
         factura.area_id = factura.area_origen_id
         factura.estado_id = 2  # Estado "Asignada" (Responsable)
         factura.motivo_devolucion = motivo
+        factura.devuelta_por_nombre = user_devuelve.nombre if user_devuelve else None
         factura.assigned_to_user_id = None  # Limpiar asignación específica
         
         await self.db.commit()
@@ -1796,13 +1805,15 @@ Responde ÚNICAMENTE con JSON válido:
             "area_id": str(factura.area_id),
             "area_nombre": area.nombre if area else "Desconocido",
             "estado_actual": estado.label if estado else "Desconocido",
-            "motivo_devolucion": factura.motivo_devolucion
+            "motivo_devolucion": factura.motivo_devolucion,
+            "devuelta_por_nombre": factura.devuelta_por_nombre,
         }
-    
+
     async def devolver_a_facturacion(
         self,
         factura_id: UUID,
-        motivo: str
+        motivo: str,
+        user_id: str
     ) -> dict:
         """
         Devuelve una factura de Responsable al área de Facturación.
@@ -1864,10 +1875,17 @@ Responde ÚNICAMENTE con JSON válido:
                 detail="No se encontró el usuario de Facturación en el sistema"
             )
         
+        # Capturar nombre del usuario que devuelve
+        result_user_devuelve = await self.db.execute(
+            select(User).where(User.id == user_id)
+        )
+        user_devuelve = result_user_devuelve.scalar_one_or_none()
+
         # Devolver a Facturación
         factura.area_id = area_facturacion.id
         factura.estado_id = 1  # Estado "Recibida" (vuelve a Facturación)
         factura.motivo_devolucion = motivo
+        factura.devuelta_por_nombre = user_devuelve.nombre if user_devuelve else None
         factura.assigned_to_user_id = FACTURACION_USER_ID  # Asignar específicamente a Marlin CQ
         
         await self.db.commit()
@@ -1889,7 +1907,8 @@ Responde ÚNICAMENTE con JSON válido:
             "area_nombre": area_facturacion.nombre,
             "estado_actual": estado.label if estado else "Desconocido",
             "motivo_devolucion": factura.motivo_devolucion,
-            "usuario_facturacion": user_facturacion.nombre
+            "devuelta_por_nombre": factura.devuelta_por_nombre,
+            "usuario_facturacion": user_facturacion.nombre,
         }
 
     # =========================================================================

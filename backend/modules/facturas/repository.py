@@ -16,7 +16,7 @@ class FacturaRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, skip: int = 0, limit: int = 100, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None) -> Tuple[List[Factura], int]:
+    async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None) -> Tuple[List[Factura], int]:
         """Obtiene todas las facturas con paginación y filtros opcionales."""
         # Construir query base con eager loading de files e inventario_codigos
         query = select(Factura).options(
@@ -48,8 +48,10 @@ class FacturaRepository:
         count_result = await self.db.execute(count_query)
         total = count_result.scalar()
         
-        # Obtener facturas
-        query = query.order_by(Factura.created_at.desc()).offset(skip).limit(limit)
+        # Obtener facturas (limit=0 significa sin límite)
+        query = query.order_by(Factura.created_at.desc()).offset(skip)
+        if limit > 0:
+            query = query.limit(limit)
         result = await self.db.execute(query)
         facturas = result.scalars().all()
         

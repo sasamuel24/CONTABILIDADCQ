@@ -64,7 +64,7 @@ async def historial_area(
 @router.get("/", response_model=FacturasPaginatedResponse)
 async def list_facturas(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 0,
     area_id: Optional[UUID] = Query(None, description="Filtrar por ID de área"),
     area_origen_id: Optional[UUID] = Query(None, description="Filtrar por ID de área de origen"),
     estado: Optional[str] = Query(None, description="Filtrar por estado de la factura"),

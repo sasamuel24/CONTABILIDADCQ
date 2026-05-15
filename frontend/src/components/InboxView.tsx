@@ -318,13 +318,11 @@ export function InboxView() {
 
     try {
       const [facturasData, areasData] = await Promise.all([
-        getFacturas(0, 1000),
+        getFacturas(0, 0),
         getAreas(),
       ]);
 
-      let facturasDelArea = facturasData.items.filter(
-        f => f.area === user.area?.nombre
-      );
+      let facturasDelArea = facturasData.items;
 
       if (user.role === 'tesoreria') {
         facturasDelArea = facturasDelArea.filter(f => f.estado !== 'Pagada');

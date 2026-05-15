@@ -51,7 +51,13 @@ export function AsignarCarpetaModal({ isOpen, onClose, factura, onSuccess }: Asi
       .filter(c => carpetaMatchesBusqueda(c, q))
       .map(c => ({
         ...c,
-        children: c.children ? filterTree(c.children, q) : [],
+        // Si el padre coincide directamente → mostrar TODOS sus hijos sin filtrar
+        // Si el padre coincide solo porque un hijo coincide → filtrar hijos
+        children: c.children
+          ? (c.nombre.toLowerCase().includes(q)
+              ? c.children
+              : filterTree(c.children, q))
+          : [],
       }));
   };
 

@@ -318,7 +318,7 @@ export function InboxView() {
 
     try {
       const [facturasData, areasData] = await Promise.all([
-        getFacturas(0, 0),
+        getFacturas(0, 0, user.area?.id),
         getAreas(),
       ]);
 

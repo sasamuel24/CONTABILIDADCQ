@@ -364,19 +364,25 @@ export async function fetchAPI<T>(
     }
 
     if (!response.ok) {
-      const error: ApiError = await response.json();
-      
+      let error: ApiError;
+      try {
+        error = await response.json();
+      } catch {
+        const text = await response.text().catch(() => response.statusText);
+        throw new Error(`Error del servidor (${response.status}): ${text}`);
+      }
+
       // Para errores de validación (422), mostrar detalles completos
       if (response.status === 422) {
         console.error('Error de validación:', error);
-        const message = typeof error.detail === 'string' 
-          ? error.detail 
+        const message = typeof error.detail === 'string'
+          ? error.detail
           : JSON.stringify(error.detail);
         throw new Error(`Error de validación: ${message}`);
       }
-      
-      const message = typeof error.detail === 'string' 
-        ? error.detail 
+
+      const message = typeof error.detail === 'string'
+        ? error.detail
         : error.detail?.message || 'Error en la solicitud';
       throw new Error(message);
     }

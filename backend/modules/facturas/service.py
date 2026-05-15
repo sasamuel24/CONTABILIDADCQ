@@ -774,13 +774,18 @@ Responde ÚNICAMENTE con JSON válido:
             .where(FacturaInventarioCodigo.factura_id == factura_id)
         )
         codigos_existentes = {c.codigo: c for c in result_codigos.scalars().all()}
-        
-        # 2. Procesar códigos del payload
-        codigos_procesados = set()
+
+        # 2. Deduplicar payload: si el frontend envía múltiples entradas del mismo
+        # código (ej. dos OCT), tomar el último valor para respetar el unique constraint.
+        payload_dedup: dict = {}
         for codigo_in in inventarios_data.codigos:
-            codigo_upper = codigo_in.codigo.upper()
+            payload_dedup[codigo_in.codigo.upper()] = codigo_in
+
+        # 3. Procesar códigos del payload (deduplicados)
+        codigos_procesados = set()
+        for codigo_upper, codigo_in in payload_dedup.items():
             codigos_procesados.add(codigo_upper)
-            
+
             if codigo_upper in codigos_existentes:
                 # Actualizar existente
                 codigos_existentes[codigo_upper].valor = codigo_in.valor
@@ -795,7 +800,7 @@ Responde ÚNICAMENTE con JSON válido:
                 self.db.add(nuevo_codigo)
                 logger.debug(f"Creando código {codigo_upper} para factura {factura_id}")
         
-        # 3. Eliminar códigos que no están en el payload (limpieza)
+        # 4. Eliminar códigos que no están en el payload (limpieza)
         for codigo_key, codigo_obj in codigos_existentes.items():
             if codigo_key not in codigos_procesados:
                 await self.db.delete(codigo_obj)

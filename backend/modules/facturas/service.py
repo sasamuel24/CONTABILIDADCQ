@@ -1230,9 +1230,9 @@ Responde ÚNICAMENTE con JSON válido:
                 detail="Estado para CONTABILIDAD no encontrado en el sistema"
             )
         
-        # Guardar área anterior para el histórico (referencia)
-        area_anterior_id = factura.area_id
-        
+        # Guardar área del responsable como origen para poder devolver correctamente
+        factura.area_origen_id = factura.area_id
+
         # Actualizar factura
         factura.area_id = area_contabilidad.id
         factura.estado_id = estado_contabilidad.id

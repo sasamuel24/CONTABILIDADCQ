@@ -101,8 +101,19 @@ def _parse_invoice_inner(xml_str: str) -> dict:
 
     result: dict = {}
 
-    # Número de factura
-    result["numero_factura"] = _text(root, ".//cbc:ID", ns_map)
+    # Número de factura — hijo directo del Invoice (evita NIT/IDs anidados)
+    numero = _text(root, "cbc:ID", ns_map)
+    # Algunos proveedores ponen el número en ProfileID o ID con atributos; como
+    # fallback buscar el primer cbc:ID que NO parezca un NIT (solo dígitos ≥9)
+    if not numero or (numero.isdigit() and len(numero) >= 9):
+        for el in root.iter():
+            tag = el.tag.split("}")[-1] if "}" in el.tag else el.tag
+            if tag == "ID" and el.text and el.text.strip():
+                val = el.text.strip()
+                if not (val.isdigit() and len(val) >= 9):
+                    numero = val
+                    break
+    result["numero_factura"] = numero
 
     # Fechas
     result["fecha_emision"] = _parse_date(_text(root, "cbc:IssueDate", ns_map))
@@ -182,7 +193,8 @@ def parse_xml_dian(xml_content: str) -> FacturaDIAN:
     nit_outer = _text(
         outer, ".//cac:SenderParty//cbc:CompanyID", ns_map
     )
-    numero_outer = _text(outer, "cbc:ID", ns_map)
+    # Preferir ParentDocumentID (número real de la factura en el sobre) sobre ID del sobre
+    numero_outer = _text(outer, "cbc:ParentDocumentID", ns_map) or _text(outer, "cbc:ID", ns_map)
     fecha_outer = _parse_date(_text(outer, "cbc:IssueDate", ns_map))
 
     # --- Invoice interno (embebido como CDATA) ---

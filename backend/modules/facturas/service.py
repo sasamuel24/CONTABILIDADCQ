@@ -25,6 +25,7 @@ from typing import List, Optional, Set, Dict
 from core.logging import logger
 from fastapi import HTTPException, status
 from uuid import UUID
+from sqlalchemy.exc import IntegrityError, DataError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from db.models import File
@@ -653,12 +654,26 @@ Responde ÚNICAMENTE con JSON válido:
                 if 'NP' in codigos_existentes:
                     await self.db.delete(codigos_existentes['NP'])
 
-            await self.db.commit()
-            await self.db.refresh(factura)
+            try:
+                await self.db.commit()
+                await self.db.refresh(factura)
+            except (IntegrityError, DataError) as exc:
+                await self.db.rollback()
+                logger.error(f"Error de BD en update_inventarios (no requiere): {exc}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"message": "Error al guardar inventarios", "error": str(exc.orig)}
+                )
+            except OperationalError as exc:
+                await self.db.rollback()
+                logger.error(f"Error de conexión BD en update_inventarios: {exc}")
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Error de conexión con la base de datos"
+                )
 
             codigos_out = []
             if inventarios_data.presenta_novedad and np_payload:
-                from modules.facturas.schemas import InventarioCodigoOut
                 codigos_out = [InventarioCodigoOut(codigo='NP', valor=np_payload.valor, created_at=factura.updated_at)]
 
             return InventariosOut(
@@ -807,9 +822,24 @@ Responde ÚNICAMENTE con JSON válido:
                 logger.debug(f"Eliminando código {codigo_key} para factura {factura_id}")
         
         # Commit
-        await self.db.commit()
-        await self.db.refresh(factura)
-        
+        try:
+            await self.db.commit()
+            await self.db.refresh(factura)
+        except (IntegrityError, DataError) as exc:
+            await self.db.rollback()
+            logger.error(f"Error de BD en update_inventarios (requiere): {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"message": "Error al guardar inventarios", "error": str(exc.orig)}
+            )
+        except OperationalError as exc:
+            await self.db.rollback()
+            logger.error(f"Error de conexión BD en update_inventarios: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Error de conexión con la base de datos"
+            )
+
         # Obtener códigos actualizados para respuesta
         result_final = await self.db.execute(
             select(FacturaInventarioCodigo)
@@ -947,11 +977,26 @@ Responde ÚNICAMENTE con JSON válido:
         factura.tiene_anticipo = anticipo_data.tiene_anticipo
         factura.porcentaje_anticipo = anticipo_data.porcentaje_anticipo
         factura.intervalo_entrega_contabilidad = anticipo_data.intervalo_entrega_contabilidad.value
-        
+
         # Commit
-        await self.db.commit()
-        await self.db.refresh(factura)
-        
+        try:
+            await self.db.commit()
+            await self.db.refresh(factura)
+        except (IntegrityError, DataError) as exc:
+            await self.db.rollback()
+            logger.error(f"Error de BD en update_anticipo para factura {factura_id}: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"message": "Error al guardar anticipo", "error": str(exc.orig)}
+            )
+        except OperationalError as exc:
+            await self.db.rollback()
+            logger.error(f"Error de conexión BD en update_anticipo: {exc}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Error de conexión con la base de datos"
+            )
+
         logger.info(
             f"Anticipo actualizado para factura {factura_id}: "
             f"tiene_anticipo={factura.tiene_anticipo}, "

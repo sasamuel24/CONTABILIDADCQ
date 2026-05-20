@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, FileText, ChevronDown, ChevronUp, ChevronsUpDown, Filter, Download, X, Eye, AlertCircle, Trash2, CheckCircle2, AlertTriangle, Undo2 } from 'lucide-react';
+import { Search, FileText, ChevronDown, ChevronUp, ChevronsUpDown, Filter, Download, X, Eye, AlertCircle, Trash2, CheckCircle2, AlertTriangle, Undo2, Package, PackageX, LayoutList } from 'lucide-react';
 import { getUserRoleCode, type FacturaListItem } from '../lib/api';
 
 // ── Calcula qué le falta a una factura para poder enviarse a Contabilidad ──────
@@ -290,7 +290,9 @@ export function InboxView() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [sortCol, setSortCol] = useState<InboxSortCol | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
+  const [inventarioTab, setInventarioTab] = useState<'todos' | 'con_inventario' | 'sin_inventario'>('todos');
   const itemsPerPage = 20;
+  const esContabilidad = getUserRoleCode(user) === 'contabilidad';
 
   function handleSort(col: InboxSortCol) {
     if (sortCol !== col) { setSortCol(col); setSortDir('asc'); setCurrentPage(1); }
@@ -513,7 +515,11 @@ export function InboxView() {
                          f.numero_factura.toLowerCase().includes(q) ||
                          (f.nit_proveedor?.toLowerCase().includes(q) ?? false);
     const matchesStatus = selectedStatus === 'Todos' || f.estado === selectedStatus;
-    return matchesSearch && matchesStatus;
+    const matchesTab =
+      inventarioTab === 'todos' ? true :
+      inventarioTab === 'con_inventario' ? f.requiere_entrada_inventarios :
+      !f.requiere_entrada_inventarios;
+    return matchesSearch && matchesStatus && matchesTab;
   });
 
   const statusCounts: Record<string, number> = {
@@ -524,9 +530,13 @@ export function InboxView() {
     }), {})
   };
 
+  const conInventario = facturas.filter(f => f.requiere_entrada_inventarios).length;
+  const sinInventario = facturas.filter(f => !f.requiere_entrada_inventarios).length;
+
   // Resetear página al cambiar filtros
   const handleSearchChange = (v: string) => { setSearchQuery(v); setCurrentPage(1); };
   const handleStatusChange = (v: string) => { setSelectedStatus(v); setCurrentPage(1); };
+  const handleTabChange = (tab: 'todos' | 'con_inventario' | 'sin_inventario') => { setInventarioTab(tab); setCurrentPage(1); };
 
   const sortedFacturas = [...filteredFacturas].sort((a, b) => {
     if (!sortCol || !sortDir) return 0;
@@ -594,6 +604,84 @@ export function InboxView() {
           </>
         )}
       </div>
+
+      {/* Tabs inventario — solo contabilidad */}
+      {esContabilidad && (
+        <div className="flex gap-3 mb-5">
+          {([
+            {
+              key: 'todos',
+              label: 'Todas las facturas',
+              sublabel: undefined as string | undefined,
+              count: facturas.length,
+              icon: LayoutList,
+            },
+            {
+              key: 'con_inventario',
+              label: 'Con inventario',
+              sublabel: 'OCT · FPC · ECT · OCC · EDO' as string | undefined,
+              count: conInventario,
+              icon: Package,
+            },
+            {
+              key: 'sin_inventario',
+              label: 'Sin inventario',
+              sublabel: 'Facturas normales' as string | undefined,
+              count: sinInventario,
+              icon: PackageX,
+            },
+          ] as const).map(({ key, label, sublabel, count, icon: Icon }) => {
+            const isActive = inventarioTab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => handleTabChange(key)}
+                className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all"
+                style={{
+                  fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                  border: isActive ? '2px solid #00829a' : '2px solid #e5e7eb',
+                  backgroundColor: isActive ? '#e0f5f7' : '#ffffff',
+                  boxShadow: isActive ? '0 0 0 3px rgba(0,130,154,0.12)' : 'none',
+                }}
+              >
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: isActive ? '#00829a' : '#f3f4f6' }}
+                >
+                  <Icon className="w-4 h-4" style={{ color: isActive ? '#fff' : '#9ca3af' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className="text-sm font-semibold truncate"
+                      style={{ color: isActive ? '#00829a' : '#374151' }}
+                    >
+                      {label}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span
+                        className="text-base font-bold"
+                        style={{ color: isActive ? '#00829a' : '#6b7280' }}
+                      >
+                        {count}
+                      </span>
+                      {isActive && (
+                        <CheckCircle2 className="w-4 h-4" style={{ color: '#00829a' }} />
+                      )}
+                    </div>
+                  </div>
+                  {sublabel && (
+                    <p className="text-xs mt-0.5 truncate" style={{ color: isActive ? '#00829a' : '#9ca3af', opacity: 0.8 }}>
+                      {sublabel}
+                    </p>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Filters & Search */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">

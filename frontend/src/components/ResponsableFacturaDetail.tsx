@@ -27,6 +27,7 @@ import {
   getAprobadoresActivos,
   enviarCorreoAprobacionFactura,
   enviarAprobacionDual,
+  reenviarAprobacionDual,
   getFacturaById,
 } from '../lib/api';
 import { DistribucionCCCOTable } from './DistribucionCCCOTable';
@@ -220,6 +221,10 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         setSoporteGastoFijoFiles(archivosSoporteGastoFijo);
         setAprobadores(aprobadoresActivos);
         setNotaCreditoFiles(archivosNC);
+
+        // Pre-poblar aprobadores duales usando el ID guardado al enviar el correo
+        if (factura.aprobacion_ops_aprobador_id) setAprobadorOpsId(factura.aprobacion_ops_aprobador_id);
+        if (factura.aprobacion_calidad_aprobador_id) setAprobadorCalidadId(factura.aprobacion_calidad_aprobador_id);
       } catch (error) {
         console.error('Error cargando archivos existentes:', error);
       } finally {
@@ -936,6 +941,19 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       toast.success(`Correos enviados a ${enviados} aprobador${enviados !== 1 ? 'es' : ''}`);
     } catch (error: any) {
       toast.error(`Error: ${error.message || 'No se pudo enviar'}`);
+    } finally {
+      setEnviandoAprobacionDual(false);
+    }
+  };
+
+  const handleReenviarAprobacionDual = async () => {
+    try {
+      setEnviandoAprobacionDual(true);
+      const res = await reenviarAprobacionDual(factura.id);
+      const enviados = res.aprobaciones_enviadas.filter(a => a.enviado).length;
+      toast.success(`Correo reenviado a ${enviados} aprobador${enviados !== 1 ? 'es' : ''} pendiente${enviados !== 1 ? 's' : ''}`);
+    } catch (error: any) {
+      toast.error(`Error: ${error.message || 'No se pudo reenviar'}`);
     } finally {
       setEnviandoAprobacionDual(false);
     }
@@ -2267,12 +2285,12 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                           {/* Re-enviar */}
                           <button
                             type="button"
-                            onClick={handleEnviarAprobacionDual}
-                            disabled={enviandoAprobacionDual || !aprobadorOpsId || !aprobadorCalidadId}
-                            className="px-3 py-2 rounded-lg text-xs border border-dashed border-gray-300 text-gray-500 hover:border-[#00829a] hover:text-[#00829a] transition-colors"
+                            onClick={handleReenviarAprobacionDual}
+                            disabled={enviandoAprobacionDual}
+                            className="px-3 py-2 rounded-lg text-xs border border-dashed border-gray-300 text-gray-500 hover:border-[#00829a] hover:text-[#00829a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                             style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
                           >
-                            Reenviar
+                            {enviandoAprobacionDual ? 'Enviando...' : 'Reenviar'}
                           </button>
                         </div>
                         {/* Selectores visibles solo para reenvío */}

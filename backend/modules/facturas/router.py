@@ -121,6 +121,19 @@ async def enviar_aprobacion_dual(
     )
 
 
+@router.post(
+    "/{factura_id}/reenviar-aprobacion-dual",
+    summary="Reenviar correos de aprobación dual a los aprobadores pendientes",
+)
+async def reenviar_aprobacion_dual(
+    factura_id: UUID,
+    current_user: dict = Depends(get_current_user),
+    service: FacturaService = Depends(get_factura_service),
+):
+    """Reenvía correos de aprobación dual usando los aprobadores ya guardados en la factura."""
+    return await service.reenviar_aprobacion_dual(factura_id=factura_id)
+
+
 @router.get("/{factura_id}", response_model=FacturaResponse)
 async def get_factura(
     factura_id: UUID,

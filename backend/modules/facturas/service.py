@@ -2380,6 +2380,70 @@ Responde ÚNICAMENTE con JSON válido:
         await self.db.commit()
         return {"factura_id": str(factura.id), "aprobaciones_enviadas": resultados}
 
+    async def reenviar_aprobacion_dual(self, factura_id: UUID) -> dict:
+        """
+        Reenvía correos de aprobación dual a los aprobadores pendientes,
+        usando los IDs ya guardados en la factura (sin requerir parámetros).
+        """
+        import secrets
+        from datetime import timezone, timedelta
+        from sqlalchemy import select
+        from db.models import Factura, AprobadorGerencia, TokenAprobacionFactura
+        from core.email_service import email_service
+        from core.config import settings
+
+        factura = (await self.db.execute(select(Factura).where(Factura.id == factura_id))).scalar_one_or_none()
+        if not factura:
+            raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+        pendientes = []
+        if factura.aprobacion_ops_aprobador_id and not factura.fecha_aprobacion_ops:
+            pendientes.append(('OPS', factura.aprobacion_ops_aprobador_id, 'fecha_envio_aprobacion_ops'))
+        if factura.aprobacion_calidad_aprobador_id and not factura.fecha_aprobacion_calidad:
+            pendientes.append(('CALIDAD', factura.aprobacion_calidad_aprobador_id, 'fecha_envio_aprobacion_calidad'))
+
+        if not pendientes:
+            raise HTTPException(status_code=400, detail="No hay aprobaciones pendientes para reenviar")
+
+        expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=72)
+        base_url = getattr(settings, 'frontend_url', 'http://localhost:5173')
+        resultados = []
+
+        for tipo, aprobador_id, campo_envio in pendientes:
+            aprobador = (await self.db.execute(select(AprobadorGerencia).where(AprobadorGerencia.id == aprobador_id))).scalar_one_or_none()
+            if not aprobador:
+                resultados.append({"tipo": tipo, "email": "?", "enviado": False})
+                continue
+
+            token_str = secrets.token_urlsafe(48)
+            token_obj = TokenAprobacionFactura(
+                factura_id=factura.id,
+                token=token_str,
+                aprobador_email=aprobador.email,
+                aprobador_nombre=aprobador.nombre,
+                tipo_aprobacion=tipo,
+                usado=False,
+                expires_at=expires_at,
+            )
+            self.db.add(token_obj)
+            setattr(factura, campo_envio, datetime.now(tz=timezone.utc))
+
+            try:
+                await email_service.enviar_solicitud_aprobacion_factura(
+                    factura=factura,
+                    aprobador_nombre=aprobador.nombre,
+                    aprobador_email=aprobador.email,
+                    token_str=token_str,
+                    comentario=f"Reenvío — Aprobación {'Gerencia Operaciones' if tipo == 'OPS' else 'Calidad Café'} requerida",
+                )
+                resultados.append({"tipo": tipo, "email": aprobador.email, "enviado": True})
+            except Exception as e:
+                logger.error(f"Error reenviando correo aprobación dual {tipo}: {e}")
+                resultados.append({"tipo": tipo, "email": aprobador.email, "enviado": False})
+
+        await self.db.commit()
+        return {"factura_id": str(factura.id), "aprobaciones_enviadas": resultados}
+
     async def aprobar_por_token_dual(self, token: str, ip: str) -> dict:
         """Procesa la aprobación de un token de aprobación dual (OPS o CALIDAD)."""
         import secrets

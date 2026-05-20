@@ -162,10 +162,12 @@ class FacturaListItem(BaseModel):
     fecha_aprobacion_ops: Optional[datetime] = None
     aprobado_ops_nombre: Optional[str] = None
     aprobado_ops_email: Optional[str] = None
+    aprobacion_ops_aprobador_id: Optional[UUID] = None
     fecha_envio_aprobacion_calidad: Optional[datetime] = None
     fecha_aprobacion_calidad: Optional[datetime] = None
     aprobado_calidad_nombre: Optional[str] = None
     aprobado_calidad_email: Optional[str] = None
+    aprobacion_calidad_aprobador_id: Optional[UUID] = None
     # Ingesta XML automática
     nit_proveedor: Optional[str] = None
     pendiente_confirmacion: bool = False
@@ -199,10 +201,12 @@ class FacturaResponse(FacturaBase):
     fecha_aprobacion_ops: Optional[datetime] = None
     aprobado_ops_nombre: Optional[str] = None
     aprobado_ops_email: Optional[str] = None
+    aprobacion_ops_aprobador_id: Optional[UUID] = None
     fecha_envio_aprobacion_calidad: Optional[datetime] = None
     fecha_aprobacion_calidad: Optional[datetime] = None
     aprobado_calidad_nombre: Optional[str] = None
     aprobado_calidad_email: Optional[str] = None
+    aprobacion_calidad_aprobador_id: Optional[UUID] = None
 
     model_config = {"from_attributes": True}
 

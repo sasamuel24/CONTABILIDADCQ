@@ -151,10 +151,12 @@ export interface FacturaListItem {
   fecha_aprobacion_ops: string | null;
   aprobado_ops_nombre: string | null;
   aprobado_ops_email: string | null;
+  aprobacion_ops_aprobador_id: string | null;
   fecha_envio_aprobacion_calidad: string | null;
   fecha_aprobacion_calidad: string | null;
   aprobado_calidad_nombre: string | null;
   aprobado_calidad_email: string | null;
+  aprobacion_calidad_aprobador_id: string | null;
 }
 
 export interface FacturasPaginatedResponse {
@@ -193,10 +195,12 @@ export interface FacturaDetail {
   fecha_aprobacion_ops: string | null;
   aprobado_ops_nombre: string | null;
   aprobado_ops_email: string | null;
+  aprobacion_ops_aprobador_id: string | null;
   fecha_envio_aprobacion_calidad: string | null;
   fecha_aprobacion_calidad: string | null;
   aprobado_calidad_nombre: string | null;
   aprobado_calidad_email: string | null;
+  aprobacion_calidad_aprobador_id: string | null;
 }
 
 export interface FacturaUpdate {
@@ -2321,4 +2325,10 @@ export async function enviarAprobacionDual(
   return fetchAPI(`/facturas/${facturaId}/enviar-aprobacion-dual?aprobador_ops_id=${aprobadorOpsId}&aprobador_calidad_id=${aprobadorCalidadId}`, {
     method: 'POST',
   });
+}
+
+export async function reenviarAprobacionDual(
+  facturaId: string,
+): Promise<{ factura_id: string; aprobaciones_enviadas: { tipo: string; email: string; enviado: boolean }[] }> {
+  return fetchAPI(`/facturas/${facturaId}/reenviar-aprobacion-dual`, { method: 'POST' });
 }

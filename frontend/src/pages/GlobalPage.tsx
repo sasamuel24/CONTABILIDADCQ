@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LogOut, Users, LayoutDashboard, Building2, UserCheck, BookOpen } from 'lucide-react';
+import { LogOut, Users, LayoutDashboard, Building2, UserCheck, BookOpen, GitBranch } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { AdminUsuariosView } from '../components/AdminUsuariosView';
@@ -7,8 +7,9 @@ import { AdminDashboardView } from '../components/AdminDashboardView';
 import { AdminAreasView } from '../components/AdminAreasView';
 import { AprobadoresGerenciaAdmin } from '../components/AprobadoresGerenciaAdmin';
 import { AdminCatalogosView } from '../components/AdminCatalogosView';
+import { AdminFlujogramaView } from '../components/AdminFlujogramaView';
 
-type Section = 'dashboard' | 'usuarios' | 'areas' | 'aprobadores' | 'catalogos';
+type Section = 'dashboard' | 'usuarios' | 'areas' | 'aprobadores' | 'catalogos' | 'flujograma';
 
 const NAV_ITEMS: { key: Section; label: string; icon: React.ReactNode }[] = [
   { key: 'dashboard', label: 'Panel', icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -16,6 +17,7 @@ const NAV_ITEMS: { key: Section; label: string; icon: React.ReactNode }[] = [
   { key: 'areas', label: 'Áreas', icon: <Building2 className="w-5 h-5" /> },
   { key: 'aprobadores', label: 'Aprobadores', icon: <UserCheck className="w-5 h-5" /> },
   { key: 'catalogos', label: 'Catálogos Contables', icon: <BookOpen className="w-5 h-5" /> },
+  { key: 'flujograma', label: 'Flujo Documental', icon: <GitBranch className="w-5 h-5" /> },
 ];
 
 export function GlobalPage() {
@@ -84,6 +86,7 @@ export function GlobalPage() {
         {section === 'areas' && <AdminAreasView />}
         {section === 'aprobadores' && <AprobadoresGerenciaAdmin />}
         {section === 'catalogos' && <AdminCatalogosView />}
+        {section === 'flujograma' && <AdminFlujogramaView />}
       </div>
     </div>
   );

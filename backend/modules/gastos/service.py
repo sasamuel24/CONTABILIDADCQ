@@ -508,10 +508,10 @@ class GastosService:
 
     async def editar_gasto(
         self, paquete_id: UUID, gasto_id: UUID, user_id: UUID, data: GastoUpdate,
-        user_role: str = ""
+        user_role: str = "", user_area: str = ""
     ) -> GastoOut:
         paquete = await self._get_paquete_or_404(paquete_id)
-        self._check_editable(paquete, user_id, user_role=user_role)
+        self._check_editable(paquete, user_id, user_role=user_role, user_area=user_area)
         gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
 
         if data.no_recibo is not None:
@@ -1035,14 +1035,15 @@ class GastosService:
         return gasto
 
     def _check_access(self, paquete: PaqueteGasto, user_id: UUID, user_role: str, user_area: str = "") -> None:
-        roles_admin = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable"}
+        roles_admin = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable", "mant"}
         if user_role.lower() not in roles_admin and user_area.lower() not in roles_admin and paquete.user_id != user_id:
             raise HTTPException(status_code=403, detail="No tienes acceso a este paquete.")
 
-    def _check_editable(self, paquete: PaqueteGasto, user_id: UUID, user_role: str = "") -> None:
+    def _check_editable(self, paquete: PaqueteGasto, user_id: UUID, user_role: str = "", user_area: str = "") -> None:
         # Responsable puede editar asignaciones (CC/CO/CA) en paquetes en_revision
         roles_supervisor = {"responsable", "admin", "contabilidad"}
-        if user_role.lower() in roles_supervisor:
+        areas_supervisor = {"mant"}
+        if user_role.lower() in roles_supervisor or user_area.lower() in areas_supervisor:
             if paquete.estado in ESTADOS_EDITABLE or paquete.estado == "en_revision":
                 return
             raise HTTPException(

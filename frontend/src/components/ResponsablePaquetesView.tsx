@@ -323,7 +323,10 @@ function DetallePaqueteResponsable({
           });
         });
       await Promise.all(promises);
-      // Marcar como no dirty
+      // Recargar paquete para sincronizar centro_costo/centro_operacion anidados
+      const paqueteActualizado = await getPaqueteGasto(paquete.id);
+      setPaquete(paqueteActualizado);
+      // Marcar como no dirty (preservar centroCostoId/centroOperacionId actuales)
       setAsignaciones((prev) => {
         const updated = { ...prev };
         Object.keys(updated).forEach((k) => { updated[k] = { ...updated[k], dirty: false }; });

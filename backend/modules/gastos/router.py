@@ -21,7 +21,7 @@ from modules.gastos.schemas import (
 
 router = APIRouter(tags=["Gastos"])
 
-ROLES_ADMIN = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable"}
+ROLES_ADMIN = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable", "mant"}
 
 
 async def _get_user_db(
@@ -320,7 +320,8 @@ async def editar_gasto(
     user: User = Depends(_get_user_db),
 ):
     role = user.role.code.lower() if user.role else ""
-    return await svc.editar_gasto(paquete_id, gasto_id, user.id, data, user_role=role)
+    area = user.area.code.lower() if user.area else ""
+    return await svc.editar_gasto(paquete_id, gasto_id, user.id, data, user_role=role, user_area=area)
 
 
 @router.delete(

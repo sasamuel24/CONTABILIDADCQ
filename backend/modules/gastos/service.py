@@ -1035,15 +1035,14 @@ class GastosService:
         return gasto
 
     def _check_access(self, paquete: PaqueteGasto, user_id: UUID, user_role: str, user_area: str = "") -> None:
-        roles_admin = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable", "mant"}
+        roles_admin = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable"}
         if user_role.lower() not in roles_admin and user_area.lower() not in roles_admin and paquete.user_id != user_id:
             raise HTTPException(status_code=403, detail="No tienes acceso a este paquete.")
 
     def _check_editable(self, paquete: PaqueteGasto, user_id: UUID, user_role: str = "", user_area: str = "") -> None:
         # Responsable puede editar asignaciones (CC/CO/CA) en paquetes en_revision
         roles_supervisor = {"responsable", "admin", "contabilidad"}
-        areas_supervisor = {"mant"}
-        if user_role.lower() in roles_supervisor or user_area.lower() in areas_supervisor:
+        if user_role.lower() in roles_supervisor:
             if paquete.estado in ESTADOS_EDITABLE or paquete.estado == "en_revision":
                 return
             raise HTTPException(

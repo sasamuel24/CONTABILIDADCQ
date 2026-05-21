@@ -418,6 +418,36 @@ class GastosService:
         await email_service.enviar_notificacion_pago_tecnico(paquete_pagado, paquete_pagado.tecnico.email)
         return self._to_out(paquete_pagado)
 
+    async def revertir_pago(self, paquete_id: UUID, user_id: UUID, motivo: str) -> PaqueteOut:
+        """Tesorería revierte un paquete pagado de vuelta a en_tesoreria."""
+        paquete = await self._get_paquete_or_404(paquete_id)
+        if paquete.estado != "pagado":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Solo paquetes en estado 'pagado' pueden revertirse. Estado actual: {paquete.estado}"
+            )
+
+        paquete.estado = "en_tesoreria"
+        paquete.fecha_pago = None
+        await self.paquete_repo.save(paquete)
+        await self.comentario_repo.create(ComentarioPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            texto=f"Pago revertido por Tesorería: {motivo}", tipo="devolucion",
+        ))
+        await self.historial_repo.create(HistorialEstadoPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            estado_anterior="pagado", estado_nuevo="en_tesoreria",
+        ))
+
+        # Si el paquete pertenece a un anticipo que fue cerrado, reabrirlo
+        if paquete.anticipo_id:
+            anticipo = await self.db.get(Anticipo, paquete.anticipo_id)
+            if anticipo and anticipo.estado == "cerrado":
+                anticipo.estado = "activo"
+
+        await self.db.commit()
+        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
+
     async def pagar_masivo(
         self,
         paquete_ids: List[UUID],

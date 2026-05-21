@@ -256,6 +256,24 @@ async def pagar_paquete(
 
 
 @router.post(
+    "/gastos/paquetes/{paquete_id}/revertir-pago",
+    response_model=PaqueteOut,
+    summary="Revertir pago de un paquete (tesorería)",
+)
+async def revertir_pago(
+    paquete_id: UUID,
+    data: PaqueteDevolver,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    area = user.area.code.lower() if user.area else ""
+    if role not in {"admin", "tesoreria", "tes"} and area not in {"admin", "tesoreria", "tes"}:
+        raise HTTPException(status_code=403, detail="Solo Tesorería puede revertir pagos.")
+    return await svc.revertir_pago(paquete_id, user.id, data.motivo)
+
+
+@router.post(
     "/gastos/paquetes/pagar-masivo",
     response_model=PagarMasivoOut,
     summary="Marcar múltiples paquetes como pagados (tesorería)",

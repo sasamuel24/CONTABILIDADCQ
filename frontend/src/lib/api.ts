@@ -1786,6 +1786,15 @@ export async function pagarPaquete(paqueteId: string, fechaPago?: string): Promi
   });
 }
 
+/** Tesorería revierte un paquete pagado a en_tesoreria */
+export async function revertirPagoPaquete(paqueteId: string, motivo: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/revertir-pago`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ motivo }),
+  });
+}
+
 /** Tesorería marca múltiples paquetes como pagados en una sola operación */
 export async function pagarPaquetesMasivo(
   paqueteIds: string[],

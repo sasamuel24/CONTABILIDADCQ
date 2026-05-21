@@ -12,6 +12,7 @@ import {
   pagarPaquete,
   pagarPaquetesMasivo,
   devolverPaqueteAFacturacion,
+  revertirPagoPaquete,
   getAprobacionGerenciaDownloadUrl,
   getDocContableDownloadUrl,
   getCmPdfGastoDownloadUrl,
@@ -38,6 +39,7 @@ import {
   FileCheck,
   Eye,
   ShieldCheck,
+  RotateCcw,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -91,6 +93,9 @@ function DetalleAuditoriaTes({
   const [modalDevolverOpen, setModalDevolverOpen] = useState(false);
   const [motivoDevolucion, setMotivoDevolucion] = useState('');
   const [loadingDevolver, setLoadingDevolver] = useState(false);
+  const [modalRevertirOpen, setModalRevertirOpen] = useState(false);
+  const [motivoRevertir, setMotivoRevertir] = useState('');
+  const [loadingRevertir, setLoadingRevertir] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -144,6 +149,23 @@ function DetalleAuditoriaTes({
       toast.error(msg);
     } finally {
       setLoadingDevolver(false);
+    }
+  };
+
+  const handleConfirmarRevertir = async () => {
+    if (!paquete || motivoRevertir.trim().length < 5) return;
+    setLoadingRevertir(true);
+    try {
+      await revertirPagoPaquete(paquete.id, motivoRevertir.trim());
+      toast.success('Pago revertido. El paquete vuelve a En Tesorería.');
+      setModalRevertirOpen(false);
+      setMotivoRevertir('');
+      onPagado();
+    } catch (e: unknown) {
+      const msg = (e as { detail?: string })?.detail ?? 'Error al revertir el pago';
+      toast.error(msg);
+    } finally {
+      setLoadingRevertir(false);
     }
   };
 
@@ -541,12 +563,22 @@ function DetalleAuditoriaTes({
             document.body
           )}
 
-          {yaPagado && paquete.fecha_pago && (
-            <div className="flex items-center gap-2 mt-5 pt-5 border-t border-gray-100">
-              <CheckCircle2 className="w-5 h-5 text-green-500" />
-              <span className="text-sm font-semibold text-green-700" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
-                Pagado el {fmtFecha(paquete.fecha_pago.slice(0, 10))}
-              </span>
+          {yaPagado && (
+            <div className="flex items-center justify-between gap-3 mt-5 pt-5 border-t border-gray-100 flex-wrap">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                <span className="text-sm font-semibold text-green-700" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                  {paquete.fecha_pago ? `Pagado el ${fmtFecha(paquete.fecha_pago.slice(0, 10))}` : 'Pagado'}
+                </span>
+              </div>
+              <button
+                onClick={() => { setMotivoRevertir(''); setModalRevertirOpen(true); }}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors hover:bg-amber-50 disabled:opacity-50"
+                style={{ color: '#b45309', borderColor: '#fcd34d', backgroundColor: '#fffbeb', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+              >
+                <RotateCcw className="w-4 h-4" />
+                Revertir Pago
+              </button>
             </div>
           )}
 
@@ -592,6 +624,57 @@ function DetalleAuditoriaTes({
                   >
                     {loadingDevolver ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin" /> : '↩'}
                     Confirmar devolución
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+          {/* Modal: revertir pago */}
+          {modalRevertirOpen && createPortal(
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={(e) => { if (e.target === e.currentTarget) setModalRevertirOpen(false); }}
+            >
+              <div
+                style={{ background: '#fff', borderRadius: 14, padding: '28px 28px 24px', width: '100%', maxWidth: 420, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                  <RotateCcw style={{ width: 20, height: 20, color: '#b45309' }} />
+                  <p style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', fontSize: 16, fontWeight: 700, color: '#111827', margin: 0 }}>
+                    Revertir pago registrado
+                  </p>
+                </div>
+                <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 18 }}>
+                  El paquete volverá al estado <strong>En Tesorería</strong> y podrá registrarse el pago nuevamente.
+                </p>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  Motivo <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <textarea
+                  value={motivoRevertir}
+                  onChange={(e) => setMotivoRevertir(e.target.value)}
+                  placeholder="Ej: El pago fue registrado por error, la fecha era incorrecta..."
+                  rows={4}
+                  style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'Neutra Text Book, Montserrat, sans-serif', resize: 'vertical', boxSizing: 'border-box' }}
+                />
+                <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>Mínimo 5 caracteres</p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+                  <button
+                    onClick={() => setModalRevertirOpen(false)}
+                    disabled={loadingRevertir}
+                    style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#374151', border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmarRevertir}
+                    disabled={loadingRevertir || motivoRevertir.trim().length < 5}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#fff', background: loadingRevertir || motivoRevertir.trim().length < 5 ? '#9ca3af' : '#b45309', border: 'none', cursor: loadingRevertir || motivoRevertir.trim().length < 5 ? 'not-allowed' : 'pointer', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    {loadingRevertir ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin" /> : <RotateCcw style={{ width: 15, height: 15 }} />}
+                    Confirmar reversión
                   </button>
                 </div>
               </div>

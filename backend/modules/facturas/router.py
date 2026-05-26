@@ -2,6 +2,8 @@
 Router de FastAPI para el módulo de facturas.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi.responses import StreamingResponse
+import io
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Any, List, Optional
 from uuid import UUID
@@ -132,6 +134,125 @@ async def reenviar_aprobacion_dual(
 ):
     """Reenvía correos de aprobación dual usando los aprobadores ya guardados en la factura."""
     return await service.reenviar_aprobacion_dual(factura_id=factura_id)
+
+
+@router.get(
+    "/exportar-plano",
+    summary="Exportar facturas como archivo plano XLSX (formato contable)",
+)
+async def exportar_plano_xlsx(
+    area_id: Optional[UUID] = Query(None),
+    estado: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        import openpyxl
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from db.models import (
+            Factura, FacturaDistribucionCCCO,
+            CentroCosto, CentroOperacion, UnidadNegocio, CuentaAuxiliar,
+        )
+
+        q = (
+            select(Factura)
+            .options(
+                selectinload(Factura.centro_costo),
+                selectinload(Factura.centro_operacion),
+                selectinload(Factura.unidad_negocio),
+                selectinload(Factura.cuenta_auxiliar),
+                selectinload(Factura.distribucion_ccco).selectinload(FacturaDistribucionCCCO.centro_costo),
+                selectinload(Factura.distribucion_ccco).selectinload(FacturaDistribucionCCCO.centro_operacion),
+                selectinload(Factura.distribucion_ccco).selectinload(FacturaDistribucionCCCO.unidad_negocio),
+                selectinload(Factura.distribucion_ccco).selectinload(FacturaDistribucionCCCO.cuenta_auxiliar),
+            )
+            .order_by(Factura.created_at.asc())
+        )
+        if area_id:
+            q = q.where(Factura.area_id == area_id)
+        if estado:
+            q = q.where(Factura.estado.has(nombre=estado))
+
+        result = await db.execute(q)
+        facturas = result.scalars().all()
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Movimiento contable"
+        ws.append([
+            "F350_ID_CO",
+            "F350_CONSEC_DOCTO",
+            "F351_ID_AUXILIAR",
+            "F351_ID_TERCERO",
+            "F351_ID_CO_MOV",
+            "F351_ID_UN",
+            "F351_ID_CCOSTO",
+            "F351_ID_FE",
+            "F351_VALOR_DB",
+            "F351_VALOR_CR",
+            "F351_BASE_GRAVABLE",
+            "F351_DOCTO_BANCO",
+            "F351_NRO_DOCTO_BANCO",
+            "F351_NOTAS",
+        ])
+
+        ID_CO = "001"
+
+        for consec, factura in enumerate(facturas, start=1):
+            nit_raw = (factura.nit_proveedor or "").strip().replace(".", "").replace("-", "")
+            nit_num = None
+            if nit_raw:
+                try:
+                    nit_num = int(nit_raw.split("/")[0][:9])
+                except ValueError:
+                    nit_num = None
+
+            notas = f"FG {factura.numero_factura} {factura.proveedor}".upper()[:80]
+
+            if factura.distribucion_ccco:
+                # Factura con distribución múltiple CC/CO
+                for dist in factura.distribucion_ccco:
+                    auxiliar_codigo = dist.cuenta_auxiliar.codigo.strip() if dist.cuenta_auxiliar else ""
+                    co_codigo       = dist.centro_operacion.codigo.strip() if dist.centro_operacion else ""
+                    un_codigo       = dist.unidad_negocio.codigo.strip()   if dist.unidad_negocio   else ""
+                    cc_codigo       = dist.centro_costo.codigo.strip()     if dist.centro_costo     else ""
+                    valor_linea     = round(float(factura.total) * float(dist.porcentaje) / 100)
+                    ws.append([
+                        ID_CO, consec,
+                        auxiliar_codigo, nit_num,
+                        co_codigo, un_codigo, cc_codigo,
+                        None, valor_linea, 0, 0, None, 0, notas,
+                    ])
+            else:
+                # Factura con CC/CO asignado directamente
+                auxiliar_codigo = factura.cuenta_auxiliar.codigo.strip() if factura.cuenta_auxiliar else ""
+                co_codigo       = factura.centro_operacion.codigo.strip() if factura.centro_operacion else ""
+                un_codigo       = factura.unidad_negocio.codigo.strip()   if factura.unidad_negocio   else ""
+                cc_codigo       = factura.centro_costo.codigo.strip()     if factura.centro_costo     else ""
+                ws.append([
+                    ID_CO, consec,
+                    auxiliar_codigo, nit_num,
+                    co_codigo, un_codigo, cc_codigo,
+                    None, round(float(factura.total)), 0, 0, None, 0, notas,
+                ])
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        headers = {
+            "Content-Disposition": 'attachment; filename="archivo_plano_contable.xlsx"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        }
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers=headers,
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al generar el archivo: {str(e)}")
 
 
 @router.get("/{factura_id}", response_model=FacturaResponse)
@@ -1411,6 +1532,8 @@ async def enviar_correo_aprobacion(
     return await service.enviar_correo_aprobacion(
         factura_id, data.aprobador_id, data.comentario, solicitante_id
     )
+
+
 
 
 

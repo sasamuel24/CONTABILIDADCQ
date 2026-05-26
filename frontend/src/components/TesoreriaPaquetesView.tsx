@@ -72,7 +72,7 @@ function formatRango(inicio: string, fin: string) {
 // Vista detalle / auditoría de un paquete (Tesorería)
 // ---------------------------------------------------------------------------
 
-function DetalleAuditoriaTes({
+export function DetalleAuditoriaTes({
   paqueteId,
   onCerrar,
   onPagado,
@@ -870,7 +870,7 @@ function DetalleAuditoriaTes({
 // Vista principal — lista de paquetes Tesorería
 // ---------------------------------------------------------------------------
 
-export function TesoreriaPaquetesView() {
+export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos?: boolean } = {}) {
   const [pendientes, setPendientes] = useState<PaqueteListItem[]>([]);
   const [historial, setHistorial] = useState<PaqueteListItem[]>([]);
   const [trazabilidad, setTrazabilidad] = useState<PaqueteListItem[]>([]);
@@ -1007,11 +1007,14 @@ export function TesoreriaPaquetesView() {
   }
 
   const listaBase = tab === 'pendientes' ? pendientes : tab === 'historial' ? historial : [];
+  const listaConFiltroAnticipo = soloAnticipos
+    ? listaBase.filter(p => p.anticipo !== null)
+    : listaBase;
   const listaFiltrada = filtroNombre.trim()
-    ? listaBase.filter(p =>
+    ? listaConFiltroAnticipo.filter(p =>
         (p.tecnico?.nombre ?? '').toLowerCase().includes(filtroNombre.trim().toLowerCase())
       )
-    : listaBase;
+    : listaConFiltroAnticipo;
 
   const lista = [...listaFiltrada].sort((a, b) => {
     let aVal: string | number | null;
@@ -1049,6 +1052,7 @@ export function TesoreriaPaquetesView() {
 
   // Trazabilidad con doble filtro
   const listaTraz = trazabilidad
+    .filter(p => !soloAnticipos || p.anticipo !== null)
     .filter(p => !filtroEstado || p.estado === filtroEstado)
     .filter(p => !filtroNombre.trim() || (p.tecnico?.nombre ?? '').toLowerCase().includes(filtroNombre.trim().toLowerCase()));
 

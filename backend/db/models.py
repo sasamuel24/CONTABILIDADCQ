@@ -1410,35 +1410,84 @@ class TokenAprobacionPaquete(Base, TimestampMixin):
 
 
 class Anticipo(Base, TimestampMixin):
-    """Anticipo de tesorería asignado a un empleado para legalización posterior."""
+    """Solicitud de anticipo: empleado pide → jefe aprueba → tesorería desembolsa → empleado legaliza."""
     __tablename__ = "anticipos"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     folio: Mapped[str] = mapped_column(String(30), nullable=False, unique=True, index=True)
+
+    # Quien solicita el anticipo (empleado)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
     )
+    # Redundante con created_by pero conservado para compatibilidad con paquetes
     assigned_to_user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
     )
+
     monto: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    estado: Mapped[str] = mapped_column(String(20), nullable=False, default="activo", index=True)
+    # pendiente → aprobado | rechazado → desembolsado → cerrado
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, default="pendiente", index=True)
+
+    # Aprobador (jefe directo, de tabla aprobadores_gerencia)
+    aprobador_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("aprobadores_gerencia.id", ondelete="SET NULL"),
+        nullable=True, index=True
+    )
+    fecha_aprobacion: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    aprobado_por_nombre: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    aprobado_por_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    motivo_rechazo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Desembolso (tesorería)
+    fecha_desembolso: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    desembolsado_por_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     # Relaciones
     creado_por: Mapped["User"] = relationship("User", foreign_keys=[created_by_user_id], lazy="selectin")
     asignado_a: Mapped["User"] = relationship("User", foreign_keys=[assigned_to_user_id], lazy="selectin")
+    desembolsado_por: Mapped[Optional["User"]] = relationship(
+        "User", foreign_keys=[desembolsado_por_user_id], lazy="selectin"
+    )
+    aprobador: Mapped[Optional["AprobadorGerencia"]] = relationship(
+        "AprobadorGerencia", foreign_keys=[aprobador_id], lazy="selectin"
+    )
     paquetes: Mapped[List["PaqueteGasto"]] = relationship(
         "PaqueteGasto", back_populates="anticipo", lazy="selectin"
     )
 
     __table_args__ = (
         CheckConstraint("monto > 0", name="check_anticipo_monto_positivo"),
-        CheckConstraint("estado IN ('activo', 'cerrado')", name="check_estado_anticipo_valid"),
+        CheckConstraint(
+            "estado IN ('pendiente','aprobado','rechazado','desembolsado','cerrado')",
+            name="check_estado_anticipo_valid"
+        ),
     )
 
     def __repr__(self):
         return f"<Anticipo(folio={self.folio}, estado={self.estado})>"
+
+
+class TokenAprobacionAnticipo(Base, TimestampMixin):
+    """Token de un solo uso para que el jefe apruebe/rechace un anticipo vía email."""
+    __tablename__ = "tokens_aprobacion_anticipo"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    anticipo_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("anticipos.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    aprobador_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    aprobador_nombre: Mapped[str] = mapped_column(String(150), nullable=False)
+    usado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    usado_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+
+    anticipo: Mapped["Anticipo"] = relationship("Anticipo", foreign_keys=[anticipo_id])
 
 
 class AprobadorGerencia(Base, TimestampMixin):

@@ -1,22 +1,22 @@
 import { useState, useEffect } from 'react';
-import { 
-  Folder, 
-  FolderPlus, 
-  FolderOpen, 
-  ChevronRight, 
-  ChevronDown, 
-  Edit2, 
-  Trash2, 
+import {
+  Folder,
+  FolderPlus,
+  FolderOpen,
+  ChevronRight,
+  ChevronDown,
+  Edit2,
+  Trash2,
   FileText,
   X,
   Check
 } from 'lucide-react';
-import { 
-  getCarpetas, 
-  createCarpeta, 
-  updateCarpeta, 
+import {
+  getCarpetas,
+  createCarpeta,
+  updateCarpeta,
   deleteCarpeta,
-  type Carpeta 
+  type Carpeta
 } from '../lib/api';
 
 interface CarpetasPanelProps {
@@ -47,7 +47,6 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al cargar carpetas';
       setError(message);
-      console.error('Error loading carpetas:', err);
     } finally {
       setIsLoading(false);
     }
@@ -65,12 +64,8 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
-
     try {
-      await createCarpeta({
-        nombre: newFolderName.trim(),
-        parent_id: parentForNew,
-      });
+      await createCarpeta({ nombre: newFolderName.trim(), parent_id: parentForNew });
       setNewFolderName('');
       setParentForNew(null);
       setIsCreating(false);
@@ -83,7 +78,6 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
 
   const handleUpdateFolder = async (carpetaId: string, newName: string) => {
     if (!newName.trim()) return;
-
     try {
       await updateCarpeta(carpetaId, { nombre: newName.trim() });
       setEditingId(null);
@@ -95,15 +89,10 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
   };
 
   const handleDeleteFolder = async (carpetaId: string, carpetaNombre: string) => {
-    if (!confirm(`¿Eliminar la carpeta "${carpetaNombre}" y todas sus subcarpetas?`)) {
-      return;
-    }
-
+    if (!confirm(`¿Eliminar la carpeta "${carpetaNombre}" y todas sus subcarpetas?`)) return;
     try {
       await deleteCarpeta(carpetaId);
-      if (selectedCarpeta?.id === carpetaId) {
-        onSelectCarpeta(null);
-      }
+      if (selectedCarpeta?.id === carpetaId) onSelectCarpeta(null);
       await loadCarpetas();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al eliminar carpeta';
@@ -121,7 +110,7 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
     return (
       <div key={carpeta.id}>
         <div
-          className={`flex items-center gap-2 px-3 py-2 hover:bg-gray-100 cursor-pointer transition-colors ${
+          className={`group flex items-center gap-2 px-3 py-2 hover:bg-gray-100 cursor-pointer transition-colors ${
             isSelected ? 'border-l-4' : ''
           }`}
           style={{
@@ -130,61 +119,53 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
             borderLeftColor: isSelected ? '#00829a' : 'transparent'
           }}
         >
-          {hasChildren && (
+          {hasChildren ? (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleFolder(carpeta.id);
-              }}
-              className="p-0.5 hover:bg-gray-200 rounded"
+              onClick={(e) => { e.stopPropagation(); toggleFolder(carpeta.id); }}
+              className="p-0.5 hover:bg-gray-200 rounded flex-shrink-0"
             >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-gray-600" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-gray-600" />
-              )}
+              {isExpanded
+                ? <ChevronDown className="w-4 h-4 text-gray-600" />
+                : <ChevronRight className="w-4 h-4 text-gray-600" />}
             </button>
+          ) : (
+            <div className="w-5 flex-shrink-0" />
           )}
-          
-          {!hasChildren && <div className="w-5" />}
-          
+
           <div
-            className="flex-1 flex items-center gap-2"
+            className="flex-1 flex items-center gap-2 min-w-0"
             onClick={() => onSelectCarpeta(carpeta)}
           >
-            {isExpanded ? (
-              <FolderOpen className="w-4 h-4" style={{color: '#00829a'}} />
-            ) : (
-              <Folder className="w-4 h-4" style={{color: '#00829a'}} />
-            )}
-            
+            {isExpanded
+              ? <FolderOpen className="w-4 h-4 flex-shrink-0" style={{color: '#00829a'}} />
+              : <Folder className="w-4 h-4 flex-shrink-0" style={{color: '#00829a'}} />}
+
             {isEditing ? (
               <input
                 type="text"
                 defaultValue={carpeta.nombre}
                 autoFocus
                 onBlur={(e) => {
-                  if (e.target.value.trim()) {
-                    handleUpdateFolder(carpeta.id, e.target.value);
-                  } else {
-                    setEditingId(null);
-                  }
+                  if (e.target.value.trim()) handleUpdateFolder(carpeta.id, e.target.value);
+                  else setEditingId(null);
                 }}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.currentTarget.blur();
-                  } else if (e.key === 'Escape') {
-                    setEditingId(null);
-                  }
+                  if (e.key === 'Enter') e.currentTarget.blur();
+                  else if (e.key === 'Escape') setEditingId(null);
                 }}
                 onClick={(e) => e.stopPropagation()}
                 className="flex-1 px-2 py-0.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             ) : (
               <>
-                <span style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm font-medium text-gray-900">{carpeta.nombre}</span>
+                <span
+                  style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}}
+                  className="text-sm font-medium text-gray-900 truncate"
+                >
+                  {carpeta.nombre}
+                </span>
                 {facturaCount > 0 && (
-                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                  <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full flex-shrink-0">
                     {facturaCount}
                   </span>
                 )}
@@ -193,37 +174,27 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
           </div>
 
           {!isEditing && (
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 flex-shrink-0 transition-opacity">
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setParentForNew(carpeta.id);
-                  setIsCreating(true);
-                }}
+                onClick={(e) => { e.stopPropagation(); setParentForNew(carpeta.id); setIsCreating(true); }}
                 className="p-1 hover:bg-gray-200 rounded"
                 title="Crear subcarpeta"
               >
-                <FolderPlus className="w-3.5 h-3.5 text-gray-600" />
+                <FolderPlus className="w-3.5 h-3.5 text-gray-500" />
               </button>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingId(carpeta.id);
-                }}
+                onClick={(e) => { e.stopPropagation(); setEditingId(carpeta.id); }}
                 className="p-1 hover:bg-gray-200 rounded"
                 title="Renombrar"
               >
-                <Edit2 className="w-3.5 h-3.5 text-gray-600" />
+                <Edit2 className="w-3.5 h-3.5 text-gray-500" />
               </button>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteFolder(carpeta.id, carpeta.nombre);
-                }}
+                onClick={(e) => { e.stopPropagation(); handleDeleteFolder(carpeta.id, carpeta.nombre); }}
                 className="p-1 hover:bg-red-100 rounded"
                 title="Eliminar"
               >
-                <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                <Trash2 className="w-3.5 h-3.5 text-red-500" />
               </button>
             </div>
           )}
@@ -238,51 +209,21 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
     );
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="flex flex-col items-center gap-2">
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2" style={{borderColor: '#00829a'}}></div>
-          <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-sm text-gray-600">Cargando carpetas...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-        <p className="text-sm text-red-600">{error}</p>
-        <button
-          onClick={loadCarpetas}
-          className="mt-2 text-sm text-red-700 hover:text-red-800 font-medium"
-        >
-          Reintentar
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-        <h3 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="font-semibold text-gray-900">Carpetas</h3>
+        <h3 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="font-semibold text-gray-900 text-sm">
+          Carpetas
+        </h3>
         <button
-          onClick={() => {
-            setParentForNew(null);
-            setIsCreating(true);
-          }}
-          style={{
-            fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
-            backgroundColor: '#00829a',
-            transition: 'background-color 0.2s'
-          }}
+          onClick={() => { setParentForNew(null); setIsCreating(true); }}
+          style={{backgroundColor: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}}
           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#14aab8'}
           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#00829a'}
-          className="flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg"
+          className="flex items-center gap-1 px-3 py-1.5 text-xs text-white rounded-lg transition-colors"
         >
-          <FolderPlus className="w-4 h-4" />
+          <FolderPlus className="w-3.5 h-3.5" />
           Nueva
         </button>
       </div>
@@ -291,7 +232,7 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
       {isCreating && (
         <div style={{backgroundColor: '#e0f5f7'}} className="px-4 py-3 border-b border-gray-200">
           <div className="flex items-center gap-2">
-            <Folder className="w-4 h-4" style={{color: '#00829a'}} />
+            <Folder className="w-4 h-4 flex-shrink-0" style={{color: '#00829a'}} />
             <input
               type="text"
               value={newFolderName}
@@ -299,9 +240,8 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
               placeholder="Nombre de la carpeta"
               autoFocus
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleCreateFolder();
-                } else if (e.key === 'Escape') {
+                if (e.key === 'Enter') handleCreateFolder();
+                else if (e.key === 'Escape') {
                   setIsCreating(false);
                   setNewFolderName('');
                   setParentForNew(null);
@@ -313,31 +253,14 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
             <button
               onClick={handleCreateFolder}
               disabled={!newFolderName.trim()}
-              style={{
-                backgroundColor: !newFolderName.trim() ? '#9ca3af' : '#00829a',
-                transition: 'background-color 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                if (newFolderName.trim()) {
-                  e.currentTarget.style.backgroundColor = '#14aab8';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (newFolderName.trim()) {
-                  e.currentTarget.style.backgroundColor = '#00829a';
-                }
-              }}
-              className="p-1.5 text-white rounded"
+              style={{backgroundColor: !newFolderName.trim() ? '#9ca3af' : '#00829a'}}
+              className="p-1.5 text-white rounded flex-shrink-0"
             >
               <Check className="w-4 h-4" />
             </button>
             <button
-              onClick={() => {
-                setIsCreating(false);
-                setNewFolderName('');
-                setParentForNew(null);
-              }}
-              className="p-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+              onClick={() => { setIsCreating(false); setNewFolderName(''); setParentForNew(null); }}
+              className="p-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 flex-shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
@@ -352,31 +275,65 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
 
       {/* Opción "Todas las facturas" */}
       <div
-        className="flex items-center gap-2 px-4 py-2 hover:bg-gray-100 cursor-pointer transition-colors border-l-4"
+        className="flex items-center gap-2 px-4 py-2.5 hover:bg-gray-100 cursor-pointer transition-colors border-l-4"
         style={{
           backgroundColor: !selectedCarpeta ? '#e0f5f7' : 'transparent',
           borderLeftColor: !selectedCarpeta ? '#00829a' : 'transparent'
         }}
         onClick={() => onSelectCarpeta(null)}
       >
-        <FileText className="w-4 h-4 text-gray-600" />
-        <span style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm font-medium text-gray-900">Todas las facturas</span>
+        <FileText className="w-4 h-4 flex-shrink-0 text-gray-500" />
+        <span style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm font-medium text-gray-900">
+          Todas las facturas
+        </span>
       </div>
 
-      {/* Lista de carpetas */}
-      <div className="max-h-[600px] overflow-y-auto">
-        {carpetas.length === 0 ? (
+      {/* Separador */}
+      <div className="border-t border-gray-100" />
+
+      {/* Lista de carpetas con scroll */}
+      <div
+        className="overflow-y-auto"
+        style={{
+          maxHeight: '340px',
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#00829a #f1f5f9',
+        }}
+      >
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2" style={{borderColor: '#00829a'}} />
+          </div>
+        ) : error ? (
+          <div className="px-4 py-4">
+            <p className="text-sm text-red-600">{error}</p>
+            <button onClick={loadCarpetas} className="mt-1 text-xs text-red-700 font-medium underline">
+              Reintentar
+            </button>
+          </div>
+        ) : carpetas.length === 0 ? (
           <div className="px-4 py-8 text-center">
-            <Folder className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+            <Folder className="w-10 h-10 text-gray-300 mx-auto mb-2" />
             <p style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm text-gray-600">No hay carpetas</p>
-            <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-xs text-gray-500 mt-1">Crea una carpeta para organizar tus facturas</p>
+            <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-xs text-gray-400 mt-1">
+              Crea una carpeta para organizar tus facturas
+            </p>
           </div>
         ) : (
-          <div className="group">
+          <div>
             {carpetas.map((carpeta) => renderCarpeta(carpeta))}
           </div>
         )}
       </div>
+
+      {/* Indicador de scroll si hay muchas carpetas */}
+      {carpetas.length > 9 && (
+        <div className="px-4 py-1.5 border-t border-gray-100 bg-gray-50 flex items-center justify-center">
+          <span style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-xs text-gray-400">
+            {carpetas.length} carpetas · desplaza para ver más
+          </span>
+        </div>
+      )}
     </div>
   );
 }

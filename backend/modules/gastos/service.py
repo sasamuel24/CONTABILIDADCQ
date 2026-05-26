@@ -187,6 +187,34 @@ class GastosService:
         if not paquete.gastos:
             raise HTTPException(status_code=400, detail="El paquete debe tener al menos un gasto antes de enviarse.")
 
+        # Paquetes de anticipo pasan por Facturación antes de Tesorería.
+        # El anticipo ya fue aprobado por el jefe → van directamente a 'aprobado'
+        # para que Facturación los audite y envíe a Tesorería.
+        if paquete.anticipo_id:
+            anterior = paquete.estado
+            paquete.estado = "aprobado"
+            paquete.fecha_envio = datetime.utcnow()
+            await self.paquete_repo.save(paquete)
+            await self.historial_repo.create(HistorialEstadoPaquete(
+                paquete_id=paquete.id, user_id=user_id,
+                estado_anterior=anterior, estado_nuevo="aprobado",
+            ))
+            await self.comentario_repo.create(ComentarioPaquete(
+                paquete_id=paquete.id, user_id=user_id,
+                texto="Paquete de anticipo enviado a Facturación para auditoría.",
+                tipo="observacion",
+            ))
+            await self.db.commit()
+            paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
+            # Notificar a Facturación
+            try:
+                await email_service.enviar_notificacion_aprobado(
+                    paquete_actualizado, settings.email_responsable
+                )
+            except Exception as e:
+                logger.error(f"Error notificando a Facturación anticipo paquete: {e}")
+            return self._to_out(paquete_actualizado)
+
         # Para flujo general se requiere aprobador
         if paquete.tipo_flujo == "general":
             aprobador_id_efectivo = aprobador_id or paquete.aprobador_id
@@ -234,6 +262,31 @@ class GastosService:
             )
 
         return self._to_out(paquete_actualizado)
+
+    async def devolver_anticipo_paquete(
+        self, paquete_id: UUID, user_id: UUID, motivo: str
+    ) -> PaqueteOut:
+        """Tesorería devuelve al empleado un paquete de anticipo con inconsistencias."""
+        paquete = await self._get_paquete_or_404(paquete_id)
+        if not paquete.anticipo_id:
+            raise HTTPException(status_code=400, detail="Este endpoint es solo para paquetes de anticipo.")
+        if paquete.estado != "en_tesoreria":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Solo paquetes en_tesoreria pueden devolverse. Estado actual: {paquete.estado}"
+            )
+        paquete.estado = "devuelto"
+        await self.paquete_repo.save(paquete)
+        await self.comentario_repo.create(ComentarioPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            texto=f"Tesorería devolvió el paquete: {motivo}", tipo="devolucion",
+        ))
+        await self.historial_repo.create(HistorialEstadoPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            estado_anterior="en_tesoreria", estado_nuevo="devuelto",
+        ))
+        await self.db.commit()
+        return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
 
     async def reenviar_correo_aprobacion(self, paquete_id: UUID, user_id: UUID) -> dict:
         """Genera un nuevo token y reenvía el correo de solicitud de aprobación."""
@@ -406,7 +459,7 @@ class GastosService:
         # quedaron pagados para cerrar el anticipo automáticamente.
         if paquete_pagado.anticipo_id:
             anticipo = await self.db.get(Anticipo, paquete_pagado.anticipo_id)
-            if anticipo and anticipo.estado == "activo":
+            if anticipo and anticipo.estado == "desembolsado":
                 todos_pagados = all(p.estado == "pagado" for p in anticipo.paquetes)
                 if todos_pagados:
                     anticipo.estado = "cerrado"
@@ -443,7 +496,7 @@ class GastosService:
         if paquete.anticipo_id:
             anticipo = await self.db.get(Anticipo, paquete.anticipo_id)
             if anticipo and anticipo.estado == "cerrado":
-                anticipo.estado = "activo"
+                anticipo.estado = "desembolsado"
 
         await self.db.commit()
         return self._to_out(await self.paquete_repo.get_by_id(paquete_id))

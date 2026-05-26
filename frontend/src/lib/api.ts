@@ -528,6 +528,54 @@ export async function getFacturasAsignadas(): Promise<FacturaAsignada[]> {
 }
 
 /**
+ * Descargar archivo plano XLSX para importación contable
+ */
+export async function exportarPlanoXLSX(params: { area_id?: string; estado?: string } = {}): Promise<void> {
+  const token = getAccessToken();
+  const q = new URLSearchParams();
+  if (params.area_id) q.set('area_id', params.area_id);
+  if (params.estado) q.set('estado', params.estado);
+  const url = `${API_BASE_URL}/facturas/exportar-plano${q.toString() ? `?${q.toString()}` : ''}`;
+  const resp = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al exportar');
+  }
+  const blob = await resp.blob();
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'archivo_plano_contable.xlsx';
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+/**
+ * Exportar archivo plano XLSX de los gastos de un paquete específico
+ */
+export async function exportarPlanoPaquete(paqueteId: string): Promise<void> {
+  const token = getAccessToken();
+  const url = `${API_BASE_URL}/gastos/paquetes/${paqueteId}/exportar-plano`;
+  const resp = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al exportar');
+  }
+  const blob = await resp.blob();
+  const cd = resp.headers.get('Content-Disposition') || '';
+  const match = cd.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : 'archivo_plano_contable.xlsx';
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+/**
  * Obtener lista paginada de facturas
  */
 export async function getFacturas(skip: number = 0, limit: number = 100, area_id?: string, area_origen_id?: string): Promise<FacturasPaginatedResponse> {
@@ -2201,14 +2249,28 @@ export interface AnticipoPaqueteBrief {
   created_at: string;
 }
 
+export type AnticipoEstado = 'pendiente' | 'aprobado' | 'rechazado' | 'desembolsado' | 'cerrado';
+
+export interface AnticipoAprobadorBrief {
+  id: string;
+  nombre: string;
+  cargo: string;
+  email: string;
+}
+
 export interface AnticipoOut {
   id: string;
   folio: string;
-  creado_por: { id: string; nombre: string; email: string };
-  asignado_a: { id: string; nombre: string; email: string };
+  solicitante: { id: string; nombre: string; email: string };
   monto: number;
   descripcion: string | null;
-  estado: 'activo' | 'cerrado';
+  estado: AnticipoEstado;
+  aprobador: AnticipoAprobadorBrief | null;
+  fecha_aprobacion: string | null;
+  aprobado_por_nombre: string | null;
+  motivo_rechazo: string | null;
+  fecha_desembolso: string | null;
+  desembolsado_por: { id: string; nombre: string; email: string } | null;
   paquetes: AnticipoPaqueteBrief[];
   monto_legalizado: number;
   diferencia: number;
@@ -2219,10 +2281,12 @@ export interface AnticipoOut {
 export interface AnticipoListItem {
   id: string;
   folio: string;
-  asignado_a: { id: string; nombre: string; email: string };
+  solicitante: { id: string; nombre: string; email: string };
   monto: number;
   descripcion: string | null;
-  estado: 'activo' | 'cerrado';
+  estado: AnticipoEstado;
+  paquete_estado: string | null;
+  aprobador: AnticipoAprobadorBrief | null;
   total_paquetes: number;
   monto_legalizado: number;
   diferencia: number;
@@ -2235,13 +2299,16 @@ export interface AnticipoListResponse {
 }
 
 export interface AnticipoCreate {
-  assigned_to_user_id: string;
+  aprobador_id: string;
   monto: number;
   descripcion?: string;
+}
+
+export interface AnticipoDesembolsar {
   semana: string;
 }
 
-/** Listar anticipos (solo Tesorería/Admin) */
+/** Listar anticipos (Tesorería ve aprobados/desembolsados/cerrados) */
 export async function listAnticipos(
   params: { skip?: number; limit?: number; estado?: string } = {}
 ): Promise<AnticipoListResponse> {
@@ -2252,7 +2319,7 @@ export async function listAnticipos(
   return fetchAPI<AnticipoListResponse>(`/anticipos?${q.toString()}`);
 }
 
-/** Listar anticipos asignados al usuario autenticado */
+/** Listar mis solicitudes de anticipo (cualquier usuario) */
 export async function listMisAnticipos(
   params: { estado?: string } = {}
 ): Promise<AnticipoListResponse> {
@@ -2262,7 +2329,7 @@ export async function listMisAnticipos(
   return fetchAPI<AnticipoListResponse>(`/anticipos/mis-anticipos${qs ? `?${qs}` : ''}`);
 }
 
-/** Crear anticipo y su paquete inicial */
+/** Empleado solicita un anticipo */
 export async function createAnticipo(data: AnticipoCreate): Promise<AnticipoOut> {
   return fetchAPI<AnticipoOut>('/anticipos', {
     method: 'POST',
@@ -2276,9 +2343,27 @@ export async function getAnticipo(anticipoId: string): Promise<AnticipoOut> {
   return fetchAPI<AnticipoOut>(`/anticipos/${anticipoId}`);
 }
 
-/** Cerrar un anticipo */
+/** Tesorería desembolsa el anticipo y crea el paquete */
+export async function desembolsarAnticipo(anticipoId: string, data: AnticipoDesembolsar): Promise<AnticipoOut> {
+  return fetchAPI<AnticipoOut>(`/anticipos/${anticipoId}/desembolsar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
+/** Cerrar un anticipo manualmente (Tesorería) */
 export async function cerrarAnticipo(anticipoId: string): Promise<AnticipoOut> {
   return fetchAPI<AnticipoOut>(`/anticipos/${anticipoId}/cerrar`, { method: 'PATCH' });
+}
+
+/** Tesorería devuelve paquete de anticipo al empleado */
+export async function devolverAnticipoPaquete(paqueteId: string, motivo: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/devolver-anticipo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ motivo }),
+  });
 }
 
 /** Aprueba una factura usando el token del correo (endpoint público, sin auth) */

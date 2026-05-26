@@ -5,10 +5,11 @@ import { ResponsablePaquetesView } from '../components/ResponsablePaquetesView';
 import { GastosAdminSubidaView } from '../components/GastosAdminSubidaView';
 import { GastosAdminTrazabilidadView } from '../components/GastosAdminTrazabilidadView';
 import { ResponsableHistorialView } from '../components/ResponsableHistorialView';
+import { AnticiposView } from '../components/AnticiposView';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-type Seccion = 'bandeja' | 'paquetes' | 'subida' | 'trazabilidad' | 'historial';
+type Seccion = 'bandeja' | 'paquetes' | 'subida' | 'trazabilidad' | 'historial' | 'anticipo';
 
 export function ResponsablePage() {
   const { user, logout } = useAuth();
@@ -31,6 +32,7 @@ export function ResponsablePage() {
     ...(esGadmin ? [
       { id: 'subida' as Seccion, label: 'Subida Manual de Facturas', icon: <UploadCloud className="w-5 h-5" /> },
     ] : []),
+    { id: 'anticipo', label: 'Legalizar Anticipo', icon: <Banknote className="w-5 h-5" /> },
   ];
 
   return (
@@ -74,19 +76,6 @@ export function ResponsablePage() {
             );
           })}
 
-          {/* Legalización de Anticipo — acceso directo */}
-          <button
-            onClick={() => navigate('/mis-anticipo')}
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg transition-all"
-            style={{
-              color: '#1d4ed8',
-              backgroundColor: 'rgba(29,78,216,0.07)',
-              fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
-            }}
-          >
-            <Banknote className="w-5 h-5" />
-            Legalizar Anticipo
-          </button>
         </nav>
 
         {/* User Menu */}
@@ -143,6 +132,7 @@ export function ResponsablePage() {
         {seccion === 'historial' && <ResponsableHistorialView />}
         {seccion === 'subida' && esGadmin && <GastosAdminSubidaView />}
         {seccion === 'trazabilidad' && esGadmin && <GastosAdminTrazabilidadView />}
+        {seccion === 'anticipo' && <AnticiposView />}
         {seccion === 'paquetes' && esMant && (
           <div className={enDetalle ? 'p-4' : 'p-8'}>
             {!enDetalle && (

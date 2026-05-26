@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CategoriaGasto,
   GastoOut,
@@ -644,16 +644,13 @@ function CardGasto({
               <select
                 value={fila.centroOperacionId}
                 onChange={(e) => onCampo(fila.localId, 'centroOperacionId', e.target.value)}
-                disabled={!fila.centroCostoId}
-                className={`${selectCls} disabled:opacity-50 disabled:cursor-not-allowed`}
+                className={selectCls}
                 style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
               >
                 <option value="">-- Seleccionar --</option>
-                {centrosOperacion
-                  .filter(c => !fila.centroCostoId || c.centro_costo_id === fila.centroCostoId)
-                  .map(c => (
-                    <option key={c.id} value={c.id}>{c.nombre}</option>
-                  ))}
+                {centrosOperacion.map(c => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
               </select>
             )}
           </div>
@@ -959,7 +956,7 @@ function TablaGastos({
 // DetallePaquete
 // ============================================================
 
-function DetallePaquete({
+export function DetallePaquete({
   paqueteId,
   onCerrar,
   aprobadores,
@@ -1244,14 +1241,20 @@ function DetallePaquete({
       await persistirCambios();
       toast.success('Borrador guardado correctamente');
       await cargar();
-    } catch {
-      toast.error('Error al guardar el borrador');
+    } catch (err: any) {
+      const msg = err?.detail || err?.message || 'Error al guardar el borrador';
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
   };
 
   const handleEnviar = () => {
+    // Paquetes de anticipo van directo a Tesorería sin selección de aprobador
+    if (paquete?.anticipo) {
+      handleEnviarConfirmado();
+      return;
+    }
     // Flujo general: mostrar modal de selección de aprobador
     if (paquete?.tipo_flujo === 'general') {
       setAprobadorSeleccionado(paquete?.aprobador?.id ?? '');
@@ -1267,13 +1270,16 @@ function DetallePaquete({
       await persistirCambios();
       await enviarPaquete(paqueteId, aprobadorId);
       toast.success(
-        paquete?.tipo_flujo === 'general'
+        paquete?.anticipo
+          ? 'Paquete enviado a Facturación para auditoría. Facturación lo enviará a Tesorería.'
+          : paquete?.tipo_flujo === 'general'
           ? 'Paquete enviado. El aprobador recibirá el correo de aprobación.'
           : 'Paquete enviado al responsable de área para revisión.'
       );
       onCerrar();
-    } catch {
-      toast.error('Error al enviar el paquete');
+    } catch (err: any) {
+      const msg = err?.detail || err?.message || 'Error al enviar el paquete';
+      toast.error(msg);
       setSaving(false);
     }
   };
@@ -1972,8 +1978,10 @@ type Vista = 'lista' | 'historial' | 'nuevo' | 'detalle';
 export function LegalizacionPage({ modoAnticipo = false }: { modoAnticipo?: boolean } = {}) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [vista, setVista] = useState<Vista>('lista');
-  const [paqueteActivo, setPaqueteActivo] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const paqueteIdInicial = searchParams.get('paquete');
+  const [vista, setVista] = useState<Vista>(paqueteIdInicial ? 'detalle' : 'lista');
+  const [paqueteActivo, setPaqueteActivo] = useState<string | null>(paqueteIdInicial);
   const [paquetes, setPaquetes] = useState<PaqueteListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [aprobadores, setAprobadores] = useState<AprobadorGerencia[]>([]);
@@ -2134,6 +2142,17 @@ export function LegalizacionPage({ modoAnticipo = false }: { modoAnticipo?: bool
               )}
             </button>
 
+            {!modoAnticipo && (
+              <button
+                onClick={() => navigate('/mis-anticipo')}
+                className="flex items-center gap-2 px-4 py-3 text-sm font-semibold rounded-t-xl transition-all text-white/70 hover:text-white hover:bg-white/10"
+                style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+              >
+                <Banknote className="w-4 h-4 shrink-0" />
+                Mis anticipos
+              </button>
+            )}
+
             <button
               onClick={() => { setVista('historial'); setPaqueteActivo(null); }}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold rounded-t-xl transition-all ${
@@ -2203,6 +2222,7 @@ export function LegalizacionPage({ modoAnticipo = false }: { modoAnticipo?: bool
         </div>
       )}
 
+      {/* Vista: mis anticipos — ocupa todo el cuerpo */}
       {/* Cuerpo principal */}
       <main className="flex-1 overflow-auto">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">

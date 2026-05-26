@@ -15,6 +15,8 @@ import { NoAutorizadoPage } from './pages/NoAutorizadoPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import { AprobarPaquetePage } from './pages/AprobarPaquetePage';
 import { AprobarFacturaPage } from './pages/AprobarFacturaPage';
+import { AprobarAnticipoPagina } from './pages/AprobarAnticipoPagina';
+import { AnticiposView } from './components/AnticiposView';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Toaster } from './components/ui/sonner';
 
@@ -26,6 +28,7 @@ function AppRoutes() {
   const isPublicPath =
     currentPath === '/aprobar-paquete' ||
     currentPath === '/aprobar-factura' ||
+    currentPath === '/aprobar-anticipo' ||
     currentPath === '/change-password';
 
   if (loading && !isPublicPath) {
@@ -63,6 +66,7 @@ function AppRoutes() {
       <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route path="/aprobar-paquete" element={<AprobarPaquetePage />} />
       <Route path="/aprobar-factura" element={<AprobarFacturaPage />} />
+      <Route path="/aprobar-anticipo" element={<AprobarAnticipoPagina />} />
       <Route path="/no-autorizado" element={<NoAutorizadoPage />} />
 
       {/* Redirigir a change-password si es obligatorio */}
@@ -144,6 +148,14 @@ function AppRoutes() {
           />
           <Route
             path="/mis-anticipo"
+            element={
+              <ProtectedRoute>
+                <AnticiposView />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/mis-gastos-anticipo"
             element={
               <ProtectedRoute>
                 <LegalizacionPage modoAnticipo={true} />

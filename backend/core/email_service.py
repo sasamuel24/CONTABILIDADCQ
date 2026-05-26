@@ -836,5 +836,184 @@ class EmailService:
         except Exception as e:
             logger.error(f"Error al enviar notificación de factura aprobada: {e}")
 
+    # ------------------------------------------------------------------
+    # Anticipos
+    # ------------------------------------------------------------------
+
+    async def enviar_solicitud_aprobacion_anticipo(self, anticipo, token_str: str) -> None:
+        """Envía al jefe directo el enlace para aprobar/rechazar el anticipo."""
+        try:
+            folio = anticipo.folio
+            solicitante = anticipo.creado_por.nombre if anticipo.creado_por else "Empleado"
+            monto = float(anticipo.monto)
+            descripcion = anticipo.descripcion or "Sin descripción"
+            aprobador_email = anticipo.aprobador.email
+            aprobador_nombre = anticipo.aprobador.nombre
+
+            frontend_url = settings.frontend_url
+            aprobar_url = f"{frontend_url}/aprobar-anticipo?token={token_str}&accion=aprobar"
+            rechazar_url = f"{frontend_url}/aprobar-anticipo?token={token_str}&accion=rechazar"
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:640px;margin:0 auto">
+            <div style="background:#1a3c6e;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">Solicitud de Anticipo — Aprobación Requerida</h2>
+              <p style="color:#c8d8f7;margin:4px 0 0">Sistema CONTABILIDADCQ</p>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>Hola <strong>{aprobador_nombre}</strong>,</p>
+              <p><strong>{solicitante}</strong> ha solicitado un anticipo que requiere su aprobación:</p>
+              <table style="border-collapse:collapse;margin:16px 0;width:100%">
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold;width:160px">Folio:</td>
+                  <td style="padding:8px 14px">{folio}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Solicitante:</td>
+                  <td style="padding:8px 14px">{solicitante}</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Monto solicitado:</td>
+                  <td style="padding:8px 14px;font-size:1.1em;font-weight:bold;color:#1a3c6e">${monto:,.0f} COP</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Descripción:</td>
+                  <td style="padding:8px 14px">{descripcion}</td>
+                </tr>
+              </table>
+              <p style="margin-top:20px">Por favor haga clic en una de las siguientes opciones (válido por 72 horas):</p>
+              <div style="margin:20px 0">
+                <a href="{aprobar_url}"
+                   style="background:#1a6e3c;color:#fff;padding:10px 22px;border-radius:4px;
+                          text-decoration:none;font-weight:bold;display:inline-block;margin-right:12px">
+                  &#10003; Aprobar Anticipo
+                </a>
+                <a href="{rechazar_url}"
+                   style="background:#c0392b;color:#fff;padding:10px 22px;border-radius:4px;
+                          text-decoration:none;font-weight:bold;display:inline-block">
+                  &#10007; Rechazar Anticipo
+                </a>
+              </div>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">
+                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+              </p>
+            </div>
+            </body></html>
+            """
+            subject = f"Solicitud de Anticipo {folio} — Aprobación requerida de {solicitante}"
+            await self._send_mail(subject, body_html, aprobador_email)
+            logger.info(f"Email de solicitud de anticipo {folio} enviado a {aprobador_email}")
+        except Exception as e:
+            logger.error(f"Error al enviar email de solicitud de anticipo: {e}")
+
+    async def enviar_notificacion_anticipo_aprobado(self, anticipo) -> None:
+        """Notifica al solicitante que su anticipo fue aprobado."""
+        try:
+            folio = anticipo.folio
+            solicitante_email = anticipo.creado_por.email
+            solicitante_nombre = anticipo.creado_por.nombre
+            aprobador_nombre = anticipo.aprobado_por_nombre or (anticipo.aprobador.nombre if anticipo.aprobador else "Aprobador")
+            monto = float(anticipo.monto)
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:640px;margin:0 auto">
+            <div style="background:#1a6e3c;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">&#10003; Anticipo Aprobado</h2>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>Hola <strong>{solicitante_nombre}</strong>,</p>
+              <p>Tu solicitud de anticipo ha sido <strong>aprobada</strong> por {aprobador_nombre}.
+                 Tesorería procederá a realizar el desembolso en los próximos días.</p>
+              <table style="border-collapse:collapse;margin:16px 0;width:100%">
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold;width:160px">Folio:</td>
+                  <td style="padding:8px 14px">{folio}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Monto aprobado:</td>
+                  <td style="padding:8px 14px;font-size:1.1em;font-weight:bold;color:#1a6e3c">${monto:,.0f} COP</td>
+                </tr>
+              </table>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">Sistema CONTABILIDADCQ — Correo automático.</p>
+            </div>
+            </body></html>
+            """
+            subject = f"Anticipo {folio} Aprobado — Pendiente de desembolso"
+            await self._send_mail(subject, body_html, solicitante_email)
+            logger.info(f"Notificación de anticipo aprobado enviada a {solicitante_email}")
+        except Exception as e:
+            logger.error(f"Error al enviar notificación de anticipo aprobado: {e}")
+
+    async def enviar_notificacion_anticipo_rechazado(self, anticipo) -> None:
+        """Notifica al solicitante que su anticipo fue rechazado."""
+        try:
+            folio = anticipo.folio
+            solicitante_email = anticipo.creado_por.email
+            solicitante_nombre = anticipo.creado_por.nombre
+            motivo = anticipo.motivo_rechazo or "Sin motivo especificado"
+            monto = float(anticipo.monto)
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:640px;margin:0 auto">
+            <div style="background:#c0392b;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">&#10007; Anticipo Rechazado</h2>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>Hola <strong>{solicitante_nombre}</strong>,</p>
+              <p>Tu solicitud de anticipo <strong>{folio}</strong> por ${monto:,.0f} COP ha sido <strong>rechazada</strong>.</p>
+              <div style="background:#fdecea;border-left:4px solid #c0392b;padding:12px 16px;margin:16px 0;border-radius:0 4px 4px 0">
+                <strong>Motivo del rechazo:</strong><br>{motivo}
+              </div>
+              <p>Si tienes dudas, comunícate con tu jefe directo.</p>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">Sistema CONTABILIDADCQ — Correo automático.</p>
+            </div>
+            </body></html>
+            """
+            subject = f"Anticipo {folio} Rechazado"
+            await self._send_mail(subject, body_html, solicitante_email)
+            logger.info(f"Notificación de anticipo rechazado enviada a {solicitante_email}")
+        except Exception as e:
+            logger.error(f"Error al enviar notificación de anticipo rechazado: {e}")
+
+    async def enviar_notificacion_anticipo_desembolsado(self, anticipo) -> None:
+        """Notifica al solicitante que Tesorería realizó el desembolso y creó el paquete."""
+        try:
+            folio = anticipo.folio
+            solicitante_email = anticipo.creado_por.email
+            solicitante_nombre = anticipo.creado_por.nombre
+            monto = float(anticipo.monto)
+            frontend_url = settings.frontend_url
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:640px;margin:0 auto">
+            <div style="background:#1a3c6e;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">&#128176; Anticipo Desembolsado</h2>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>Hola <strong>{solicitante_nombre}</strong>,</p>
+              <p>Tesorería ha realizado el desembolso de tu anticipo <strong>{folio}</strong> por
+                 <strong>${monto:,.0f} COP</strong>.</p>
+              <p>Se ha creado un paquete de gastos para que registres las facturas correspondientes.
+                 Ingresa al sistema para completarlo y enviarlo a Tesorería para su legalización.</p>
+              <div style="margin:20px 0">
+                <a href="{frontend_url}"
+                   style="background:#1a3c6e;color:#fff;padding:10px 22px;border-radius:4px;
+                          text-decoration:none;font-weight:bold;display:inline-block">
+                  Ir al Sistema
+                </a>
+              </div>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">Sistema CONTABILIDADCQ — Correo automático.</p>
+            </div>
+            </body></html>
+            """
+            subject = f"Anticipo {folio} Desembolsado — Registra tus facturas"
+            await self._send_mail(subject, body_html, solicitante_email)
+            logger.info(f"Notificación de desembolso enviada a {solicitante_email}")
+        except Exception as e:
+            logger.error(f"Error al enviar notificación de desembolso de anticipo: {e}")
 
 email_service = EmailService()

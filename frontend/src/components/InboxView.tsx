@@ -291,7 +291,7 @@ export function InboxView() {
   const [sortCol, setSortCol] = useState<InboxSortCol | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const [inventarioTab, setInventarioTab] = useState<'todos' | 'con_inventario' | 'sin_inventario'>('todos');
-  const itemsPerPage = 20;
+const itemsPerPage = 20;
   const esContabilidad = getUserRoleCode(user) === 'contabilidad';
 
   function handleSort(col: InboxSortCol) {
@@ -718,6 +718,7 @@ export function InboxView() {
               ))}
             </select>
           </div>
+
         </div>
       </div>
 

@@ -202,6 +202,23 @@ async def devolver_paquete_a_facturacion(
 
 
 @router.post(
+    "/gastos/paquetes/{paquete_id}/devolver-anticipo",
+    response_model=PaqueteOut,
+    summary="Tesorería devuelve al empleado un paquete de anticipo con inconsistencias",
+)
+async def devolver_anticipo_paquete(
+    paquete_id: UUID,
+    data: PaqueteDevolver,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    if role not in {"admin", "tesoreria", "tes"}:
+        raise HTTPException(status_code=403, detail="Solo Tesorería puede devolver paquetes de anticipo.")
+    return await svc.devolver_anticipo_paquete(paquete_id, user.id, data.motivo)
+
+
+@router.post(
     "/gastos/paquetes/{paquete_id}/enviar-tesoreria",
     response_model=PaqueteOut,
     summary="Enviar paquete aprobado a Tesorería (facturación/admin)",
@@ -743,4 +760,97 @@ Ejemplo 2 (factura electrónica de ferretería):
         fecha=datos.get("fecha"),
         confianza=datos.get("confianza", "baja"),
         campos_detectados=datos.get("campos_detectados", []),
+    )
+
+
+# =============================================================================
+# EXPORTAR ARCHIVO PLANO XLSX POR PAQUETE
+# =============================================================================
+
+@router.get(
+    "/gastos/paquetes/{paquete_id}/exportar-plano",
+    summary="Exportar gastos de un paquete como archivo plano XLSX (formato contable)",
+)
+async def exportar_plano_paquete(
+    paquete_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(_get_user_db),
+):
+    import io
+    import openpyxl
+    from db.models import PaqueteGasto, GastoLegalizacion
+
+    result = await db.execute(
+        select(PaqueteGasto)
+        .options(
+            selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.centro_costo),
+            selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.centro_operacion),
+            selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.cuenta_auxiliar),
+        )
+        .where(PaqueteGasto.id == paquete_id)
+    )
+    paquete = result.scalar_one_or_none()
+    if not paquete:
+        raise HTTPException(status_code=404, detail="Paquete no encontrado.")
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Movimiento contable"
+    ws.append([
+        "F350_ID_CO",
+        "F350_CONSEC_DOCTO",
+        "F351_ID_AUXILIAR",
+        "F351_ID_TERCERO",
+        "F351_ID_CO_MOV",
+        "F351_ID_UN",
+        "F351_ID_CCOSTO",
+        "F351_ID_FE",
+        "F351_VALOR_DB",
+        "F351_VALOR_CR",
+        "F351_BASE_GRAVABLE",
+        "F351_DOCTO_BANCO",
+        "F351_NRO_DOCTO_BANCO",
+        "F351_NOTAS",
+    ])
+
+    ID_CO = "001"
+    gastos_activos = [g for g in paquete.gastos if g.estado_gasto != "devuelto"]
+
+    for gasto in gastos_activos:
+        auxiliar_codigo = gasto.cuenta_auxiliar.codigo.strip() if gasto.cuenta_auxiliar else ""
+        nit             = (gasto.no_identificacion or "").strip()
+        co_codigo       = gasto.centro_operacion.codigo.strip() if gasto.centro_operacion else ""
+        cc_codigo       = gasto.centro_costo.codigo.strip()     if gasto.centro_costo     else ""
+        notas           = f"{gasto.pagado_a} {gasto.concepto}".upper()[:80]
+
+        ws.append([
+            ID_CO,
+            1,                              # F350_CONSEC_DOCTO siempre 1
+            auxiliar_codigo,                # F351_ID_AUXILIAR
+            nit,                            # F351_ID_TERCERO = NIT
+            co_codigo,                      # F351_ID_CO_MOV
+            "",                             # F351_ID_UN (vacío)
+            cc_codigo,                      # F351_ID_CCOSTO
+            None,                           # F351_ID_FE (vacío)
+            round(float(gasto.valor_pagado)), # F351_VALOR_DB
+            0,                              # F351_VALOR_CR
+            0,                              # F351_BASE_GRAVABLE
+            None,                           # F351_DOCTO_BANCO
+            0,                              # F351_NRO_DOCTO_BANCO
+            notas,                          # F351_NOTAS
+        ])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    folio = paquete.folio or str(paquete_id)[:8]
+    headers = {
+        "Content-Disposition": f'attachment; filename="plano_{folio}.xlsx"',
+        "Access-Control-Expose-Headers": "Content-Disposition",
+    }
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
     )

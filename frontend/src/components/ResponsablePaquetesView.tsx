@@ -26,6 +26,7 @@ import {
   subirCmPdfGasto,
   getCmPdfGastoDownloadUrl,
   eliminarCmPdfGasto,
+  exportarPlanoPaquete,
   PaqueteListItem,
   PaqueteOut,
   GastoOut,
@@ -229,6 +230,7 @@ function DetallePaqueteResponsable({
   const [loadingEnviarTes, setLoadingEnviarTes] = useState(false);
   const [loadingReenviarCorreo, setLoadingReenviarCorreo] = useState(false);
   const [correoGerEnviado, setCorreoGerEnviado] = useState(false);
+  const [loadingExportar, setLoadingExportar] = useState(false);
   const [filtroGastos, setFiltroGastos] = useState<'todos' | 'devueltos'>(soloDevueltos ? 'devueltos' : 'todos');
 
   // Documento Contable General
@@ -662,7 +664,32 @@ function DetallePaqueteResponsable({
                 {formatRango(paquete.fecha_inicio, paquete.fecha_fin)}
               </p>
             </div>
-            <EstadoBadge estado={paquete.estado} />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={async () => {
+                  setLoadingExportar(true);
+                  try {
+                    await exportarPlanoPaquete(paqueteId);
+                    toast.success('Archivo plano exportado correctamente');
+                  } catch (err: any) {
+                    toast.error(err?.message || 'Error al exportar');
+                  } finally {
+                    setLoadingExportar(false);
+                  }
+                }}
+                disabled={loadingExportar}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shrink-0 transition-opacity disabled:opacity-50"
+                style={{ background: '#00829a', fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+                title="Exportar facturas como archivo plano contable"
+              >
+                {loadingExportar
+                  ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                  : <Download className="w-3.5 h-3.5" />
+                }
+                Exportar plano
+              </button>
+              <EstadoBadge estado={paquete.estado} />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 text-sm">
@@ -1010,11 +1037,11 @@ function DetallePaqueteResponsable({
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs" style={{ minWidth: puedeDevolverComoFact ? 1350 : 1250 }}>
+              <table className="w-full text-xs" style={{ minWidth: puedeDevolverComoFact ? 1450 : 1350 }}>
                 <thead>
                   <tr style={{ backgroundColor: '#00829a' }}>
                     {[
-                      'Fecha', 'Pagado a', 'Concepto', 'No. Recibo',
+                      'Fecha', 'Pagado a', 'NIT', 'Concepto', 'No. Recibo',
                       'Centro Costo', 'Centro Operación', 'Cuenta Contable',
                       'Valor', 'Soporte', 'CM PDF',
                       ...(puedeDevolverComoFact ? ['Acción'] : []),
@@ -1044,6 +1071,9 @@ function DetallePaqueteResponsable({
                         </td>
                         <td className="px-2 py-2 text-gray-700" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif', minWidth: 110 }}>
                           {g.pagado_a}
+                        </td>
+                        <td className="px-2 py-2 text-gray-500 font-mono" style={{ fontFamily: 'monospace', minWidth: 100 }}>
+                          {g.no_identificacion || '—'}
                         </td>
                         <td className="px-2 py-2 text-gray-700" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif', minWidth: 120 }}>
                           {g.concepto}
@@ -1428,8 +1458,10 @@ type Filtro = 'todos' | EstadoPaquete;
 
 export function ResponsablePaquetesView({
   onVistaChange,
+  soloAnticipos = false,
 }: {
   onVistaChange?: (v: 'lista' | 'detalle') => void;
+  soloAnticipos?: boolean;
 }) {
   const { user } = useAuth();
   const rolLista = user?.role?.toLowerCase() ?? '';
@@ -1466,7 +1498,9 @@ export function ResponsablePaquetesView({
     onVistaChange?.('lista');
   };
 
-  const paquetesEnviados = paquetes.filter((p) => p.estado !== 'borrador');
+  const paquetesEnviados = paquetes
+    .filter((p) => p.estado !== 'borrador')
+    .filter((p) => !soloAnticipos || p.anticipo !== null);
 
   // Para facturación: "En revisión" muestra los aprobados por responsable (pendientes de enviar a tesorería)
   // Para responsable: "En revisión" muestra los enviados por el técnico (pendientes de aprobar)

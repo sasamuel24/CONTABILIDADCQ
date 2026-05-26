@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, ChevronDown, TrendingUp, TrendingDown, MoreVertical, Reply, Circle, LayoutDashboard, Inbox, LogOut, PackageOpen, Users, FileCode2 } from 'lucide-react';
+import { Search, ChevronDown, TrendingUp, TrendingDown, MoreVertical, Reply, Circle, LayoutDashboard, Inbox, LogOut, PackageOpen, Users, FileCode2, Banknote } from 'lucide-react';
 import { InboxView } from './InboxView';
 import { ResponsablePaquetesView } from './ResponsablePaquetesView';
 import { AdminUsuariosView } from './AdminUsuariosView';
@@ -183,6 +183,25 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
           </button>
 
           <button
+            onClick={() => { setActiveSection('anticipos'); setEnDetallePaquetes(false); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2"
+            style={{
+              backgroundColor: activeSection === 'anticipos' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
+              color: activeSection === 'anticipos' ? '#00829a' : '#374151',
+              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+            }}
+            onMouseEnter={(e) => {
+              if (activeSection !== 'anticipos') e.currentTarget.style.backgroundColor = '#f9fafb';
+            }}
+            onMouseLeave={(e) => {
+              if (activeSection !== 'anticipos') e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            <Banknote className="w-5 h-5" />
+            <span>Anticipos</span>
+          </button>
+
+          <button
             onClick={() => setActiveSection('usuarios')}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2"
             style={{
@@ -250,6 +269,29 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
             <BuzonXMLView />
           ) : activeSection === 'usuarios' ? (
             <AdminUsuariosView />
+          ) : activeSection === 'anticipos' ? (
+            <div className={enDetallePaquetes ? 'p-4' : 'p-8'}>
+              {!enDetallePaquetes && (
+                <div className="mb-6">
+                  <h2
+                    className="text-2xl font-bold text-gray-900"
+                    style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}
+                  >
+                    Anticipos
+                  </h2>
+                  <p
+                    className="text-sm text-gray-400 mt-0.5"
+                    style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                  >
+                    Audita y envía a Tesorería los paquetes de anticipo aprobados
+                  </p>
+                </div>
+              )}
+              <ResponsablePaquetesView
+                soloAnticipos
+                onVistaChange={(v) => setEnDetallePaquetes(v === 'detalle')}
+              />
+            </div>
           ) : activeSection === 'paquetes' ? (
             <div className={enDetallePaquetes ? 'p-4' : 'p-8'}>
               {!enDetallePaquetes && (

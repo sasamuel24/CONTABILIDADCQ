@@ -2138,12 +2138,29 @@ Responde ÚNICAMENTE con JSON válido:
                 s3_prefix = f"dev/facturas/{factura.id}/FACTURA_PDF/"
                 s3_files = await asyncio.to_thread(s3_service.list_files_in_prefix, s3_prefix)
                 if s3_files:
-                    first = s3_files[0]
-                    pdf_bytes, _ = await asyncio.to_thread(
-                        s3_service.get_file_with_metadata, first["key"]
+                    # Primero: buscar el archivo cuyo nombre coincida con el número de factura
+                    numero_norm = factura.numero_factura.upper()
+                    match_by_name = next(
+                        (f for f in s3_files if numero_norm in f["filename"].upper()),
+                        None,
                     )
-                    pdf_filename = first["filename"]
-                    logger.info(f"PDF encontrado en S3 via fallback: {first['key']}")
+                    if match_by_name:
+                        chosen = match_by_name
+                        logger.info(f"PDF seleccionado por nombre de factura: {chosen['key']}")
+                    else:
+                        # Fallback: usar el archivo más antiguo (el subido cuando se creó la factura)
+                        s3_files.sort(key=lambda f: f.get("last_modified", ""))
+                        chosen = s3_files[0]
+                        if len(s3_files) > 1:
+                            logger.warning(
+                                f"S3 prefix {s3_prefix} tiene {len(s3_files)} archivos; "
+                                f"usando el más antiguo: {chosen['filename']}"
+                            )
+                        logger.info(f"PDF encontrado en S3 via fallback (más antiguo): {chosen['key']}")
+                    pdf_bytes, _ = await asyncio.to_thread(
+                        s3_service.get_file_with_metadata, chosen["key"]
+                    )
+                    pdf_filename = chosen["filename"]
                 else:
                     logger.warning(f"No se encontró FACTURA_PDF en BD ni en S3 para factura {factura.numero_factura}")
         except Exception as e:

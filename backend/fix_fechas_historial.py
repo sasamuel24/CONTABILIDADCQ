@@ -56,8 +56,20 @@ async def fix():
         """))
         filas2 = r2.fetchall()
 
+        # 3. fecha_cierre: facturas en estado Pagada (estado_id=5) con NULL
+        #    Usar updated_at como proxy (es cuando se marcó como pagada)
+        r3 = await conn.execute(text("""
+            UPDATE facturas f
+            SET fecha_cierre = COALESCE(f.updated_at, NOW())
+            WHERE f.fecha_cierre IS NULL
+              AND f.estado_id = 5
+            RETURNING f.numero_factura
+        """))
+        filas3 = r3.fetchall()
+
         await conn.commit()
         print(f"fecha_envio_contabilidad actualizada en {len(filas1)} facturas")
-        print(f"fecha_envio_tesoreria   actualizada en {len(filas2)} facturas")
+        print(f"fecha_envio_tesoreria    actualizada en {len(filas2)} facturas")
+        print(f"fecha_cierre             actualizada en {len(filas3)} facturas")
 
 asyncio.run(fix())

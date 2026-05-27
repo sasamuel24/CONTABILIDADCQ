@@ -85,6 +85,9 @@ class FacturaRepository:
         if factura:
             factura.estado_id = estado_id
             factura.updated_at = datetime.utcnow()
+            # Estado 5 = Pagada (final) — registrar fecha de cierre
+            if estado_id == 5:
+                factura.fecha_cierre = datetime.utcnow()
             await self.db.flush()
             await self.db.refresh(factura)
         return factura

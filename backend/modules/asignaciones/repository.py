@@ -150,6 +150,7 @@ class AsignacionRepository:
             factura.fecha_envio_contabilidad = datetime.utcnow()
         elif str(area_id) == TESORERIA_AREA_ID:
             factura.estado_id = 7  # Pendiente en Tesoreria
+            factura.fecha_envio_tesoreria = datetime.utcnow()
         else:
             factura.estado_id = 2  # Estado "Asignada" para otras áreas
 

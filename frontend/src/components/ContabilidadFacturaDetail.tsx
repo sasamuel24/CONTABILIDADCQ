@@ -43,19 +43,6 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
 
   const GADMIN_AREA_ID = 'c1589d0c-736b-4af4-89f2-81900d2dac16';
 
-  const handleGuardarFechaEnvio = async () => {
-    if (!fechaEnvioContabilidad) return;
-    try {
-      setGuardandoFechaEnvio(true);
-      await updateFactura(factura.id, { fecha_envio_contabilidad: fechaEnvioContabilidad });
-    } catch (error) {
-      console.error('Error guardando fecha envío contabilidad:', error);
-      alert('Error al guardar la fecha. Intente de nuevo.');
-    } finally {
-      setGuardandoFechaEnvio(false);
-    }
-  };
-
   const handleEnviarGastosFijos = async () => {
     try {
       setEnviandoGastosFijos(true);
@@ -132,11 +119,6 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   const [porcentajeAnticipo, setPorcentajeAnticipo] = useState('');
   const [intervaloEntrega, setIntervaloEntrega] = useState('');
 
-  // Estado para fecha envío contabilidad
-  const [fechaEnvioContabilidad, setFechaEnvioContabilidad] = useState<string>(
-    factura.fecha_envio_contabilidad ? factura.fecha_envio_contabilidad.slice(0, 10) : ''
-  );
-  const [guardandoFechaEnvio, setGuardandoFechaEnvio] = useState(false);
 
   // Estados para vista previa
   const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
@@ -555,25 +537,6 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                     <span className="text-gray-900 font-bold text-lg">
                       ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                     </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 pt-1">
-                    <span className="text-gray-600 shrink-0">Envío a Contabilidad</span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="date"
-                        value={fechaEnvioContabilidad}
-                        onChange={(e) => setFechaEnvioContabilidad(e.target.value)}
-                        className="border border-gray-300 rounded-md px-2 py-1 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-[#00829a]"
-                      />
-                      <button
-                        onClick={handleGuardarFechaEnvio}
-                        disabled={guardandoFechaEnvio || !fechaEnvioContabilidad}
-                        className="px-3 py-1 text-sm rounded-md text-white disabled:opacity-50 transition-colors"
-                        style={{ backgroundColor: '#00829a' }}
-                      >
-                        {guardandoFechaEnvio ? 'Guardando...' : 'Guardar'}
-                      </button>
-                    </div>
                   </div>
                 </div>
               </div>

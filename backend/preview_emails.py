@@ -138,7 +138,7 @@ def tpl_solicitud_aprobacion() -> tuple[str, str]:
     </p>
     <hr style="margin-top:30px">
     <p style="color:#aaa;font-size:0.8em">
-      Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+      Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
     </p>
     </body></html>
     """
@@ -167,7 +167,7 @@ def tpl_notificacion_aprobado_facturacion() -> tuple[str, str]:
        Puede proceder a enviarlo a Tesorería desde el sistema.</p>
     <hr style="margin-top:30px">
     <p style="color:#aaa;font-size:0.8em">
-      Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+      Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
     </p>
     </body></html>
     """
@@ -250,7 +250,7 @@ def tpl_aviso_responsable() -> tuple[str, str]:
       </p>
       <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
       <p style="color:#aaa;font-size:0.8em">
-        Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+        Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
       </p>
     </div>
     </body></html>
@@ -304,7 +304,7 @@ def tpl_confirmacion_creacion() -> tuple[str, str]:
       </p>
       <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
       <p style="color:#aaa;font-size:0.8em">
-        Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+        Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
       </p>
     </div>
     </body></html>
@@ -387,7 +387,7 @@ def tpl_aprobado_tecnico() -> tuple[str, str]:
       </p>
       <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
       <p style="color:#aaa;font-size:0.8em">
-        Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+        Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
       </p>
     </div>
     </body></html>
@@ -466,7 +466,7 @@ def tpl_pago_tecnico() -> tuple[str, str]:
       </p>
       <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
       <p style="color:#aaa;font-size:0.8em">
-        Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+        Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
       </p>
     </div>
     </body></html>
@@ -519,7 +519,7 @@ def build_index(items: list[dict]) -> str:
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Preview — Correos CONTABILIDADCQ</title>
+  <title>Preview — Correos DOCUFLOW</title>
   <style>
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{ font-family: Arial, sans-serif; background: #f1f5f9; padding: 40px 24px; }}
@@ -531,7 +531,7 @@ def build_index(items: list[dict]) -> str:
   </style>
 </head>
 <body>
-  <h1>Correos — CONTABILIDADCQ</h1>
+  <h1>Correos — DOCUFLOW</h1>
   <p class="sub">
     Datos de prueba: Paquete <strong>PKG-2026-00013</strong> &nbsp;·&nbsp;
     Técnico: <strong>Andrés Reyes Muñoz</strong> &nbsp;·&nbsp;

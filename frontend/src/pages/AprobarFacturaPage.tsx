@@ -40,7 +40,7 @@ export function AprobarFacturaPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="bg-white rounded-xl shadow-lg p-8 max-w-lg w-full text-center">
         <h1 className="text-2xl font-bold mb-6" style={{ color: '#14aab8' }}>
-          CONTABILIDADCQ
+          DOCUFLOW
         </h1>
 
         {loading && (

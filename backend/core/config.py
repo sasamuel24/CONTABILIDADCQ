@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     """Configuración centralizada de la aplicación."""
     
     # Aplicación
-    app_name: str = "CONTABILIDADCQ API"
+    app_name: str = "DOCUFLOW API"
     app_version: str = "1.0.0"
     debug: bool = False
     

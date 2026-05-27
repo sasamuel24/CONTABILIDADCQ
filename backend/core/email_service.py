@@ -137,7 +137,7 @@ class EmailService:
             </p>
             <hr style="margin-top:30px">
             <p style="color:#aaa;font-size:0.8em">
-              Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+              Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
             </p>
             </body></html>
             """
@@ -174,7 +174,7 @@ class EmailService:
                Puede proceder a enviarlo a Tesorería desde el sistema.</p>
             <hr style="margin-top:30px">
             <p style="color:#aaa;font-size:0.8em">
-              Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+              Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
             </p>
             </body></html>
             """
@@ -278,7 +278,7 @@ class EmailService:
               </p>
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
               <p style="color:#aaa;font-size:0.8em">
-                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+                Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
               </p>
             </div>
             </body></html>
@@ -339,7 +339,7 @@ class EmailService:
               </p>
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
               <p style="color:#aaa;font-size:0.8em">
-                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+                Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
               </p>
             </div>
             </body></html>
@@ -438,7 +438,7 @@ class EmailService:
               </p>
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
               <p style="color:#aaa;font-size:0.8em">
-                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+                Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
               </p>
             </div>
             </body></html>
@@ -526,7 +526,7 @@ class EmailService:
               </p>
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
               <p style="color:#aaa;font-size:0.8em">
-                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+                Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
               </p>
             </div>
             </body></html>
@@ -645,7 +645,7 @@ class EmailService:
               </p>
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
               <p style="color:#aaa;font-size:0.8em">
-                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+                Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
               </p>
             </div>
             </body></html>
@@ -715,7 +715,7 @@ class EmailService:
             <html><body style="font-family:Arial,sans-serif;color:#333;max-width:640px;margin:0 auto">
             <div style="background:#1a3c6e;padding:18px 24px;border-radius:6px 6px 0 0">
               <h2 style="color:#fff;margin:0">Solicitud de Aprobación de Factura</h2>
-              <p style="color:#cce0ff;margin:4px 0 0">Sistema CONTABILIDADCQ</p>
+              <p style="color:#cce0ff;margin:4px 0 0">Sistema DOCUFLOW</p>
             </div>
             <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
               <p>Estimado(a) <strong>{aprobador_nombre}</strong>,</p>
@@ -764,7 +764,7 @@ class EmailService:
               {adjunto_html}
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
               <p style="color:#aaa;font-size:0.8em">
-                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+                Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
               </p>
             </div>
             </body></html>
@@ -796,7 +796,7 @@ class EmailService:
             <html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto">
             <div style="background:#1a6e3c;padding:18px 24px;border-radius:6px 6px 0 0">
               <h2 style="color:#fff;margin:0">&#10003; Factura Aprobada</h2>
-              <p style="color:#c8f7dc;margin:4px 0 0">Sistema CONTABILIDADCQ</p>
+              <p style="color:#c8f7dc;margin:4px 0 0">Sistema DOCUFLOW</p>
             </div>
             <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
               <p>La siguiente factura ha sido <strong>aprobada</strong> por {aprobador_nombre}
@@ -824,7 +824,7 @@ class EmailService:
               <p style="margin-top:16px">La factura ha quedado registrada como aprobada en el sistema.</p>
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
               <p style="color:#aaa;font-size:0.8em">
-                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+                Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
               </p>
             </div>
             </body></html>
@@ -858,7 +858,7 @@ class EmailService:
             <html><body style="font-family:Arial,sans-serif;color:#333;max-width:640px;margin:0 auto">
             <div style="background:#1a3c6e;padding:18px 24px;border-radius:6px 6px 0 0">
               <h2 style="color:#fff;margin:0">Solicitud de Anticipo — Aprobación Requerida</h2>
-              <p style="color:#c8d8f7;margin:4px 0 0">Sistema CONTABILIDADCQ</p>
+              <p style="color:#c8d8f7;margin:4px 0 0">Sistema DOCUFLOW</p>
             </div>
             <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
               <p>Hola <strong>{aprobador_nombre}</strong>,</p>
@@ -896,7 +896,7 @@ class EmailService:
               </div>
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
               <p style="color:#aaa;font-size:0.8em">
-                Sistema CONTABILIDADCQ — Este es un correo automático, no responda a este mensaje.
+                Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
               </p>
             </div>
             </body></html>
@@ -936,7 +936,7 @@ class EmailService:
                 </tr>
               </table>
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
-              <p style="color:#aaa;font-size:0.8em">Sistema CONTABILIDADCQ — Correo automático.</p>
+              <p style="color:#aaa;font-size:0.8em">Sistema DOCUFLOW — Correo automático.</p>
             </div>
             </body></html>
             """
@@ -968,7 +968,7 @@ class EmailService:
               </div>
               <p>Si tienes dudas, comunícate con tu jefe directo.</p>
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
-              <p style="color:#aaa;font-size:0.8em">Sistema CONTABILIDADCQ — Correo automático.</p>
+              <p style="color:#aaa;font-size:0.8em">Sistema DOCUFLOW — Correo automático.</p>
             </div>
             </body></html>
             """
@@ -1006,7 +1006,7 @@ class EmailService:
                 </a>
               </div>
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
-              <p style="color:#aaa;font-size:0.8em">Sistema CONTABILIDADCQ — Correo automático.</p>
+              <p style="color:#aaa;font-size:0.8em">Sistema DOCUFLOW — Correo automático.</p>
             </div>
             </body></html>
             """

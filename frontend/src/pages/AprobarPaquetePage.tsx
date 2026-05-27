@@ -26,7 +26,7 @@ export function AprobarPaquetePage() {
       <div className="bg-white rounded-xl shadow-lg p-8 max-w-lg w-full text-center">
         {/* Título del sistema */}
         <h1 className="text-2xl font-bold mb-6" style={{ color: '#14aab8' }}>
-          CONTABILIDADCQ
+          DOCUFLOW
         </h1>
 
         {loading && (

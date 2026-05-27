@@ -41,7 +41,7 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     debug=settings.debug,
-    description="API para gestión de facturas - Sistema CONTABILIDADCQ",
+    description="API para gestión de facturas - Sistema DOCUFLOW",
     docs_url=None,  # Deshabilitamos los docs por defecto
     redoc_url=None,  # Deshabilitamos redoc por defecto
     openapi_url=None  # Deshabilitamos openapi por defecto
@@ -93,7 +93,7 @@ async def get_open_api_endpoint():
     return get_openapi(
         title=settings.app_name,
         version=settings.app_version,
-        description="API para gestión de facturas - Sistema CONTABILIDADCQ",
+        description="API para gestión de facturas - Sistema DOCUFLOW",
         routes=app.routes,
     )
 

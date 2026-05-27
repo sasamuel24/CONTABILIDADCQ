@@ -1867,6 +1867,7 @@ Responde ÚNICAMENTE con JSON válido:
         factura.motivo_devolucion = motivo
         factura.devuelta_por_nombre = user_devuelve.nombre if user_devuelve else None
         factura.assigned_to_user_id = None  # Limpiar asignación específica
+        factura.fecha_envio_contabilidad = None  # Limpiar: el paso no se completó
         
         await self.db.commit()
         await self.db.refresh(factura)

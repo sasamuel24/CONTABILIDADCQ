@@ -108,7 +108,7 @@ class GastosService:
         return paquete
 
     async def crear_paquete(
-        self, user_id: UUID, area_id: UUID, data: PaqueteCreate, area_code: str = ""
+        self, user_id: UUID, area_id: Optional[UUID], data: PaqueteCreate, area_code: str = "", role_code: str = ""
     ) -> PaqueteOut:
         fecha_inicio, fecha_fin = _parse_semana(data.semana)
 
@@ -118,7 +118,12 @@ class GastosService:
         max_num = await self.paquete_repo.max_folio_number_by_year(year)
         folio = f"PKG-{year}-{max_num + 1:05d}"
 
-        tipo_flujo = "mantenimiento" if area_code.lower() == "mant" else "general"
+        if role_code == "tarjeta_cq":
+            tipo_flujo = "tarjeta_cq"
+        elif area_code.lower() == "mant":
+            tipo_flujo = "mantenimiento"
+        else:
+            tipo_flujo = "general"
 
         paquete = PaqueteGasto(
             user_id=user_id,
@@ -215,8 +220,8 @@ class GastosService:
                 logger.error(f"Error notificando a Facturación anticipo paquete: {e}")
             return self._to_out(paquete_actualizado)
 
-        # Para flujo general se requiere aprobador
-        if paquete.tipo_flujo == "general":
+        # Para flujo general y tarjeta_cq se requiere aprobador de gerencia
+        if paquete.tipo_flujo in ("general", "tarjeta_cq"):
             aprobador_id_efectivo = aprobador_id or paquete.aprobador_id
             if not aprobador_id_efectivo:
                 raise HTTPException(status_code=400, detail="Debe seleccionar un aprobador para enviar este paquete.")
@@ -234,8 +239,8 @@ class GastosService:
             estado_anterior=anterior, estado_nuevo="en_revision",
         ))
 
-        if paquete.tipo_flujo == "general":
-            # Flujo general: genera token y envía correo directamente al aprobador
+        if paquete.tipo_flujo in ("general", "tarjeta_cq"):
+            # Flujo general / tarjeta_cq: genera token y envía correo al aprobador de gerencia
             token_str = secrets.token_urlsafe(48)
             expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=72)
             token_obj = TokenAprobacionPaquete(
@@ -296,7 +301,7 @@ class GastosService:
 
         # Determinar email destino según tipo de flujo
         email_override: Optional[str] = None
-        if paquete.tipo_flujo == "general":
+        if paquete.tipo_flujo in ("general", "tarjeta_cq"):
             if not paquete.aprobador_id:
                 raise HTTPException(status_code=400, detail="Este paquete no tiene aprobador asignado.")
             aprobador = await self.db.get(AprobadorGerencia, paquete.aprobador_id)

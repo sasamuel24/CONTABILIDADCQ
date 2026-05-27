@@ -90,10 +90,11 @@ async def crear_paquete(
     svc: GastosService = Depends(_svc),
     user: User = Depends(_get_user_db),
 ):
-    if not user.area_id:
+    role_code = user.role.code.lower() if user.role else ""
+    if not user.area_id and role_code != "tarjeta_cq":
         raise HTTPException(status_code=400, detail="El usuario no tiene un área asignada.")
     area_code = user.area.code.lower() if user.area else ""
-    return await svc.crear_paquete(user.id, user.area_id, data, area_code=area_code)
+    return await svc.crear_paquete(user.id, user.area_id, data, area_code=area_code, role_code=role_code)
 
 
 @router.get(

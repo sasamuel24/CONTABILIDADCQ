@@ -157,6 +157,7 @@ export interface FacturaListItem {
   aprobado_calidad_nombre: string | null;
   aprobado_calidad_email: string | null;
   aprobacion_calidad_aprobador_id: string | null;
+  fecha_envio_contabilidad: string | null;
 }
 
 export interface FacturasPaginatedResponse {
@@ -210,6 +211,7 @@ export interface FacturaUpdate {
   centro_costo_id?: string;
   centro_operacion_id?: string;
   es_gasto_adm?: boolean;
+  fecha_envio_contabilidad?: string | null;
 }
 
 export interface User {

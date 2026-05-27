@@ -203,7 +203,7 @@ class PaqueteOut(BaseModel):
     fecha_aprobacion: Optional[datetime]
     fecha_pago: Optional[datetime]
     tecnico: UserBrief
-    area: AreaBrief
+    area: Optional[AreaBrief] = None
     revisado_por: Optional[UserBrief]
     aprobador: Optional[AprobadorBrief] = None
     anticipo: Optional[AnticipoBrief] = None

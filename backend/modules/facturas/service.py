@@ -140,6 +140,7 @@ class FacturaService:
                 fecha_aprobacion_calidad=f.fecha_aprobacion_calidad,
                 aprobado_calidad_nombre=f.aprobado_calidad_nombre,
                 aprobado_calidad_email=f.aprobado_calidad_email,
+                fecha_envio_contabilidad=f.fecha_envio_contabilidad,
                 nit_proveedor=f.nit_proveedor,
                 pendiente_confirmacion=f.pendiente_confirmacion,
                 ai_area_confianza=f.ai_area_confianza,
@@ -1062,6 +1063,7 @@ Responde ÚNICAMENTE con JSON válido:
             factura.estado_id = estado_contabilidad.id if estado_contabilidad else 3
             factura.assigned_to_user_id = None
             factura.assigned_at = datetime.utcnow()
+            factura.fecha_envio_contabilidad = datetime.utcnow()
             await self.db.commit()
             await self.db.refresh(factura)
             logger.info(f"Factura {factura_id} (Financiera/Compras) enviada a Contabilidad sin restricciones.")

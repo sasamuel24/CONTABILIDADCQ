@@ -1255,8 +1255,8 @@ export function DetallePaquete({
       handleEnviarConfirmado();
       return;
     }
-    // Flujo general: mostrar modal de selección de aprobador
-    if (paquete?.tipo_flujo === 'general') {
+    // Flujo general y tarjeta_cq: mostrar modal de selección de aprobador gerencia
+    if (paquete?.tipo_flujo === 'general' || paquete?.tipo_flujo === 'tarjeta_cq') {
       setAprobadorSeleccionado(paquete?.aprobador?.id ?? '');
       setShowAprobadorModal(true);
     } else {
@@ -1272,7 +1272,7 @@ export function DetallePaquete({
       toast.success(
         paquete?.anticipo
           ? 'Paquete enviado a Facturación para auditoría. Facturación lo enviará a Tesorería.'
-          : paquete?.tipo_flujo === 'general'
+          : (paquete?.tipo_flujo === 'general' || paquete?.tipo_flujo === 'tarjeta_cq')
           ? 'Paquete enviado. El aprobador recibirá el correo de aprobación.'
           : 'Paquete enviado al responsable de área para revisión.'
       );

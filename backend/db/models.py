@@ -1066,10 +1066,10 @@ class PaqueteGasto(Base, TimestampMixin):
         ForeignKey("users.id", ondelete="RESTRICT"),
         nullable=False, index=True
     )
-    area_id: Mapped[uuid.UUID] = mapped_column(
+    area_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("areas.id", ondelete="RESTRICT"),
-        nullable=False, index=True
+        nullable=True, index=True
     )
     semana: Mapped[str] = mapped_column(String(10), nullable=False)        # Ej: "2026-W09"
     fecha_inicio: Mapped[date] = mapped_column(Date, nullable=False)
@@ -1169,7 +1169,7 @@ class PaqueteGasto(Base, TimestampMixin):
             name="check_estado_paquete_valid"
         ),
         CheckConstraint(
-            "tipo_flujo IN ('mantenimiento','general')",
+            "tipo_flujo IN ('mantenimiento','general','tarjeta_cq')",
             name="check_tipo_flujo_valid"
         ),
     )

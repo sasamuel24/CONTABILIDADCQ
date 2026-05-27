@@ -148,7 +148,7 @@ function ChecklistBadge({ factura }: { factura: FacturaListItem }) {
 }
 
 type SortDir = 'asc' | 'desc' | null;
-type InboxSortCol = 'proveedor' | 'numero_factura' | 'area' | 'fecha_emision' | 'fecha_vencimiento' | 'total' | 'estado';
+type InboxSortCol = 'proveedor' | 'numero_factura' | 'area' | 'fecha_emision' | 'fecha_vencimiento' | 'fecha_envio_contabilidad' | 'total' | 'estado';
 
 function SortIconInbox({ col, sortCol, sortDir }: { col: InboxSortCol; sortCol: InboxSortCol | null; sortDir: SortDir }) {
   if (sortCol !== col) return <ChevronsUpDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />;
@@ -547,6 +547,7 @@ const itemsPerPage = 20;
       case 'area':              av = a.area || '';         bv = b.area || '';         break;
       case 'fecha_emision':     av = a.fecha_emision     ? new Date(a.fecha_emision).getTime()     : 0; bv = b.fecha_emision     ? new Date(b.fecha_emision).getTime()     : 0; break;
       case 'fecha_vencimiento': av = a.fecha_vencimiento ? new Date(a.fecha_vencimiento).getTime() : 0; bv = b.fecha_vencimiento ? new Date(b.fecha_vencimiento).getTime() : 0; break;
+      case 'fecha_envio_contabilidad': av = a.fecha_envio_contabilidad ? new Date(a.fecha_envio_contabilidad).getTime() : 0; bv = b.fecha_envio_contabilidad ? new Date(b.fecha_envio_contabilidad).getTime() : 0; break;
       case 'total':             av = a.total;             bv = b.total;             break;
       case 'estado':            av = a.estado || '';       bv = b.estado || '';       break;
       default: return 0;
@@ -735,8 +736,9 @@ const itemsPerPage = 20;
                     { col: 'numero_factura',    label: 'N° Factura',         align: 'left'  },
                     { col: 'area',              label: 'Area Receptora',     align: 'left'  },
                     { col: 'fecha_emision',     label: 'Fecha Emisión',      align: 'left'  },
-                    { col: 'fecha_vencimiento', label: 'Fecha Vencimiento',  align: 'left'  },
-                    { col: 'total',             label: 'Total a Pagar',      align: 'right' },
+                    { col: 'fecha_vencimiento',        label: 'Fecha Vencimiento',     align: 'left'  },
+                    ...(esContabilidad ? [{ col: 'fecha_envio_contabilidad' as InboxSortCol, label: 'Envío a Contabilidad', align: 'left' as const }] : []),
+                    { col: 'total',                    label: 'Total a Pagar',         align: 'right' },
                     { col: 'estado',            label: 'Estado',             align: 'left'  },
                   ] as { col: InboxSortCol; label: string; align: 'left' | 'right' }[]
                 ).map(({ col, label, align }) => (
@@ -775,7 +777,7 @@ const itemsPerPage = 20;
               ) : currentFacturas.length === 0 ? (
                 // Empty state
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center">
+                  <td colSpan={esContabilidad ? 11 : 10} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center text-gray-500">
                       <FileText className="w-12 h-12 mb-3 text-gray-400" />
                       <p className="text-lg font-medium text-gray-700 mb-1">
@@ -830,6 +832,26 @@ const itemsPerPage = 20;
                         }) : '-'}
                       </div>
                     </td>
+                    {esContabilidad && (
+                      <td className="px-6 py-4">
+                        {factura.fecha_envio_contabilidad ? (
+                          <div className="flex flex-col">
+                            <span className="text-gray-700 text-sm">
+                              {new Date(factura.fecha_envio_contabilidad).toLocaleDateString('es-ES', {
+                                day: '2-digit', month: 'short', year: 'numeric'
+                              })}
+                            </span>
+                            <span className="text-gray-400 text-xs">
+                              {new Date(factura.fecha_envio_contabilidad).toLocaleTimeString('es-ES', {
+                                hour: '2-digit', minute: '2-digit'
+                              })}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                    )}
                     <td className="px-6 py-4 text-right">
                       <div className="text-gray-900">
                         ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}

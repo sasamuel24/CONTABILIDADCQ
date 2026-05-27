@@ -1,34 +1,41 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldX, Home } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { getUserRoleCode } from '../lib/api';
+
+function getRoleHome(role: string): string {
+  const r = role.toLowerCase();
+  if (r === 'admin') return '/global';
+  if (r === 'fact') return '/facturacion';
+  if (r === 'responsable') return '/responsable';
+  if (r === 'contabilidad') return '/contabilidad';
+  if (r === 'tesoreria' || r === 'tes') return '/tesoreria';
+  if (r === 'gerencia') return '/gerencia';
+  if (r === 'tecnico' || r === 'mant') return '/tecnico-mantenimiento';
+  if (r === 'direccion') return '/centro-documental';
+  if (r === 'user') return '/legalizacion';
+  if (r === 'tarjeta_cq') return '/tarjeta-cq';
+  return '';
+}
 
 export function NoAutorizadoPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  const handleGoHome = () => {
-    // Redirigir según el rol del usuario
-    const r = user?.role?.toLowerCase();
-    
-    if (r === 'admin') {
-      navigate('/global');
-    } else if (r === 'fact') {
-      navigate('/facturacion');
-    } else if (r === 'responsable') {
-      navigate('/responsable');
-    } else if (r === 'contabilidad') {
-      navigate('/contabilidad');
-    } else if (r === 'tesoreria') {
-      navigate('/tesoreria');
-    } else if (r === 'gerencia') {
-      navigate('/gerencia');
-    } else if (r === 'tecnico') {
-      navigate('/tecnico-mantenimiento');
-    } else if (r === 'direccion') {
-      navigate('/centro-documental');
-    } else {
-      navigate('/login');
+  // Auto-redirect si el usuario tiene un rol conocido con ruta propia
+  useEffect(() => {
+    if (!user) return;
+    const home = getRoleHome(getUserRoleCode(user));
+    if (home) {
+      navigate(home, { replace: true });
     }
+  }, [user, navigate]);
+
+  const handleGoHome = () => {
+    if (!user) { navigate('/login'); return; }
+    const home = getRoleHome(getUserRoleCode(user));
+    navigate(home || '/login', { replace: true });
   };
 
   const handleLogout = () => {
@@ -42,16 +49,16 @@ export function NoAutorizadoPage() {
         <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
           <ShieldX className="w-8 h-8 text-red-600" />
         </div>
-        
+
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
           Acceso No Autorizado
         </h1>
-        
+
         <p className="text-gray-600 mb-6">
-          No tienes permisos para acceder a esta sección. 
+          No tienes permisos para acceder a esta sección.
           Por favor, contacta con el administrador si crees que esto es un error.
         </p>
-        
+
         <div className="space-y-3">
           <button
             onClick={handleGoHome}
@@ -60,7 +67,7 @@ export function NoAutorizadoPage() {
             <Home className="w-5 h-5" />
             Ir a mi área
           </button>
-          
+
           <button
             onClick={handleLogout}
             className="w-full px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
@@ -68,7 +75,7 @@ export function NoAutorizadoPage() {
             Cerrar sesión
           </button>
         </div>
-        
+
         {user && (
           <div className="mt-6 pt-6 border-t border-gray-200">
             <p className="text-sm text-gray-500">

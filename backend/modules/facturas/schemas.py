@@ -67,6 +67,7 @@ class FacturaUpdate(BaseModel):
     es_gasto_adm: Optional[bool] = None
     unidad_negocio_id: Optional[UUID] = None
     cuenta_auxiliar_id: Optional[UUID] = None
+    fecha_envio_contabilidad: Optional[datetime] = None
 
 
 class AsignarCarpetaRequest(BaseModel):
@@ -168,6 +169,7 @@ class FacturaListItem(BaseModel):
     aprobado_calidad_nombre: Optional[str] = None
     aprobado_calidad_email: Optional[str] = None
     aprobacion_calidad_aprobador_id: Optional[UUID] = None
+    fecha_envio_contabilidad: Optional[datetime] = None
     # Ingesta XML automática
     nit_proveedor: Optional[str] = None
     pendiente_confirmacion: bool = False

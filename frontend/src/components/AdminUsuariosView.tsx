@@ -21,6 +21,7 @@ const ROLES = [
   { code: 'tecnico',       label: 'Técnico de Mantenimiento' },
   { code: 'mant',          label: 'Mantenimiento' },
   { code: 'direccion',     label: 'Dirección' },
+  { code: 'tarjeta_cq',   label: 'Responsable Tarjeta CQ' },
 ];
 
 const ROL_BADGE: Record<string, { bg: string; text: string; border: string }> = {
@@ -34,6 +35,7 @@ const ROL_BADGE: Record<string, { bg: string; text: string; border: string }> = 
   tecnico:      { bg: '#dcfce7', text: '#15803d', border: '#bbf7d0' },
   mant:         { bg: '#dcfce7', text: '#15803d', border: '#bbf7d0' },
   direccion:    { bg: '#f3f4f6', text: '#374151', border: '#e5e7eb' },
+  tarjeta_cq:   { bg: '#fff7ed', text: '#c2410c', border: '#fed7aa' },
 };
 
 const labelRol = (code: string) => ROLES.find(r => r.code === code)?.label ?? code;

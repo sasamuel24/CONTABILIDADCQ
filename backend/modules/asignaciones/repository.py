@@ -147,6 +147,7 @@ class AsignacionRepository:
         # Actualizar estado según el área
         if str(area_id) == CONTABILIDAD_AREA_ID:
             factura.estado_id = 3  # En contabilidad
+            factura.fecha_envio_contabilidad = datetime.utcnow()
         elif str(area_id) == TESORERIA_AREA_ID:
             factura.estado_id = 7  # Pendiente en Tesoreria
         else:

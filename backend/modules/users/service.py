@@ -83,9 +83,11 @@ class UserService:
             role=user.role.code,
             area_id=user.area_id,
             area=user.area.nombre if user.area else None,
+            unidad_negocio_id=user.unidad_negocio_id,
+            unidad_negocio_codigo=user.unidad_negocio.codigo if user.unidad_negocio else None,
             is_active=user.is_active,
             created_at=user.created_at,
-            updated_at=user.updated_at
+            updated_at=user.updated_at,
         )
     
     async def create_user(self, user_data: UserCreate) -> UserDetail:

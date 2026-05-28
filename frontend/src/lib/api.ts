@@ -237,6 +237,8 @@ export interface UserDetail {
   role: string;
   area_id: string | null;
   area: string | null;
+  unidad_negocio_id: string | null;
+  unidad_negocio_codigo: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string | null;
@@ -254,6 +256,7 @@ export interface UserCreatePayload {
   email: string;
   role: string;
   area_id?: string;
+  unidad_negocio_id?: string;
   password: string;
 }
 
@@ -262,6 +265,7 @@ export interface UserUpdatePayload {
   email?: string;
   role?: string;
   area_id?: string | null;
+  unidad_negocio_id?: string | null;
   is_active?: boolean;
 }
 

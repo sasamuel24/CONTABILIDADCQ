@@ -6,7 +6,7 @@ from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Tuple
 from uuid import UUID
-from db.models import User, Area
+from db.models import User, Area, UnidadNegocio
 from core.logging import logger
 
 
@@ -25,7 +25,7 @@ class UserRepository:
         is_active: Optional[bool] = None
     ) -> Tuple[List[User], int]:
         """Obtiene todos los usuarios con paginación y filtros."""
-        query = select(User).options(selectinload(User.area))
+        query = select(User).options(selectinload(User.area), selectinload(User.unidad_negocio))
         
         # Aplicar filtros
         if area_id:
@@ -58,7 +58,7 @@ class UserRepository:
         """Obtiene un usuario por ID."""
         result = await self.db.execute(
             select(User)
-            .options(selectinload(User.area))
+            .options(selectinload(User.area), selectinload(User.unidad_negocio))
             .where(User.id == user_id)
         )
         return result.scalar_one_or_none()
@@ -78,7 +78,7 @@ class UserRepository:
         await self.db.refresh(user)
         
         # Cargar relación de área
-        await self.db.refresh(user, ["area"])
+        await self.db.refresh(user, ["area", "unidad_negocio"])
         return user
     
     async def update(self, user_id: UUID, user_data: dict) -> Optional[User]:
@@ -93,7 +93,7 @@ class UserRepository:
         
         await self.db.commit()
         await self.db.refresh(user)
-        await self.db.refresh(user, ["area"])
+        await self.db.refresh(user, ["area", "unidad_negocio"])
         return user
     
     async def delete(self, user_id: UUID) -> bool:

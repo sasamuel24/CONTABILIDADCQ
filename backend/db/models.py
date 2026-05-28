@@ -127,7 +127,14 @@ class User(Base, TimestampMixin):
     )
     
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    
+
+    unidad_negocio_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("unidades_negocio.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
     # Relaciones
     area: Mapped[Optional["Area"]] = relationship(
         "Area",
@@ -136,6 +143,11 @@ class User(Base, TimestampMixin):
     )
     role: Mapped["Rol"] = relationship(
         "Rol",
+        lazy="selectin"
+    )
+    unidad_negocio: Mapped[Optional["UnidadNegocio"]] = relationship(
+        "UnidadNegocio",
+        foreign_keys=[unidad_negocio_id],
         lazy="selectin"
     )
     facturas_asignadas: Mapped[List["Factura"]] = relationship(

@@ -13,6 +13,7 @@ class UserBase(BaseModel):
     email: EmailStr
     role: str = Field(..., description="Rol del usuario: admin, responsable, contabilidad, tesoreria")
     area_id: Optional[UUID] = Field(None, description="ID del área asignada")
+    unidad_negocio_id: Optional[UUID] = Field(None, description="ID de la unidad de negocio (requerido para tarjeta_cq)")
 
 
 class UserCreate(UserBase):
@@ -26,6 +27,7 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     role: Optional[str] = None
     area_id: Optional[UUID] = None
+    unidad_negocio_id: Optional[UUID] = None
     is_active: Optional[bool] = None
 
 
@@ -56,10 +58,12 @@ class UserDetail(BaseModel):
     role: str
     area_id: Optional[UUID] = None
     area: Optional[str] = None
+    unidad_negocio_id: Optional[UUID] = None
+    unidad_negocio_codigo: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+
     model_config = {"from_attributes": True}
 
 

@@ -153,7 +153,23 @@ async def exportar_plano_xlsx(
         from db.models import (
             Factura, FacturaDistribucionCCCO,
             CentroCosto, CentroOperacion, UnidadNegocio, CuentaAuxiliar,
+            User as UserModel,
         )
+
+        # Determinar UN de fallback desde el usuario que exporta
+        user_obj = await db.execute(
+            select(UserModel)
+            .options(selectinload(UserModel.unidad_negocio), selectinload(UserModel.role))
+            .where(UserModel.id == current_user["user_id"])
+        )
+        exporter = user_obj.scalar_one_or_none()
+        exporter_role = exporter.role.code if exporter and exporter.role else ""
+        if exporter_role == "tecnico":
+            fallback_un = "050"
+        elif exporter_role == "tarjeta_cq" and exporter and exporter.unidad_negocio:
+            fallback_un = exporter.unidad_negocio.codigo
+        else:
+            fallback_un = ""
 
         q = (
             select(Factura)
@@ -208,14 +224,14 @@ async def exportar_plano_xlsx(
                 except ValueError:
                     nit_num = None
 
-            notas = f"FG {factura.numero_factura} {factura.proveedor}".upper()[:80]
+            notas = f"{factura.numero_factura} {factura.proveedor}".upper()[:80]
 
             if factura.distribucion_ccco:
                 # Factura con distribución múltiple CC/CO
                 for dist in factura.distribucion_ccco:
                     auxiliar_codigo = dist.cuenta_auxiliar.codigo.strip() if dist.cuenta_auxiliar else ""
                     co_codigo       = dist.centro_operacion.codigo.strip() if dist.centro_operacion else ""
-                    un_codigo       = dist.unidad_negocio.codigo.strip()   if dist.unidad_negocio   else ""
+                    un_codigo       = dist.unidad_negocio.codigo.strip()   if dist.unidad_negocio   else fallback_un
                     cc_codigo       = dist.centro_costo.codigo.strip()     if dist.centro_costo     else ""
                     valor_linea     = round(float(factura.total) * float(dist.porcentaje) / 100)
                     ws.append([
@@ -228,7 +244,7 @@ async def exportar_plano_xlsx(
                 # Factura con CC/CO asignado directamente
                 auxiliar_codigo = factura.cuenta_auxiliar.codigo.strip() if factura.cuenta_auxiliar else ""
                 co_codigo       = factura.centro_operacion.codigo.strip() if factura.centro_operacion else ""
-                un_codigo       = factura.unidad_negocio.codigo.strip()   if factura.unidad_negocio   else ""
+                un_codigo       = factura.unidad_negocio.codigo.strip()   if factura.unidad_negocio   else fallback_un
                 cc_codigo       = factura.centro_costo.codigo.strip()     if factura.centro_costo     else ""
                 ws.append([
                     ID_CO, consec,

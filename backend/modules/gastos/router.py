@@ -779,7 +779,7 @@ async def exportar_plano_paquete(
 ):
     import io
     import openpyxl
-    from db.models import PaqueteGasto, GastoLegalizacion
+    from db.models import PaqueteGasto, GastoLegalizacion, User as UserModel
 
     result = await db.execute(
         select(PaqueteGasto)
@@ -787,12 +787,24 @@ async def exportar_plano_paquete(
             selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.centro_costo),
             selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.centro_operacion),
             selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.cuenta_auxiliar),
+            selectinload(PaqueteGasto.tecnico).selectinload(UserModel.unidad_negocio),
+            selectinload(PaqueteGasto.tecnico).selectinload(UserModel.role),
         )
         .where(PaqueteGasto.id == paquete_id)
     )
     paquete = result.scalar_one_or_none()
     if not paquete:
         raise HTTPException(status_code=404, detail="Paquete no encontrado.")
+
+    # Determinar F351_ID_UN según el rol del técnico
+    tecnico = paquete.tecnico
+    role_code = (tecnico.role.code if tecnico and tecnico.role else "").lower()
+    if role_code in ("tecnico", "mant"):
+        paquete_un = "050"
+    elif role_code == "tarjeta_cq" and tecnico and tecnico.unidad_negocio:
+        paquete_un = tecnico.unidad_negocio.codigo
+    else:
+        paquete_un = ""
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -819,10 +831,16 @@ async def exportar_plano_paquete(
 
     for gasto in gastos_activos:
         auxiliar_codigo = gasto.cuenta_auxiliar.codigo.strip() if gasto.cuenta_auxiliar else ""
-        nit             = (gasto.no_identificacion or "").strip()
+        nit_raw = (gasto.no_identificacion or "").strip().replace(".", "").replace("-", "")
+        nit = None
+        if nit_raw:
+            try:
+                nit = int(nit_raw.split("/")[0][:9])
+            except ValueError:
+                nit = None
         co_codigo       = gasto.centro_operacion.codigo.strip() if gasto.centro_operacion else ""
         cc_codigo       = gasto.centro_costo.codigo.strip()     if gasto.centro_costo     else ""
-        notas           = f"{gasto.pagado_a} {gasto.concepto}".upper()[:80]
+        notas           = f"{gasto.no_recibo or ''} {gasto.pagado_a} {gasto.concepto}".upper().strip()[:80]
 
         ws.append([
             ID_CO,
@@ -830,7 +848,7 @@ async def exportar_plano_paquete(
             auxiliar_codigo,                # F351_ID_AUXILIAR
             nit,                            # F351_ID_TERCERO = NIT
             co_codigo,                      # F351_ID_CO_MOV
-            "",                             # F351_ID_UN (vacío)
+            paquete_un,                     # F351_ID_UN
             cc_codigo,                      # F351_ID_CCOSTO
             None,                           # F351_ID_FE (vacío)
             round(float(gasto.valor_pagado)), # F351_VALOR_DB

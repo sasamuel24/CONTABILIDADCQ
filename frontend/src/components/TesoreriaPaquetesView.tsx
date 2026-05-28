@@ -205,7 +205,7 @@ export function DetalleAuditoriaTes({
       const { download_url } = await getCmPdfGastoDownloadUrl(paquete.id, gastoId);
       window.open(download_url, '_blank');
     } catch {
-      toast.error('No se pudo descargar el CM PDF');
+      toast.error('No se pudo descargar el CF PDF');
     }
   };
 
@@ -215,7 +215,7 @@ export function DetalleAuditoriaTes({
       const { download_url } = await getCmPdfGastoDownloadUrl(paquete.id, gastoId);
       setPreviewUrl({ url: download_url, filename, contentType: 'application/pdf' });
     } catch {
-      toast.error('No se pudo cargar la vista previa del CM PDF');
+      toast.error('No se pudo cargar la vista previa del CF PDF');
     }
   };
 
@@ -698,7 +698,7 @@ export function DetalleAuditoriaTes({
               <table className="w-full text-xs" style={{ minWidth: 1100 }}>
                 <thead>
                   <tr style={{ backgroundColor: '#00829a' }}>
-                    {['Fecha', 'Pagado a', 'Concepto', 'No. Recibo', 'Centro Costo', 'Centro Operación', 'Cuenta Contable', 'Valor', 'Soportes', 'CM PDF', 'Estado'].map((h) => (
+                    {['Fecha', 'Pagado a', 'Concepto', 'No. Recibo', 'Centro Costo', 'Centro Operación', 'Cuenta Contable', 'Valor', 'Soportes', 'CF PDF', 'Estado'].map((h) => (
                       <th
                         key={h}
                         className="px-2 py-2.5 text-left font-semibold text-white whitespace-nowrap"
@@ -776,7 +776,7 @@ export function DetalleAuditoriaTes({
                         )}
                       </td>
 
-                      {/* CM PDF */}
+                      {/* CF PDF */}
                       <td className="px-2 py-2" style={{ minWidth: 130 }}>
                         {g.cm_pdf_filename ? (
                           <div className="flex items-center gap-1">

@@ -1,12 +1,169 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, AlertCircle } from 'lucide-react';
-import type { 
-  CentroCosto, 
-  CentroOperacion, 
-  UnidadNegocio, 
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Plus, Trash2, AlertCircle, ChevronDown, Search } from 'lucide-react';
+import type {
+  CentroCosto,
+  CentroOperacion,
+  UnidadNegocio,
   CuentaAuxiliar,
-  DistribucionCCCO 
+  DistribucionCCCO
 } from '../lib/api';
+
+interface SearchableSelectOption {
+  id: string;
+  label: string;
+}
+
+function SearchableSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  hasError,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: SearchableSelectOption[];
+  placeholder: string;
+  hasError?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const selected = options.find(o => o.id === value);
+  const filtered = query
+    ? options.filter(o => o.label.toLowerCase().includes(query.toLowerCase()))
+    : options;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        buttonRef.current && !buttonRef.current.contains(e.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+        setQuery('');
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const handleOpen = () => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const dropdownHeight = 260;
+      const top = spaceBelow >= dropdownHeight
+        ? rect.bottom + 4
+        : rect.top - dropdownHeight - 4;
+      setDropdownStyle({
+        position: 'fixed',
+        top,
+        left: rect.left,
+        width: Math.max(rect.width, 240),
+        zIndex: 9999,
+      });
+    }
+    setOpen(true);
+    setQuery('');
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const handleSelect = (id: string) => {
+    onChange(id);
+    setOpen(false);
+    setQuery('');
+  };
+
+  return (
+    <div className="relative w-full">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleOpen}
+        className={`w-full flex items-center justify-between px-2 py-1 text-sm border rounded focus:outline-none bg-white text-left ${
+          hasError ? 'border-red-500' : 'border-gray-300'
+        }`}
+        style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif", boxShadow: open ? '0 0 0 2px rgba(20, 170, 184, 0.5)' : '' }}
+      >
+        <span className={selected ? 'text-gray-900 truncate' : 'text-gray-400'}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <ChevronDown className={`w-3 h-3 text-gray-400 flex-shrink-0 ml-1 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={dropdownRef}
+          style={{
+            ...dropdownStyle,
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: '260px',
+            background: 'white',
+            border: '1px solid #e5e7eb',
+            borderRadius: '8px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+          }}
+        >
+          <div style={{ padding: '8px', borderBottom: '1px solid #f3f4f6', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', border: '1px solid #e5e7eb', borderRadius: '4px', background: '#f9fafb' }}>
+              <Search className="w-3.5 h-3.5 text-gray-400" style={{ flexShrink: 0 }} />
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder="Buscar..."
+                style={{ flex: 1, fontSize: '13px', background: 'transparent', outline: 'none', color: '#374151', fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+              />
+            </div>
+          </div>
+          <ul style={{ overflowY: 'auto', overscrollBehavior: 'contain', flex: 1, padding: '4px 0', margin: 0, listStyle: 'none' }}>
+            <li
+              onClick={() => handleSelect('')}
+              style={{ padding: '6px 12px', fontSize: '13px', color: '#9ca3af', cursor: 'pointer', fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f9fafb')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              {placeholder}
+            </li>
+            {filtered.length === 0 ? (
+              <li style={{ padding: '8px 12px', fontSize: '13px', color: '#9ca3af', textAlign: 'center' }}>Sin resultados</li>
+            ) : (
+              filtered.map(o => (
+                <li
+                  key={o.id}
+                  onClick={() => handleSelect(o.id)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                    background: o.id === value ? '#f0fdfa' : 'transparent',
+                    color: o.id === value ? '#0f766e' : '#374151',
+                    fontWeight: o.id === value ? 500 : 400,
+                  }}
+                  onMouseEnter={e => { if (o.id !== value) e.currentTarget.style.background = '#f0fdfa'; }}
+                  onMouseLeave={e => { if (o.id !== value) e.currentTarget.style.background = 'transparent'; }}
+                >
+                  {o.label}
+                </li>
+              ))
+            )}
+          </ul>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
 
 interface DistribucionRow {
   tempId: string;
@@ -211,74 +368,44 @@ export function DistribucionCCCOTable({
                 <tr key={row.tempId} className="border-b border-gray-100 hover:bg-gray-50">
                   {/* Centro de Operación */}
                   <td className="px-3 py-2">
-                    <select
+                    <SearchableSelect
                       value={row.centro_operacion_id}
-                      onChange={(e) => actualizarFila(row.tempId, 'centro_operacion_id', e.target.value)}
-                      className={`w-full px-2 py-1 text-sm border rounded focus:outline-none ${
-                        errores[`${row.tempId}_co`] ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
-                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
-                      onBlur={(e) => e.target.style.boxShadow = ''}
-                    >
-                      <option value="">Seleccionar</option>
-                      {centrosOperacion.map(co => (
-                        <option key={co.id} value={co.id}>{co.codigo} - {co.nombre}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => actualizarFila(row.tempId, 'centro_operacion_id', val)}
+                      options={centrosOperacion.map(co => ({ id: co.id, label: `${co.codigo} - ${co.nombre}` }))}
+                      placeholder="Seleccionar"
+                      hasError={!!errores[`${row.tempId}_co`]}
+                    />
                   </td>
 
                   {/* Centro de Costo */}
                   <td className="px-3 py-2">
-                    <select
+                    <SearchableSelect
                       value={row.centro_costo_id}
-                      onChange={(e) => actualizarFila(row.tempId, 'centro_costo_id', e.target.value)}
-                      className={`w-full px-2 py-1 text-sm border rounded focus:outline-none ${
-                        errores[`${row.tempId}_cc`] ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
-                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
-                      onBlur={(e) => e.target.style.boxShadow = ''}
-                    >
-                      <option value="">Seleccionar</option>
-                      {centrosCosto.map(cc => (
-                        <option key={cc.id} value={cc.id}>{cc.codigo} - {cc.nombre}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => actualizarFila(row.tempId, 'centro_costo_id', val)}
+                      options={centrosCosto.map(cc => ({ id: cc.id, label: `${cc.codigo} - ${cc.nombre}` }))}
+                      placeholder="Seleccionar"
+                      hasError={!!errores[`${row.tempId}_cc`]}
+                    />
                   </td>
 
                   {/* Unidad de Negocio */}
                   <td className="px-3 py-2">
-                    <select
+                    <SearchableSelect
                       value={row.unidad_negocio_id}
-                      onChange={(e) => actualizarFila(row.tempId, 'unidad_negocio_id', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none"
-                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
-                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
-                      onBlur={(e) => e.target.style.boxShadow = ''}
-                    >
-                      <option value="">Opcional</option>
-                      {unidadesNegocio.map(un => (
-                        <option key={un.id} value={un.id}>{un.codigo}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => actualizarFila(row.tempId, 'unidad_negocio_id', val)}
+                      options={unidadesNegocio.map(un => ({ id: un.id, label: un.codigo }))}
+                      placeholder="Opcional"
+                    />
                   </td>
 
                   {/* Cuenta Auxiliar */}
                   <td className="px-3 py-2">
-                    <select
+                    <SearchableSelect
                       value={row.cuenta_auxiliar_id}
-                      onChange={(e) => actualizarFila(row.tempId, 'cuenta_auxiliar_id', e.target.value)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none"
-                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
-                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
-                      onBlur={(e) => e.target.style.boxShadow = ''}
-                    >
-                      <option value="">Opcional</option>
-                      {cuentasAuxiliares.map(ca => (
-                        <option key={ca.id} value={ca.id}>{ca.codigo}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => actualizarFila(row.tempId, 'cuenta_auxiliar_id', val)}
+                      options={cuentasAuxiliares.map(ca => ({ id: ca.id, label: ca.codigo }))}
+                      placeholder="Opcional"
+                    />
                   </td>
 
                   {/* Porcentaje */}

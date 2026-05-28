@@ -6,8 +6,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  getUsers, createUser, updateUser, adminResetPassword, getAreas,
-  UserListItem, UserCreatePayload, UserUpdatePayload, Area,
+  getUsers, createUser, updateUser, adminResetPassword, getAreas, getUnidadesNegocio,
+  UserListItem, UserCreatePayload, UserUpdatePayload, Area, UnidadNegocio,
 } from '../lib/api';
 
 const ROLES = [
@@ -77,7 +77,7 @@ const inputCls = 'w-full rounded-xl px-4 py-3 text-sm border border-gray-200 foc
 const selectCls = inputCls;
 
 // ─── Modal Crear ──────────────────────────────────────────────────────────────
-function ModalCrear({ areas, onClose, onCreado }: { areas: Area[]; onClose: () => void; onCreado: () => void }) {
+function ModalCrear({ areas, unidades, onClose, onCreado }: { areas: Area[]; unidades: UnidadNegocio[]; onClose: () => void; onCreado: () => void }) {
   const [form, setForm] = useState<UserCreatePayload>({ nombre: '', email: '', role: '', password: '' });
   const [showPwd, setShowPwd] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -86,6 +86,9 @@ function ModalCrear({ areas, onClose, onCreado }: { areas: Area[]; onClose: () =
   const handleSubmit = async () => {
     if (!form.nombre || !form.email || !form.role || !form.password) {
       toast.error('Completa todos los campos obligatorios'); return;
+    }
+    if (form.role === 'tarjeta_cq' && !form.unidad_negocio_id) {
+      toast.error('Debes seleccionar la Unidad de Negocio para este rol'); return;
     }
     setSaving(true);
     try {
@@ -117,6 +120,14 @@ function ModalCrear({ areas, onClose, onCreado }: { areas: Area[]; onClose: () =
           {areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
         </select>
       </Field>
+      {form.role === 'tarjeta_cq' && (
+        <Field label="Unidad de Negocio *" hint="Será usada como F351_ID_UN en el archivo plano.">
+          <select className={selectCls} value={form.unidad_negocio_id ?? ''} onChange={e => set('unidad_negocio_id', e.target.value)}>
+            <option value="">-- Seleccionar UN --</option>
+            {unidades.map(u => <option key={u.id} value={u.id}>{u.codigo} – {u.descripcion}</option>)}
+          </select>
+        </Field>
+      )}
       <Field label="Contraseña inicial" hint="El usuario deberá cambiarla al ingresar por primera vez.">
         <div className="relative">
           <input className={inputCls + ' pr-12'} type={showPwd ? 'text' : 'password'}
@@ -137,8 +148,8 @@ function ModalCrear({ areas, onClose, onCreado }: { areas: Area[]; onClose: () =
 }
 
 // ─── Modal Editar ─────────────────────────────────────────────────────────────
-function ModalEditar({ user, areas, onClose, onGuardado }: { user: UserListItem; areas: Area[]; onClose: () => void; onGuardado: () => void }) {
-  const [form, setForm] = useState<UserUpdatePayload>({ nombre: user.nombre, email: user.email, role: user.role, area_id: null });
+function ModalEditar({ user, areas, unidades, onClose, onGuardado }: { user: UserListItem; areas: Area[]; unidades: UnidadNegocio[]; onClose: () => void; onGuardado: () => void }) {
+  const [form, setForm] = useState<UserUpdatePayload>({ nombre: user.nombre, email: user.email, role: user.role, area_id: null, unidad_negocio_id: (user as any).unidad_negocio_id ?? null });
   const [saving, setSaving] = useState(false);
   const set = (k: keyof UserUpdatePayload, v: string | null) => setForm(f => ({ ...f, [k]: v }));
 
@@ -173,6 +184,14 @@ function ModalEditar({ user, areas, onClose, onGuardado }: { user: UserListItem;
           {areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
         </select>
       </Field>
+      {form.role === 'tarjeta_cq' && (
+        <Field label="Unidad de Negocio" hint="Será usada como F351_ID_UN en el archivo plano.">
+          <select className={selectCls} value={form.unidad_negocio_id ?? ''} onChange={e => set('unidad_negocio_id', e.target.value || null)}>
+            <option value="">-- Seleccionar UN --</option>
+            {unidades.map(u => <option key={u.id} value={u.id}>{u.codigo} – {u.descripcion}</option>)}
+          </select>
+        </Field>
+      )}
       <button onClick={handleSubmit} disabled={saving}
         className="w-full py-3 rounded-xl text-sm font-bold text-white disabled:opacity-60 transition-opacity"
         style={{ backgroundColor: '#00829a' }}>
@@ -232,6 +251,7 @@ function ModalReset({ user, onClose, onReseteado }: { user: UserListItem; onClos
 export function AdminUsuariosView() {
   const [usuarios, setUsuarios] = useState<UserListItem[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
+  const [unidades, setUnidades] = useState<UnidadNegocio[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
   const [filtroRol, setFiltroRol] = useState('');
@@ -247,9 +267,10 @@ export function AdminUsuariosView() {
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const [resp, areasData] = await Promise.all([getUsers(), getAreas()]);
+      const [resp, areasData, unidadesData] = await Promise.all([getUsers(), getAreas(), getUnidadesNegocio(false)]);
       setUsuarios(resp.items);
       setAreas(areasData);
+      setUnidades(unidadesData);
     } catch { toast.error('Error al cargar usuarios'); }
     finally { setLoading(false); }
   }, []);
@@ -484,8 +505,8 @@ export function AdminUsuariosView() {
       </div>
 
       {/* ── Modales ── */}
-      {modalCrear && <ModalCrear areas={areas} onClose={() => setModalCrear(false)} onCreado={cargar} />}
-      {modalEditar && <ModalEditar user={modalEditar} areas={areas} onClose={() => setModalEditar(null)} onGuardado={cargar} />}
+      {modalCrear && <ModalCrear areas={areas} unidades={unidades} onClose={() => setModalCrear(false)} onCreado={cargar} />}
+      {modalEditar && <ModalEditar user={modalEditar} areas={areas} unidades={unidades} onClose={() => setModalEditar(null)} onGuardado={cargar} />}
       {modalReset && <ModalReset user={modalReset} onClose={() => setModalReset(null)} onReseteado={cargar} />}
     </div>
   );

@@ -237,13 +237,13 @@ function DetallePaqueteResponsable({
   const [uploadingDocContable, setUploadingDocContable] = useState(false);
   const [eliminandoDocContable, setEliminandoDocContable] = useState(false);
 
-  // CM PDF por gasto: gastoId → estado de subida
+  // CF PDF por gasto: gastoId → estado de subida
   const [uploadingCmPdf, setUploadingCmPdf] = useState<Record<string, boolean>>({});
   const [eliminandoCmPdf, setEliminandoCmPdf] = useState<Record<string, boolean>>({});
 
   // Preview de soportes (archivos por gasto)
   const [previewArchivo, setPreviewArchivo] = useState<{ url: string; filename: string; contentType: string; gastoId: string; archivoId: string } | null>(null);
-  // Preview genérico para doc contable y CM PDF (siempre PDF)
+  // Preview genérico para doc contable y CF PDF (siempre PDF)
   const [previewDoc, setPreviewDoc] = useState<{ url: string; filename: string } | null>(null);
   // Selección múltiple: "gastoId:archivoId"
   const [selectedArchivos, setSelectedArchivos] = useState<Set<string>>(new Set());
@@ -488,7 +488,7 @@ function DetallePaqueteResponsable({
       const { download_url } = await getCmPdfGastoDownloadUrl(paquete.id, gastoId);
       setPreviewDoc({ url: download_url, filename });
     } catch {
-      toast.error('No se pudo cargar la vista previa del CM PDF');
+      toast.error('No se pudo cargar la vista previa del CF PDF');
     }
   };
 
@@ -536,9 +536,9 @@ function DetallePaqueteResponsable({
     try {
       const updated = await subirCmPdfGasto(paquete.id, gastoId, file);
       setPaquete(updated);
-      toast.success('CM PDF subido correctamente');
+      toast.success('CF PDF subido correctamente');
     } catch {
-      toast.error('Error al subir el CM PDF');
+      toast.error('Error al subir el CF PDF');
     } finally {
       setUploadingCmPdf((prev) => ({ ...prev, [gastoId]: false }));
     }
@@ -550,7 +550,7 @@ function DetallePaqueteResponsable({
       const { download_url } = await getCmPdfGastoDownloadUrl(paquete.id, gastoId);
       window.open(download_url, '_blank');
     } catch {
-      toast.error('No se pudo obtener el enlace de descarga del CM PDF');
+      toast.error('No se pudo obtener el enlace de descarga del CF PDF');
     }
   };
 
@@ -560,9 +560,9 @@ function DetallePaqueteResponsable({
     try {
       const updated = await eliminarCmPdfGasto(paquete.id, gastoId);
       setPaquete(updated);
-      toast.success('CM PDF eliminado');
+      toast.success('CF PDF eliminado');
     } catch {
-      toast.error('Error al eliminar el CM PDF');
+      toast.error('Error al eliminar el CF PDF');
     } finally {
       setEliminandoCmPdf((prev) => ({ ...prev, [gastoId]: false }));
     }
@@ -593,7 +593,7 @@ function DetallePaqueteResponsable({
   const verDocContable = ['aprobado', 'en_tesoreria', 'pagado'].includes(paquete.estado);
   // Facturación puede gestionar doc contable en cualquier estado visible
   const puedeGestionarDocContable = verDocContable && esFact;
-  // CM PDF: facturación puede subir cuando aprobado; todos ven si existe
+  // CF PDF: facturación puede subir cuando aprobado; todos ven si existe
   const puedeGestionarCmPdf = paquete.estado === 'aprobado' && esFact;
 
   const gastosDevueltos = paquete.gastos.filter((g) => g.estado_gasto === 'devuelto');
@@ -1043,7 +1043,7 @@ function DetallePaqueteResponsable({
                     {[
                       'Fecha', 'Pagado a', 'NIT', 'Concepto', 'No. Recibo',
                       'Centro Costo', 'Centro Operación', 'Cuenta Contable',
-                      'Valor', 'Soporte', 'CM PDF',
+                      'Valor', 'Soporte', 'CF PDF',
                       ...(puedeDevolverComoFact ? ['Acción'] : []),
                     ].map((h) => (
                       <th
@@ -1192,7 +1192,7 @@ function DetallePaqueteResponsable({
                             <span className="text-xs text-gray-300">—</span>
                           )}
                         </td>
-                        {/* CM PDF */}
+                        {/* CF PDF */}
                         <td className="px-2 py-2" style={{ minWidth: 130 }}>
                           {g.cm_pdf_filename ? (
                             <div className="flex items-center gap-1 flex-wrap">
@@ -1219,7 +1219,7 @@ function DetallePaqueteResponsable({
                                   disabled={!!eliminandoCmPdf[g.id]}
                                   className="shrink-0 p-1 rounded transition-colors hover:bg-red-50 disabled:opacity-50"
                                   style={{ color: '#ef4444' }}
-                                  title="Eliminar CM PDF"
+                                  title="Eliminar CF PDF"
                                 >
                                   {eliminandoCmPdf[g.id] ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                                 </button>
@@ -1233,7 +1233,7 @@ function DetallePaqueteResponsable({
                               {uploadingCmPdf[g.id]
                                 ? <Loader2 className="w-3 h-3 animate-spin" />
                                 : <Paperclip className="w-3 h-3" />}
-                              {uploadingCmPdf[g.id] ? 'Subiendo...' : 'CM PDF'}
+                              {uploadingCmPdf[g.id] ? 'Subiendo...' : 'CF PDF'}
                               <input
                                 type="file"
                                 accept="application/pdf"
@@ -1306,7 +1306,7 @@ function DetallePaqueteResponsable({
           )}
         </div>
 
-        {/* Modal previsualización doc contable / CM PDF */}
+        {/* Modal previsualización doc contable / CF PDF */}
         {previewDoc && (
           <div
             className="fixed inset-0 flex items-center justify-center z-50"

@@ -1,0 +1,9 @@
+[     438ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/chunk-NXESFFTV.js?v=643ddd6e:21608
+[     668ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/favicon.ico:0
+[     715ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/favicon.ico:0
+[     775ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3000/login:0
+[    5636ms] [WARNING] Loading timeout - forzando carga de página @ http://localhost:3000/src/contexts/AuthContext.tsx:50
+[  194865ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/chunk-NXESFFTV.js?v=643ddd6e:21608
+[  200040ms] [WARNING] Loading timeout - forzando carga de página @ http://localhost:3000/src/contexts/AuthContext.tsx:50
+[  433537ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/chunk-NXESFFTV.js?v=643ddd6e:21608
+[  438575ms] [WARNING] Loading timeout - forzando carga de página @ http://localhost:3000/src/contexts/AuthContext.tsx:50

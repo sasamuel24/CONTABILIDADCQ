@@ -33,6 +33,7 @@ from modules.comentarios.router import router as comentarios_router
 from modules.gastos.router import router as gastos_router
 from modules.aprobadores_gerencia.router import router as aprobadores_gerencia_router
 from modules.anticipos.router import router as anticipos_router
+from modules.chat.router import router as chat_router
 
 # Configuración central.
 # Aquí deshabilitas los docs por defecto para crear tus endpoints personalizados.
@@ -84,6 +85,7 @@ app.include_router(comentarios_router, prefix="/api/v1")
 app.include_router(gastos_router, prefix="/api/v1")
 app.include_router(aprobadores_gerencia_router, prefix="/api/v1")
 app.include_router(anticipos_router, prefix="/api/v1")
+app.include_router(chat_router, prefix="/api/v1")
 
 
 # Endpoints personalizados para documentación con CORS habilitado

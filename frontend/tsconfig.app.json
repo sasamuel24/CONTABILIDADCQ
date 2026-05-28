@@ -17,6 +17,7 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
+    "types": ["@openai/chatkit"],
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {

@@ -1,0 +1,25 @@
+[    1853ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/chunk-NXESFFTV.js?v=643ddd6e:21608
+[    2268ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3000/login:0
+[    6961ms] [WARNING] Loading timeout - forzando carga de página @ http://localhost:3000/src/contexts/AuthContext.tsx:50
+[   34448ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/chunk-NXESFFTV.js?v=643ddd6e:21608
+[   39491ms] [WARNING] Loading timeout - forzando carga de página @ http://localhost:3000/src/contexts/AuthContext.tsx:50
+[ 1305023ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:3000/@vite/client:963
+[ 1307880ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/chunk-NXESFFTV.js?v=643ddd6e:21608
+[ 1313256ms] [WARNING] Loading timeout - forzando carga de página @ http://localhost:3000/src/contexts/AuthContext.tsx:50
+[ 1335417ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:3000/@vite/client:963
+[ 1335494ms] [ERROR] WebSocket connection to 'ws://localhost:3000/' failed: Error in connection establishment: net::ERR_NETWORK_IO_SUSPENDED @ http://localhost:3000/@vite/client:1034
+[ 1339000ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/chunk-NXESFFTV.js?v=643ddd6e:21608
+[ 1344193ms] [WARNING] Loading timeout - forzando carga de página @ http://localhost:3000/src/contexts/AuthContext.tsx:50
+[ 1532759ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:3000/@vite/client:963
+[ 1532765ms] [ERROR] WebSocket connection to 'ws://localhost:3000/' failed: Error in connection establishment: net::ERR_NETWORK_IO_SUSPENDED @ http://localhost:3000/@vite/client:1034
+[ 4574367ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/chunk-NXESFFTV.js?v=643ddd6e:21608
+[10638046ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:3000/@vite/client:963
+[10638648ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:8000/api/v1/auth/me:0
+[10638675ms] [ERROR] Error al obtener usuario: TypeError: Failed to fetch
+    at fetchAPI (http://localhost:3000/src/lib/api.ts:100:42)
+    at async fetchUser (http://localhost:3000/src/contexts/AuthContext.tsx:36:30) @ http://localhost:3000/src/contexts/AuthContext.tsx:39
+[10642108ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/node_modules/.vite/deps/chunk-NXESFFTV.js?v=643ddd6e:21608
+[10643725ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3000/login:0
+[10647445ms] [WARNING] Loading timeout - forzando carga de página @ http://localhost:3000/src/contexts/AuthContext.tsx:50
+[16497508ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:3000/@vite/client:963
+[16497630ms] [ERROR] WebSocket connection to 'ws://localhost:3000/' failed: Error in connection establishment: net::ERR_NETWORK_IO_SUSPENDED @ http://localhost:3000/@vite/client:1034

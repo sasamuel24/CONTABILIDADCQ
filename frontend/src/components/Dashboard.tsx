@@ -256,7 +256,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
         <header className="bg-white border-b border-gray-200 px-8 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-gray-900">
-              Welcome, {userName} 👋
+              Bienvenid@, {userName} 👋
             </h1>
             <div className="flex items-center gap-3">
             </div>
@@ -390,15 +390,13 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                   <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                     {/* Areas Sidebar */}
                     <div className="lg:col-span-1">
-                      {/* Contenedor con scroll */}
-                      <div className="border border-gray-200 rounded-lg bg-white h-[600px] flex flex-col">
+                      <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
                         <style>{`
                           .areas-scrollbar::-webkit-scrollbar {
-                            width: 8px;
+                            width: 6px;
                           }
                           .areas-scrollbar::-webkit-scrollbar-track {
                             background: #f3f4f6;
-                            border-radius: 10px;
                           }
                           .areas-scrollbar::-webkit-scrollbar-thumb {
                             background: #14aab8;
@@ -408,7 +406,10 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                             background: #00829a;
                           }
                         `}</style>
-                        <div className="overflow-y-auto areas-scrollbar p-3 flex-1">
+                        <div
+                          className="areas-scrollbar p-3"
+                          style={{ maxHeight: '560px', overflowY: 'scroll' }}
+                        >
                           <button
                             onClick={() => {
                               setSelectedArea('Todas');
@@ -467,9 +468,13 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
 
                     {/* Facturas Table */}
                     <div className="lg:col-span-3">
-                      <div className="overflow-x-auto">
+                      <div
+                        className="border border-gray-200 rounded-lg bg-white flex flex-col"
+                        style={{ height: '560px' }}
+                      >
+                      <div className="overflow-auto flex-1">
                         <table className="w-full">
-                          <thead className="bg-gray-50 border-b border-gray-200">
+                          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                             <tr>
                               <th className="text-left px-4 py-3 text-gray-600">
                                 N° Factura
@@ -537,7 +542,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
 
                       {/* Pagination */}
                       {totalPages > 1 && (
-                        <div className="mt-6 flex items-center justify-between">
+                        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-white flex-shrink-0">
                           <p className="text-gray-600">
                             Mostrando {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredFacturas.length)} de {filteredFacturas.length} facturas
                           </p>
@@ -576,6 +581,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                           </div>
                         </div>
                       )}
+                      </div>
                     </div>
                   </div>
                 </div>

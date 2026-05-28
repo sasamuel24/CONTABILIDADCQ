@@ -18,8 +18,19 @@ import { AprobarPaquetePage } from './pages/AprobarPaquetePage';
 import { AprobarFacturaPage } from './pages/AprobarFacturaPage';
 import { AprobarAnticipoPagina } from './pages/AprobarAnticipoPagina';
 import { AnticiposView } from './components/AnticiposView';
+import { Component, type ReactNode } from 'react';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { Toaster } from './components/ui/sonner';
+import { DocuFlowAgentButton } from './components/DocuFlowAgentButton';
+
+class ChatBotErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  render() { return this.state.hasError ? null : this.props.children; }
+}
 
 function AppRoutes() {
   const { user, loading } = useAuth();
@@ -192,6 +203,9 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <AppRoutes />
+        <ChatBotErrorBoundary>
+          <DocuFlowAgentButton />
+        </ChatBotErrorBoundary>
         <Toaster position="top-right" richColors />
       </AuthProvider>
     </BrowserRouter>

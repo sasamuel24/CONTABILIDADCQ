@@ -1,0 +1,390 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - generic [ref=e7]: DocuFlow
+      - navigation [ref=e8]:
+        - button "Dashboard" [ref=e9]:
+          - img [ref=e10]
+          - generic [ref=e15]: Dashboard
+        - button "Inbox" [ref=e16]:
+          - img [ref=e17]
+          - generic [ref=e20]: Inbox
+        - button "Paquetes de Gastos" [ref=e21]:
+          - img [ref=e22]
+          - generic [ref=e26]: Paquetes de Gastos
+        - button "Usuarios" [ref=e27]:
+          - img [ref=e28]
+          - generic [ref=e33]: Usuarios
+        - button "Buzón XML" [ref=e34]:
+          - img [ref=e35]
+          - generic [ref=e40]: Buzón XML
+        - button "Logout" [ref=e41]:
+          - img [ref=e42]
+          - generic [ref=e45]: Logout
+    - generic [ref=e46]:
+      - banner [ref=e47]:
+        - heading "Welcome, Marlin CQ 👋" [level=1] [ref=e49]
+      - main [ref=e50]:
+        - generic [ref=e52]:
+          - heading "Bandeja de Facturas" [level=2] [ref=e54]
+          - generic [ref=e55]:
+            - generic [ref=e56]:
+              - paragraph [ref=e57]: Total Facturas
+              - paragraph [ref=e58]: "133"
+            - generic [ref=e59]:
+              - paragraph [ref=e60]: Recibidas
+              - paragraph [ref=e61]: "0"
+            - generic [ref=e62]:
+              - paragraph [ref=e63]: Pagadas
+              - paragraph [ref=e64]: "0"
+          - generic [ref=e66]:
+            - generic [ref=e67]:
+              - img [ref=e68]
+              - textbox "Buscar por proveedor o número de factura..." [ref=e71]
+            - generic [ref=e72]:
+              - img [ref=e73]
+              - combobox [ref=e75]:
+                - option "Todos (133)" [selected]
+                - option "Recibida por facturación (133)"
+          - table [ref=e78]:
+            - rowgroup [ref=e79]:
+              - row "Proveedor N° Factura Area Receptora Fecha Emisión Fecha Vencimiento Total a Pagar Estado PDF Acciones" [ref=e80]:
+                - columnheader "Proveedor" [ref=e81]:
+                  - generic [ref=e82]:
+                    - text: Proveedor
+                    - img [ref=e83]
+                - columnheader "N° Factura" [ref=e85]:
+                  - generic [ref=e86]:
+                    - text: N° Factura
+                    - img [ref=e87]
+                - columnheader "Area Receptora" [ref=e89]:
+                  - generic [ref=e90]:
+                    - text: Area Receptora
+                    - img [ref=e91]
+                - columnheader "Fecha Emisión" [ref=e93]:
+                  - generic [ref=e94]:
+                    - text: Fecha Emisión
+                    - img [ref=e95]
+                - columnheader "Fecha Vencimiento" [ref=e97]:
+                  - generic [ref=e98]:
+                    - text: Fecha Vencimiento
+                    - img [ref=e99]
+                - columnheader "Total a Pagar" [ref=e101]:
+                  - generic [ref=e102]:
+                    - text: Total a Pagar
+                    - img [ref=e103]
+                - columnheader "Estado" [ref=e105]
+                - columnheader "PDF" [ref=e106]
+                - columnheader "Acciones" [ref=e107]
+            - rowgroup [ref=e108]:
+              - row "STEFANIA CERRO PASTOR FE1B2544 Facturación 10 may 2026 10 may 2026 $20.000,00 Recibida por facturación -" [ref=e109] [cursor=pointer]:
+                - cell "STEFANIA CERRO PASTOR" [ref=e110]:
+                  - generic [ref=e111]: STEFANIA CERRO PASTOR
+                - cell "FE1B2544" [ref=e112]:
+                  - generic [ref=e113]: FE1B2544
+                - cell "Facturación" [ref=e114]:
+                  - generic [ref=e115]: Facturación
+                - cell "10 may 2026" [ref=e116]:
+                  - generic [ref=e117]: 10 may 2026
+                - cell "10 may 2026" [ref=e118]:
+                  - generic [ref=e119]: 10 may 2026
+                - cell "$20.000,00" [ref=e120]:
+                  - generic [ref=e121]: $20.000,00
+                - cell "Recibida por facturación" [ref=e122]
+                - cell "-" [ref=e123]
+              - row "STEFANIA CERRO PASTOR FE1B2546 Facturación 10 may 2026 10 may 2026 $12.000,00 Recibida por facturación -" [ref=e124] [cursor=pointer]:
+                - cell "STEFANIA CERRO PASTOR" [ref=e125]:
+                  - generic [ref=e126]: STEFANIA CERRO PASTOR
+                - cell "FE1B2546" [ref=e127]:
+                  - generic [ref=e128]: FE1B2546
+                - cell "Facturación" [ref=e129]:
+                  - generic [ref=e130]: Facturación
+                - cell "10 may 2026" [ref=e131]:
+                  - generic [ref=e132]: 10 may 2026
+                - cell "10 may 2026" [ref=e133]:
+                  - generic [ref=e134]: 10 may 2026
+                - cell "$12.000,00" [ref=e135]:
+                  - generic [ref=e136]: $12.000,00
+                - cell "Recibida por facturación" [ref=e137]
+                - cell "-" [ref=e138]
+              - row "STEFANIA CERRO PASTOR FE1B2547 Facturación 10 may 2026 10 may 2026 $20.000,00 Recibida por facturación -" [ref=e139] [cursor=pointer]:
+                - cell "STEFANIA CERRO PASTOR" [ref=e140]:
+                  - generic [ref=e141]: STEFANIA CERRO PASTOR
+                - cell "FE1B2547" [ref=e142]:
+                  - generic [ref=e143]: FE1B2547
+                - cell "Facturación" [ref=e144]:
+                  - generic [ref=e145]: Facturación
+                - cell "10 may 2026" [ref=e146]:
+                  - generic [ref=e147]: 10 may 2026
+                - cell "10 may 2026" [ref=e148]:
+                  - generic [ref=e149]: 10 may 2026
+                - cell "$20.000,00" [ref=e150]:
+                  - generic [ref=e151]: $20.000,00
+                - cell "Recibida por facturación" [ref=e152]
+                - cell "-" [ref=e153]
+              - row "JAGUAR CAPITAL S.A.S NBCF3377 Facturación 10 may 2026 10 may 2026 $1.349.001,61 Recibida por facturación -" [ref=e154] [cursor=pointer]:
+                - cell "JAGUAR CAPITAL S.A.S" [ref=e155]:
+                  - generic [ref=e156]: JAGUAR CAPITAL S.A.S
+                - cell "NBCF3377" [ref=e157]:
+                  - generic [ref=e158]: NBCF3377
+                - cell "Facturación" [ref=e159]:
+                  - generic [ref=e160]: Facturación
+                - cell "10 may 2026" [ref=e161]:
+                  - generic [ref=e162]: 10 may 2026
+                - cell "10 may 2026" [ref=e163]:
+                  - generic [ref=e164]: 10 may 2026
+                - cell "$1.349.001,61" [ref=e165]:
+                  - generic [ref=e166]: $1.349.001,61
+                - cell "Recibida por facturación" [ref=e167]
+                - cell "-" [ref=e168]
+              - row "CENTRO COMERCIAL UNICENTRO PQE2236130 Facturación 10 may 2026 - $3800,00 Recibida por facturación -" [ref=e169] [cursor=pointer]:
+                - cell "CENTRO COMERCIAL UNICENTRO" [ref=e170]:
+                  - generic [ref=e171]: CENTRO COMERCIAL UNICENTRO
+                - cell "PQE2236130" [ref=e172]:
+                  - generic [ref=e173]: PQE2236130
+                - cell "Facturación" [ref=e174]:
+                  - generic [ref=e175]: Facturación
+                - cell "10 may 2026" [ref=e176]:
+                  - generic [ref=e177]: 10 may 2026
+                - cell "-" [ref=e178]:
+                  - generic [ref=e179]: "-"
+                - cell "$3800,00" [ref=e180]:
+                  - generic [ref=e181]: $3800,00
+                - cell "Recibida por facturación" [ref=e182]
+                - cell "-" [ref=e183]
+              - row "SUPERTIENDAS Y DROGUERIAS OLIMPICA S.A. 02JR145653 Facturación 10 may 2026 - $12.900,00 Recibida por facturación -" [ref=e184] [cursor=pointer]:
+                - cell "SUPERTIENDAS Y DROGUERIAS OLIMPICA S.A." [ref=e185]:
+                  - generic [ref=e186]: SUPERTIENDAS Y DROGUERIAS OLIMPICA S.A.
+                - cell "02JR145653" [ref=e187]:
+                  - generic [ref=e188]: 02JR145653
+                - cell "Facturación" [ref=e189]:
+                  - generic [ref=e190]: Facturación
+                - cell "10 may 2026" [ref=e191]:
+                  - generic [ref=e192]: 10 may 2026
+                - cell "-" [ref=e193]:
+                  - generic [ref=e194]: "-"
+                - cell "$12.900,00" [ref=e195]:
+                  - generic [ref=e196]: $12.900,00
+                - cell "Recibida por facturación" [ref=e197]
+                - cell "-" [ref=e198]
+              - row "ALMACENES ÉXITO S.A SB32132859 Facturación 10 may 2026 - $13.990,00 Recibida por facturación -" [ref=e199] [cursor=pointer]:
+                - cell "ALMACENES ÉXITO S.A" [ref=e200]:
+                  - generic [ref=e201]: ALMACENES ÉXITO S.A
+                - cell "SB32132859" [ref=e202]:
+                  - generic [ref=e203]: SB32132859
+                - cell "Facturación" [ref=e204]:
+                  - generic [ref=e205]: Facturación
+                - cell "10 may 2026" [ref=e206]:
+                  - generic [ref=e207]: 10 may 2026
+                - cell "-" [ref=e208]:
+                  - generic [ref=e209]: "-"
+                - cell "$13.990,00" [ref=e210]:
+                  - generic [ref=e211]: $13.990,00
+                - cell "Recibida por facturación" [ref=e212]
+                - cell "-" [ref=e213]
+              - row "SMS INVESTMENTS SAS PRG32534 Facturación 10 may 2026 01 may 2026 $44.159,89 Recibida por facturación -" [ref=e214] [cursor=pointer]:
+                - cell "SMS INVESTMENTS SAS" [ref=e215]:
+                  - generic [ref=e216]: SMS INVESTMENTS SAS
+                - cell "PRG32534" [ref=e217]:
+                  - generic [ref=e218]: PRG32534
+                - cell "Facturación" [ref=e219]:
+                  - generic [ref=e220]: Facturación
+                - cell "10 may 2026" [ref=e221]:
+                  - generic [ref=e222]: 10 may 2026
+                - cell "01 may 2026" [ref=e223]:
+                  - generic [ref=e224]: 01 may 2026
+                - cell "$44.159,89" [ref=e225]:
+                  - generic [ref=e226]: $44.159,89
+                - cell "Recibida por facturación" [ref=e227]
+                - cell "-" [ref=e228]
+              - row "COOPERATIVA DE TRANSPORTADORES FLOTA NORTE LTDA COFLONORTE BOGTN1135482 Facturación 10 may 2026 - $43.000,00 Recibida por facturación -" [ref=e229] [cursor=pointer]:
+                - cell "COOPERATIVA DE TRANSPORTADORES FLOTA NORTE LTDA COFLONORTE" [ref=e230]:
+                  - generic [ref=e231]: COOPERATIVA DE TRANSPORTADORES FLOTA NORTE LTDA COFLONORTE
+                - cell "BOGTN1135482" [ref=e232]:
+                  - generic [ref=e233]: BOGTN1135482
+                - cell "Facturación" [ref=e234]:
+                  - generic [ref=e235]: Facturación
+                - cell "10 may 2026" [ref=e236]:
+                  - generic [ref=e237]: 10 may 2026
+                - cell "-" [ref=e238]:
+                  - generic [ref=e239]: "-"
+                - cell "$43.000,00" [ref=e240]:
+                  - generic [ref=e241]: $43.000,00
+                - cell "Recibida por facturación" [ref=e242]
+                - cell "-" [ref=e243]
+              - row "LONG HANG S.A.S. PBC72346 Facturación 10 may 2026 - $18.000,00 Recibida por facturación -" [ref=e244] [cursor=pointer]:
+                - cell "LONG HANG S.A.S." [ref=e245]:
+                  - generic [ref=e246]: LONG HANG S.A.S.
+                - cell "PBC72346" [ref=e247]:
+                  - generic [ref=e248]: PBC72346
+                - cell "Facturación" [ref=e249]:
+                  - generic [ref=e250]: Facturación
+                - cell "10 may 2026" [ref=e251]:
+                  - generic [ref=e252]: 10 may 2026
+                - cell "-" [ref=e253]:
+                  - generic [ref=e254]: "-"
+                - cell "$18.000,00" [ref=e255]:
+                  - generic [ref=e256]: $18.000,00
+                - cell "Recibida por facturación" [ref=e257]
+                - cell "-" [ref=e258]
+          - generic [ref=e260]:
+            - button "Anterior" [disabled] [ref=e261]
+            - generic [ref=e262]: Página 1 de 14
+            - button "Siguiente" [ref=e263]
+          - generic [ref=e267]:
+            - generic [ref=e269]:
+              - generic [ref=e270]:
+                - heading "Detalle de Factura" [level=3] [ref=e272]
+                - button [ref=e273]:
+                  - img [ref=e274]
+              - generic [ref=e277]:
+                - generic [ref=e278]: FE1B2544
+                - generic [ref=e279]: •
+                - generic [ref=e280]: Recibida por facturación
+            - generic [ref=e281]:
+              - generic [ref=e282]:
+                - heading "Información de la Factura" [level=4] [ref=e283]
+                - generic [ref=e284]:
+                  - generic [ref=e285]:
+                    - generic [ref=e286]: Proveedor
+                    - generic [ref=e287]: STEFANIA CERRO PASTOR
+                  - generic [ref=e288]:
+                    - generic [ref=e289]: Área
+                    - generic [ref=e290]: Facturación
+                  - generic [ref=e291]:
+                    - generic [ref=e292]: Fecha de Emisión
+                    - generic [ref=e293]: 10 de mayo de 2026
+                  - generic [ref=e294]:
+                    - generic [ref=e295]: Total a Pagar
+                    - generic [ref=e296]: $20.000,00
+              - generic [ref=e297]:
+                - heading "Factura Radicada" [level=4] [ref=e298]
+                - generic [ref=e301]:
+                  - generic [ref=e302]:
+                    - img [ref=e304]
+                    - generic [ref=e307]:
+                      - paragraph [ref=e308]: FE1B2544.pdf
+                      - generic [ref=e309]:
+                        - generic [ref=e310]: FACTURA_PDF
+                        - generic [ref=e311]: •
+                        - generic [ref=e312]: s3
+                        - generic [ref=e313]: •
+                        - generic [ref=e314]: 11 may 2026
+                  - generic [ref=e315]:
+                    - button "Vista previa" [ref=e316]:
+                      - img [ref=e317]
+                    - button "Descargar archivo" [ref=e320]:
+                      - img [ref=e321]
+              - generic [ref=e324]:
+                - heading "Cambiar Área" [level=4] [ref=e325]
+                - generic [ref=e326]:
+                  - generic [ref=e327]:
+                    - generic [ref=e328]: Área Responsable
+                    - combobox [ref=e329]:
+                      - option "Seleccionar área..."
+                      - option "Administración"
+                      - option "Arquitectura"
+                      - option "Asisitencia Administrativa"
+                      - option "Calidad"
+                      - option "Calidad de Café"
+                      - option "Cedi"
+                      - option "Comercial"
+                      - option "Compras"
+                      - option "Contabilidad"
+                      - option "Facturación" [selected]
+                      - option "Gastos Fijos Café Quindío"
+                      - option "Gerencia Financiera"
+                      - option "Getion Humana"
+                      - option "Mantenimiento"
+                      - option "Marketing"
+                      - option "Operaciones"
+                      - option "Responsable Exportaciones"
+                      - option "Responsable Mall Plaza BGTA"
+                      - option "Responsable Tienda Marriot Bogotá"
+                      - option "Resposable Icesi Cali"
+                      - option "Sistema Integrado de Gestión"
+                      - option "Tesoreria"
+                      - option "TIC"
+                      - option "Tienda Mall Plaza"
+                      - option "Tienda Aero Matecaña"
+                      - option "Tienda Aeropuerto Dorado"
+                      - option "Tienda Aeropuerto Eden"
+                      - option "Tienda Arboleda II"
+                      - option "Tienda Arkadia"
+                      - option "Tienda Bacata"
+                      - option "Tienda Bocagrande"
+                      - option "Tienda Buenavista"
+                      - option "Tienda Buenavista II"
+                      - option "Tienda Caribe Plaza"
+                      - option "Tienda CC el Eden"
+                      - option "Tienda CC Fundadores"
+                      - option "Tienda Cenco Limonar"
+                      - option "Tienda Cerritos del Mar"
+                      - option "Tienda Chipichape"
+                      - option "Tienda Clinica Central"
+                      - option "Tienda Fabrica San Pedro"
+                      - option "Tienda Filandia"
+                      - option "Tienda Florida Garden"
+                      - option "Tienda Granada Cali"
+                      - option "Tienda I Latina"
+                      - option "Tienda Jardin Plaza"
+                      - option "Tienda Mall Paraiso"
+                      - option "Tienda Maloka Bogotá"
+                      - option "Tienda Nogales"
+                      - option "Tienda Nuestro Bogota"
+                      - option "Tienda Oficina Bavaria"
+                      - option "Tienda Oficina Cerritos Pereira"
+                      - option "Tienda Pance"
+                      - option "Tienda Parque Arboleda"
+                      - option "Tienda Plaz Bolivar Bogota"
+                      - option "Tienda Plaza Central"
+                      - option "Tienda Plaza Claro"
+                      - option "Tienda Plaza Estrella"
+                      - option "Tienda Plaza Imperial"
+                      - option "Tienda Plaza Sol"
+                      - option "Tienda Portal Del Quindio"
+                      - option "Tienda Restauramte"
+                      - option "Tienda Salento"
+                      - option "Tienda San Nicolas"
+                      - option "Tienda Santafe"
+                      - option "Tienda Santafe Medellin"
+                      - option "Tienda Serrezuela"
+                      - option "Tienda Tambo el Eden"
+                      - option "Tienda Tambo Filandia"
+                      - option "Tienda Tambo la Manuela"
+                      - option "Tienda Tambo Privilegio"
+                      - option "Tienda Titan Plaza"
+                      - option "Tienda Torre 90"
+                      - option "Tienda Unicentro Armenia"
+                      - option "Tienda Unicentro Bogota"
+                      - option "Tienda Unicentro Cali"
+                      - option "Tienda Unicentro II"
+                      - option "Tienda Unicentro Pereira"
+                      - option "Tienda Unicentro Tunja"
+                      - option "Tienda Unico Barranquilla"
+                      - option "Tienda Usaquen"
+                      - option "Tienda Via la primavera"
+                      - option "Tienda Viva Envigado"
+                      - option "Tienda Vive tunja"
+                      - option "Tiendas Café Quindío"
+                      - option "Torre Control"
+                      - option "Trade"
+                  - button "Actualizar Área" [disabled] [ref=e330]
+            - generic [ref=e331]:
+              - button "Eliminar Factura" [active] [ref=e332]:
+                - img [ref=e333]
+                - text: Eliminar Factura
+              - button "Cerrar" [ref=e336]
+          - generic [ref=e339]:
+            - generic [ref=e340]:
+              - img [ref=e342]
+              - generic [ref=e345]:
+                - heading "Eliminar Factura" [level=3] [ref=e346]
+                - paragraph [ref=e347]: FE1B2544
+            - paragraph [ref=e348]: ¿Estás seguro de que deseas eliminar esta factura? Esta acción no se puede deshacer y eliminará todos los archivos asociados.
+            - generic [ref=e349]:
+              - button "Cancelar" [ref=e350]
+              - button "Sí, eliminar" [ref=e351]:
+                - img [ref=e352]
+                - text: Sí, eliminar
+  - region "Notifications alt+T"

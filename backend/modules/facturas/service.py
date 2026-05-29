@@ -2328,6 +2328,315 @@ Responde ÚNICAMENTE con JSON válido:
         items.sort(key=lambda x: x["assigned_at"] or "", reverse=True)
         return items
 
+    async def historial_factura(self, factura_id: UUID) -> dict:
+        """
+        Construye el historial completo de eventos de una factura.
+
+        Incluye:
+        - Recepción (created_at)
+        - Asignaciones a área/responsable (factura_asignaciones)
+        - Envío y aprobación por correo (Gerencia)
+        - Aprobación dual (Operaciones / Calidad)
+        - Hitos de flujo (envío a Contabilidad, envío a Tesorería, cierre)
+        - Devolución (motivo_devolucion + devuelta_por_nombre)
+        """
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from db.models import Factura, FacturaAsignacion, Area
+
+        factura_q = await self.db.execute(
+            select(Factura)
+            .options(
+                selectinload(Factura.area),
+                selectinload(Factura.area_origen),
+                selectinload(Factura.estado),
+                selectinload(Factura.assigned_user),
+                selectinload(Factura.asignaciones).selectinload(FacturaAsignacion.area),
+                selectinload(Factura.asignaciones).selectinload(FacturaAsignacion.responsable),
+            )
+            .where(Factura.id == factura_id)
+        )
+        factura = factura_q.scalar_one_or_none()
+        if not factura:
+            raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+        FACTURACION_AREA_NAMES = {"FACTURACION", "FACTURACIÓN"}
+
+        eventos: list[dict] = []
+
+        if factura.created_at:
+            eventos.append({
+                "fecha": factura.created_at,
+                "tipo": "recibida",
+                "titulo": "Factura recibida en Facturación",
+                "descripcion": f"Proveedor: {factura.proveedor}",
+                "area_nombre": "Facturación",
+                "area_id": None,
+                "responsable_nombre": None,
+                "responsable_email": None,
+            })
+
+        asignaciones_ordenadas = sorted(
+            factura.asignaciones or [],
+            key=lambda a: a.created_at,
+        )
+
+        for asig in asignaciones_ordenadas:
+            eventos.append({
+                "fecha": asig.created_at,
+                "tipo": "asignacion",
+                "titulo": f"Asignada a {asig.area.nombre if asig.area else 'área'}",
+                "descripcion": (
+                    f"Responsable: {asig.responsable.nombre}"
+                    if asig.responsable else None
+                ),
+                "area_nombre": asig.area.nombre if asig.area else None,
+                "area_id": asig.area_id,
+                "responsable_nombre": asig.responsable.nombre if asig.responsable else None,
+                "responsable_email": asig.responsable.email if asig.responsable else None,
+            })
+
+        # Fallback: facturas ingestadas vía XML o cargadas históricamente que tienen
+        # area_id distinto a Facturación pero ninguna fila en factura_asignaciones.
+        # Surfaceamos el "asignada" sintético para que el director pueda ver dónde está.
+        area_actual_nombre = (factura.area.nombre if factura.area else "") or ""
+        es_area_facturacion = area_actual_nombre.upper() in FACTURACION_AREA_NAMES
+        ya_registrada = any(
+            a.area_id == factura.area_id for a in asignaciones_ordenadas
+        )
+        if factura.area_id and not es_area_facturacion and not ya_registrada:
+            resp_nombre = factura.assigned_user.nombre if factura.assigned_user else None
+            resp_email = factura.assigned_user.email if factura.assigned_user else None
+            eventos.append({
+                "fecha": factura.assigned_at or factura.fecha_envio_contabilidad or factura.updated_at,
+                "tipo": "asignacion",
+                "titulo": f"Asignada a {factura.area.nombre}" if factura.area else "Asignada",
+                "descripcion": (
+                    f"Responsable: {resp_nombre}" if resp_nombre else "Asignación automática por área."
+                ),
+                "area_nombre": factura.area.nombre if factura.area else None,
+                "area_id": factura.area_id,
+                "responsable_nombre": resp_nombre,
+                "responsable_email": resp_email,
+            })
+
+        # Si la factura pasó por un área de origen (regional) antes de Contabilidad/Tesorería
+        # y NO existe fila en factura_asignaciones para esa área (caso típico de ingesta XML),
+        # generamos un evento sintético para que se vea por dónde pasó la factura.
+        if (
+            factura.area_origen_id
+            and factura.area_origen
+            and factura.area_origen_id != factura.area_id
+            and not any(a.area_id == factura.area_origen_id for a in asignaciones_ordenadas)
+        ):
+            responsables_origen = await self._buscar_responsables_area(factura.area_origen_id)
+            if responsables_origen:
+                # Mostrar todos los responsables registrados del área (uno o varios)
+                nombres_lista = ", ".join(r["nombre"] for r in responsables_origen)
+                desc = (
+                    f"Responsable del área: {nombres_lista}"
+                    if len(responsables_origen) == 1
+                    else f"Responsables del área ({len(responsables_origen)}): {nombres_lista}"
+                )
+                primer_resp = responsables_origen[0]
+            else:
+                desc = "Responsable del área (no registrado)."
+                primer_resp = {"nombre": None, "email": None}
+
+            eventos.append({
+                "fecha": factura.created_at,
+                "tipo": "asignacion",
+                "titulo": f"Asignada a {factura.area_origen.nombre}",
+                "descripcion": desc,
+                "area_nombre": factura.area_origen.nombre,
+                "area_id": factura.area_origen_id,
+                "responsable_nombre": primer_resp.get("nombre"),
+                "responsable_email": primer_resp.get("email"),
+            })
+
+        if factura.fecha_envio_gerencia:
+            eventos.append({
+                "fecha": factura.fecha_envio_gerencia,
+                "tipo": "envio_gerencia",
+                "titulo": "Solicitud de aprobación a Gerencia",
+                "descripcion": "Correo enviado al gerente para aprobación.",
+                "area_nombre": None,
+                "area_id": None,
+                "responsable_nombre": None,
+                "responsable_email": None,
+            })
+
+        if factura.fecha_aprobacion_email:
+            eventos.append({
+                "fecha": factura.fecha_aprobacion_email,
+                "tipo": "aprobacion_email",
+                "titulo": "Aprobada por Gerencia (correo)",
+                "descripcion": (
+                    f"Aprobado por {factura.aprobado_por_nombre}"
+                    if factura.aprobado_por_nombre else "Aprobación por correo recibida"
+                ),
+                "area_nombre": None,
+                "area_id": None,
+                "responsable_nombre": factura.aprobado_por_nombre,
+                "responsable_email": factura.aprobado_por_email,
+            })
+
+        if factura.fecha_envio_aprobacion_ops:
+            eventos.append({
+                "fecha": factura.fecha_envio_aprobacion_ops,
+                "tipo": "envio_aprobacion_ops",
+                "titulo": "Solicitud aprobación Gerencia Operaciones",
+                "descripcion": None,
+                "area_nombre": None,
+                "area_id": None,
+                "responsable_nombre": None,
+                "responsable_email": None,
+            })
+
+        if factura.fecha_aprobacion_ops:
+            eventos.append({
+                "fecha": factura.fecha_aprobacion_ops,
+                "tipo": "aprobacion_ops",
+                "titulo": "Aprobada por Gerencia Operaciones",
+                "descripcion": (
+                    f"Aprobado por {factura.aprobado_ops_nombre}"
+                    if factura.aprobado_ops_nombre else None
+                ),
+                "area_nombre": None,
+                "area_id": None,
+                "responsable_nombre": factura.aprobado_ops_nombre,
+                "responsable_email": factura.aprobado_ops_email,
+            })
+
+        if factura.fecha_envio_aprobacion_calidad:
+            eventos.append({
+                "fecha": factura.fecha_envio_aprobacion_calidad,
+                "tipo": "envio_aprobacion_calidad",
+                "titulo": "Solicitud aprobación Calidad Café",
+                "descripcion": None,
+                "area_nombre": None,
+                "area_id": None,
+                "responsable_nombre": None,
+                "responsable_email": None,
+            })
+
+        if factura.fecha_aprobacion_calidad:
+            eventos.append({
+                "fecha": factura.fecha_aprobacion_calidad,
+                "tipo": "aprobacion_calidad",
+                "titulo": "Aprobada por Calidad Café",
+                "descripcion": (
+                    f"Aprobado por {factura.aprobado_calidad_nombre}"
+                    if factura.aprobado_calidad_nombre else None
+                ),
+                "area_nombre": None,
+                "area_id": None,
+                "responsable_nombre": factura.aprobado_calidad_nombre,
+                "responsable_email": factura.aprobado_calidad_email,
+            })
+
+        if factura.fecha_envio_contabilidad:
+            eventos.append({
+                "fecha": factura.fecha_envio_contabilidad,
+                "tipo": "envio_contabilidad",
+                "titulo": "Enviada a Contabilidad",
+                "descripcion": "El responsable validó los datos y envió la factura a Contabilidad.",
+                "area_nombre": "Contabilidad",
+                "area_id": None,
+                "responsable_nombre": None,
+                "responsable_email": None,
+            })
+
+        if factura.fecha_envio_tesoreria:
+            eventos.append({
+                "fecha": factura.fecha_envio_tesoreria,
+                "tipo": "envio_tesoreria",
+                "titulo": "Enviada a Tesorería",
+                "descripcion": "Contabilidad auditó la factura y la envió a Tesorería para pago.",
+                "area_nombre": "Tesorería",
+                "area_id": None,
+                "responsable_nombre": None,
+                "responsable_email": None,
+            })
+
+        if factura.fecha_cierre:
+            eventos.append({
+                "fecha": factura.fecha_cierre,
+                "tipo": "cierre",
+                "titulo": "Factura pagada / cerrada",
+                "descripcion": "Tesorería cerró el proceso de la factura.",
+                "area_nombre": "Tesorería",
+                "area_id": None,
+                "responsable_nombre": None,
+                "responsable_email": None,
+            })
+
+        if factura.motivo_devolucion:
+            eventos.append({
+                "fecha": None,
+                "tipo": "devolucion",
+                "titulo": "Devolución registrada",
+                "descripcion": factura.motivo_devolucion,
+                "area_nombre": None,
+                "area_id": None,
+                "responsable_nombre": factura.devuelta_por_nombre,
+                "responsable_email": None,
+            })
+
+        def _sort_key(ev: dict):
+            fecha = ev.get("fecha")
+            if fecha is None:
+                # Eventos sin fecha (ej. devolución) van al final
+                return (1, 0.0)
+            try:
+                return (0, fecha.timestamp())
+            except (OSError, OverflowError, ValueError):
+                return (1, 0.0)
+
+        eventos.sort(key=_sort_key)
+
+        return {
+            "factura_id": factura.id,
+            "numero_factura": factura.numero_factura,
+            "estado_actual": factura.estado.label if factura.estado else "",
+            "area_actual": factura.area.nombre if factura.area else None,
+            "area_actual_id": factura.area_id,
+            "eventos": eventos,
+        }
+
+    async def _buscar_responsables_area(self, area_id: UUID) -> list[dict]:
+        """
+        Devuelve los responsables registrados en un área (rol 'responsable',
+        activos). Se usa para enriquecer eventos sintéticos del historial cuando
+        no existe fila en factura_asignaciones (caso ingesta XML).
+        """
+        from sqlalchemy import select, func
+        from db.models import User, Rol
+
+        q = (
+            select(User)
+            .join(Rol, Rol.id == User.role_id)
+            .where(
+                User.area_id == area_id,
+                User.is_active.is_(True),
+                func.lower(Rol.code) == "responsable",
+            )
+            .order_by(User.nombre.asc())
+        )
+        result = await self.db.execute(q)
+        users = result.scalars().all()
+
+        if not users:
+            # Fallback: cualquier usuario activo del área
+            q_any = (
+                select(User)
+                .where(User.area_id == area_id, User.is_active.is_(True))
+                .order_by(User.nombre.asc())
+            )
+            users = (await self.db.execute(q_any)).scalars().all()
+
+        return [{"nombre": u.nombre, "email": u.email} for u in users]
+
     # =========================================================================
     # APROBACIÓN DUAL (Gerencia Operaciones + Calidad Café) — Inventario ALMACEN
     # =========================================================================

@@ -38,6 +38,7 @@ from modules.facturas.schemas import (
     AprobacionEmailOut,
     IngestaXMLIn,
     IngestaXMLResultOut,
+    HistorialFacturaOut,
 )
 from fastapi import UploadFile, File
 from core.auth import require_api_key, get_current_user
@@ -278,6 +279,27 @@ async def get_factura(
 ):
     """Obtiene una factura por ID."""
     return await service.get_factura(factura_id)
+
+
+@router.get(
+    "/{factura_id}/historial",
+    response_model=HistorialFacturaOut,
+    summary="Historial completo de una factura (vista Director)",
+)
+async def get_historial_factura(
+    factura_id: UUID,
+    _: dict = Depends(get_current_user),
+    service: FacturaService = Depends(get_factura_service),
+):
+    """
+    Devuelve el historial cronológico de una factura: recepción, asignaciones
+    por área/responsable, envíos a Gerencia/Contabilidad/Tesorería, aprobaciones
+    por correo y devoluciones.
+
+    Pensado para la vista de Dirección, donde se necesita ver por dónde ha
+    pasado la factura y quién la ha tenido.
+    """
+    return await service.historial_factura(factura_id)
 
 
 @router.get("/by-number/{numero_factura}", response_model=FacturaResponse)

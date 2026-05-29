@@ -543,3 +543,29 @@ class IngestaXMLResultOut(BaseModel):
     pendiente_confirmacion: bool
     estado: str                     # auto_asignada | pendiente_confirmacion | sin_asignar
     duplicado: bool = False
+
+
+# ========== Schemas Historial de Factura (vista Director) ==========
+
+class HistorialEventoOut(BaseModel):
+    """Evento dentro del historial de una factura."""
+    fecha: Optional[datetime] = None
+    tipo: str = Field(..., description="Tipo de evento: recibida | asignacion | aprobacion_email | envio_contabilidad | envio_tesoreria | cierre | devolucion")
+    titulo: str
+    descripcion: Optional[str] = None
+    area_nombre: Optional[str] = None
+    area_id: Optional[UUID] = None
+    responsable_nombre: Optional[str] = None
+    responsable_email: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class HistorialFacturaOut(BaseModel):
+    """Historial completo de una factura para vista de Dirección."""
+    factura_id: UUID
+    numero_factura: str
+    estado_actual: str
+    area_actual: Optional[str] = None
+    area_actual_id: Optional[UUID] = None
+    eventos: List[HistorialEventoOut] = []

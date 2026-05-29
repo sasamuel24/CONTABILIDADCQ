@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
-import { X, FileText, Calendar, DollarSign, Building2, CheckCircle, Clock, AlertCircle, Download, Eye, Trash2 } from 'lucide-react';
-import type { FacturaListItem, FileMiniOut } from '../lib/api';
-import { getFacturaFilesByDocType, downloadFileById, deleteFactura } from '../lib/api';
+import { X, FileText, Calendar, DollarSign, Building2, CheckCircle, Clock, AlertCircle, Download, Eye, Trash2, History, FolderInput, ArrowRight, Mail, Send, RotateCcw, User as UserIcon } from 'lucide-react';
+import type { FacturaListItem, FileMiniOut, HistorialFactura, HistorialEvento } from '../lib/api';
+import { getFacturaFilesByDocType, downloadFileById, deleteFactura, getHistorialFactura, getUserRoleCode } from '../lib/api';
 import { FilePreviewModal } from './FilePreviewModal';
 import { ComentariosFactura } from './ComentariosFactura';
 import { useAuth } from '../contexts/AuthContext';
+import { ReasignarAreaModal } from './ReasignarAreaModal';
+import { toast } from 'sonner';
 
 interface CentroDocumentalFacturaDetailProps {
   factura: FacturaListItem;
   onClose: () => void;
   onDelete?: (facturaId: string) => void;
+  onReasignada?: (facturaId: string, areaNombre: string) => void;
 }
 
 interface ProcessStep {
@@ -18,8 +21,13 @@ interface ProcessStep {
   date?: string;
 }
 
-export function CentroDocumentalFacturaDetail({ factura, onClose, onDelete }: CentroDocumentalFacturaDetailProps) {
+export function CentroDocumentalFacturaDetail({ factura, onClose, onDelete, onReasignada }: CentroDocumentalFacturaDetailProps) {
   const { user } = useAuth();
+  const userRole = getUserRoleCode(user).toLowerCase();
+  const esDirector = userRole === 'direccion' || userRole === 'admin';
+  const ESTADOS_ASIGNADA = new Set(['Asignada', 'Asignada a responsable', 'En Curso']);
+  const puedeReasignar = esDirector && ESTADOS_ASIGNADA.has(factura.estado);
+
   const [archivosOC, setArchivosOC] = useState<FileMiniOut[]>([]);
   const [archivoAprobacion, setArchivoAprobacion] = useState<FileMiniOut | null>(null);
   const [archivoInventario, setArchivoInventario] = useState<FileMiniOut | null>(null);
@@ -29,6 +37,10 @@ export function CentroDocumentalFacturaDetail({ factura, onClose, onDelete }: Ce
   const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [historial, setHistorial] = useState<HistorialFactura | null>(null);
+  const [loadingHistorial, setLoadingHistorial] = useState(true);
+  const [historialError, setHistorialError] = useState<string | null>(null);
+  const [showReasignarModal, setShowReasignarModal] = useState(false);
 
   // Estados del proceso
   const getProcessSteps = (): ProcessStep[] => {
@@ -144,8 +156,78 @@ export function CentroDocumentalFacturaDetail({ factura, onClose, onDelete }: Ce
     cargarArchivos();
   }, [factura.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const cargarHistorial = async () => {
+      try {
+        setLoadingHistorial(true);
+        setHistorialError(null);
+        const data = await getHistorialFactura(factura.id);
+        if (!cancelled) setHistorial(data);
+      } catch (err) {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : 'Error cargando historial';
+          setHistorialError(msg);
+        }
+      } finally {
+        if (!cancelled) setLoadingHistorial(false);
+      }
+    };
+    cargarHistorial();
+    return () => {
+      cancelled = true;
+    };
+  }, [factura.id]);
+
   const handlePreviewFile = (file: FileMiniOut) => {
     setPreviewFile(file);
+  };
+
+  const handleReasignarSuccess = (data: { area_id: string; area_nombre: string; responsable_nombre: string }) => {
+    toast.success(`Factura reasignada a ${data.area_nombre} (${data.responsable_nombre})`);
+    onReasignada?.(factura.id, data.area_nombre);
+    void getHistorialFactura(factura.id).then(setHistorial).catch(() => undefined);
+  };
+
+  const eventoTipoStyle = (tipo: string): { icon: JSX.Element; color: string; bg: string } => {
+    switch (tipo) {
+      case 'recibida':
+        return { icon: <FileText className="w-4 h-4" />, color: '#1d4ed8', bg: '#dbeafe' };
+      case 'asignacion':
+        return { icon: <UserIcon className="w-4 h-4" />, color: '#6d28d9', bg: '#ede9fe' };
+      case 'envio_gerencia':
+      case 'envio_aprobacion_ops':
+      case 'envio_aprobacion_calidad':
+        return { icon: <Mail className="w-4 h-4" />, color: '#0369a1', bg: '#e0f2fe' };
+      case 'aprobacion_email':
+      case 'aprobacion_ops':
+      case 'aprobacion_calidad':
+        return { icon: <CheckCircle className="w-4 h-4" />, color: '#15803d', bg: '#dcfce7' };
+      case 'envio_contabilidad':
+      case 'envio_tesoreria':
+        return { icon: <Send className="w-4 h-4" />, color: '#0f766e', bg: '#ccfbf1' };
+      case 'cierre':
+        return { icon: <CheckCircle className="w-4 h-4" />, color: '#047857', bg: '#d1fae5' };
+      case 'devolucion':
+        return { icon: <RotateCcw className="w-4 h-4" />, color: '#b91c1c', bg: '#fee2e2' };
+      default:
+        return { icon: <ArrowRight className="w-4 h-4" />, color: '#374151', bg: '#f3f4f6' };
+    }
+  };
+
+  const formatFechaEvento = (fecha: string | null): string => {
+    if (!fecha) return 'Sin fecha';
+    try {
+      return new Date(fecha).toLocaleString('es-ES', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return fecha;
+    }
   };
 
   const handleDownloadById = async (file: FileMiniOut) => {
@@ -287,6 +369,113 @@ export function CentroDocumentalFacturaDetail({ factura, onClose, onDelete }: Ce
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Historial Completo - vista Director */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <History className="w-5 h-5 text-gray-600" />
+                      Historial completo
+                    </h4>
+                    {puedeReasignar && (
+                      <button
+                        onClick={() => setShowReasignarModal(true)}
+                        style={{
+                          fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                          backgroundColor: '#00829a',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#14aab8')}
+                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#00829a')}
+                        className="flex items-center gap-2 px-4 py-2 text-sm text-white rounded-lg"
+                        title="Reasignar la factura al área que sí corresponde gestionarla"
+                      >
+                        <FolderInput className="w-4 h-4" />
+                        <span>Reasignar a otra área</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-xl p-5">
+                    {loadingHistorial ? (
+                      <div className="py-8 text-center text-sm text-gray-500">
+                        Cargando historial…
+                      </div>
+                    ) : historialError ? (
+                      <div className="py-6 text-center text-sm text-red-600">
+                        {historialError}
+                      </div>
+                    ) : !historial || historial.eventos.length === 0 ? (
+                      <div className="py-8 text-center text-sm text-gray-500">
+                        Sin eventos registrados todavía.
+                      </div>
+                    ) : (
+                      <ol className="space-y-4">
+                        {historial.eventos.map((ev: HistorialEvento, idx: number) => {
+                          const style = eventoTipoStyle(ev.tipo);
+                          const esUltimo = idx === historial.eventos.length - 1;
+                          return (
+                            <li key={`${ev.tipo}-${idx}`} className="flex gap-4">
+                              {/* Columna del icono + línea conectora */}
+                              <div className="flex flex-col items-center flex-shrink-0" style={{ width: 36 }}>
+                                <div
+                                  className="flex items-center justify-center w-9 h-9 rounded-full shadow-sm"
+                                  style={{ backgroundColor: style.bg, color: style.color, border: `2px solid ${style.color}` }}
+                                >
+                                  {style.icon}
+                                </div>
+                                {!esUltimo && (
+                                  <div className="flex-1 w-px bg-gray-200 mt-1" style={{ minHeight: 16 }} />
+                                )}
+                              </div>
+
+                              {/* Columna de contenido */}
+                              <div className="flex-1 min-w-0 pb-2">
+                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
+                                  <p className="text-sm font-semibold text-gray-900 leading-tight">
+                                    {ev.titulo}
+                                  </p>
+                                  <span className="text-xs text-gray-500 whitespace-nowrap sm:ml-3">
+                                    {formatFechaEvento(ev.fecha)}
+                                  </span>
+                                </div>
+                                {ev.descripcion && (
+                                  <p className="text-sm text-gray-600 mt-1 leading-snug">
+                                    {ev.descripcion}
+                                  </p>
+                                )}
+                                {(ev.area_nombre || ev.responsable_nombre) && (
+                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {ev.area_nombre && (
+                                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200">
+                                        <Building2 className="w-3 h-3" />
+                                        {ev.area_nombre}
+                                      </span>
+                                    )}
+                                    {ev.responsable_nombre && (
+                                      <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+                                        <UserIcon className="w-3 h-3" />
+                                        {ev.responsable_nombre}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    )}
+                  </div>
+
+                  {puedeReasignar && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Como dirección puedes redirigir esta factura al área correcta mientras se
+                      encuentre asignada. La nueva área la recibirá en su bandeja y el responsable
+                      anterior perderá el acceso.
+                    </p>
+                  )}
                 </div>
 
                 {/* Grid de 2 columnas */}
@@ -699,6 +888,16 @@ export function CentroDocumentalFacturaDetail({ factura, onClose, onDelete }: Ce
           facturaId={factura.id}
           onClose={() => setPreviewFile(null)}
           onDownload={() => handleDownloadById(previewFile)}
+        />
+      )}
+
+      {/* Modal de reasignar a otra área (vista Director) */}
+      {showReasignarModal && (
+        <ReasignarAreaModal
+          isOpen={showReasignarModal}
+          onClose={() => setShowReasignarModal(false)}
+          factura={factura}
+          onSuccess={handleReasignarSuccess}
         />
       )}
     </>

@@ -641,6 +641,14 @@ export async function getUsers(skip = 0, limit = 200): Promise<UsersPaginatedRes
   return fetchAPI<UsersPaginatedResponse>(`/users/?skip=${skip}&limit=${limit}`);
 }
 
+/** Listar usuarios filtrados por área (responsables del área). */
+export async function getUsersByArea(areaId: string, opts?: { onlyActive?: boolean }): Promise<UserListItem[]> {
+  const params = new URLSearchParams({ skip: '0', limit: '1000', area_id: areaId });
+  if (opts?.onlyActive) params.set('is_active', 'true');
+  const resp = await fetchAPI<UsersPaginatedResponse>(`/users/?${params.toString()}`);
+  return resp.items;
+}
+
 /** Crear usuario */
 export async function createUser(data: UserCreatePayload): Promise<UserDetail> {
   return fetchAPI<UserDetail>('/users/', {
@@ -2413,6 +2421,46 @@ export interface HistorialFacturaItem {
 
 export async function getHistorialArea(): Promise<HistorialFacturaItem[]> {
   return fetchAPI<HistorialFacturaItem[]>('/facturas/historial-area');
+}
+
+// ─── Historial completo de una factura (vista Director) ─────────────────────
+
+export type HistorialEventoTipo =
+  | 'recibida'
+  | 'asignacion'
+  | 'envio_gerencia'
+  | 'aprobacion_email'
+  | 'envio_aprobacion_ops'
+  | 'aprobacion_ops'
+  | 'envio_aprobacion_calidad'
+  | 'aprobacion_calidad'
+  | 'envio_contabilidad'
+  | 'envio_tesoreria'
+  | 'cierre'
+  | 'devolucion';
+
+export interface HistorialEvento {
+  fecha: string | null;
+  tipo: HistorialEventoTipo | string;
+  titulo: string;
+  descripcion: string | null;
+  area_nombre: string | null;
+  area_id: string | null;
+  responsable_nombre: string | null;
+  responsable_email: string | null;
+}
+
+export interface HistorialFactura {
+  factura_id: string;
+  numero_factura: string;
+  estado_actual: string;
+  area_actual: string | null;
+  area_actual_id: string | null;
+  eventos: HistorialEvento[];
+}
+
+export async function getHistorialFactura(facturaId: string): Promise<HistorialFactura> {
+  return fetchAPI<HistorialFactura>(`/facturas/${facturaId}/historial`);
 }
 
 // ─── Aprobación Dual (Gerencia Operaciones + Calidad Café) ───────────────────

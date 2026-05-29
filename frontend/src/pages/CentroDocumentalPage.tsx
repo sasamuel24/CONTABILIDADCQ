@@ -644,6 +644,16 @@ export function CentroDocumentalPage() {
           factura={selectedFactura}
           onClose={() => setSelectedFactura(null)}
           onDelete={(id) => setFacturas(prev => prev.filter(f => f.id !== id))}
+          onReasignada={async () => {
+            try {
+              const facturasResponse = await getFacturas(0, 10000);
+              setFacturas(facturasResponse.items);
+              const actualizada = facturasResponse.items.find(f => f.id === selectedFactura.id);
+              if (actualizada) setSelectedFactura(actualizada);
+            } catch (err) {
+              console.error('Error reloading facturas tras reasignación:', err);
+            }
+          }}
         />
       )}
     </div>

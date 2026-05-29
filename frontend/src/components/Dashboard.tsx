@@ -256,7 +256,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
         <header className="bg-white border-b border-gray-200 px-8 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-gray-900">
-              Bienvenid@, {userName} 👋
+              Bienvenid@n, {userName} 👋
             </h1>
             <div className="flex items-center gap-3">
             </div>

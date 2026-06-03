@@ -44,11 +44,12 @@ class FacturaService:
         limit: int = 100,
         area_id: Optional[UUID] = None,
         area_origen_id: Optional[UUID] = None,
-        estado: Optional[str] = None
+        estado: Optional[str] = None,
+        search: Optional[str] = None
     ) -> FacturasPaginatedResponse:
         """Lista todas las facturas con paginación y filtros."""
-        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, area_origen_id={area_origen_id}, estado={estado}")
-        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado)
+        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, estado={estado}, search={search}")
+        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search)
         
         items = []
         for f in facturas:
@@ -156,6 +157,10 @@ class FacturaService:
             per_page=limit
         )
     
+    async def get_area_counts(self):
+        """Retorna conteo de facturas por área (query única con GROUP BY)."""
+        return await self.repository.get_counts_by_area()
+
     async def delete_factura(self, factura_id: UUID) -> None:
         """Elimina una factura y sus registros relacionados."""
         logger.info(f"Eliminando factura con ID: {factura_id}")

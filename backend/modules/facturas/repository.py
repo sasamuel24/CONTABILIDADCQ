@@ -2,9 +2,9 @@
 Repositorio para operaciones de base de datos del módulo facturas.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict
 from uuid import UUID
 from db.models import Factura, Area, Estado
 from datetime import datetime
@@ -16,9 +16,8 @@ class FacturaRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None) -> Tuple[List[Factura], int]:
+    async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None, search: Optional[str] = None) -> Tuple[List[Factura], int]:
         """Obtiene todas las facturas con paginación y filtros opcionales."""
-        # Construir query base con eager loading de files e inventario_codigos
         query = select(Factura).options(
             selectinload(Factura.files),
             selectinload(Factura.inventario_codigos),
@@ -28,8 +27,7 @@ class FacturaRepository:
             selectinload(Factura.carpeta_tesoreria)
         )
         count_query = select(func.count(Factura.id))
-        
-        # Aplicar filtro por area_id si se proporciona
+
         if area_id:
             query = query.where(Factura.area_id == area_id)
             count_query = count_query.where(Factura.area_id == area_id)
@@ -38,24 +36,39 @@ class FacturaRepository:
             query = query.where(Factura.area_origen_id == area_origen_id)
             count_query = count_query.where(Factura.area_origen_id == area_origen_id)
 
-        # Aplicar filtro por estado si se proporciona
         if estado:
-            # Join con la tabla Estado para filtrar por label
             query = query.join(Estado, Factura.estado_id == Estado.id).where(Estado.label == estado)
             count_query = count_query.join(Estado, Factura.estado_id == Estado.id).where(Estado.label == estado)
-        
-        # Contar total
+
+        if search:
+            pattern = f"%{search}%"
+            search_filter = or_(
+                Factura.numero_factura.ilike(pattern),
+                Factura.proveedor.ilike(pattern)
+            )
+            query = query.where(search_filter)
+            count_query = count_query.where(search_filter)
+
         count_result = await self.db.execute(count_query)
         total = count_result.scalar()
-        
-        # Obtener facturas (limit=0 significa sin límite)
+
         query = query.order_by(Factura.created_at.desc()).offset(skip)
         if limit > 0:
             query = query.limit(limit)
         result = await self.db.execute(query)
         facturas = result.scalars().all()
-        
+
         return facturas, total
+
+    async def get_counts_by_area(self) -> List[Dict]:
+        """Cuenta facturas agrupadas por área en una sola query."""
+        result = await self.db.execute(
+            select(Area.id, Area.nombre, func.count(Factura.id).label('count'))
+            .outerjoin(Factura, Factura.area_id == Area.id)
+            .group_by(Area.id, Area.nombre)
+            .order_by(Area.nombre)
+        )
+        return [{'area_id': str(row.id), 'nombre': row.nombre, 'count': row.count} for row in result.all()]
     
     async def get_by_id(self, factura_id: UUID) -> Optional[Factura]:
         """Obtiene una factura por ID."""

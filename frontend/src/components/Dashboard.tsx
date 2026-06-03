@@ -4,7 +4,7 @@ import { InboxView } from './InboxView';
 import { ResponsablePaquetesView } from './ResponsablePaquetesView';
 import { AdminUsuariosView } from './AdminUsuariosView';
 import { BuzonXMLView } from './BuzonXMLView';
-import { getDashboardMetrics, getAreas, getFacturas, DashboardMetrics, Area, FacturaListItem } from '../lib/api';
+import { getDashboardMetrics, getAreas, getFacturas, getFacturasAreaCounts, DashboardMetrics, Area, AreaCount, FacturaListItem } from '../lib/api';
 
 interface DashboardProps {
   userName: string;
@@ -27,80 +27,86 @@ const statusList = [
 
 export function Dashboard({ userName, onLogout }: DashboardProps) {
   const [selectedArea, setSelectedArea] = useState('Todas');
+  const [selectedAreaId, setSelectedAreaId] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeSection, setActiveSection] = useState('dashboard');
   const [enDetallePaquetes, setEnDetallePaquetes] = useState(false);
-  
+
   // Estados para datos del backend
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [areas, setAreas] = useState<AreaWithCount[]>([]);
   const [facturas, setFacturas] = useState<FacturaListItem[]>([]);
+  const [totalFacturas, setTotalFacturas] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingTable, setIsLoadingTable] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar datos del backend
-  useEffect(() => {
-    const loadDashboardData = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+  const totalPages = Math.ceil(totalFacturas / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
 
-        const [metricsData, areasData, facturasResponse] = await Promise.all([
+  // Debounce búsqueda — evita request por cada tecla
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Carga única: métricas + áreas con conteos (no se repite al paginar)
+  useEffect(() => {
+    if (activeSection !== 'dashboard') return;
+    const loadStaticData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const [metricsData, areasData, areaCounts] = await Promise.all([
           getDashboardMetrics(),
           getAreas(),
-          getFacturas(0, 1000), // Cargar todas las facturas
+          getFacturasAreaCounts(),
         ]);
-
         setMetrics(metricsData);
-        const facturasData = facturasResponse.items;
-        setFacturas(facturasData);
-
-        // Contar facturas por área
-        const areaCounts = facturasData.reduce((acc, factura) => {
-          acc[factura.area] = (acc[factura.area] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>);
-
-        const areasWithCount = areasData.map(area => ({
+        setAreas(areasData.map(area => ({
           ...area,
-          count: areaCounts[area.nombre] || 0,
-        }));
-
-        setAreas(areasWithCount);
+          count: areaCounts.find(c => c.area_id === area.id)?.count || 0,
+        })));
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Error al cargar datos del dashboard';
-        setError(message);
-        console.error('Error loading dashboard:', err);
+        setError(err instanceof Error ? err.message : 'Error al cargar datos del dashboard');
       } finally {
         setIsLoading(false);
       }
     };
-
-    if (activeSection === 'dashboard') {
-      loadDashboardData();
-    }
+    loadStaticData();
   }, [activeSection]);
 
-  // Filtrar facturas
-  const filteredFacturas = facturas.filter(factura => {
-    const matchesArea = selectedArea === 'Todas' || factura.area === selectedArea;
-    const matchesSearch = 
-      factura.numero_factura.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      factura.proveedor.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesArea && matchesSearch;
-  });
-
-  // Paginación local (frontend-side)
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 8;
-  const totalPages = Math.ceil(filteredFacturas.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedFacturas = filteredFacturas.slice(startIndex, startIndex + itemsPerPage);
-
-  // Reset página al cambiar filtros
+  // Carga paginada con filtros server-side
   useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedArea, searchQuery]);
+    if (activeSection !== 'dashboard') return;
+    const loadFacturas = async () => {
+      setIsLoadingTable(true);
+      try {
+        const resp = await getFacturas(
+          (currentPage - 1) * itemsPerPage,
+          itemsPerPage,
+          selectedAreaId,
+          undefined,
+          debouncedSearch || undefined
+        );
+        setFacturas(resp.items);
+        setTotalFacturas(resp.total);
+      } catch (err) {
+        console.error('Error cargando facturas:', err);
+      } finally {
+        setIsLoadingTable(false);
+      }
+    };
+    loadFacturas();
+  }, [currentPage, selectedAreaId, debouncedSearch, activeSection]);
+
+  const totalAllFacturas = areas.reduce((sum, a) => sum + a.count, 0);
 
   const estadoConfig = {
     'Pendiente': { color: 'text-yellow-700', bgColor: 'bg-yellow-50 border-yellow-200' },
@@ -413,6 +419,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                           <button
                             onClick={() => {
                               setSelectedArea('Todas');
+                              setSelectedAreaId(undefined);
                               setCurrentPage(1);
                             }}
                             className={`w-full text-left px-3 py-2 rounded-lg transition-colors mb-4`}
@@ -430,7 +437,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                           >
                             <div className="flex items-center justify-between">
                               <span>Todas las áreas</span>
-                              <span className="text-gray-500">{facturas.length}</span>
+                              <span className="text-gray-500">{totalAllFacturas}</span>
                             </div>
                           </button>
 
@@ -441,6 +448,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                             key={area.id}
                             onClick={() => {
                               setSelectedArea(area.nombre);
+                              setSelectedAreaId(area.id);
                               setCurrentPage(1);
                             }}
                             className={`w-full text-left px-3 py-2 rounded-lg transition-colors mb-1`}
@@ -494,8 +502,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-gray-200">
-                            {isLoading ? (
-                              // Loading skeleton
+                            {(isLoading || isLoadingTable) ? (
                               Array(5).fill(0).map((_, i) => (
                                 <tr key={i} className="animate-pulse">
                                   <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
@@ -506,8 +513,8 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                                 </tr>
                               ))
                             ) : (
-                              paginatedFacturas.map((factura) => (
-                                <tr key={factura.numero_factura} className="hover:bg-gray-50 transition-colors">
+                              facturas.map((factura) => (
+                                <tr key={factura.id} className="hover:bg-gray-50 transition-colors">
                                   <td className="px-4 py-3">
                                     <span className="font-mono text-gray-900">{factura.numero_factura}</span>
                                   </td>
@@ -533,7 +540,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                           </tbody>
                         </table>
 
-                        {!isLoading && filteredFacturas.length === 0 && (
+                        {!isLoading && !isLoadingTable && facturas.length === 0 && (
                           <div className="text-center py-12 text-gray-500">
                             No se encontraron facturas
                           </div>
@@ -544,7 +551,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                       {totalPages > 1 && (
                         <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-white flex-shrink-0">
                           <p className="text-gray-600">
-                            Mostrando {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredFacturas.length)} de {filteredFacturas.length} facturas
+                            Mostrando {startIndex + 1}-{Math.min(startIndex + itemsPerPage, totalFacturas)} de {totalFacturas} facturas
                           </p>
                           <div className="flex items-center gap-2">
                             <button

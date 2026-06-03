@@ -64,6 +64,14 @@ async def historial_area(
     return await service.historial_area(user_id)
 
 
+@router.get("/counts-by-area")
+async def get_counts_by_area(
+    service: FacturaService = Depends(get_factura_service)
+):
+    """Conteo de facturas agrupado por área (una sola query)."""
+    return await service.get_area_counts()
+
+
 @router.get("/", response_model=FacturasPaginatedResponse)
 async def list_facturas(
     skip: int = 0,
@@ -71,10 +79,11 @@ async def list_facturas(
     area_id: Optional[UUID] = Query(None, description="Filtrar por ID de área"),
     area_origen_id: Optional[UUID] = Query(None, description="Filtrar por ID de área de origen"),
     estado: Optional[str] = Query(None, description="Filtrar por estado de la factura"),
+    search: Optional[str] = Query(None, description="Buscar por número de factura o proveedor"),
     service: FacturaService = Depends(get_factura_service)
 ):
     """Lista todas las facturas con paginación y filtros opcionales."""
-    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado)
+    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search)
 
 
 @router.get(

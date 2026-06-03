@@ -581,15 +581,29 @@ export async function exportarPlanoPaquete(paqueteId: string): Promise<void> {
   URL.revokeObjectURL(link.href);
 }
 
+export interface AreaCount {
+  area_id: string;
+  nombre: string;
+  count: number;
+}
+
+/**
+ * Conteo de facturas por área (query única, sin traer registros)
+ */
+export async function getFacturasAreaCounts(): Promise<AreaCount[]> {
+  return fetchAPI<AreaCount[]>('/facturas/counts-by-area');
+}
+
 /**
  * Obtener lista paginada de facturas
  */
-export async function getFacturas(skip: number = 0, limit: number = 100, area_id?: string, area_origen_id?: string): Promise<FacturasPaginatedResponse> {
+export async function getFacturas(skip: number = 0, limit: number = 100, area_id?: string, area_origen_id?: string, search?: string): Promise<FacturasPaginatedResponse> {
   const params = new URLSearchParams();
   params.append('skip', skip.toString());
   params.append('limit', limit.toString());
   if (area_id) params.append('area_id', area_id);
   if (area_origen_id) params.append('area_origen_id', area_origen_id);
+  if (search) params.append('search', search);
   return fetchAPI<FacturasPaginatedResponse>(`/facturas/?${params.toString()}`);
 }
 

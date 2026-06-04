@@ -164,68 +164,11 @@ export function ResponsablePage() {
       {/* ══ LAYOUT PRINCIPAL ══════════════════════════════════════════════════ */}
       <div className="flex h-screen bg-gray-50 overflow-hidden">
 
-        {/* Desktop sidebar — idéntico al original, oculto en móvil */}
-        <div className="hidden md:flex md:w-64 bg-white border-r border-gray-200 flex-col flex-shrink-0">
-          <div className="p-6 border-b border-gray-200">
-            <h1 className="text-xl font-bold text-gray-900" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
-              {user?.area?.nombre || 'CONTABILIDAD CQ'}
-            </h1>
-            <p className="text-sm text-gray-500 mt-1" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
-              Responsable de Área
-            </p>
-          </div>
-          <nav className="flex-1 p-4 space-y-1">
-            {NAV.map((item) => {
-              const activo = seccion === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => { setSeccion(item.id); setEnDetalle(false); }}
-                  className="flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg transition-all"
-                  style={{
-                    color: activo ? '#00829a' : '#6b7280',
-                    backgroundColor: activo ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
-                    fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
-                  }}
-                  onMouseEnter={(e) => { if (!activo) e.currentTarget.style.backgroundColor = '#f9fafb'; }}
-                  onMouseLeave={(e) => { if (!activo) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                >
-                  {item.icon}
-                  {item.label}
-                </button>
-              );
-            })}
-          </nav>
-          <div className="p-4 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium" style={{ backgroundColor: '#00829a' }}>
-                  {user?.nombre.charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>{user?.nombre}</p>
-                  <p className="text-xs text-gray-500 truncate" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>{user?.area?.nombre}</p>
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="p-2 text-gray-400 rounded-lg"
-                style={{ transition: 'all 0.2s' }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = '#00829a'; e.currentTarget.style.backgroundColor = 'rgba(20,170,184,0.1)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = '#9ca3af'; e.currentTarget.style.backgroundColor = 'transparent'; }}
-                title="Cerrar sesión"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* Área principal */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-          {/* Mobile top bar — solo en móvil */}
-          <header className="md:hidden flex items-center gap-3 px-4 bg-white border-b border-gray-200 flex-shrink-0" style={{ height: 56 }}>
+          {/* Top bar — siempre visible */}
+          <header className="flex items-center gap-3 px-4 bg-white border-b border-gray-200 flex-shrink-0" style={{ height: 56 }}>
             <button onClick={openDrawer} className="p-2 -ml-1 rounded-xl text-gray-500 active:bg-gray-100 transition-colors">
               <Menu className="w-5 h-5" />
             </button>

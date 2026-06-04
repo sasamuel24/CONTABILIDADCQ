@@ -721,39 +721,23 @@ export async function uploadFacturaFile(
   docType: string,
   file: File
 ): Promise<FileUploadResponse> {
-  // Paso 1: solicitar presigned PUT URL al backend (validaciones + key S3)
-  const { presigned_url, s3_key, filename, content_type } = await fetchAPI<{
-    presigned_url: string;
-    s3_key: string;
-    filename: string;
-    content_type: string;
-    expires_in: number;
-  }>(`/facturas/${facturaId}/files/request-upload`, {
+  const formData = new FormData();
+  formData.append('doc_type', docType);
+  formData.append('file', file);
+
+  const token = getAccessToken();
+  const response = await fetch(`${API_BASE_URL}/facturas/${facturaId}/files/upload`, {
     method: 'POST',
-    body: JSON.stringify({ doc_type: docType, filename: file.name, content_type: file.type || 'application/pdf' }),
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: formData,
   });
 
-  // Paso 2: subir el archivo DIRECTAMENTE a S3 (sin pasar por el backend)
-  const s3Response = await fetch(presigned_url, {
-    method: 'PUT',
-    headers: { 'Content-Type': content_type },
-    body: file,
-  });
-  if (!s3Response.ok) {
-    throw new Error(`Error al subir a S3: ${s3Response.status} ${s3Response.statusText}`);
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: 'Error al subir archivo' }));
+    throw new Error(error.detail || `Error HTTP: ${response.status}`);
   }
 
-  // Paso 3: confirmar al backend para que registre en BD
-  return fetchAPI<FileUploadResponse>(`/facturas/${facturaId}/files/confirm-upload`, {
-    method: 'POST',
-    body: JSON.stringify({
-      s3_key,
-      doc_type: docType,
-      filename,
-      content_type,
-      size_bytes: file.size,
-    }),
-  });
+  return response.json();
 }
 
 /**

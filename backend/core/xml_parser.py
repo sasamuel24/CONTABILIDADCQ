@@ -1,5 +1,5 @@
 """
-Parser de XML de facturación electrónica DIAN Colombia.
+Parser de XML de radicación electrónica DIAN Colombia.
 
 Formato: AttachedDocument UBL 2.1
 La factura real (Invoice) viene embebida como CDATA dentro de

@@ -39,7 +39,7 @@ class FacturaCreate(BaseModel):
     total: float = Field(..., gt=0, description="Monto total de la factura")
     area_id: UUID = Field(
         default=UUID("498e9fdb-25f5-42f9-beb8-92564ab6bdf4"),
-        description="ID del área asignada (por defecto: Facturación)"
+        description="ID del área asignada (por defecto: Radicación)"
     )
     estado_id: int = Field(
         default=1,
@@ -450,10 +450,10 @@ class DevolverAResponsableOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ========== Schemas de Devolución a Facturación ==========
+# ========== Schemas de Devolución a Radicación ==========
 
 class DevolverAFacturacionIn(BaseModel):
-    """Esquema para devolver una factura de Responsable a Facturación."""
+    """Esquema para devolver una factura de Responsable a Radicación."""
     motivo: str = Field(
         ...,
         min_length=10,
@@ -465,7 +465,7 @@ class DevolverAFacturacionIn(BaseModel):
 
 
 class DevolverAFacturacionOut(BaseModel):
-    """Esquema de respuesta para devolución a facturación."""
+    """Esquema de respuesta para devolución a radicación."""
     factura_id: UUID
     estado_actual: str
     motivo_devolucion: str

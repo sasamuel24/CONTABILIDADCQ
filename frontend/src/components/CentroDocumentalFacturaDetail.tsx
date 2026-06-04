@@ -514,7 +514,7 @@ export function CentroDocumentalFacturaDetail({ factura, onClose, onDelete, onRe
                           <span className="text-sm font-semibold text-gray-700">Total a Pagar</span>
                           <span className="text-lg font-bold text-gray-900 flex items-center gap-1">
                             <DollarSign className="w-5 h-5" />
-                            ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                            ${factura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                           </span>
                         </div>
                       </div>

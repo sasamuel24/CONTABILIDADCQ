@@ -555,7 +555,7 @@ export function CentroDocumentalPage() {
                                   {factura.area}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                  ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                                  ${factura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-center">
                                   <div className="flex justify-center" title={factura.carpeta ? `Archivado en: ${factura.carpeta.nombre}` : 'Sin archivar'}>

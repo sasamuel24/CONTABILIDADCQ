@@ -28,6 +28,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { WeekPickerInput } from '../components/WeekPickerInput';
 import {
   CategoriaGasto,
   GastoOut,
@@ -120,8 +121,8 @@ function apiToUI(estado: string): EstadoUI {
   return map[estado] ?? 'Borrador';
 }
 
-function fmtMonto(n: number): string {
-  return `$ ${n.toLocaleString('es-CO', { minimumFractionDigits: 0 })}`;
+function fmtMonto(n: number | string): string {
+  return `$ ${Number(n).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function fmtFecha(iso: string): string {
@@ -211,7 +212,7 @@ function PipelineTarjetaCQ({ estado }: { estado: EstadoUI }) {
     { key: 'Borrador',      label: 'Borrador' },
     { key: 'En revision',   label: 'Gerente' },
     { key: 'Aprobado',      label: 'Aprobado' },
-    { key: 'Facturacion',   label: 'Facturación' },
+    { key: 'Facturacion',   label: 'Radicación' },
     { key: 'En tesoreria',  label: 'Tesorería' },
     { key: 'Pagado',        label: 'Pagado' },
   ];
@@ -438,7 +439,7 @@ function CardGasto({
             {bloqueado ? <p className={`${inputReadCls} font-semibold`} style={{ color: '#00829a' }}>{monto > 0 ? fmtMonto(monto) : '—'}</p>
               : <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">$</span>
                 <input type="number" placeholder="0" value={fila.valorPagado}
-                  onChange={(e) => onCampo(fila.localId, 'valorPagado', e.target.value)} className={`${inputCls} pl-7`} /></div>}
+                  onChange={(e) => onCampo(fila.localId, 'valorPagado', e.target.value)} className={`${inputCls}`} style={{ paddingLeft: '2rem' }} /></div>}
           </div>
         </div>
 
@@ -619,7 +620,7 @@ function TablaGastos({ filas, bloqueado, saving, centrosCosto, centrosOperacion,
           <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide"
             style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Total de gastos</span>
           <span className="text-2xl font-bold" style={{ color: '#00829a', fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
-            $ {totalCalculado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
+            {fmtMonto(totalCalculado)}
           </span>
         </div>
       )}
@@ -1138,8 +1139,11 @@ function NuevoPaqueteCQForm({
         </label>
         <div className="flex items-start gap-4 flex-wrap">
           <div className="flex-1 min-w-[200px] max-w-xs">
-            <input type="week" value={semana} onChange={(e) => setSemana(e.target.value)}
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-teal-400 transition-colors" />
+            <WeekPickerInput
+              value={semana}
+              onChange={setSemana}
+              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 transition-colors"
+            />
           </div>
           <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl p-3 flex-1 min-w-[200px]">
             <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />

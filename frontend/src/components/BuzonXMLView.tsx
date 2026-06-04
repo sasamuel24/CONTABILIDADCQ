@@ -262,7 +262,7 @@ export function BuzonXMLView() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100" style={{ backgroundColor: '#00829a' }}>
               <div className="flex flex-col gap-1">
                 <span className="text-white font-semibold text-sm">{seleccionada.numero_factura}</span>
-                <span className="px-2 py-0.5 rounded-full text-xs bg-white/20 text-white w-fit">Recibida por facturación</span>
+                <span className="px-2 py-0.5 rounded-full text-xs bg-white/20 text-white w-fit">Recibida por radicación</span>
               </div>
               <button onClick={cerrar} className="text-white/70 hover:text-white ml-3 shrink-0">
                 <X className="w-4 h-4" />

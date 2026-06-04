@@ -16,7 +16,7 @@ class FacturaRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None, search: Optional[str] = None) -> Tuple[List[Factura], int]:
+    async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None, search: Optional[str] = None, only_in_carpeta: bool = False) -> Tuple[List[Factura], int]:
         """Obtiene todas las facturas con paginación y filtros opcionales."""
         query = select(Factura).options(
             selectinload(Factura.files),
@@ -48,6 +48,10 @@ class FacturaRepository:
             )
             query = query.where(search_filter)
             count_query = count_query.where(search_filter)
+
+        if only_in_carpeta:
+            query = query.where(Factura.carpeta_id.isnot(None))
+            count_query = count_query.where(Factura.carpeta_id.isnot(None))
 
         count_result = await self.db.execute(count_query)
         total = count_result.scalar()

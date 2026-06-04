@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { WeekPickerInput } from '../components/WeekPickerInput';
 import {
   CategoriaGasto,
   GastoOut,
@@ -121,8 +122,8 @@ function apiToUI(estado: string): EstadoUI {
   return map[estado] ?? 'Borrador';
 }
 
-function fmtMonto(n: number): string {
-  return `$ ${n.toLocaleString('es-CO', { minimumFractionDigits: 0 })}`;
+function fmtMonto(n: number | string): string {
+  return `$ ${Number(n).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function fmtFecha(iso: string): string {
@@ -593,8 +594,8 @@ function CardGasto({
                   placeholder="0"
                   value={fila.valorPagado}
                   onChange={(e) => onCampo(fila.localId, 'valorPagado', e.target.value)}
-                  className={`${inputCls} pl-7`}
-                  style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                  className={`${inputCls}`}
+                  style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif', paddingLeft: '2rem' }}
                 />
               </div>
             )}
@@ -939,7 +940,7 @@ function TablaGastos({
             className="text-2xl font-bold"
             style={{ color: '#00829a', fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}
           >
-            $ {totalCalculado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
+            $ {totalCalculado.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </span>
         </div>
       )}
@@ -1646,11 +1647,10 @@ function NuevoPaqueteForm({
         </label>
         <div className="flex items-start gap-4 flex-wrap">
           <div className="flex-1 min-w-[200px] max-w-xs">
-            <input
-              type="week"
+            <WeekPickerInput
               value={semana}
-              onChange={(e) => setSemana(e.target.value)}
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-teal-400 transition-colors"
+              onChange={setSemana}
+              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 transition-colors"
               style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
             />
           </div>
@@ -1694,7 +1694,7 @@ function NuevoPaqueteForm({
             style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
             Monto total calculado:{' '}
             <strong style={{ color: '#00829a' }}>
-              ${totalCalculado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
+              ${totalCalculado.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
             </strong>
           </p>
         )}
@@ -1821,7 +1821,7 @@ function PaqueteCard({
           </div>
         )}
 
-        {/* Alerta de gastos individuales devueltos por Facturación */}
+        {/* Alerta de gastos individuales devueltos por Radicación */}
         {p.tiene_gastos_devueltos && p.estado !== 'devuelto' && (
           <div className="mt-3 flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
             <AlertCircle className="w-3.5 h-3.5 text-orange-500 shrink-0" />
@@ -1888,7 +1888,7 @@ export function TecnicoMantenimientoPage() {
     setPaqueteActivo(null);
   };
 
-  // Paquetes que necesitan atención: borrador, devuelto, o con gastos devueltos por Facturación
+  // Paquetes que necesitan atención: borrador, devuelto, o con gastos devueltos por Radicación
   const conGastosDevueltos = paquetes.filter(
     (p) => p.tiene_gastos_devueltos && !['borrador', 'devuelto'].includes(p.estado)
   );
@@ -2139,7 +2139,7 @@ export function TecnicoMantenimientoPage() {
 
               {!loading && (
                 <>
-                  {/* Paquetes con gastos devueltos por Facturación — requieren atención */}
+                  {/* Paquetes con gastos devueltos por Radicación — requieren atención */}
                   {conGastosDevueltos.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">

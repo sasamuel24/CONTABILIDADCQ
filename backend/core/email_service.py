@@ -152,7 +152,7 @@ class EmailService:
 
     async def enviar_notificacion_aprobado(self, paquete, destinatario_email: str) -> None:
         """
-        Envía notificación a Facturación cuando un paquete ha sido aprobado.
+        Envía notificación a Radicación cuando un paquete ha sido aprobado.
         """
         try:
             folio = getattr(paquete, "folio", None) or str(paquete.id)[:8]
@@ -162,7 +162,7 @@ class EmailService:
             body_html = f"""
             <html><body style="font-family:Arial,sans-serif;color:#333">
             <h2 style="color:#1a6e3c">Paquete de Gastos Aprobado</h2>
-            <p>El siguiente paquete de gastos ha sido aprobado y está listo para ser auditado por Facturación.</p>
+            <p>El siguiente paquete de gastos ha sido aprobado y está listo para ser auditado por Radicación.</p>
             <table style="border-collapse:collapse;margin-bottom:16px">
               <tr><td style="padding:4px 12px;font-weight:bold">Folio:</td><td>{folio}</td></tr>
               <tr><td style="padding:4px 12px;font-weight:bold">Técnico:</td><td>{nombre_tecnico}</td></tr>
@@ -546,7 +546,7 @@ class EmailService:
     ) -> None:
         """
         Notifica al analista de Tesorería que un nuevo paquete llegó para procesar el pago.
-        Se dispara cuando Facturación ejecuta 'Enviar a Tesorería'.
+        Se dispara cuando Radicación ejecuta 'Enviar a Tesorería'.
         """
         try:
             folio = getattr(paquete, "folio", None) or str(paquete.id)[:8]
@@ -594,7 +594,7 @@ class EmailService:
             <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
               <p>Estimado(a) equipo de <strong>Tesorería</strong>,</p>
               <p>
-                Facturación ha enviado un nuevo paquete de gastos que requiere <strong>procesamiento de pago</strong>.
+                Radicación ha enviado un nuevo paquete de gastos que requiere <strong>procesamiento de pago</strong>.
                 Por favor ingresar al sistema para revisarlo y registrar el pago correspondiente.
               </p>
 

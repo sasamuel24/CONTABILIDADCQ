@@ -147,7 +147,7 @@ def tpl_solicitud_aprobacion() -> tuple[str, str]:
 
 
 def tpl_notificacion_aprobado_facturacion() -> tuple[str, str]:
-    """Para: Facturación — paquete aprobado, listo para Tesorería."""
+    """Para: Radicación — paquete aprobado, listo para Tesorería."""
     folio = paquete.folio
     nombre_tecnico = paquete.tecnico.nombre
     monto_total = float(paquete.monto_total)
@@ -481,7 +481,7 @@ def tpl_pago_tecnico() -> tuple[str, str]:
 
 CORREOS = [
     ("01_solicitud_aprobacion_gerente",   "Gerente Administrativo",      tpl_solicitud_aprobacion),
-    ("02_aprobado_facturacion",           "Facturación",                 tpl_notificacion_aprobado_facturacion),
+    ("02_aprobado_facturacion",           "Radicación",                 tpl_notificacion_aprobado_facturacion),
     ("03_aviso_responsable",              "Responsable de Mantenimiento",tpl_aviso_responsable),
     ("04_confirmacion_creacion_tecnico",  "Técnico — creación",          tpl_confirmacion_creacion),
     ("05_aprobado_tecnico",               "Técnico — aprobación",        tpl_aprobado_tecnico),

@@ -45,11 +45,12 @@ class FacturaService:
         area_id: Optional[UUID] = None,
         area_origen_id: Optional[UUID] = None,
         estado: Optional[str] = None,
-        search: Optional[str] = None
+        search: Optional[str] = None,
+        only_in_carpeta: bool = False,
     ) -> FacturasPaginatedResponse:
         """Lista todas las facturas con paginación y filtros."""
-        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, estado={estado}, search={search}")
-        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search)
+        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, estado={estado}, search={search}, only_in_carpeta={only_in_carpeta}")
+        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta)
         
         items = []
         for f in facturas:
@@ -529,7 +530,7 @@ Responde ÚNICAMENTE con JSON válido:
             update_data['estado_id'] = 2  # Estado: Asignada
             
             # IMPORTANTE: Si area_origen_id es NULL, establecerlo la primera vez
-            # Esto guarda el área original asignada por Facturación y nunca cambia
+            # Esto guarda el área original asignada por Radicación y nunca cambia
             if factura.area_origen_id is None:
                 update_data['area_origen_id'] = factura_data.area_id
                 logger.info(f"Estableciendo area_origen_id: {factura_data.area_id}")
@@ -1909,16 +1910,16 @@ Responde ÚNICAMENTE con JSON válido:
         user_id: str
     ) -> dict:
         """
-        Devuelve una factura de Responsable al área de Facturación.
+        Devuelve una factura de Responsable al área de Radicación.
         Solo permitido si la factura está en estado de Responsable (estado_id = 2).
-        Asigna al usuario de Facturación y cambia estado a "Recibida" (estado_id = 1).
+        Asigna al usuario de Radicación y cambia estado a "Recibida" (estado_id = 1).
         """
         from sqlalchemy import select
         from db.models import Factura, Estado, Area, User
         
-        logger.info(f"Devolviendo factura {factura_id} a Facturación. Motivo: {motivo}")
+        logger.info(f"Devolviendo factura {factura_id} a Radicación. Motivo: {motivo}")
         
-        # ID del usuario de Facturación (Marlin CQ)
+        # ID del usuario de Radicación (Marlin CQ)
         FACTURACION_USER_ID = "24c529cd-f587-4076-8d9e-4e38c743cb0a"
         
         # Obtener factura
@@ -1941,10 +1942,10 @@ Responde ÚNICAMENTE con JSON válido:
             estado_actual = result_estado.scalar_one_or_none()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"La factura debe estar en estado 'Asignada' (Responsable) para poder devolverla a Facturación. Estado actual: {estado_actual.label if estado_actual else 'Desconocido'}"
+                detail=f"La factura debe estar en estado 'Asignada' (Responsable) para poder devolverla a Radicación. Estado actual: {estado_actual.label if estado_actual else 'Desconocido'}"
             )
         
-        # Buscar área de Facturación por código 'fact'
+        # Buscar área de Radicación por código 'fact'
         result_area = await self.db.execute(
             select(Area).where(Area.code == 'fact')
         )
@@ -1953,10 +1954,10 @@ Responde ÚNICAMENTE con JSON válido:
         if not area_facturacion:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="No se encontró el área de Facturación en el sistema"
+                detail="No se encontró el área de Radicación en el sistema"
             )
         
-        # Verificar que el usuario de Facturación existe
+        # Verificar que el usuario de Radicación existe
         result_user = await self.db.execute(
             select(User).where(User.id == FACTURACION_USER_ID)
         )
@@ -1965,7 +1966,7 @@ Responde ÚNICAMENTE con JSON válido:
         if not user_facturacion:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="No se encontró el usuario de Facturación en el sistema"
+                detail="No se encontró el usuario de Radicación en el sistema"
             )
         
         # Capturar nombre del usuario que devuelve
@@ -1974,9 +1975,9 @@ Responde ÚNICAMENTE con JSON válido:
         )
         user_devuelve = result_user_devuelve.scalar_one_or_none()
 
-        # Devolver a Facturación
+        # Devolver a Radicación
         factura.area_id = area_facturacion.id
-        factura.estado_id = 1  # Estado "Recibida" (vuelve a Facturación)
+        factura.estado_id = 1  # Estado "Recibida" (vuelve a Radicación)
         factura.motivo_devolucion = motivo
         factura.devuelta_por_nombre = user_devuelve.nombre if user_devuelve else None
         factura.assigned_to_user_id = FACTURACION_USER_ID  # Asignar específicamente a Marlin CQ
@@ -1991,7 +1992,7 @@ Responde ÚNICAMENTE con JSON válido:
         estado = result_estado.scalar_one_or_none()
         
         logger.info(
-            f"Factura {factura_id} devuelta exitosamente a Facturación (Usuario: {user_facturacion.nombre})"
+            f"Factura {factura_id} devuelta exitosamente a Radicación (Usuario: {user_facturacion.nombre})"
         )
 
         return {
@@ -2373,9 +2374,9 @@ Responde ÚNICAMENTE con JSON válido:
             eventos.append({
                 "fecha": factura.created_at,
                 "tipo": "recibida",
-                "titulo": "Factura recibida en Facturación",
+                "titulo": "Factura recibida en Radicación",
                 "descripcion": f"Proveedor: {factura.proveedor}",
-                "area_nombre": "Facturación",
+                "area_nombre": "Radicación",
                 "area_id": None,
                 "responsable_nombre": None,
                 "responsable_email": None,
@@ -2402,7 +2403,7 @@ Responde ÚNICAMENTE con JSON válido:
             })
 
         # Fallback: facturas ingestadas vía XML o cargadas históricamente que tienen
-        # area_id distinto a Facturación pero ninguna fila en factura_asignaciones.
+        # area_id distinto a Radicación pero ninguna fila en factura_asignaciones.
         # Surfaceamos el "asignada" sintético para que el director pueda ver dónde está.
         area_actual_nombre = (factura.area.nombre if factura.area else "") or ""
         es_area_facturacion = area_actual_nombre.upper() in FACTURACION_AREA_NAMES

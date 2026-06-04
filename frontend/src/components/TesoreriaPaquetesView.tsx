@@ -46,8 +46,8 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function fmtMonto(v: number) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v);
+function fmtMonto(v: number | string) {
+  return `$ ${Number(v).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function fmtFecha(iso: string | null | undefined) {
@@ -140,7 +140,7 @@ export function DetalleAuditoriaTes({
     setLoadingDevolver(true);
     try {
       await devolverPaqueteAFacturacion(paquete.id, motivoDevolucion.trim());
-      toast.success('Paquete devuelto a Facturación');
+      toast.success('Paquete devuelto a Radicación');
       setModalDevolverOpen(false);
       setMotivoDevolucion('');
       onPagado(); // recarga la lista
@@ -480,7 +480,7 @@ export function DetalleAuditoriaTes({
                   className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold border transition-colors hover:bg-red-50 disabled:opacity-50"
                   style={{ color: '#dc2626', borderColor: '#fca5a5', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
                 >
-                  ↩ Devolver a Facturación
+                  ↩ Devolver a Radicación
                 </button>
                 <button
                   onClick={handleAbrirModalPagar}
@@ -582,7 +582,7 @@ export function DetalleAuditoriaTes({
             </div>
           )}
 
-          {/* Modal: motivo de devolución a Facturación */}
+          {/* Modal: motivo de devolución a Radicación */}
           {modalDevolverOpen && createPortal(
             <div
               style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -593,10 +593,10 @@ export function DetalleAuditoriaTes({
                 onClick={(e) => e.stopPropagation()}
               >
                 <p style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', fontSize: 16, fontWeight: 700, marginBottom: 6, color: '#111827' }}>
-                  Devolver paquete a Facturación
+                  Devolver paquete a Radicación
                 </p>
                 <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 18 }}>
-                  El paquete volverá al estado <strong>Aprobado</strong> y será visible para Facturación.
+                  El paquete volverá al estado <strong>Aprobado</strong> y será visible para Radicación.
                 </p>
                 <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
                   Motivo de devolución <span style={{ color: '#ef4444' }}>*</span>
@@ -604,7 +604,7 @@ export function DetalleAuditoriaTes({
                 <textarea
                   value={motivoDevolucion}
                   onChange={(e) => setMotivoDevolucion(e.target.value)}
-                  placeholder="Describa el motivo por el cual devuelve el paquete a Facturación..."
+                  placeholder="Describa el motivo por el cual devuelve el paquete a Radicación..."
                   rows={4}
                   style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'Neutra Text Book, Montserrat, sans-serif', resize: 'vertical', boxSizing: 'border-box' }}
                 />
@@ -1523,7 +1523,7 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
                     )}
                   </td>
 
-                  {/* Fecha envío a Tesorería (por Facturación) */}
+                  {/* Fecha envío a Tesorería (por Radicación) */}
                   <td className="px-5 py-4">
                     {p.fecha_envio_tesoreria ? (
                       <div className="flex items-center gap-1.5 text-xs text-gray-500">

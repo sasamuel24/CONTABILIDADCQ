@@ -12,7 +12,7 @@ async def update_area_codes():
     
     # Mapeo específico por nombre exacto
     area_code_mapping = {
-        'Facturación': 'fact',
+        'Radicación': 'fact',
         'Arquitectura': 'arq',
         'Contabilidad': 'cont',
         'Tesoreria': 'tes',

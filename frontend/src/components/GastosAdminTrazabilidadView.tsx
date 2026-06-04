@@ -244,7 +244,7 @@ export function GastosAdminTrazabilidadView() {
                       <td className="px-4 py-3 text-sm text-gray-900">{f.proveedor}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{f.area}</td>
                       <td className="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap">
-                        ${f.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                        ${f.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${estadoColor(f.estado)}`}>

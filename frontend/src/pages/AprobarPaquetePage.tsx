@@ -63,7 +63,7 @@ export function AprobarPaquetePage() {
                   <tr>
                     <td className="py-1 font-semibold text-gray-700">Monto Total:</td>
                     <td className="py-1 text-gray-900 font-bold">
-                      ${Number(paquete.monto_total).toLocaleString('es-CO')} COP
+                      ${Number(paquete.monto_total).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} COP
                     </td>
                   </tr>
                 </tbody>

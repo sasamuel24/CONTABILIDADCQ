@@ -254,7 +254,7 @@ export function AdminDashboardView() {
                   <td className="px-6 py-4 text-sm text-gray-600 max-w-[200px] truncate">{f.proveedor}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{f.area}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-gray-700">
-                    ${f.total.toLocaleString('es-CO')}
+                    ${f.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </td>
                   <td className="px-6 py-4">
                     <EstadoBadge estado={f.estado} />
@@ -289,7 +289,7 @@ function MetricCard({ icon, label, value, color, bgColor }: {
         <p className="text-sm text-gray-400 mb-1" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
           {label}
         </p>
-        <p className="text-3xl font-bold text-gray-900">{value.toLocaleString('es-CO')}</p>
+        <p className="text-3xl font-bold text-gray-900">{value.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
       </div>
     </div>
   );

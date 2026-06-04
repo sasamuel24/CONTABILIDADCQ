@@ -80,10 +80,11 @@ async def list_facturas(
     area_origen_id: Optional[UUID] = Query(None, description="Filtrar por ID de área de origen"),
     estado: Optional[str] = Query(None, description="Filtrar por estado de la factura"),
     search: Optional[str] = Query(None, description="Buscar por número de factura o proveedor"),
+    only_in_carpeta: bool = Query(False, description="Solo facturas asignadas a una carpeta"),
     service: FacturaService = Depends(get_factura_service)
 ):
     """Lista todas las facturas con paginación y filtros opcionales."""
-    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search)
+    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta)
 
 
 @router.get(
@@ -973,20 +974,20 @@ async def devolver_a_facturacion(
     service: FacturaService = Depends(get_factura_service)
 ):
     """
-    Devuelve una factura de Responsable a Facturación.
+    Devuelve una factura de Responsable a Radicación.
     
     **Requisitos:**
     - La factura debe estar en estado "Asignada" (Responsable, estado_id = 2)
     - El motivo debe tener al menos 10 caracteres
     
     **Efecto:**
-    - Cambia el estado a "Recibida" (estado_id = 1) - vuelve a Facturación
-    - Asigna la factura al usuario de Facturación (Marlin CQ)
+    - Cambia el estado a "Recibida" (estado_id = 1) - vuelve a Radicación
+    - Asigna la factura al usuario de Radicación (Marlin CQ)
     - Guarda el motivo de devolución
     
     **Uso:**
-    - El Responsable puede rechazar una factura y devolverla a Facturación
-    - Facturación verá el motivo de devolución y podrá corregir
+    - El Responsable puede rechazar una factura y devolverla a Radicación
+    - Radicación verá el motivo de devolución y podrá corregir
     - La factura desaparece de la vista del Responsable
     """
     return await service.devolver_a_facturacion(factura_id, data.motivo, current_user["user_id"])
@@ -1260,7 +1261,7 @@ async def ingesta_xml(
             responsables_nit, areas, datos.ciudad_receptor, datos.direccion_receptor
         )
     # NITs no conocidos: confianza permanece "nula", area_id=None.
-    # La factura no aparecerá en el buzón XML; se gestionará por Facturación.
+    # La factura no aparecerá en el buzón XML; se gestionará por Radicación.
 
     # 6. Determinar estado de confirmación
     pendiente = confianza not in ("alta",)

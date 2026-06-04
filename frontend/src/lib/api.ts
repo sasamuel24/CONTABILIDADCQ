@@ -597,13 +597,15 @@ export async function getFacturasAreaCounts(): Promise<AreaCount[]> {
 /**
  * Obtener lista paginada de facturas
  */
-export async function getFacturas(skip: number = 0, limit: number = 100, area_id?: string, area_origen_id?: string, search?: string): Promise<FacturasPaginatedResponse> {
+export async function getFacturas(skip: number = 0, limit: number = 100, area_id?: string, area_origen_id?: string, search?: string, estado?: string, only_in_carpeta?: boolean): Promise<FacturasPaginatedResponse> {
   const params = new URLSearchParams();
   params.append('skip', skip.toString());
   params.append('limit', limit.toString());
   if (area_id) params.append('area_id', area_id);
   if (area_origen_id) params.append('area_origen_id', area_origen_id);
   if (search) params.append('search', search);
+  if (estado) params.append('estado', estado);
+  if (only_in_carpeta) params.append('only_in_carpeta', 'true');
   return fetchAPI<FacturasPaginatedResponse>(`/facturas/?${params.toString()}`);
 }
 
@@ -1230,7 +1232,7 @@ export interface DevolverAFacturacionResponse {
 }
 
 /**
- * Devolver una factura de Responsable a Facturación
+ * Devolver una factura de Responsable a Radicación
  */
 export async function devolverAFacturacion(
   facturaId: string,
@@ -1255,6 +1257,7 @@ export interface FacturaEnCarpeta {
   numero_factura: string;
   proveedor: string;
   total: number;
+  estado: string;
   carpeta_nombre?: string | null;
 }
 
@@ -1842,7 +1845,7 @@ export async function aprobarPaquete(paqueteId: string): Promise<PaqueteOut> {
 }
 
 /** Admin devuelve el paquete con un motivo */
-/** Tesorería devuelve paquete en_tesoreria a Facturación (estado aprobado) */
+/** Tesorería devuelve paquete en_tesoreria a Radicación (estado aprobado) */
 export async function devolverPaqueteAFacturacion(paqueteId: string, motivo: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/devolver-a-facturacion`, {
     method: 'POST',
@@ -1858,7 +1861,7 @@ export async function devolverPaquete(paqueteId: string, motivo: string): Promis
   });
 }
 
-/** Facturación envía el paquete aprobado a Tesorería */
+/** Radicación envía el paquete aprobado a Tesorería */
 export async function enviarATesoreria(paqueteId: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/enviar-tesoreria`, { method: 'POST' });
 }
@@ -2043,7 +2046,7 @@ export async function getAprobacionGerenciaDownloadUrl(
 
 // --- Documento Contable General (nivel paquete) ------------------------------
 
-/** Subir documento contable general para un paquete (solo Facturación, estado aprobado) */
+/** Subir documento contable general para un paquete (solo Radicación, estado aprobado) */
 export async function subirDocContable(
   paqueteId: string,
   file: File
@@ -2077,7 +2080,7 @@ export async function eliminarDocContable(
 
 // --- CM PDF por gasto individual ---------------------------------------------
 
-/** Subir CM PDF para un gasto individual (solo Facturación, estado aprobado) */
+/** Subir CM PDF para un gasto individual (solo Radicación, estado aprobado) */
 export async function subirCmPdfGasto(
   paqueteId: string,
   gastoId: string,
@@ -2124,7 +2127,7 @@ export async function reenviarCorreoAprobacion(
 
 // --- Devolución individual de gasto (Fase 3) ---------------------------------
 
-/** Facturación devuelve un gasto individual con motivo */
+/** Radicación devuelve un gasto individual con motivo */
 export async function devolverGasto(
   paqueteId: string,
   gastoId: string,

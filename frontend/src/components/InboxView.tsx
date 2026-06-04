@@ -380,7 +380,7 @@ const itemsPerPage = 20;
               flex-shrink: 0;
             ">✓</div>
             <div>
-              <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 600; color: #111827;">Sistema de facturación dice:</h3>
+              <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 600; color: #111827;">Sistema de radicación dice:</h3>
               <p style="margin: 0; font-size: 14px; color: #4b5563; line-height: 1.5;">Área actualizada correctamente</p>
             </div>
           </div>
@@ -854,7 +854,7 @@ const itemsPerPage = 20;
                     )}
                     <td className="px-6 py-4 text-right">
                       <div className="text-gray-900">
-                        ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                        ${factura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -1046,7 +1046,7 @@ const itemsPerPage = 20;
                   <div className="flex justify-between border-t border-gray-200 pt-3">
                     <span className="text-gray-900">Total a Pagar</span>
                     <span className="text-gray-900">
-                      ${selectedFactura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                      ${selectedFactura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                     </span>
                   </div>
                 </div>

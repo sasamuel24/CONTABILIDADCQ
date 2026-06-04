@@ -20,8 +20,8 @@ import { DetalleAuditoriaTes } from './TesoreriaPaquetesView';
 // Helpers
 // ============================================================
 
-function fmtMonto(n: number): string {
-  return `$ ${n.toLocaleString('es-CO', { minimumFractionDigits: 0 })}`;
+function fmtMonto(n: number | string): string {
+  return `$ ${Number(n).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function fmtFecha(iso: string): string {
@@ -67,7 +67,7 @@ const ESTADO_CONFIG: Record<AnticipoEstado, { label: string; bg: string; color: 
 const PKG_BADGE: Record<string, { label: string; bg: string; color: string; border: string }> = {
   borrador:     { label: 'Llenando gastos',  bg: '#f0fdf4', color: '#166534', border: '#bbf7d0' },
   devuelto:     { label: 'Devuelto',         bg: '#fef2f2', color: '#991b1b', border: '#fecaca' },
-  aprobado:     { label: 'En Facturación',   bg: '#faf5ff', color: '#7c3aed', border: '#ddd6fe' },
+  aprobado:     { label: 'En Radicación',   bg: '#faf5ff', color: '#7c3aed', border: '#ddd6fe' },
   en_tesoreria: { label: 'En Tesorería',     bg: 'rgba(20,170,184,0.08)', color: '#00829a', border: '#14aab8' },
   pagado:       { label: 'Pagado',           bg: '#f0fdf4', color: '#15803d', border: '#86efac' },
 };
@@ -186,7 +186,7 @@ function AnticipoCard({
           style={{ background: '#faf5ff', border: '1px solid #ddd6fe' }}>
           <CheckCircle2 className="w-3.5 h-3.5 shrink-0" style={{ color: '#7c3aed' }} />
           <p className="text-xs font-semibold" style={{ color: '#7c3aed' }}>
-            En Facturación — pendiente de envío a Tesorería
+            En Radicación — pendiente de envío a Tesorería
           </p>
         </div>
       )}

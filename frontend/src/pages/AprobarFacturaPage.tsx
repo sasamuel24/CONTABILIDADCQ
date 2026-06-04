@@ -71,7 +71,7 @@ export function AprobarFacturaPage() {
                   <tr>
                     <td className="py-1.5 font-semibold text-gray-700">Valor Total:</td>
                     <td className="py-1.5 text-gray-900 font-bold">
-                      ${Number(aprobacion.total).toLocaleString('es-CO')} COP
+                      ${Number(aprobacion.total).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} COP
                     </td>
                   </tr>
                   <tr>

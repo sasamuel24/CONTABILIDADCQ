@@ -21,12 +21,12 @@ const FLOW_NODES: FlowNode[] = [
   {
     id: 'facturacion',
     step: 1,
-    title: 'Facturación',
-    role: 'Rol: facturación',
+    title: 'Radicación',
+    role: 'Rol: radicación',
     color: '#3b82f6',
     bg: '#eff6ff',
     Icon: FileText,
-    summary: 'Punto de entrada del documento. El equipo de facturación crea y envía la factura al flujo.',
+    summary: 'Punto de entrada del documento. El equipo de radicación crea y envía la factura al flujo.',
     actions: [
       'Carga la factura (XML / PDF / manual)',
       'Adjunta documentos soporte requeridos',
@@ -52,7 +52,7 @@ const FLOW_NODES: FlowNode[] = [
       'Puede reenviar a doble aprobación si aplica',
     ],
     exceptions: [
-      { label: 'Devolver por documentación incompleta', target: 'Facturación' },
+      { label: 'Devolver por documentación incompleta', target: 'Radicación' },
     ],
   },
   {
@@ -113,7 +113,7 @@ const FLOW_NODES: FlowNode[] = [
 const EXCEPCIONES = [
   {
     from: 'Responsable',
-    to: 'Facturación',
+    to: 'Radicación',
     colorFrom: '#f59e0b',
     colorTo: '#3b82f6',
     motivo: 'Documentación incompleta, montos incorrectos o información del proveedor inválida.',

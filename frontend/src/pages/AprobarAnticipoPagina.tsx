@@ -29,8 +29,8 @@ async function rechazarAnticipo(token: string, motivo: string): Promise<Anticipo
   return resp.json();
 }
 
-function fmtMonto(n: number) {
-  return `$${n.toLocaleString('es-CO', { minimumFractionDigits: 0 })} COP`;
+function fmtMonto(n: number | string) {
+  return `$ ${Number(n).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 export function AprobarAnticipoPagina() {

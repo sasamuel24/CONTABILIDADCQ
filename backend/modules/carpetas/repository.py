@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from uuid import UUID
-from db.models import Carpeta
+from db.models import Carpeta, Factura, Estado
 
 
 class CarpetaRepository:
@@ -29,13 +29,14 @@ class CarpetaRepository:
     
     async def get_root_folders(self) -> List[Carpeta]:
         """Obtiene las carpetas raíz (sin parent_id) con toda la jerarquía."""
+        factura_con_estado = selectinload(Carpeta.facturas).selectinload(Factura.estado)
         result = await self.db.execute(
             select(Carpeta)
             .options(
-                selectinload(Carpeta.facturas),
-                selectinload(Carpeta.children).selectinload(Carpeta.facturas),
-                selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.facturas),
-                selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.facturas)
+                factura_con_estado,
+                selectinload(Carpeta.children).selectinload(Carpeta.facturas).selectinload(Factura.estado),
+                selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.facturas).selectinload(Factura.estado),
+                selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.facturas).selectinload(Factura.estado),
             )
             .where(Carpeta.parent_id.is_(None))
             .order_by(Carpeta.nombre)

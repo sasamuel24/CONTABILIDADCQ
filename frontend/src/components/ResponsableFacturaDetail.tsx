@@ -65,7 +65,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const { user } = useAuth();
   const esGadmin = user?.area?.code === 'GADMIN';
 
-  // Estados para modal de devolución a Facturación
+  // Estados para modal de devolución a Radicación
   const [mostrarModalDevolucion, setMostrarModalDevolucion] = useState(false);
   const [motivoDevolucion, setMotivoDevolucion] = useState('');
   const [enviandoDevolucion, setEnviandoDevolucion] = useState(false);
@@ -475,7 +475,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               flex-shrink: 0;
             ">✓</div>
             <div>
-              <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 600; color: #111827;">Sistema de facturación dice:</h3>
+              <h3 style="margin: 0 0 4px 0; font-size: 18px; font-weight: 600; color: #111827;">Sistema de radicación dice:</h3>
               <p style="margin: 0; font-size: 14px; color: #4b5563; line-height: 1.5;">${mensaje}</p>
             </div>
           </div>
@@ -1455,7 +1455,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 <div className="flex justify-between">
                   <span className="text-gray-600">Total a Pagar</span>
                   <span className="text-gray-900 font-bold text-lg">
-                    ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                    ${factura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </span>
                 </div>
               </div>
@@ -2725,7 +2725,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         </>
       )}
 
-      {/* Modal de Devolución a Facturación */}
+      {/* Modal de Devolución a Radicación */}
       {mostrarModalDevolucion && (
         <>
           <div 

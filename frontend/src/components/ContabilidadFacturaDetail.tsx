@@ -535,7 +535,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total a Pagar</span>
                     <span className="text-gray-900 font-bold text-lg">
-                      ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                      ${factura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                     </span>
                   </div>
                 </div>

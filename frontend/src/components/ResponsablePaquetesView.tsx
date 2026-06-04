@@ -68,8 +68,8 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function fmtMonto(v: number) {
-  return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(v);
+function fmtMonto(v: number | string) {
+  return `$ ${Number(v).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function fmtFecha(iso: string | null | undefined) {
@@ -582,7 +582,7 @@ function DetallePaqueteResponsable({
 
   // Responsable de Mantenimiento aprueba/devuelve paquetes en revisión
   const esResponsable = ['admin', 'responsable'].includes(rolActual) || ['admin', 'responsable', 'mant'].includes(areaActual);
-  // Facturación envía paquetes aprobados a Tesorería
+  // Radicación envía paquetes aprobados a Tesorería
   const esFact = ['admin', 'fact'].includes(rolActual) || ['admin', 'fact'].includes(areaActual);
   const esTes = ['admin', 'tesoreria', 'tes'].includes(rolActual) || ['admin', 'tesoreria', 'tes'].includes(areaActual);
 
@@ -591,9 +591,9 @@ function DetallePaqueteResponsable({
   const puedeDevolverComoFact = paquete.estado === 'aprobado' && esFact;
   // Doc contable visible (para ver/descargar) desde aprobado en adelante
   const verDocContable = ['aprobado', 'en_tesoreria', 'pagado'].includes(paquete.estado);
-  // Facturación puede gestionar doc contable en cualquier estado visible
+  // Radicación puede gestionar doc contable en cualquier estado visible
   const puedeGestionarDocContable = verDocContable && esFact;
-  // CF PDF: facturación puede subir cuando aprobado; todos ven si existe
+  // CF PDF: radicación puede subir cuando aprobado; todos ven si existe
   const puedeGestionarCmPdf = paquete.estado === 'aprobado' && esFact;
 
   const gastosDevueltos = paquete.gastos.filter((g) => g.estado_gasto === 'devuelto');
@@ -1502,7 +1502,7 @@ export function ResponsablePaquetesView({
     .filter((p) => p.estado !== 'borrador')
     .filter((p) => !soloAnticipos || p.anticipo !== null);
 
-  // Para facturación: "En revisión" muestra los aprobados por responsable (pendientes de enviar a tesorería)
+  // Para radicación: "En revisión" muestra los aprobados por responsable (pendientes de enviar a tesorería)
   // Para responsable: "En revisión" muestra los enviados por el técnico (pendientes de aprobar)
   const estadoRevision: EstadoPaquete = esFact ? 'aprobado' : 'en_revision';
 

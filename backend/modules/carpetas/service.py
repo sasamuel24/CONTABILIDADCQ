@@ -51,6 +51,7 @@ class CarpetaService:
                 numero_factura=f.numero_factura,
                 proveedor=f.proveedor,
                 total=float(f.total),
+                estado=f.estado.label if f.estado else '',
                 carpeta_nombre=carpeta.nombre
             )
             for f in carpeta.facturas

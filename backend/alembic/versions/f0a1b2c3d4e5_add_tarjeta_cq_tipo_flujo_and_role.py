@@ -31,7 +31,7 @@ def upgrade() -> None:
             gen_random_uuid(),
             'tarjeta_cq',
             'Responsable Tarjeta CQ',
-            'Responsable de gastos con tarjeta anticipo CQ. Crea paquetes, selecciona aprobador de gerencia y gestiona el flujo hacia Facturación y Tesorería.',
+            'Responsable de gastos con tarjeta anticipo CQ. Crea paquetes, selecciona aprobador de gerencia y gestiona el flujo hacia Radicación y Tesorería.',
             true,
             NOW(),
             NOW()

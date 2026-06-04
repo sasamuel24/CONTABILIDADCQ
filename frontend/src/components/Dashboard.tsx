@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Search, ChevronDown, TrendingUp, TrendingDown, MoreVertical, Reply, Circle, LayoutDashboard, Inbox, LogOut, PackageOpen, Users, FileCode2, Banknote } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { Search, MoreVertical, LayoutDashboard, Inbox, LogOut, PackageOpen, Users, FileCode2, Banknote, Menu, X } from 'lucide-react';
 import { InboxView } from './InboxView';
 import { ResponsablePaquetesView } from './ResponsablePaquetesView';
 import { AdminUsuariosView } from './AdminUsuariosView';
@@ -15,16 +16,6 @@ interface AreaWithCount extends Area {
   count: number;
 }
 
-const statusList = [
-  { label: 'Willing to meet', count: 0, color: 'bg-green-500' },
-  { label: 'Follow-up question', count: 1, color: 'bg-blue-500' },
-  { label: 'Referred to other person', count: 0, color: 'bg-purple-500' },
-  { label: 'Out of office', count: 0, color: 'bg-yellow-500' },
-  { label: 'Not the right person', count: 0, color: 'bg-orange-500' },
-  { label: 'Not interested', count: 0, color: 'bg-red-500' },
-  { label: 'Unsubscribed', count: 0, color: 'bg-gray-500' },
-];
-
 export function Dashboard({ userName, onLogout }: DashboardProps) {
   const [selectedArea, setSelectedArea] = useState('Todas');
   const [selectedAreaId, setSelectedAreaId] = useState<string | undefined>(undefined);
@@ -32,6 +23,20 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeSection, setActiveSection] = useState('dashboard');
   const [enDetallePaquetes, setEnDetallePaquetes] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMounted, setDrawerMounted] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  const openDrawer = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    setDrawerMounted(true);
+    requestAnimationFrame(() => setDrawerOpen(true));
+  };
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    closeTimer.current = setTimeout(() => setDrawerMounted(false), 300);
+  };
 
   // Estados para datos del backend
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
@@ -47,64 +52,64 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
   const totalPages = Math.ceil(totalFacturas / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
 
-  // Debounce búsqueda — evita request por cada tecla
+  // Debounce búsqueda
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      setCurrentPage(1);
-    }, 400);
+    const timer = setTimeout(() => { setDebouncedSearch(searchQuery); setCurrentPage(1); }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Carga única: métricas + áreas con conteos (no se repite al paginar)
+  // Carga única: métricas + áreas
   useEffect(() => {
     if (activeSection !== 'dashboard') return;
     const loadStaticData = async () => {
-      setIsLoading(true);
-      setError(null);
+      setIsLoading(true); setError(null);
       try {
         const [metricsData, areasData, areaCounts] = await Promise.all([
-          getDashboardMetrics(),
-          getAreas(),
-          getFacturasAreaCounts(),
+          getDashboardMetrics(), getAreas(), getFacturasAreaCounts(),
         ]);
         setMetrics(metricsData);
-        setAreas(areasData.map(area => ({
+        setAreas(areasData.map((area: Area) => ({
           ...area,
-          count: areaCounts.find(c => c.area_id === area.id)?.count || 0,
+          count: areaCounts.find((c: AreaCount) => c.area_id === area.id)?.count || 0,
         })));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error al cargar datos del dashboard');
-      } finally {
-        setIsLoading(false);
-      }
+      } finally { setIsLoading(false); }
     };
     loadStaticData();
   }, [activeSection]);
 
-  // Carga paginada con filtros server-side
+  // Carga paginada
   useEffect(() => {
     if (activeSection !== 'dashboard') return;
     const loadFacturas = async () => {
       setIsLoadingTable(true);
       try {
         const resp = await getFacturas(
-          (currentPage - 1) * itemsPerPage,
-          itemsPerPage,
-          selectedAreaId,
-          undefined,
-          debouncedSearch || undefined
+          (currentPage - 1) * itemsPerPage, itemsPerPage,
+          selectedAreaId, undefined, debouncedSearch || undefined
         );
-        setFacturas(resp.items);
-        setTotalFacturas(resp.total);
-      } catch (err) {
-        console.error('Error cargando facturas:', err);
-      } finally {
-        setIsLoadingTable(false);
-      }
+        setFacturas(resp.items); setTotalFacturas(resp.total);
+      } catch (err) { console.error('Error cargando facturas:', err); }
+      finally { setIsLoadingTable(false); }
     };
     loadFacturas();
   }, [currentPage, selectedAreaId, debouncedSearch, activeSection]);
+
+  // Scroll lock
+  useEffect(() => {
+    document.body.style.overflow = drawerOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [drawerOpen]);
+
+  // Limpia timer al desmontar
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
+
+  const goTo = (id: string) => {
+    setActiveSection(id);
+    if (id === 'paquetes' || id === 'anticipos') setEnDetallePaquetes(false);
+    closeDrawer();
+  };
 
   const totalAllFacturas = areas.reduce((sum, a) => sum + a.count, 0);
 
@@ -118,154 +123,128 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
     'Pagada': { color: 'text-green-700', bgColor: 'bg-green-50 border-green-200' },
   } as Record<string, { color: string; bgColor: string }>;
 
-  return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
-        {/* Logo */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="w-15 h-10 rounded-lg flex items-center justify-center" style={{backgroundColor: '#00829a'}}>
-            <span className="text-white font-bold" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>DocuFlow</span>
-          </div>
+  const NAV_MOBILE = [
+    { id: 'dashboard', label: 'Dashboard',   Icon: LayoutDashboard },
+    { id: 'inbox',     label: 'Inbox',       Icon: Inbox           },
+    { id: 'paquetes',  label: 'Paquetes',    Icon: PackageOpen     },
+    { id: 'anticipos', label: 'Anticipos',   Icon: Banknote        },
+  ];
+
+  // Sidebar interior — compartido entre desktop y drawer
+  const sidebarInner = (
+    <>
+      {/* Logo */}
+      <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+        <div className="h-10 rounded-lg flex items-center justify-center px-4 flex-1" style={{ backgroundColor: '#00829a' }}>
+          <span className="text-white font-bold" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>DocuFlow</span>
         </div>
+        <button
+          className="md:hidden ml-3 p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors flex-shrink-0"
+          onClick={() => setDrawerOpen(false)}
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4">
-          <button
-            onClick={() => setActiveSection('dashboard')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2`}
+      {/* Navigation */}
+      <nav className="flex-1 p-4 overflow-y-auto">
+        {[
+          { id: 'dashboard', label: 'Dashboard',      Icon: LayoutDashboard },
+          { id: 'inbox',     label: 'Inbox',          Icon: Inbox           },
+          { id: 'paquetes',  label: 'Paquetes de Gastos', Icon: PackageOpen },
+          { id: 'anticipos', label: 'Anticipos',      Icon: Banknote        },
+          { id: 'usuarios',  label: 'Usuarios',       Icon: Users           },
+          { id: 'buzon-xml', label: 'Buzón XML',      Icon: FileCode2       },
+        ].map(({ id, label, Icon }) => {
+          const activo = activeSection === id;
+          return (
+            <button
+              key={id}
+              onClick={() => goTo(id)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2"
+              style={{
+                backgroundColor: activo ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
+                color: activo ? '#00829a' : '#374151',
+                fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+              }}
+              onMouseEnter={(e) => { if (!activo) e.currentTarget.style.backgroundColor = '#f9fafb'; }}
+              onMouseLeave={(e) => { if (!activo) e.currentTarget.style.backgroundColor = 'transparent'; }}
+            >
+              <Icon className="w-5 h-5" />
+              <span>{label}</span>
+            </button>
+          );
+        })}
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-700 hover:bg-gray-50"
+          style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+        >
+          <LogOut className="w-5 h-5" />
+          <span>Logout</span>
+        </button>
+      </nav>
+    </>
+  );
+
+  return (
+    <>
+      {/* Portal: overlay + drawer fuera del contenedor overflow:hidden */}
+      {drawerMounted && createPortal(
+        <>
+          {/* Overlay */}
+          <div
+            onClick={closeDrawer}
+            style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.5)', opacity: drawerOpen ? 1 : 0, transition: 'opacity 0.28s ease' }}
+          />
+          {/* Panel */}
+          <aside
             style={{
-              backgroundColor: activeSection === 'dashboard' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
-              color: activeSection === 'dashboard' ? '#00829a' : '#374151',
-              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
-            }}
-            onMouseEnter={(e) => {
-              if (activeSection !== 'dashboard') e.currentTarget.style.backgroundColor = '#f9fafb';
-            }}
-            onMouseLeave={(e) => {
-              if (activeSection !== 'dashboard') e.currentTarget.style.backgroundColor = 'transparent';
+              position: 'fixed', top: 0, left: 0, bottom: 0, width: 280, zIndex: 9999,
+              background: '#fff', boxShadow: '4px 0 24px rgba(0,0,0,0.15)',
+              display: 'flex', flexDirection: 'column',
+              transform: drawerOpen ? 'translateX(0)' : 'translateX(-100%)',
+              transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
             }}
           >
-            <LayoutDashboard className="w-5 h-5" />
-            <span>Dashboard</span>
-          </button>
+            {sidebarInner}
+          </aside>
+        </>,
+        document.body
+      )}
 
-          <button
-            onClick={() => setActiveSection('inbox')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors`}
-            style={{
-              backgroundColor: activeSection === 'inbox' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
-              color: activeSection === 'inbox' ? '#00829a' : '#374151',
-              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
-            }}
-            onMouseEnter={(e) => {
-              if (activeSection !== 'inbox') e.currentTarget.style.backgroundColor = '#f9fafb';
-            }}
-            onMouseLeave={(e) => {
-              if (activeSection !== 'inbox') e.currentTarget.style.backgroundColor = 'transparent';
-            }}
-          >
-            <Inbox className="w-5 h-5" />
-            <span>Inbox</span>
-          </button>
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
 
-          <button
-            onClick={() => { setActiveSection('paquetes'); setEnDetallePaquetes(false); }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2"
-            style={{
-              backgroundColor: activeSection === 'paquetes' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
-              color: activeSection === 'paquetes' ? '#00829a' : '#374151',
-              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
-            }}
-            onMouseEnter={(e) => {
-              if (activeSection !== 'paquetes') e.currentTarget.style.backgroundColor = '#f9fafb';
-            }}
-            onMouseLeave={(e) => {
-              if (activeSection !== 'paquetes') e.currentTarget.style.backgroundColor = 'transparent';
-            }}
-          >
-            <PackageOpen className="w-5 h-5" />
-            <span>Paquetes de Gastos</span>
-          </button>
-
-          <button
-            onClick={() => { setActiveSection('anticipos'); setEnDetallePaquetes(false); }}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2"
-            style={{
-              backgroundColor: activeSection === 'anticipos' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
-              color: activeSection === 'anticipos' ? '#00829a' : '#374151',
-              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
-            }}
-            onMouseEnter={(e) => {
-              if (activeSection !== 'anticipos') e.currentTarget.style.backgroundColor = '#f9fafb';
-            }}
-            onMouseLeave={(e) => {
-              if (activeSection !== 'anticipos') e.currentTarget.style.backgroundColor = 'transparent';
-            }}
-          >
-            <Banknote className="w-5 h-5" />
-            <span>Anticipos</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSection('usuarios')}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2"
-            style={{
-              backgroundColor: activeSection === 'usuarios' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
-              color: activeSection === 'usuarios' ? '#00829a' : '#374151',
-              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
-            }}
-            onMouseEnter={(e) => {
-              if (activeSection !== 'usuarios') e.currentTarget.style.backgroundColor = '#f9fafb';
-            }}
-            onMouseLeave={(e) => {
-              if (activeSection !== 'usuarios') e.currentTarget.style.backgroundColor = 'transparent';
-            }}
-          >
-            <Users className="w-5 h-5" />
-            <span>Usuarios</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSection('buzon-xml')}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-2"
-            style={{
-              backgroundColor: activeSection === 'buzon-xml' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
-              color: activeSection === 'buzon-xml' ? '#00829a' : '#374151',
-              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
-            }}
-            onMouseEnter={(e) => {
-              if (activeSection !== 'buzon-xml') e.currentTarget.style.backgroundColor = '#f9fafb';
-            }}
-            onMouseLeave={(e) => {
-              if (activeSection !== 'buzon-xml') e.currentTarget.style.backgroundColor = 'transparent';
-            }}
-          >
-            <FileCode2 className="w-5 h-5" />
-            <span>Buzón XML</span>
-          </button>
-
-          <button
-            onClick={onLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-gray-700 hover:bg-gray-50"
-            style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Logout</span>
-          </button>
-        </nav>
+      {/* ════════ DESKTOP SIDEBAR — idéntico al original ════════════════════ */}
+      <aside className="hidden md:flex md:w-64 bg-white border-r border-gray-200 flex-col flex-shrink-0">
+        {sidebarInner}
       </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-8 py-4">
-          <div className="flex items-center justify-between">
-            <h1 className="text-gray-900">
+      {/* ════════ ÁREA PRINCIPAL ════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+        {/* Mobile header */}
+        <header
+          className="md:hidden flex items-center gap-3 px-4 bg-white border-b border-gray-200 flex-shrink-0"
+          style={{ height: 56 }}
+        >
+          <button onClick={openDrawer} className="p-2 -ml-1 rounded-xl text-gray-500 active:bg-gray-100 transition-colors">
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="h-8 px-3 rounded-lg flex items-center" style={{ backgroundColor: '#00829a' }}>
+            <span className="text-white text-sm font-bold" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>DocuFlow</span>
+          </div>
+          <span className="flex-1 text-sm font-semibold text-gray-700 truncate" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
+            Bienvenid@, {userName}
+          </span>
+        </header>
+
+        {/* Desktop header */}
+        <header className="hidden md:flex bg-white border-b border-gray-200 px-8 py-4 flex-shrink-0">
+          <div className="flex items-center justify-between w-full">
+            <h1 className="text-gray-900" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
               Bienvenid@n, {userName} 👋
             </h1>
-            <div className="flex items-center gap-3">
-            </div>
           </div>
         </header>
 
@@ -276,328 +255,279 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
           ) : activeSection === 'usuarios' ? (
             <AdminUsuariosView />
           ) : activeSection === 'anticipos' ? (
-            <div className={enDetallePaquetes ? 'p-4' : 'p-8'}>
+            <div className={enDetallePaquetes ? 'p-4' : 'p-4 md:p-8'}>
               {!enDetallePaquetes && (
                 <div className="mb-6">
-                  <h2
-                    className="text-2xl font-bold text-gray-900"
-                    style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}
-                  >
-                    Anticipos
-                  </h2>
-                  <p
-                    className="text-sm text-gray-400 mt-0.5"
-                    style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
-                  >
-                    Audita y envía a Tesorería los paquetes de anticipo aprobados
-                  </p>
+                  <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>Anticipos</h2>
+                  <p className="text-sm text-gray-400 mt-0.5" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>Audita y envía a Tesorería los paquetes de anticipo aprobados</p>
                 </div>
               )}
-              <ResponsablePaquetesView
-                soloAnticipos
-                onVistaChange={(v) => setEnDetallePaquetes(v === 'detalle')}
-              />
+              <ResponsablePaquetesView soloAnticipos onVistaChange={(v) => setEnDetallePaquetes(v === 'detalle')} />
             </div>
           ) : activeSection === 'paquetes' ? (
-            <div className={enDetallePaquetes ? 'p-4' : 'p-8'}>
+            <div className={enDetallePaquetes ? 'p-4' : 'p-4 md:p-8'}>
               {!enDetallePaquetes && (
                 <div className="mb-6">
-                  <h2
-                    className="text-2xl font-bold text-gray-900"
-                    style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}
-                  >
-                    Paquetes de Gastos
-                  </h2>
-                  <p
-                    className="text-sm text-gray-400 mt-0.5"
-                    style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
-                  >
-                    Revisa, aprueba o devuelve los paquetes enviados por los técnicos
-                  </p>
+                  <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>Paquetes de Gastos</h2>
+                  <p className="text-sm text-gray-400 mt-0.5" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>Revisa, aprueba o devuelve los paquetes enviados por los técnicos</p>
                 </div>
               )}
-              <ResponsablePaquetesView
-                onVistaChange={(v) => setEnDetallePaquetes(v === 'detalle')}
-              />
+              <ResponsablePaquetesView onVistaChange={(v) => setEnDetallePaquetes(v === 'detalle')} />
             </div>
           ) : activeSection === 'inbox' ? (
-            <div className="px-8 py-6">
+            <div className="px-4 md:px-8 py-4 md:py-6">
               <InboxView />
             </div>
           ) : (
             <>
-              <div className="px-8 py-6">
-              {/* Email Stats Section */}
-              <div className="mb-8">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-gray-900">Your email stats</h2>
+              <div className="px-4 md:px-8 py-4 md:py-6">
+                {/* Métricas */}
+                <div className="mb-6 md:mb-8">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-gray-900" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>Métricas generales</h2>
+                    <button className="p-2 hover:bg-gray-100 rounded">
+                      <MoreVertical className="w-5 h-5 text-gray-600" />
+                    </button>
                   </div>
-                  <button className="p-2 hover:bg-gray-100 rounded">
-                    <MoreVertical className="w-5 h-5 text-gray-600" />
-                  </button>
+                  {isLoading ? (
+                    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+                      {[1,2,3,4].map((i) => (
+                        <div key={i} className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
+                          <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : error ? (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-center">{error}</div>
+                  ) : metrics ? (
+                    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+                      <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 hover:shadow-lg transition-shadow text-center">
+                        <p className="text-gray-600 mb-2 text-xs md:text-sm">Total Facturas</p>
+                        <p className="text-gray-900 text-2xl md:text-3xl font-bold">{metrics.recibidas}</p>
+                      </div>
+                      <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 hover:shadow-lg transition-shadow text-center">
+                        <p className="text-gray-600 mb-2 text-xs md:text-sm">Asignadas</p>
+                        <p className="text-gray-900 text-2xl md:text-3xl font-bold">{metrics.asignadas}</p>
+                      </div>
+                      <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 hover:shadow-lg transition-shadow text-center">
+                        <p className="text-gray-600 mb-2 text-xs md:text-sm">Pagadas</p>
+                        <p className="text-gray-900 text-2xl md:text-3xl font-bold">{metrics.cerradas}</p>
+                      </div>
+                      <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6 hover:shadow-lg transition-shadow text-center">
+                        <p className="text-gray-600 mb-2 text-xs md:text-sm">Pendientes</p>
+                        <p className="text-gray-900 text-2xl md:text-3xl font-bold">{metrics.pendientes}</p>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
-                {isLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-                    {[1, 2, 3, 4].map((i) => (
-                      <div key={i} className="bg-white rounded-lg border border-gray-200 p-6 animate-pulse">
-                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
-                        <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-                      </div>
-                    ))}
-                  </div>
-                ) : error ? (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-center">
-                    {error}
-                  </div>
-                ) : metrics ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
-                    <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow text-center">
-                      <p className="text-gray-600 mb-3">Total Facturas</p>
-                      <p className="text-gray-900">{metrics.recibidas}</p>
+                {/* Tabla facturas */}
+                <div className="bg-white rounded-lg border border-gray-200">
+                  <div className="p-4 md:p-6">
+                    <h2 className="text-gray-900 mb-4" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>Seguimiento de Facturas por Áreas</h2>
+                    <div className="mb-4 md:mb-6 relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Buscar por número de factura, proveedor o responsable..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-9 md:pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none text-sm"
+                        style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+                        onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
+                        onBlur={(e) => e.target.style.boxShadow = ''}
+                      />
                     </div>
-                    <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow text-center">
-                      <p className="text-gray-600 mb-3">Facturas Asignadas</p>
-                      <p className="text-gray-900">{metrics.asignadas}</p>
-                    </div>
-                    <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow text-center">
-                      <p className="text-gray-600 mb-3">Facturas Pagadas</p>
-                      <p className="text-gray-900">{metrics.cerradas}</p>
-                    </div>
-                    <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-lg transition-shadow text-center">
-                      <p className="text-gray-600 mb-3">Facturas Pendientes</p>
-                      <p className="text-gray-900">{metrics.pendientes}</p>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
 
-              {/* Recent Replies Section */}
-              <div className="bg-white rounded-lg border border-gray-200">
-                <div className="p-6">
-                  <h2 className="text-gray-900 mb-4">Seguimiento de Facturas por Áreas</h2>
-
-                  {/* Search Bar */}
-                  <div className="mb-6 relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Buscar por número de factura, proveedor o responsable..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none"
-                      style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
-                      onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
-                      onBlur={(e) => e.target.style.boxShadow = ''}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                    {/* Areas Sidebar */}
-                    <div className="lg:col-span-1">
-                      <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
-                        <style>{`
-                          .areas-scrollbar::-webkit-scrollbar {
-                            width: 6px;
-                          }
-                          .areas-scrollbar::-webkit-scrollbar-track {
-                            background: #f3f4f6;
-                          }
-                          .areas-scrollbar::-webkit-scrollbar-thumb {
-                            background: #14aab8;
-                            border-radius: 10px;
-                          }
-                          .areas-scrollbar::-webkit-scrollbar-thumb:hover {
-                            background: #00829a;
-                          }
-                        `}</style>
-                        <div
-                          className="areas-scrollbar p-3"
-                          style={{ maxHeight: '560px', overflowY: 'scroll' }}
+                    {/* Chips de área — solo móvil */}
+                    <div className="lg:hidden mb-4 flex gap-2 overflow-x-auto pb-1">
+                      {[{ id: undefined as string | undefined, nombre: 'Todas', count: totalAllFacturas }, ...areas].map(area => (
+                        <button
+                          key={area.nombre}
+                          onClick={() => { setSelectedArea(area.nombre); setSelectedAreaId(area.id); setCurrentPage(1); }}
+                          className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors whitespace-nowrap"
+                          style={{
+                            backgroundColor: selectedArea === area.nombre ? '#00829a' : '#fff',
+                            color: selectedArea === area.nombre ? '#fff' : '#6b7280',
+                            borderColor: selectedArea === area.nombre ? '#00829a' : '#e5e7eb',
+                          }}
                         >
-                          <button
-                            onClick={() => {
-                              setSelectedArea('Todas');
-                              setSelectedAreaId(undefined);
-                              setCurrentPage(1);
-                            }}
-                            className={`w-full text-left px-3 py-2 rounded-lg transition-colors mb-4`}
-                            style={{
-                              backgroundColor: selectedArea === 'Todas' ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
-                              color: selectedArea === 'Todas' ? '#00829a' : '#374151',
-                              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
-                            }}
-                            onMouseEnter={(e) => {
-                              if (selectedArea !== 'Todas') e.currentTarget.style.backgroundColor = '#f9fafb';
-                            }}
-                            onMouseLeave={(e) => {
-                              if (selectedArea !== 'Todas') e.currentTarget.style.backgroundColor = 'transparent';
-                            }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>Todas las áreas</span>
-                              <span className="text-gray-500">{totalAllFacturas}</span>
-                            </div>
-                          </button>
-
-                          <p className="px-3 mb-2 text-gray-600 text-sm font-medium">ÁREAS</p>
-                        
-                        {areas.map((area) => (
-                          <button
-                            key={area.id}
-                            onClick={() => {
-                              setSelectedArea(area.nombre);
-                              setSelectedAreaId(area.id);
-                              setCurrentPage(1);
-                            }}
-                            className={`w-full text-left px-3 py-2 rounded-lg transition-colors mb-1`}
-                            style={{
-                              backgroundColor: selectedArea === area.nombre ? 'rgba(20, 170, 184, 0.1)' : 'transparent',
-                              color: selectedArea === area.nombre ? '#00829a' : '#374151',
-                              fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
-                            }}
-                            onMouseEnter={(e) => {
-                              if (selectedArea !== area.nombre) e.currentTarget.style.backgroundColor = '#f9fafb';
-                            }}
-                            onMouseLeave={(e) => {
-                              if (selectedArea !== area.nombre) e.currentTarget.style.backgroundColor = 'transparent';
-                            }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span>{area.nombre}</span>
-                              <span className="text-gray-500">{area.count}</span>
-                            </div>
-                          </button>
-                        ))}
-                        </div>
-                      </div>
+                          {area.nombre} ({area.count})
+                        </button>
+                      ))}
                     </div>
 
-                    {/* Facturas Table */}
-                    <div className="lg:col-span-3">
-                      <div
-                        className="border border-gray-200 rounded-lg bg-white flex flex-col"
-                        style={{ height: '560px' }}
-                      >
-                      <div className="overflow-auto flex-1">
-                        <table className="w-full">
-                          <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
-                            <tr>
-                              <th className="text-left px-4 py-3 text-gray-600">
-                                N° Factura
-                              </th>
-                              <th className="text-left px-4 py-3 text-gray-600">
-                                Proveedor
-                              </th>
-                              <th className="text-left px-4 py-3 text-gray-600">
-                                Área
-                              </th>
-                              <th className="text-right px-4 py-3 text-gray-600">
-                                Total
-                              </th>
-                              <th className="text-left px-4 py-3 text-gray-600">
-                                Estado
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200">
-                            {(isLoading || isLoadingTable) ? (
-                              Array(5).fill(0).map((_, i) => (
-                                <tr key={i} className="animate-pulse">
-                                  <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
-                                  <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-32"></div></td>
-                                  <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
-                                  <td className="px-4 py-3 text-right"><div className="h-4 bg-gray-200 rounded w-16 ml-auto"></div></td>
-                                  <td className="px-4 py-3"><div className="h-6 bg-gray-200 rounded-full w-24"></div></td>
-                                </tr>
-                              ))
-                            ) : (
-                              facturas.map((factura) => (
-                                <tr key={factura.id} className="hover:bg-gray-50 transition-colors">
-                                  <td className="px-4 py-3">
-                                    <span className="font-mono text-gray-900">{factura.numero_factura}</span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className="text-gray-900">{factura.proveedor}</span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className="text-gray-700">{factura.area}</span>
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                    <span className="text-gray-900">
-                                      ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className={`px-3 py-1 rounded-full border text-sm ${estadoConfig[factura.estado]?.bgColor || 'bg-gray-100'} ${estadoConfig[factura.estado]?.color || 'text-gray-700'}`}>
-                                      {factura.estado}
-                                    </span>
-                                  </td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-
-                        {!isLoading && !isLoadingTable && facturas.length === 0 && (
-                          <div className="text-center py-12 text-gray-500">
-                            No se encontraron facturas
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Pagination */}
-                      {totalPages > 1 && (
-                        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-white flex-shrink-0">
-                          <p className="text-gray-600">
-                            Mostrando {startIndex + 1}-{Math.min(startIndex + itemsPerPage, totalFacturas)} de {totalFacturas} facturas
-                          </p>
-                          <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                      {/* Áreas — solo desktop */}
+                      <div className="hidden lg:block lg:col-span-1">
+                        <div className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+                          <style>{`.areas-scrollbar::-webkit-scrollbar{width:6px}.areas-scrollbar::-webkit-scrollbar-track{background:#f3f4f6}.areas-scrollbar::-webkit-scrollbar-thumb{background:#14aab8;border-radius:10px}.areas-scrollbar::-webkit-scrollbar-thumb:hover{background:#00829a}`}</style>
+                          <div className="areas-scrollbar p-3" style={{ maxHeight: '560px', overflowY: 'scroll' }}>
                             <button
-                              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                              disabled={currentPage === 1}
-                              className="px-3 py-1 border border-gray-300 rounded-lg text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                              style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
-                              onMouseEnter={(e) => {
-                                if (currentPage !== 1) e.currentTarget.style.backgroundColor = '#f9fafb';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                              }}
+                              onClick={() => { setSelectedArea('Todas'); setSelectedAreaId(undefined); setCurrentPage(1); }}
+                              className="w-full text-left px-3 py-2 rounded-lg transition-colors mb-4"
+                              style={{ backgroundColor: selectedArea === 'Todas' ? 'rgba(20,170,184,0.1)' : 'transparent', color: selectedArea === 'Todas' ? '#00829a' : '#374151', fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+                              onMouseEnter={(e) => { if (selectedArea !== 'Todas') e.currentTarget.style.backgroundColor = '#f9fafb'; }}
+                              onMouseLeave={(e) => { if (selectedArea !== 'Todas') e.currentTarget.style.backgroundColor = 'transparent'; }}
                             >
-                              Anterior
+                              <div className="flex items-center justify-between">
+                                <span>Todas las áreas</span>
+                                <span className="text-gray-500">{totalAllFacturas}</span>
+                              </div>
                             </button>
-                            <span className="text-gray-600" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
-                              Página {currentPage} de {totalPages}
-                            </span>
-                            <button
-                              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                              disabled={currentPage === totalPages}
-                              className="px-3 py-1 border border-gray-300 rounded-lg text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                              style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
-                              onMouseEnter={(e) => {
-                                if (currentPage !== totalPages) e.currentTarget.style.backgroundColor = '#f9fafb';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = 'transparent';
-                              }}
-                            >
-                              Siguiente
-                            </button>
+                            <p className="px-3 mb-2 text-gray-600 text-sm font-medium">ÁREAS</p>
+                            {areas.map((area) => (
+                              <button
+                                key={area.id}
+                                onClick={() => { setSelectedArea(area.nombre); setSelectedAreaId(area.id); setCurrentPage(1); }}
+                                className="w-full text-left px-3 py-2 rounded-lg transition-colors mb-1"
+                                style={{ backgroundColor: selectedArea === area.nombre ? 'rgba(20,170,184,0.1)' : 'transparent', color: selectedArea === area.nombre ? '#00829a' : '#374151', fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+                                onMouseEnter={(e) => { if (selectedArea !== area.nombre) e.currentTarget.style.backgroundColor = '#f9fafb'; }}
+                                onMouseLeave={(e) => { if (selectedArea !== area.nombre) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span>{area.nombre}</span>
+                                  <span className="text-gray-500">{area.count}</span>
+                                </div>
+                              </button>
+                            ))}
                           </div>
                         </div>
-                      )}
+                      </div>
+
+                      {/* Tabla */}
+                      <div className="lg:col-span-3">
+                        <div className="border border-gray-200 rounded-lg bg-white flex flex-col" style={{ height: '560px' }}>
+                          <div className="overflow-auto flex-1">
+                            <table className="w-full text-sm">
+                              <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
+                                <tr>
+                                  <th className="text-left px-3 md:px-4 py-3 text-gray-600">N° Factura</th>
+                                  <th className="text-left px-3 md:px-4 py-3 text-gray-600">Proveedor</th>
+                                  <th className="hidden md:table-cell text-left px-4 py-3 text-gray-600">Área</th>
+                                  <th className="text-right px-3 md:px-4 py-3 text-gray-600">Total</th>
+                                  <th className="text-left px-3 md:px-4 py-3 text-gray-600">Estado</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200">
+                                {(isLoading || isLoadingTable) ? (
+                                  Array(5).fill(0).map((_, i) => (
+                                    <tr key={i} className="animate-pulse">
+                                      <td className="px-3 md:px-4 py-3"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                                      <td className="px-3 md:px-4 py-3"><div className="h-4 bg-gray-200 rounded w-32"></div></td>
+                                      <td className="hidden md:table-cell px-4 py-3"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                                      <td className="px-3 md:px-4 py-3 text-right"><div className="h-4 bg-gray-200 rounded w-16 ml-auto"></div></td>
+                                      <td className="px-3 md:px-4 py-3"><div className="h-6 bg-gray-200 rounded-full w-24"></div></td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  facturas.map((factura) => (
+                                    <tr key={factura.id} className="hover:bg-gray-50 transition-colors">
+                                      <td className="px-3 md:px-4 py-3">
+                                        <span className="font-mono text-gray-900 text-xs md:text-sm">{factura.numero_factura}</span>
+                                      </td>
+                                      <td className="px-3 md:px-4 py-3">
+                                        <span className="text-gray-900 text-xs md:text-sm">{factura.proveedor}</span>
+                                      </td>
+                                      <td className="hidden md:table-cell px-4 py-3">
+                                        <span className="text-gray-700">{factura.area}</span>
+                                      </td>
+                                      <td className="px-3 md:px-4 py-3 text-right">
+                                        <span className="text-gray-900 text-xs md:text-sm whitespace-nowrap">
+                                          ${factura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                        </span>
+                                      </td>
+                                      <td className="px-3 md:px-4 py-3">
+                                        <span className={`px-2 md:px-3 py-1 rounded-full border text-xs md:text-sm ${estadoConfig[factura.estado]?.bgColor || 'bg-gray-100'} ${estadoConfig[factura.estado]?.color || 'text-gray-700'}`}>
+                                          {factura.estado}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                            {!isLoading && !isLoadingTable && facturas.length === 0 && (
+                              <div className="text-center py-12 text-gray-500">No se encontraron facturas</div>
+                            )}
+                          </div>
+                          {totalPages > 1 && (
+                            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-white flex-shrink-0">
+                              <p className="text-gray-600 text-xs md:text-sm hidden md:block">
+                                Mostrando {startIndex + 1}–{Math.min(startIndex + itemsPerPage, totalFacturas)} de {totalFacturas} facturas
+                              </p>
+                              <p className="text-gray-600 text-xs md:hidden">Pág. {currentPage}/{totalPages}</p>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                  disabled={currentPage === 1}
+                                  className="px-3 py-1 border border-gray-300 rounded-lg text-xs md:text-sm text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                                  style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+                                >
+                                  Anterior
+                                </button>
+                                <span className="text-gray-600 text-xs hidden md:block" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
+                                  Página {currentPage} de {totalPages}
+                                </span>
+                                <button
+                                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                  disabled={currentPage === totalPages}
+                                  className="px-3 py-1 border border-gray-300 rounded-lg text-xs md:text-sm text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                                  style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+                                >
+                                  Siguiente
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
             </>
           )}
         </main>
+
+        {/* ════════ MOBILE BOTTOM NAV ══════════════════════════════════════ */}
+        <nav
+          className="md:hidden flex items-stretch bg-white border-t border-gray-200 flex-shrink-0"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+        >
+          {NAV_MOBILE.map(({ id, label, Icon }) => {
+            const activo = activeSection === id;
+            return (
+              <button
+                key={id}
+                onClick={() => goTo(id)}
+                className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-colors"
+                style={{ color: activo ? '#00829a' : '#9ca3af' }}
+              >
+                <span
+                  className="p-1 rounded-lg"
+                  style={{ backgroundColor: activo ? 'rgba(0,130,154,0.1)' : 'transparent' }}
+                >
+                  <Icon className="w-5 h-5" />
+                </span>
+                <span className="text-[10px] font-semibold" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
+                  {label}
+                </span>
+              </button>
+            );
+          })}
+          <button
+            onClick={openDrawer}
+            className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-gray-400"
+          >
+            <span className="p-1 rounded-lg"><Menu className="w-5 h-5" /></span>
+            <span className="text-[10px] font-semibold" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>Más</span>
+          </button>
+        </nav>
+
       </div>
     </div>
+    </>
   );
 }

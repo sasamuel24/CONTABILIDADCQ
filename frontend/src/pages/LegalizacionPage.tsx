@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { WeekPickerInput } from '../components/WeekPickerInput';
 import {
   CategoriaGasto,
   GastoOut,
@@ -123,8 +124,8 @@ function apiToUI(estado: string): EstadoUI {
   return map[estado] ?? 'Borrador';
 }
 
-function fmtMonto(n: number): string {
-  return `$ ${n.toLocaleString('es-CO', { minimumFractionDigits: 0 })}`;
+function fmtMonto(n: number | string): string {
+  return `$ ${Number(n).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function fmtFecha(iso: string): string {
@@ -595,8 +596,8 @@ function CardGasto({
                   placeholder="0"
                   value={fila.valorPagado}
                   onChange={(e) => onCampo(fila.localId, 'valorPagado', e.target.value)}
-                  className={`${inputCls} pl-7`}
-                  style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                  className={`${inputCls}`}
+                  style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif', paddingLeft: '2rem' }}
                 />
               </div>
             )}
@@ -944,7 +945,7 @@ function TablaGastos({
             className="text-2xl font-bold"
             style={{ color: '#00829a', fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}
           >
-            $ {totalCalculado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
+            $ {totalCalculado.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </span>
         </div>
       )}
@@ -1271,7 +1272,7 @@ export function DetallePaquete({
       await enviarPaquete(paqueteId, aprobadorId);
       toast.success(
         paquete?.anticipo
-          ? 'Paquete enviado a Facturación para auditoría. Facturación lo enviará a Tesorería.'
+          ? 'Paquete enviado a Radicación para auditoría. Radicación lo enviará a Tesorería.'
           : (paquete?.tipo_flujo === 'general' || paquete?.tipo_flujo === 'tarjeta_cq')
           ? 'Paquete enviado. El aprobador recibirá el correo de aprobación.'
           : 'Paquete enviado al responsable de área para revisión.'
@@ -1395,11 +1396,11 @@ export function DetallePaquete({
                 Anticipo {paquete.anticipo.folio}
               </span>
               <span className="text-xs font-semibold" style={{ color: '#1d4ed8', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                · Monto anticipado: $ {Number(paquete.anticipo.monto).toLocaleString('es-CO')}
+                · Monto anticipado: $ {Number(paquete.anticipo.monto).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </span>
               {paquete.monto_total > 0 && (
                 <span className="text-xs" style={{ color: '#6b7280', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                  · Legalizado: $ {paquete.monto_total.toLocaleString('es-CO')}
+                  · Legalizado: {fmtMonto(paquete.monto_total)}
                 </span>
               )}
             </div>
@@ -1760,11 +1761,10 @@ function NuevoPaqueteForm({
         </label>
         <div className="flex items-start gap-4 flex-wrap">
           <div className="flex-1 min-w-[200px] max-w-xs">
-            <input
-              type="week"
+            <WeekPickerInput
               value={semana}
-              onChange={(e) => setSemana(e.target.value)}
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:border-teal-400 transition-colors"
+              onChange={setSemana}
+              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 transition-colors"
               style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
             />
           </div>
@@ -1808,7 +1808,7 @@ function NuevoPaqueteForm({
             style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
             Monto total calculado:{' '}
             <strong style={{ color: '#00829a' }}>
-              ${totalCalculado.toLocaleString('es-CO', { minimumFractionDigits: 0 })}
+              ${totalCalculado.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
             </strong>
           </p>
         )}
@@ -1894,7 +1894,7 @@ function PaqueteCard({
                 <span
                   className="text-xs font-semibold px-2 py-0.5 rounded-md border"
                   style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', borderColor: '#bfdbfe', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-                  title={`Anticipo ${p.anticipo.folio}: $ ${Number(p.anticipo.monto).toLocaleString('es-CO')}`}
+                  title={`Anticipo ${p.anticipo.folio}: $ ${Number(p.anticipo.monto).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`}
                 >
                   Anticipo
                 </span>
@@ -1944,7 +1944,7 @@ function PaqueteCard({
           </div>
         )}
 
-        {/* Alerta de gastos individuales devueltos por Facturación */}
+        {/* Alerta de gastos individuales devueltos por Radicación */}
         {p.tiene_gastos_devueltos && p.estado !== 'devuelto' && (
           <div className="mt-3 flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
             <AlertCircle className="w-3.5 h-3.5 text-orange-500 shrink-0" />
@@ -2026,7 +2026,7 @@ export function LegalizacionPage({ modoAnticipo = false }: { modoAnticipo?: bool
   // En modo normal mostramos todos
   const paquetesFiltrados = paquetes;
 
-  // Paquetes que necesitan atención: borrador, devuelto, o con gastos devueltos por Facturación
+  // Paquetes que necesitan atención: borrador, devuelto, o con gastos devueltos por Radicación
   const conGastosDevueltos = paquetesFiltrados.filter(
     (p) => p.tiene_gastos_devueltos && !['borrador', 'devuelto'].includes(p.estado)
   );
@@ -2343,7 +2343,7 @@ export function LegalizacionPage({ modoAnticipo = false }: { modoAnticipo?: bool
                           </p>
                           <p className="text-xl font-bold mt-0.5"
                             style={{ color: '#1d4ed8', fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
-                            $ {Number(anticipoActivo.monto).toLocaleString('es-CO')}
+                            $ {Number(anticipoActivo.monto).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                           </p>
                         </div>
                         <div>
@@ -2353,7 +2353,7 @@ export function LegalizacionPage({ modoAnticipo = false }: { modoAnticipo?: bool
                           </p>
                           <p className="text-xl font-bold mt-0.5"
                             style={{ color: montoLegalizado > 0 ? '#15803d' : '#94a3b8', fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
-                            $ {montoLegalizado.toLocaleString('es-CO')}
+                            $ {montoLegalizado.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                           </p>
                         </div>
                         <div>
@@ -2366,7 +2366,7 @@ export function LegalizacionPage({ modoAnticipo = false }: { modoAnticipo?: bool
                               color: (Number(anticipoActivo.monto) - montoLegalizado) > 0 ? '#d97706' : '#15803d',
                               fontFamily: 'Neutra Text Bold, Montserrat, sans-serif',
                             }}>
-                            $ {Math.abs(Number(anticipoActivo.monto) - montoLegalizado).toLocaleString('es-CO')}
+                            $ {Math.abs(Number(anticipoActivo.monto) - montoLegalizado).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                             {(Number(anticipoActivo.monto) - montoLegalizado) <= 0 && (
                               <span className="text-xs ml-1 font-semibold text-green-600">✓ Cubierto</span>
                             )}
@@ -2407,7 +2407,7 @@ export function LegalizacionPage({ modoAnticipo = false }: { modoAnticipo?: bool
 
               {!loading && (
                 <>
-                  {/* Paquetes con gastos devueltos por Facturación — requieren atención */}
+                  {/* Paquetes con gastos devueltos por Radicación — requieren atención */}
                   {conGastosDevueltos.length > 0 && (
                     <div>
                       <div className="flex items-center gap-2 mb-3">

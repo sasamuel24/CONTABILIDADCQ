@@ -44,8 +44,9 @@ class FacturaEnCarpeta(BaseModel):
     numero_factura: str
     proveedor: str
     total: float
+    estado: str = ''
     carpeta_nombre: Optional[str] = None
-    
+
     model_config = {"from_attributes": True}
 
 

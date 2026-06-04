@@ -187,7 +187,7 @@ async def aprobar_paquete(
 @router.post(
     "/gastos/paquetes/{paquete_id}/devolver-a-facturacion",
     response_model=PaqueteOut,
-    summary="Tesorería devuelve un paquete a Facturación",
+    summary="Tesorería devuelve un paquete a Radicación",
 )
 async def devolver_paquete_a_facturacion(
     paquete_id: UUID,
@@ -198,7 +198,7 @@ async def devolver_paquete_a_facturacion(
     role = user.role.code.lower() if user.role else ""
     area = user.area.code.lower() if user.area else ""
     if role not in {"admin", "tesoreria", "tes"} and area not in {"admin", "tesoreria", "tes"}:
-        raise HTTPException(status_code=403, detail="Solo Tesorería puede devolver paquetes a Facturación.")
+        raise HTTPException(status_code=403, detail="Solo Tesorería puede devolver paquetes a Radicación.")
     return await svc.devolver_a_facturacion(paquete_id, user.id, data.motivo)
 
 
@@ -222,7 +222,7 @@ async def devolver_anticipo_paquete(
 @router.post(
     "/gastos/paquetes/{paquete_id}/enviar-tesoreria",
     response_model=PaqueteOut,
-    summary="Enviar paquete aprobado a Tesorería (facturación/admin)",
+    summary="Enviar paquete aprobado a Tesorería (radicación/admin)",
 )
 async def enviar_tesoreria(
     paquete_id: UUID,
@@ -232,7 +232,7 @@ async def enviar_tesoreria(
     role = user.role.code.lower() if user.role else ""
     area = user.area.code.lower() if user.area else ""
     if role not in {"admin", "fact"} and area not in {"admin", "fact"}:
-        raise HTTPException(status_code=403, detail="Solo facturación puede enviar paquetes a tesorería.")
+        raise HTTPException(status_code=403, detail="Solo radicación puede enviar paquetes a tesorería.")
     return await svc.enviar_tesoreria(paquete_id, user.id)
 
 
@@ -250,7 +250,7 @@ async def devolver_paquete(
     role = user.role.code.lower() if user.role else ""
     area = user.area.code.lower() if user.area else ""
     if role not in {"admin", "responsable", "fact"} and area not in {"admin", "responsable", "mant", "fact"}:
-        raise HTTPException(status_code=403, detail="Solo el Responsable de Mantenimiento o Facturación puede devolver paquetes.")
+        raise HTTPException(status_code=403, detail="Solo el Responsable de Mantenimiento o Radicación puede devolver paquetes.")
     return await svc.devolver(paquete_id, user.id, data)
 
 
@@ -467,14 +467,14 @@ async def devolver_gasto_individual(
     user: User = Depends(_get_user_db),
 ):
     """
-    Facturación o Admin devuelve un gasto individual al técnico con un motivo.
+    Radicación o Admin devuelve un gasto individual al técnico con un motivo.
     No cambia el estado del paquete completo.
     """
     role = user.role.code.lower() if user.role else ""
     if role not in {"admin", "fact"}:
         raise HTTPException(
             status_code=403,
-            detail="Solo Facturación o Admin puede devolver gastos individuales."
+            detail="Solo Radicación o Admin puede devolver gastos individuales."
         )
     return await svc.devolver_gasto_individual(paquete_id, gasto_id, user.id, data.motivo)
 
@@ -491,7 +491,7 @@ async def reenviar_gasto_individual(
     user: User = Depends(_get_user_db),
 ):
     """
-    El técnico propietario reenvía un gasto que fue devuelto por Facturación.
+    El técnico propietario reenvía un gasto que fue devuelto por Radicación.
     Limpia el motivo de devolución y regresa el gasto a estado 'pendiente'.
     """
     return await svc.reenviar_gasto_individual(paquete_id, gasto_id, user.id)
@@ -531,13 +531,13 @@ async def download_aprobacion_gerencia(
 
 
 # =============================================================================
-# DOCUMENTO CONTABLE GENERAL (nivel paquete) — sube Facturación
+# DOCUMENTO CONTABLE GENERAL (nivel paquete) — sube Radicación
 # =============================================================================
 
 @router.post(
     "/gastos/paquetes/{paquete_id}/doc-contable",
     response_model=PaqueteOut,
-    summary="Subir documento contable general para un paquete (Facturación)",
+    summary="Subir documento contable general para un paquete (Radicación)",
 )
 async def subir_doc_contable(
     paquete_id: UUID,
@@ -578,13 +578,13 @@ async def eliminar_doc_contable(
 
 
 # =============================================================================
-# CM PDF por gasto individual — sube Facturación
+# CM PDF por gasto individual — sube Radicación
 # =============================================================================
 
 @router.post(
     "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/cm-pdf",
     response_model=PaqueteOut,
-    summary="Subir CM PDF para un gasto individual (Facturación)",
+    summary="Subir CM PDF para un gasto individual (Radicación)",
 )
 async def subir_cm_pdf_gasto(
     paquete_id: UUID,

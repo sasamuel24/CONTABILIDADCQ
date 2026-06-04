@@ -192,9 +192,9 @@ class GastosService:
         if not paquete.gastos:
             raise HTTPException(status_code=400, detail="El paquete debe tener al menos un gasto antes de enviarse.")
 
-        # Paquetes de anticipo pasan por Facturación antes de Tesorería.
+        # Paquetes de anticipo pasan por Radicación antes de Tesorería.
         # El anticipo ya fue aprobado por el jefe → van directamente a 'aprobado'
-        # para que Facturación los audite y envíe a Tesorería.
+        # para que Radicación los audite y envíe a Tesorería.
         if paquete.anticipo_id:
             anterior = paquete.estado
             paquete.estado = "aprobado"
@@ -206,18 +206,18 @@ class GastosService:
             ))
             await self.comentario_repo.create(ComentarioPaquete(
                 paquete_id=paquete.id, user_id=user_id,
-                texto="Paquete de anticipo enviado a Facturación para auditoría.",
+                texto="Paquete de anticipo enviado a Radicación para auditoría.",
                 tipo="observacion",
             ))
             await self.db.commit()
             paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
-            # Notificar a Facturación
+            # Notificar a Radicación
             try:
                 await email_service.enviar_notificacion_aprobado(
                     paquete_actualizado, settings.email_responsable
                 )
             except Exception as e:
-                logger.error(f"Error notificando a Facturación anticipo paquete: {e}")
+                logger.error(f"Error notificando a Radicación anticipo paquete: {e}")
             return self._to_out(paquete_actualizado)
 
         # Para flujo general y tarjeta_cq se requiere aprobador de gerencia
@@ -337,7 +337,7 @@ class GastosService:
         await self.paquete_repo.save(paquete)
         await self.comentario_repo.create(ComentarioPaquete(
             paquete_id=paquete.id, user_id=user_id,
-            texto="Paquete aprobado. Pendiente de envío a Tesorería por Facturación.", tipo="aprobacion",
+            texto="Paquete aprobado. Pendiente de envío a Tesorería por Radicación.", tipo="aprobacion",
         ))
         await self.historial_repo.create(HistorialEstadoPaquete(
             paquete_id=paquete.id, user_id=user_id,
@@ -369,12 +369,12 @@ class GastosService:
         return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
 
     async def devolver_a_facturacion(self, paquete_id: UUID, user_id: UUID, motivo: str) -> PaqueteOut:
-        """Tesorería devuelve un paquete en_tesoreria a Facturación (estado aprobado)."""
+        """Tesorería devuelve un paquete en_tesoreria a Radicación (estado aprobado)."""
         paquete = await self._get_paquete_or_404(paquete_id)
         if paquete.estado != "en_tesoreria":
             raise HTTPException(
                 status_code=400,
-                detail=f"Solo paquetes en estado 'en_tesoreria' pueden devolverse a Facturación. Estado actual: {paquete.estado}"
+                detail=f"Solo paquetes en estado 'en_tesoreria' pueden devolverse a Radicación. Estado actual: {paquete.estado}"
             )
         paquete.estado = "aprobado"
         await self.paquete_repo.save(paquete)
@@ -785,7 +785,7 @@ class GastosService:
         return s3_service.presign_get_url(paquete.aprobacion_gerencia_s3_key)
 
     # ------------------------------------------------------------------
-    # Documento Contable General (nivel paquete) — sube Facturación
+    # Documento Contable General (nivel paquete) — sube Radicación
     # ------------------------------------------------------------------
 
     async def subir_doc_contable(
@@ -794,7 +794,7 @@ class GastosService:
         paquete = await self._get_paquete_or_404(paquete_id)
         self._check_access(paquete, user_id, user_role)
         if user_role not in {"admin", "fact"}:
-            raise HTTPException(status_code=403, detail="Solo Facturación puede subir el documento contable.")
+            raise HTTPException(status_code=403, detail="Solo Radicación puede subir el documento contable.")
         if paquete.estado not in {"aprobado"}:
             raise HTTPException(
                 status_code=400,
@@ -841,7 +841,7 @@ class GastosService:
         paquete = await self._get_paquete_or_404(paquete_id)
         self._check_access(paquete, user_id, user_role)
         if user_role not in {"admin", "fact"}:
-            raise HTTPException(status_code=403, detail="Solo Facturación puede eliminar el documento contable.")
+            raise HTTPException(status_code=403, detail="Solo Radicación puede eliminar el documento contable.")
         if paquete.estado not in {"aprobado"}:
             raise HTTPException(status_code=400, detail="Solo se puede eliminar cuando el paquete está aprobado.")
         if not paquete.doc_contable_s3_key:
@@ -857,7 +857,7 @@ class GastosService:
         return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
 
     # ------------------------------------------------------------------
-    # CM PDF por gasto individual — sube Facturación
+    # CM PDF por gasto individual — sube Radicación
     # ------------------------------------------------------------------
 
     async def subir_cm_pdf_gasto(
@@ -866,7 +866,7 @@ class GastosService:
         paquete = await self._get_paquete_or_404(paquete_id)
         self._check_access(paquete, user_id, user_role)
         if user_role not in {"admin", "fact"}:
-            raise HTTPException(status_code=403, detail="Solo Facturación puede subir el CM PDF.")
+            raise HTTPException(status_code=403, detail="Solo Radicación puede subir el CM PDF.")
         if paquete.estado not in {"aprobado"}:
             raise HTTPException(
                 status_code=400,
@@ -915,7 +915,7 @@ class GastosService:
         paquete = await self._get_paquete_or_404(paquete_id)
         self._check_access(paquete, user_id, user_role)
         if user_role not in {"admin", "fact"}:
-            raise HTTPException(status_code=403, detail="Solo Facturación puede eliminar el CM PDF.")
+            raise HTTPException(status_code=403, detail="Solo Radicación puede eliminar el CM PDF.")
         if paquete.estado not in {"aprobado"}:
             raise HTTPException(status_code=400, detail="Solo se puede eliminar cuando el paquete está aprobado.")
         gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
@@ -972,7 +972,7 @@ class GastosService:
             await self.comentario_repo.create(ComentarioPaquete(
                 paquete_id=paquete.id,
                 user_id=None,
-                texto="Paquete aprobado vía enlace de email. Pendiente de envío a Tesorería por Facturación.",
+                texto="Paquete aprobado vía enlace de email. Pendiente de envío a Tesorería por Radicación.",
                 tipo="aprobacion",
             ))
             await self.historial_repo.create(HistorialEstadoPaquete(
@@ -989,7 +989,7 @@ class GastosService:
 
             # Notificar al equipo que procesa el siguiente paso según flujo
             if paquete_final.tipo_flujo == "general":
-                # Para flujo general notificar a todos los usuarios de Facturación
+                # Para flujo general notificar a todos los usuarios de Radicación
                 try:
                     result = await self.db.execute(
                         select(User).join(Rol, User.role_id == Rol.id)
@@ -1019,7 +1019,7 @@ class GastosService:
     async def devolver_gasto_individual(
         self, paquete_id: UUID, gasto_id: UUID, user_id: UUID, motivo: str
     ) -> GastoOut:
-        """Facturación/Admin devuelve un gasto individual con un motivo."""
+        """Radicación/Admin devuelve un gasto individual con un motivo."""
         try:
             paquete = await self._get_paquete_or_404(paquete_id)
             gasto = await self._get_gasto_or_404(gasto_id, paquete_id)
@@ -1084,7 +1084,7 @@ class GastosService:
                 if g.id != gasto_id and getattr(g, "estado_gasto", None) == "devuelto"
             ]
             if not gastos_aun_devueltos:
-                # Todos los gastos devueltos han sido corregidos — notificar a Facturación
+                # Todos los gastos devueltos han sido corregidos — notificar a Radicación
                 await self.comentario_repo.create(ComentarioPaquete(
                     paquete_id=paquete.id,
                     user_id=user_id,

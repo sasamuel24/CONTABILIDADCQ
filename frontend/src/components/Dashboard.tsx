@@ -139,7 +139,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
           <span className="text-white font-bold" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>DocuFlow</span>
         </div>
         <button
-          className="md:hidden ml-3 p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors flex-shrink-0"
+          className="ml-3 p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors flex-shrink-0"
           onClick={() => setDrawerOpen(false)}
         >
           <X className="w-5 h-5" />
@@ -215,17 +215,12 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
 
       <div className="flex h-screen bg-gray-50 overflow-hidden">
 
-      {/* ════════ DESKTOP SIDEBAR — idéntico al original ════════════════════ */}
-      <aside className="hidden md:flex md:w-64 bg-white border-r border-gray-200 flex-col flex-shrink-0">
-        {sidebarInner}
-      </aside>
-
       {/* ════════ ÁREA PRINCIPAL ════════════════════════════════════════════ */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
-        {/* Mobile header */}
+        {/* Header — siempre visible */}
         <header
-          className="md:hidden flex items-center gap-3 px-4 bg-white border-b border-gray-200 flex-shrink-0"
+          className="flex items-center gap-3 px-4 bg-white border-b border-gray-200 flex-shrink-0"
           style={{ height: 56 }}
         >
           <button onClick={openDrawer} className="p-2 -ml-1 rounded-xl text-gray-500 active:bg-gray-100 transition-colors">
@@ -235,17 +230,8 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
             <span className="text-white text-sm font-bold" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>DocuFlow</span>
           </div>
           <span className="flex-1 text-sm font-semibold text-gray-700 truncate" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
-            Bienvenid@, {userName}
+            Bienvenid@n, {userName} 👋
           </span>
-        </header>
-
-        {/* Desktop header */}
-        <header className="hidden md:flex bg-white border-b border-gray-200 px-8 py-4 flex-shrink-0">
-          <div className="flex items-center justify-between w-full">
-            <h1 className="text-gray-900" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
-              Bienvenid@n, {userName} 👋
-            </h1>
-          </div>
         </header>
 
         {/* Main Content */}

@@ -109,6 +109,31 @@ class S3Service:
                 detail=f"Archivo no encontrado en S3: {error_msg}"
             )
 
+    def presign_put_url(self, key: str, content_type: str, expires_in: int = 300) -> str:
+        """
+        Genera URL prefirmada para que el cliente suba un archivo directamente a S3 (PUT).
+        El cliente debe incluir el mismo Content-Type al hacer el PUT.
+        """
+        try:
+            url = self.s3_client.generate_presigned_url(
+                'put_object',
+                Params={
+                    'Bucket': self.bucket,
+                    'Key': key,
+                    'ContentType': content_type,
+                },
+                ExpiresIn=expires_in
+            )
+            logger.info(f"Presigned PUT URL generada para: {key} (expira en {expires_in}s)")
+            return url
+        except ClientError as e:
+            error_msg = e.response.get('Error', {}).get('Message', 'Error desconocido')
+            logger.error(f"Error generando presigned PUT URL: {error_msg}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al generar URL de subida: {error_msg}"
+            )
+
     def presign_get_url(self, key: str, expires_in: int = 600) -> str:
         """
         Genera una URL prefirmada para descargar un objeto de S3.

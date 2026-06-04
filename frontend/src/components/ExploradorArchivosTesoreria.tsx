@@ -22,12 +22,12 @@ import {
   CheckCircle2,
   Loader2 as Loader2Icon
 } from 'lucide-react';
-import { 
-  getCarpetas, 
+import {
+  getCarpetas,
   getFacturas,
   updateFacturaEstado,
-  type Carpeta, 
-  type FacturaListItem 
+  type Carpeta,
+  type FacturaListItem
 } from '../lib/api';
 import { TesoreriaFacturaDetail } from './TesoreriaFacturaDetail';
 import { ConfirmModal } from './ConfirmModal';
@@ -47,6 +47,20 @@ function contarFacturasRecursivo(carpeta: Carpeta): number {
   if (carpeta.children) {
     for (const child of carpeta.children) {
       count += contarFacturasRecursivo(child);
+    }
+  }
+  return count;
+}
+
+// Contar solo facturas pendientes (no Pagadas) recursivamente
+function contarPendientesRecursivo(carpeta: Carpeta, allFacturas: Map<string, FacturaListItem>): number {
+  let count = carpeta.facturas?.filter(ref => {
+    const f = allFacturas.get(ref.id);
+    return f && f.estado !== 'Pagada';
+  }).length || 0;
+  if (carpeta.children) {
+    for (const child of carpeta.children) {
+      count += contarPendientesRecursivo(child, allFacturas);
     }
   }
   return count;
@@ -122,25 +136,20 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
     showCancel?: boolean;
   }>({ title: '', message: '', type: 'info' });
 
-  // Cargar datos
+  // Cargar datos: carpetas + solo facturas asignadas a carpetas (only_in_carpeta=true)
   useEffect(() => {
     const loadData = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        
         const [carpetasData, facturasData] = await Promise.all([
           getCarpetas(),
-          getFacturas(0, 10000)
+          getFacturas(0, 0, undefined, undefined, undefined, undefined, true),
         ]);
-        
         setCarpetasRaiz(carpetasData);
-        
-        // Crear mapa de facturas para lookup rápido
-        const facturasMap = new Map<string, FacturaListItem>();
-        facturasData.items.forEach(f => facturasMap.set(f.id, f));
-        setAllFacturas(facturasMap);
-        
+        const map = new Map<string, FacturaListItem>();
+        facturasData.items.forEach(f => map.set(f.id, f));
+        setAllFacturas(map);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al cargar datos';
         setError(message);
@@ -149,7 +158,6 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
         setIsLoading(false);
       }
     };
-
     loadData();
   }, []);
 
@@ -168,8 +176,8 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
   // Items visibles en la vista actual
   const visibleFolders = useMemo(() => {
     const folders = currentFolder ? (currentFolder.children || []) : carpetasRaiz;
-    // Solo filtrar por pendientes en la raíz cuando filtroPendientes está activo
-    const conPendientes = (filtroPendientes && !currentFolder)
+    // Filtrar por pendientes en todos los niveles cuando filtroPendientes está activo
+    const conPendientes = filtroPendientes
       ? folders.filter(f => tienePendientes(f, allFacturas))
       : folders;
     if (!searchQuery) return conPendientes;
@@ -181,7 +189,7 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
   const visibleFacturas = useMemo(() => {
     const facturaRefs = currentFolder?.facturas || [];
     const facturas = facturaRefs
-      .map(ref => allFacturas.get(ref.id))
+      .map(ref => allFacturas.get(String(ref.id)))
       .filter((f): f is FacturaListItem => f !== undefined && (!filtroPendientes || f.estado !== 'Pagada'));
 
     if (!searchQuery) return facturas;
@@ -514,7 +522,9 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
                 )}
                 <div className="space-y-2">
                   {visibleFolders.map(folder => {
-                    const totalFacturas = contarFacturasRecursivo(folder);
+                    const totalFacturas = filtroPendientes
+                      ? contarPendientesRecursivo(folder, allFacturas)
+                      : contarFacturasRecursivo(folder);
                     const subfolderCount = folder.children?.length || 0;
                     const isHovered = hoveredFolder === folder.id;
                     
@@ -784,7 +794,7 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
                               style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
                               className="text-sm font-semibold text-gray-900"
                             >
-                              ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                              ${factura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                             </span>
                           </div>
                         </div>

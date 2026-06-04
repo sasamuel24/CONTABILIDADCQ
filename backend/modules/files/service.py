@@ -338,6 +338,115 @@ class FileService:
         
         return await self.get_file_content(file.id)
     
+    async def request_upload(
+        self,
+        factura_id: UUID,
+        doc_type: str,
+        filename: str,
+        content_type: str,
+    ) -> dict:
+        """
+        Paso 1 del upload directo a S3.
+        Valida, genera la key y retorna una presigned PUT URL para que el
+        browser suba el archivo directamente a S3 sin pasar por el backend.
+        """
+        if doc_type not in self.ALLOWED_DOC_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "bad_request", "message": "doc_type no permitido"}
+            )
+
+        allowed_extensions = self.ALLOWED_EXTENSIONS.get(doc_type, self.ALLOWED_EXTENSIONS["default"])
+        file_extension = Path(filename).suffix.lower()
+        if file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "bad_request", "message": f"Extensión no permitida para {doc_type}"}
+            )
+
+        allowed_content_types = self.ALLOWED_CONTENT_TYPES.get(doc_type, self.ALLOWED_CONTENT_TYPES["default"])
+        detected = self._detect_content_type(filename)
+        actual_content_type = content_type if content_type in allowed_content_types else detected
+        if actual_content_type not in allowed_content_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "bad_request", "message": f"Tipo de archivo no permitido para {doc_type}"}
+            )
+
+        if doc_type != 'OC':
+            existing = await self.repository.get_by_factura_and_doc_type(factura_id, doc_type)
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={"code": "file_already_exists", "message": "Ya existe un archivo para este doc_type"}
+                )
+
+        from core.s3_service import s3_service
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+        sanitized = self._sanitize_filename(filename)
+        new_filename = f"{timestamp}_{sanitized}"
+        s3_key = f"dev/facturas/{factura_id}/{doc_type}/{new_filename}"
+
+        presigned_url = await asyncio.to_thread(
+            s3_service.presign_put_url, s3_key, actual_content_type, 300
+        )
+        return {
+            "presigned_url": presigned_url,
+            "s3_key": s3_key,
+            "filename": new_filename,
+            "content_type": actual_content_type,
+            "expires_in": 300,
+        }
+
+    async def confirm_upload(
+        self,
+        factura_id: UUID,
+        s3_key: str,
+        doc_type: str,
+        filename: str,
+        content_type: str,
+        size_bytes: int,
+        uploaded_by_user_id: Optional[UUID] = None,
+    ) -> "FileUploadResponse":
+        """
+        Paso 2 del upload directo a S3.
+        Verifica que la key pertenece a la factura y registra el archivo en BD.
+        """
+        expected_prefix = f"dev/facturas/{factura_id}/"
+        if not s3_key.startswith(expected_prefix):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"code": "bad_request", "message": "s3_key inválido para esta factura"}
+            )
+
+        from core.s3_service import s3_service
+        file_data = {
+            "factura_id": factura_id,
+            "doc_type": doc_type,
+            "storage_provider": "s3",
+            "storage_path": s3_key,
+            "filename": filename,
+            "content_type": content_type,
+            "size_bytes": size_bytes,
+            "uploaded_by_user_id": uploaded_by_user_id,
+        }
+        db_file = await self.repository.create(file_data)
+        download_url = s3_service.presign_get_url(s3_key, expires_in=600)
+        logger.info(f"Archivo confirmado y registrado en BD: {db_file.id}")
+        return FileUploadResponse(
+            file_id=db_file.id,
+            factura_id=db_file.factura_id,
+            doc_type=db_file.doc_type,
+            filename=db_file.filename,
+            content_type=db_file.content_type,
+            size_bytes=db_file.size_bytes,
+            storage_provider=db_file.storage_provider,
+            storage_path=db_file.storage_path,
+            created_at=db_file.created_at,
+            uploaded_by_user_id=uploaded_by_user_id,
+            download_url=download_url,
+        )
+
     def _sanitize_filename(self, filename: str) -> str:
         """Sanitiza el nombre del archivo removiendo caracteres no válidos."""
         # Remover caracteres especiales, mantener solo alfanuméricos, guiones y puntos

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, FolderInput, Archive, Download } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, FolderInput, Archive, Download, Hash } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getFacturas, getCarpetasTesoreria, devolverFacturaATesoreria, type FacturaListItem, type CarpetaTesoreria } from '../lib/api';
 import { CarpetasPanelTesoreria } from './CarpetasPanelTesoreria';
@@ -94,11 +94,10 @@ export function CarpetasTesoreriaView() {
         setIsLoading(true);
         setError(null);
         const [facturasResponse, carpetasData] = await Promise.all([
-          getFacturas(0, 10000),
+          getFacturas(0, 0, undefined, undefined, undefined, 'Pagada'),
           getCarpetasTesoreria(),
         ]);
-        const facturasCerradas = facturasResponse.items.filter(f => f.estado === 'Pagada');
-        setFacturas(facturasCerradas);
+        setFacturas(facturasResponse.items);
         setCarpetas(carpetasData);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al cargar datos';
@@ -278,6 +277,7 @@ export function CarpetasTesoreriaView() {
         ? new Date(f.fecha_vencimiento).toLocaleDateString('es-ES')
         : '',
       'Proveedor': f.proveedor,
+      'NIT': f.nit_proveedor || '',
       'Área': f.area,
       'Total': f.total,
       'Estado': f.estado,
@@ -286,7 +286,7 @@ export function CarpetasTesoreriaView() {
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
       { wch: 22 }, { wch: 16 }, { wch: 18 }, { wch: 40 },
-      { wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 30 },
+      { wch: 16 }, { wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 30 },
     ];
     const wb = XLSX.utils.book_new();
     const label = vistaActual === 'sin-archivar'
@@ -476,6 +476,12 @@ export function CarpetasTesoreriaView() {
                               )}
                             </div>
                           </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <div className="flex items-center gap-2">
+                              <Hash className="w-4 h-4" />
+                              <span>NIT</span>
+                            </div>
+                          </th>
                           <th
                             onClick={() => handleSort('area')}
                             className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
@@ -540,9 +546,12 @@ export function CarpetasTesoreriaView() {
                                 : '-'}
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-900">{factura.proveedor}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 font-mono">
+                              {factura.nit_proveedor || '—'}
+                            </td>
                             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{factura.area}</td>
                             <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                              ${factura.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                              ${factura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(factura.estado)}`}>
@@ -712,7 +721,7 @@ export function CarpetasTesoreriaView() {
             <div className="bg-gray-50 rounded-xl p-3 mb-5 text-sm text-gray-700">
               <p><span className="font-semibold">Factura:</span> {facturaADevolver.numero_factura}</p>
               <p><span className="font-semibold">Proveedor:</span> {facturaADevolver.proveedor}</p>
-              <p><span className="font-semibold">Total:</span> ${facturaADevolver.total.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</p>
+              <p><span className="font-semibold">Total:</span> ${facturaADevolver.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
             </div>
             <p className="text-sm text-gray-600 mb-5">
               La factura volverá al módulo <strong>Carpetas Pendientes por Pagar</strong>

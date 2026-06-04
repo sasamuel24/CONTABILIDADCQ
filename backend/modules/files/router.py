@@ -6,6 +6,29 @@ from fastapi.responses import Response, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from uuid import UUID
+from pydantic import BaseModel
+
+
+class RequestUploadIn(BaseModel):
+    doc_type: str
+    filename: str
+    content_type: str
+
+
+class RequestUploadOut(BaseModel):
+    presigned_url: str
+    s3_key: str
+    filename: str
+    content_type: str
+    expires_in: int
+
+
+class ConfirmUploadIn(BaseModel):
+    s3_key: str
+    doc_type: str
+    filename: str
+    content_type: str
+    size_bytes: int
 
 from db.session import get_db
 from modules.files.repository import FileRepository
@@ -118,6 +141,56 @@ async def list_factura_files(
 ):
     """Lista todos los archivos asociados a una factura, opcionalmente filtrados por doc_type."""
     return await service.get_files_by_factura(factura_id, doc_type)
+
+
+@router.post(
+    "/facturas/{factura_id}/files/request-upload",
+    response_model=RequestUploadOut,
+    status_code=status.HTTP_200_OK,
+)
+async def request_upload(
+    factura_id: UUID,
+    body: RequestUploadIn,
+    service: FileService = Depends(get_file_service),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Paso 1 — Solicita una presigned PUT URL para subir un archivo directo a S3.
+    El cliente debe hacer PUT al presigned_url con el archivo y Content-Type correcto.
+    """
+    factura_repo = FacturaRepository(db)
+    factura = await factura_repo.get_by_id(factura_id)
+    if not factura:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Factura no encontrada")
+    return await service.request_upload(
+        factura_id=factura_id,
+        doc_type=body.doc_type,
+        filename=body.filename,
+        content_type=body.content_type,
+    )
+
+
+@router.post(
+    "/facturas/{factura_id}/files/confirm-upload",
+    response_model=FileUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def confirm_upload(
+    factura_id: UUID,
+    body: ConfirmUploadIn,
+    service: FileService = Depends(get_file_service),
+):
+    """
+    Paso 2 — Confirma que el archivo ya fue subido a S3 y lo registra en la BD.
+    """
+    return await service.confirm_upload(
+        factura_id=factura_id,
+        s3_key=body.s3_key,
+        doc_type=body.doc_type,
+        filename=body.filename,
+        content_type=body.content_type,
+        size_bytes=body.size_bytes,
+    )
 
 
 @router.post(

@@ -139,16 +139,16 @@ class User(Base, TimestampMixin):
     area: Mapped[Optional["Area"]] = relationship(
         "Area",
         back_populates="users",
-        lazy="selectin"
+        lazy="joined"
     )
     role: Mapped["Rol"] = relationship(
         "Rol",
-        lazy="selectin"
+        lazy="joined"
     )
     unidad_negocio: Mapped[Optional["UnidadNegocio"]] = relationship(
         "UnidadNegocio",
         foreign_keys=[unidad_negocio_id],
-        lazy="selectin"
+        lazy="joined"
     )
     facturas_asignadas: Mapped[List["Factura"]] = relationship(
         "Factura",
@@ -876,13 +876,13 @@ class FacturaAsignacion(Base):
     )
     area: Mapped["Area"] = relationship(
         "Area",
-        lazy="selectin"
+        lazy="joined"
     )
     responsable: Mapped["User"] = relationship(
         "User",
-        lazy="selectin"
+        lazy="joined"
     )
-    
+
     def __repr__(self):
         return f"<FacturaAsignacion(id={self.id}, factura_id={self.factura_id}, responsable_user_id={self.responsable_user_id})>"
 
@@ -1055,9 +1055,9 @@ class ComentarioFactura(Base, TimestampMixin):
     )
     user: Mapped["User"] = relationship(
         "User",
-        lazy="selectin"
+        lazy="joined"
     )
-    
+
     def __repr__(self):
         return f"<ComentarioFactura(id={self.id}, factura_id={self.factura_id}, user_id={self.user_id})>"
 

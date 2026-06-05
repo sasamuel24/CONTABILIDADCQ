@@ -14,7 +14,11 @@ from core.config import settings
 engine = create_async_engine(
     settings.database_url,
     echo=settings.debug,
-    future=True
+    future=True,
+    pool_size=10,       # conexiones persistentes en el pool
+    max_overflow=5,     # conexiones extra bajo pico de carga
+    pool_recycle=1800,  # recicla conexiones cada 30 min (evita cortes del servidor)
+    pool_pre_ping=True, # valida conexión antes de usarla (evita errores tras inactividad)
 )
 
 # Fábrica de sesiones asíncronas

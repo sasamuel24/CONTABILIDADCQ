@@ -681,10 +681,7 @@ async def update_centros(
     1. Factura debe existir (404 si no)
     2. Centro de Costo debe existir (400 si no)
     3. Centro de Operación debe existir (400 si no)
-    4. **CRÍTICO**: Centro de Operación debe pertenecer al Centro de Costo seleccionado
-       - Se valida que `centro_operacion.centro_costo_id == centro_costo_id`
-       - Si no coincide → 400
-    
+
     **Request Body:**
     ```json
     {
@@ -692,7 +689,7 @@ async def update_centros(
       "centro_operacion_id": "uuid-del-centro-operacion"
     }
     ```
-    
+
     **Respuestas:**
     - **200**: Asignación exitosa
       ```json
@@ -702,19 +699,7 @@ async def update_centros(
         "centro_operacion_id": "uuid"
       }
       ```
-    
-    - **400**: Validación fallida
-      ```json
-      {
-        "detail": {
-          "message": "Centro de operación no pertenece al centro de costo",
-          "centro_costo_id": "uuid-cc",
-          "centro_operacion_id": "uuid-co",
-          "centro_operacion_real_cc_id": "uuid-cc-real"
-        }
-      }
-      ```
-    
+
     - **404**: Factura no encontrada
       ```json
       {

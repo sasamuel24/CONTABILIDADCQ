@@ -1785,18 +1785,6 @@ Responde ÚNICAMENTE con JSON válido:
                 detail=f"Centro de Operación con ID {centros_data.centro_operacion_id} no encontrado"
             )
         
-        # VALIDACIÓN CRÍTICA: El CO debe pertenecer al CC
-        if centro_operacion.centro_costo_id != centros_data.centro_costo_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "message": "Centro de operación no pertenece al centro de costo",
-                    "centro_costo_id": str(centros_data.centro_costo_id),
-                    "centro_operacion_id": str(centros_data.centro_operacion_id),
-                    "centro_operacion_real_cc_id": str(centro_operacion.centro_costo_id)
-                }
-            )
-        
         # Actualizar factura
         factura.centro_costo_id = centros_data.centro_costo_id
         factura.centro_operacion_id = centros_data.centro_operacion_id

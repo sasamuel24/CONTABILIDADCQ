@@ -3,7 +3,7 @@ Repositorio para operaciones de base de datos del módulo facturas.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, noload
 from typing import Optional, List, Tuple, Dict
 from uuid import UUID
 from db.models import Factura, Area, Estado
@@ -17,14 +17,29 @@ class FacturaRepository:
         self.db = db
     
     async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None, search: Optional[str] = None, only_in_carpeta: bool = False) -> Tuple[List[Factura], int]:
-        """Obtiene todas las facturas con paginación y filtros opcionales."""
+        """Obtiene todas las facturas con paginación y filtros opcionales.
+
+        Optimización: el modelo Factura define 16 relaciones con lazy="selectin",
+        por lo que TODAS se cargan en cada factura aunque el listado no las use.
+        Aquí solo cargamos lo que el mapeo de FacturaListItem realmente necesita y
+        anulamos (noload) las relaciones pesadas no usadas en el listado. Esto elimina
+        las queries de asignaciones, comentarios, tokens y distribución (≈40% del
+        tiempo de BD según pg_stat_statements) que antes se ejecutaban sin necesidad.
+        """
         query = select(Factura).options(
             selectinload(Factura.files),
             selectinload(Factura.inventario_codigos),
             selectinload(Factura.unidad_negocio),
             selectinload(Factura.cuenta_auxiliar),
             selectinload(Factura.carpeta),
-            selectinload(Factura.carpeta_tesoreria)
+            selectinload(Factura.carpeta_tesoreria),
+            # Relaciones NO usadas en el listado -> no cargarlas (anulan el selectin del modelo)
+            noload(Factura.asignaciones),
+            noload(Factura.comentarios),
+            noload(Factura.tokens_aprobacion),
+            noload(Factura.distribucion_ccco),
+            noload(Factura.area_origen),
+            noload(Factura.assigned_user),
         )
         count_query = select(func.count(Factura.id))
 

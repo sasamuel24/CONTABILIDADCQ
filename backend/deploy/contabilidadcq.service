@@ -1,0 +1,33 @@
+# Unit de systemd para el backend FastAPI (CONTABILIDADCQ)
+#
+# Instalar/actualizar en el EC2:
+#   sudo cp /home/ubuntu/CONTABILIDADCQ/backend/deploy/contabilidadcq.service /etc/systemd/system/contabilidadcq.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl restart contabilidadcq
+#   systemctl status contabilidadcq --no-pager
+#
+# IMPORTANTE: usar --workers 2 SOLO después de subir la instancia a t3.small/medium.
+# En t3.micro (1 GB RAM) dos workers pueden agotar la memoria. Con 1 GB, deja --workers 1.
+
+[Unit]
+Description=CONTABILIDADCQ FastAPI Backend
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/CONTABILIDADCQ/backend
+Environment="PATH=/home/ubuntu/CONTABILIDADCQ/backend/venv/bin"
+# --workers 2: aprovecha los 2 vCPU (paralelismo real entre peticiones).
+# --proxy-headers + forwarded-allow-ips: respeta IP/protocolo reales detrás de nginx.
+ExecStart=/home/ubuntu/CONTABILIDADCQ/backend/venv/bin/uvicorn main:app \
+    --host 0.0.0.0 --port 8000 \
+    --workers 2 \
+    --proxy-headers --forwarded-allow-ips='*' \
+    --timeout-keep-alive 30
+Restart=always
+# RestartSec bajado de 10s -> 3s: si el proceso cae, la API vuelve en 3s, no 10s.
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

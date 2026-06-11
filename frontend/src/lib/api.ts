@@ -716,7 +716,77 @@ export interface FileUploadResponse {
   download_url?: string;
 }
 
+/**
+ * Sube un archivo a una factura.
+ *
+ * Estrategia: primero intenta el camino RÁPIDO (presigned URL → PUT directo a S3),
+ * que NO pasa el archivo por el backend (no ocupa el worker ni su RAM). Si cualquier
+ * paso falla (p.ej. CORS de S3 mal configurado), cae automáticamente al método por
+ * backend, que es el que ya venía funcionando. Así las subidas nunca se rompen.
+ */
 export async function uploadFacturaFile(
+  facturaId: string,
+  docType: string,
+  file: File
+): Promise<FileUploadResponse> {
+  const token = getAccessToken();
+  try {
+    // Paso 1: solicitar presigned PUT URL al backend
+    const reqRes = await fetch(
+      `${API_BASE_URL}/facturas/${facturaId}/files/request-upload`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          doc_type: docType,
+          filename: file.name,
+          content_type: file.type || 'application/pdf',
+        }),
+      }
+    );
+    if (!reqRes.ok) throw new Error(`request-upload ${reqRes.status}`);
+    const { presigned_url, s3_key, filename, content_type } = await reqRes.json();
+
+    // Paso 2: PUT directo a S3 (el archivo NO pasa por el backend)
+    const s3Res = await fetch(presigned_url, {
+      method: 'PUT',
+      headers: { 'Content-Type': content_type },
+      body: file,
+    });
+    if (!s3Res.ok) throw new Error(`S3 PUT ${s3Res.status}`);
+
+    // Paso 3: confirmar y registrar metadata en la BD
+    const confirmRes = await fetch(
+      `${API_BASE_URL}/facturas/${facturaId}/files/confirm-upload`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          s3_key,
+          doc_type: docType,
+          filename,
+          content_type,
+          size_bytes: file.size,
+        }),
+      }
+    );
+    if (!confirmRes.ok) throw new Error(`confirm-upload ${confirmRes.status}`);
+    return confirmRes.json();
+  } catch (err) {
+    // Fallback: subir por el backend (camino previo, siempre funcional).
+    console.warn('Subida presigned falló; usando fallback por backend:', err);
+    return uploadFacturaFileViaBackend(facturaId, docType, file);
+  }
+}
+
+/** Subida por backend (multipart). Fallback de uploadFacturaFile. */
+async function uploadFacturaFileViaBackend(
   facturaId: string,
   docType: string,
   file: File

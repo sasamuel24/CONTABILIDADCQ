@@ -559,14 +559,16 @@ class FileService:
                 new_filename = f"{timestamp}_{sanitized_filename}"
                 s3_key = f"dev/facturas/{factura_id}/{doc_type}/{new_filename}"
                 
-                # Subir a S3 en thread pool para no bloquear el event loop
+                # Subir a S3 en thread pool para no bloquear el event loop.
+                # Pasamos el archivo subyacente directamente (no await file.read()) para
+                # que boto3 lo transmita por chunks y NO cargue el PDF entero en RAM.
+                # Crítico en instancias pequeñas con poca memoria disponible.
                 logger.info(f"Subiendo archivo a S3: {s3_key}")
-                content = await file.read()
-                file_bytes_io = __import__('io').BytesIO(content)
+                file.file.seek(0)
 
                 s3_metadata = await asyncio.to_thread(
                     s3_service.upload_fileobj,
-                    file_bytes_io,
+                    file.file,
                     s3_key,
                     actual_content_type
                 )

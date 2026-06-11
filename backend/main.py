@@ -3,6 +3,7 @@ Punto de entrada principal de la aplicación FastAPI.
 """
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.openapi.utils import get_openapi
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +48,31 @@ app = FastAPI(
     redoc_url=None,  # Deshabilitamos redoc por defecto
     openapi_url=None  # Deshabilitamos openapi por defecto
 )
+
+# Compresión GZip: reduce el tamaño de las respuestas JSON ~70-85%.
+# Crítico para listados grandes servidos desde EC2 (us-east-2) a clientes en Colombia.
+# minimum_size=500 evita comprimir respuestas diminutas donde no compensa.
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
+
+# Middleware de timing: mide el tiempo de procesamiento del servidor (sin red) y
+# registra las requests lentas. Expone X-Process-Time para inspeccionar desde el navegador.
+import time as _time
+from starlette.requests import Request as _Request
+
+
+@app.middleware("http")
+async def medir_tiempo_procesamiento(request: _Request, call_next):
+    inicio = _time.perf_counter()
+    response = await call_next(request)
+    duracion = _time.perf_counter() - inicio
+    response.headers["X-Process-Time"] = f"{duracion:.3f}"
+    if duracion > 1.0:  # log solo lo realmente lento
+        logger.warning(
+            f"SLOW {duracion:.2f}s  {request.method} {request.url.path}"
+            f"{('?' + request.url.query) if request.url.query else ''}"
+        )
+    return response
 
 # Configurar CORS , Controla quien puede llamar a app desde el navegador.
 app.add_middleware(

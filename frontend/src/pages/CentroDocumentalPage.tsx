@@ -262,7 +262,7 @@ export function CentroDocumentalPage() {
               <FileBarChart className="w-8 h-8 text-white" />
               <div>
                 <h1 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="text-xl font-bold text-white">Centro Documental</h1>
-                <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif', opacity: 0.9}} className="text-sm text-white">Directora Contabilidad</p>
+                <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif', opacity: 0.9}} className="text-sm text-white">Director Contable</p>
               </div>
             </div>
             <div className="flex items-center gap-4">

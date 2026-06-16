@@ -57,3 +57,12 @@ ARQUITECTURA_ANALISIS_IMPACTO.md
 start-tunnel.ps1
 query-rds.ps1
 .env.rds
+
+# Migracion BD 2026-06-16 (contienen credenciales / clave privada)
+backend/_migracion/
+MIGRACION_BD_*.md
+*.pem
+*.dump
+
+# Artefactos de pruebas Playwright MCP
+.playwright-mcp/

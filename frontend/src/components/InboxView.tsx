@@ -174,6 +174,8 @@ import { ContabilidadFacturaDetail } from './ContabilidadFacturaDetail';
 import { TesoreriaFacturaDetail } from './TesoreriaFacturaDetail';
 import { FilePreviewModal } from './FilePreviewModal';
 import { SearchableSelect } from './SearchableSelect';
+import { ConfirmModal } from './ConfirmModal';
+import { toast } from 'sonner';
 
 interface AreaWithCount extends Area {
   count: number;
@@ -293,6 +295,27 @@ export function InboxView() {
   const [inventarioTab, setInventarioTab] = useState<'todos' | 'con_inventario' | 'sin_inventario'>('todos');
 const itemsPerPage = 20;
   const esContabilidad = getUserRoleCode(user) === 'contabilidad';
+  // Permiso de eliminar facturas: solo Radicación (fact), Dirección y Administrador
+  const canDelete = ['fact', 'direccion', 'admin'].includes(getUserRoleCode(user));
+  const [facturaToDelete, setFacturaToDelete] = useState<FacturaListItem | null>(null);
+  const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
+
+  const confirmarEliminarFila = async () => {
+    if (!facturaToDelete) return;
+    const factura = facturaToDelete;
+    setFacturaToDelete(null);
+    setDeletingRowId(factura.id);
+    try {
+      await deleteFactura(factura.id);
+      setFacturas(prev => prev.filter(f => f.id !== factura.id));
+      toast.success(`Factura ${factura.numero_factura} eliminada correctamente`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al eliminar la factura';
+      toast.error(message);
+    } finally {
+      setDeletingRowId(null);
+    }
+  };
 
   function handleSort(col: InboxSortCol) {
     if (sortCol !== col) { setSortCol(col); setSortDir('asc'); setCurrentPage(1); }
@@ -883,9 +906,25 @@ const itemsPerPage = 20;
                       )}
                     </td>
                     <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
-                      {esResponsable && (
-                        <ChecklistBadge factura={factura} />
-                      )}
+                      <div className="flex items-center justify-center gap-2">
+                        {esResponsable && (
+                          <ChecklistBadge factura={factura} />
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => setFacturaToDelete(factura)}
+                            disabled={deletingRowId === factura.id}
+                            style={{ backgroundColor: '#dc2626', color: '#ffffff' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#b91c1c'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#dc2626'; }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                            title="Eliminar factura"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>{deletingRowId === factura.id ? 'Eliminando…' : 'Eliminar'}</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -1267,6 +1306,23 @@ const itemsPerPage = 20;
           </div>
         </>
       )}
+
+      {/* Confirmación de eliminación desde la columna Acciones */}
+      <ConfirmModal
+        isOpen={!!facturaToDelete}
+        onClose={() => setFacturaToDelete(null)}
+        onConfirm={confirmarEliminarFila}
+        type="warning"
+        title="Eliminar factura"
+        message={
+          facturaToDelete
+            ? `¿Eliminar la factura ${facturaToDelete.numero_factura} de ${facturaToDelete.proveedor}?\n\nEsta acción no se puede deshacer.`
+            : ''
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        showCancel
+      />
 
       {/* Modal de vista previa */}
       {previewFile && selectedFactura && (

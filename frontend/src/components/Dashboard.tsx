@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, MoreVertical, LayoutDashboard, Inbox, LogOut, PackageOpen, Users, FileCode2, Banknote, Menu, X } from 'lucide-react';
+import { Search, MoreVertical, LayoutDashboard, Inbox, LogOut, PackageOpen, Users, FileCode2, Banknote, Menu, X, Trash2 } from 'lucide-react';
 import { InboxView } from './InboxView';
 import { ResponsablePaquetesView } from './ResponsablePaquetesView';
 import { AdminUsuariosView } from './AdminUsuariosView';
 import { BuzonXMLView } from './BuzonXMLView';
-import { getDashboardMetrics, getAreas, getFacturas, getFacturasAreaCounts, DashboardMetrics, Area, AreaCount, FacturaListItem } from '../lib/api';
+import { getDashboardMetrics, getAreas, getFacturas, getFacturasAreaCounts, deleteFactura, getUserRoleCode, DashboardMetrics, Area, AreaCount, FacturaListItem } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import { ConfirmModal } from './ConfirmModal';
+import { toast } from 'sonner';
 
 interface DashboardProps {
   userName: string;
@@ -17,6 +20,12 @@ interface AreaWithCount extends Area {
 }
 
 export function Dashboard({ userName, onLogout }: DashboardProps) {
+  const { user } = useAuth();
+  // Permiso de eliminar facturas: solo Radicación (fact), Dirección y Administrador
+  const canDelete = ['fact', 'direccion', 'admin'].includes(getUserRoleCode(user));
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [facturaToDelete, setFacturaToDelete] = useState<FacturaListItem | null>(null);
+
   const [selectedArea, setSelectedArea] = useState('Todas');
   const [selectedAreaId, setSelectedAreaId] = useState<string | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,6 +55,29 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingTable, setIsLoadingTable] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const handleEliminarClick = (factura: FacturaListItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFacturaToDelete(factura);
+  };
+
+  const confirmarEliminarFactura = async () => {
+    if (!facturaToDelete) return;
+    const factura = facturaToDelete;
+    setFacturaToDelete(null);
+    setDeletingId(factura.id);
+    try {
+      await deleteFactura(factura.id);
+      setFacturas(prev => prev.filter(f => f.id !== factura.id));
+      setTotalFacturas(prev => Math.max(0, prev - 1));
+      toast.success(`Factura ${factura.numero_factura} eliminada correctamente`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al eliminar la factura';
+      toast.error(message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
@@ -394,6 +426,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                                   <th className="hidden md:table-cell text-left px-4 py-3 text-gray-600">Área</th>
                                   <th className="text-right px-3 md:px-4 py-3 text-gray-600">Total</th>
                                   <th className="text-left px-3 md:px-4 py-3 text-gray-600">Estado</th>
+                                  {canDelete && <th className="text-center px-3 md:px-4 py-3 text-gray-600">Acciones</th>}
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-200">
@@ -405,6 +438,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                                       <td className="hidden md:table-cell px-4 py-3"><div className="h-4 bg-gray-200 rounded w-24"></div></td>
                                       <td className="px-3 md:px-4 py-3 text-right"><div className="h-4 bg-gray-200 rounded w-16 ml-auto"></div></td>
                                       <td className="px-3 md:px-4 py-3"><div className="h-6 bg-gray-200 rounded-full w-24"></div></td>
+                                      {canDelete && <td className="px-3 md:px-4 py-3"><div className="h-6 bg-gray-200 rounded w-20 mx-auto"></div></td>}
                                     </tr>
                                   ))
                                 ) : (
@@ -429,6 +463,22 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                                           {factura.estado}
                                         </span>
                                       </td>
+                                      {canDelete && (
+                                        <td className="px-3 md:px-4 py-3 text-center">
+                                          <button
+                                            onClick={(e) => handleEliminarClick(factura, e)}
+                                            disabled={deletingId === factura.id}
+                                            style={{ backgroundColor: '#dc2626', color: '#ffffff' }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#b91c1c'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#dc2626'; }}
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs md:text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                            title="Eliminar factura"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                            <span>{deletingId === factura.id ? 'Eliminando…' : 'Eliminar'}</span>
+                                          </button>
+                                        </td>
+                                      )}
                                     </tr>
                                   ))
                                 )}
@@ -513,6 +563,22 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
         </nav>
 
       </div>
+
+      <ConfirmModal
+        isOpen={!!facturaToDelete}
+        onClose={() => setFacturaToDelete(null)}
+        onConfirm={confirmarEliminarFactura}
+        type="warning"
+        title="Eliminar factura"
+        message={
+          facturaToDelete
+            ? `¿Eliminar la factura ${facturaToDelete.numero_factura} de ${facturaToDelete.proveedor}?\n\nEsta acción no se puede deshacer.`
+            : ''
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        showCancel
+      />
     </div>
     </>
   );

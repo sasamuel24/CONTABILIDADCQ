@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, LogOut, FileBarChart, FolderInput, Download } from 'lucide-react';
-import { getFacturas, getAreas, type FacturaListItem, type Area, type Carpeta } from '../lib/api';
+import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, LogOut, FileBarChart, FolderInput, Download, Trash2 } from 'lucide-react';
+import { getFacturas, getAreas, deleteFactura, getUserRoleCode, type FacturaListItem, type Area, type Carpeta } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { CarpetasPanel } from '../components/CarpetasPanel';
 import { AsignarCarpetaModal } from '../components/AsignarCarpetaModal';
 import { CentroDocumentalFacturaDetail } from '../components/CentroDocumentalFacturaDetail';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { exportFacturasToExcel } from '../utils/exportToExcel';
+import { toast } from 'sonner';
 
 export function CentroDocumentalPage() {
   const { user, logout } = useAuth();
@@ -174,6 +176,36 @@ export function CentroDocumentalPage() {
 
   const handleVerDetalle = (factura: FacturaListItem) => {
     setSelectedFactura(factura);
+  };
+
+  // Permiso de eliminar facturas: solo Radicación (fact), Dirección y Administrador
+  const ROLES_PUEDEN_ELIMINAR = ['fact', 'direccion', 'admin'];
+  const canDelete = ROLES_PUEDEN_ELIMINAR.includes(getUserRoleCode(user));
+
+  // ID de la factura que se está eliminando (para deshabilitar el botón)
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [facturaToDelete, setFacturaToDelete] = useState<FacturaListItem | null>(null);
+
+  const handleEliminarClick = (factura: FacturaListItem, e: React.MouseEvent) => {
+    e.stopPropagation(); // Evitar abrir el detalle al hacer clic
+    setFacturaToDelete(factura);
+  };
+
+  const confirmarEliminarFactura = async () => {
+    if (!facturaToDelete) return;
+    const factura = facturaToDelete;
+    setFacturaToDelete(null);
+    setDeletingId(factura.id);
+    try {
+      await deleteFactura(factura.id);
+      setFacturas(prev => prev.filter(f => f.id !== factura.id));
+      toast.success(`Factura ${factura.numero_factura} eliminada correctamente`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al eliminar la factura';
+      toast.error(message);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const handleAsignarSuccess = async () => {
@@ -568,21 +600,37 @@ export function CentroDocumentalPage() {
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                  <button
-                                    onClick={(e) => handleAsignarCarpeta(factura, e)}
-                                    style={{
-                                      fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
-                                      backgroundColor: '#00829a',
-                                      transition: 'background-color 0.2s'
-                                    }}
-                                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#14aab8'}
-                                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#00829a'}
-                                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg"
-                                    title="Asignar a carpeta"
-                                  >
-                                    <FolderInput className="w-3.5 h-3.5" />
-                                    <span>Carpeta</span>
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={(e) => handleAsignarCarpeta(factura, e)}
+                                      style={{
+                                        fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                                        backgroundColor: '#00829a',
+                                        transition: 'background-color 0.2s'
+                                      }}
+                                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#14aab8'}
+                                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#00829a'}
+                                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-white rounded-lg"
+                                      title="Asignar a carpeta"
+                                    >
+                                      <FolderInput className="w-3.5 h-3.5" />
+                                      <span>Carpeta</span>
+                                    </button>
+                                    {canDelete && (
+                                      <button
+                                        onClick={(e) => handleEliminarClick(factura, e)}
+                                        disabled={deletingId === factura.id}
+                                        style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', backgroundColor: '#dc2626', color: '#ffffff' }}
+                                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#b91c1c'; }}
+                                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#dc2626'; }}
+                                        className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                        title="Eliminar factura"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                        <span>{deletingId === factura.id ? 'Eliminando…' : 'Eliminar'}</span>
+                                      </button>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -637,6 +685,23 @@ export function CentroDocumentalPage() {
           onSuccess={handleAsignarSuccess}
         />
       )}
+
+      {/* Modal de confirmación de eliminación */}
+      <ConfirmModal
+        isOpen={!!facturaToDelete}
+        onClose={() => setFacturaToDelete(null)}
+        onConfirm={confirmarEliminarFactura}
+        type="warning"
+        title="Eliminar factura"
+        message={
+          facturaToDelete
+            ? `¿Eliminar la factura ${facturaToDelete.numero_factura} de ${facturaToDelete.proveedor}?\n\nEsta acción no se puede deshacer.`
+            : ''
+        }
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+        showCancel
+      />
 
       {/* Modal de detalle de factura */}
       {selectedFactura && (

@@ -339,13 +339,36 @@ async def create_factura(
     return await service.create_factura(factura)
 
 
+# Roles autorizados para eliminar facturas: Radicación (fact), Dirección y Administrador.
+ROLES_PUEDEN_ELIMINAR_FACTURA = {"fact", "direccion", "admin"}
+
+
 @router.delete("/{factura_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_factura(
     factura_id: UUID,
     service: FacturaService = Depends(get_factura_service),
-    _user: dict = Depends(get_current_user)
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Elimina una factura por ID. Solo accesible para roles radicacion y director."""
+    """Elimina una factura por ID. Solo accesible para roles 'fact' (Radicación), 'direccion' y 'admin'."""
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    from db.models import User as UserModel
+
+    result = await db.execute(
+        select(UserModel)
+        .options(selectinload(UserModel.role))
+        .where(UserModel.id == current_user["user_id"])
+    )
+    user = result.scalar_one_or_none()
+    role_code = user.role.code if user and user.role else ""
+
+    if role_code not in ROLES_PUEDEN_ELIMINAR_FACTURA:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permiso para eliminar facturas.",
+        )
+
     await service.delete_factura(factura_id)
 
 

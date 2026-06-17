@@ -691,6 +691,41 @@ async def submit_responsable(
     return await service.submit_responsable(factura_id)
 
 
+@router.post(
+    "/auto-enviar-contabilidad",
+    summary="Auto-enviar a Contabilidad las facturas 'Listas' del Responsable",
+)
+async def auto_enviar_contabilidad(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    service: FacturaService = Depends(get_factura_service),
+):
+    """
+    Barre el área del Responsable autenticado y envía automáticamente a
+    Contabilidad todas las facturas que cumplen el checklist completo (badge
+    "Listo"). Solo aplica al rol `responsable`.
+
+    Retorna: `{ "enviadas": [{id, numero_factura, proveedor}], "total": n }`
+    """
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    from db.models import User as UserModel
+
+    user_res = await db.execute(
+        select(UserModel)
+        .options(selectinload(UserModel.role))
+        .where(UserModel.id == current_user["user_id"])
+    )
+    user = user_res.scalar_one_or_none()
+
+    role_code = user.role.code if user and user.role else ""
+    if not user or not user.area_id or role_code != "responsable":
+        return {"enviadas": [], "total": 0}
+
+    enviadas = await service.auto_enviar_listas_a_contabilidad(user.area_id)
+    return {"enviadas": enviadas, "total": len(enviadas)}
+
+
 @router.patch("/{factura_id}/centros", response_model=CentrosOut)
 async def update_centros(
     factura_id: UUID,

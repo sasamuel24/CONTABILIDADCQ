@@ -7,13 +7,13 @@ import { getUserRoleCode, type FacturaListItem } from '../lib/api';
 function getMissingItems(f: FacturaListItem): string[] {
   const out: string[] = [];
 
-  if (!f.centro_costo_id)       out.push('Centro de Costo (CC)');
-  if (!f.centro_operacion_id)   out.push('Centro de Operación (CO)');
-  if (!f.intervalo_entrega_contabilidad) out.push('Intervalo de entrega a Contabilidad');
-
+  // Anticipo (consistencia; la BD ya lo garantiza, pero por seguridad)
   if (f.tiene_anticipo && f.porcentaje_anticipo == null)
     out.push('Porcentaje de anticipo');
 
+  // ── CAMINO A: INVENTARIOS ──────────────────────────────────────────────────
+  // Solo se piden los datos del filtrado (Tienda/Almacén) + aprobación dual si aplica.
+  // NO se exige CC/CO, intervalo, OC/OS ni aprobación de gerencia simple.
   if (f.requiere_entrada_inventarios) {
     if (!f.destino_inventarios) {
       out.push('Destino de inventarios (Tienda / Almacén)');
@@ -25,20 +25,38 @@ function getMissingItems(f: FacturaListItem): string[] {
       if (f.presenta_novedad) requeridos.push('NP');
       const faltantes = requeridos.filter(c => !codigos.has(c));
       if (faltantes.length) out.push(`Códigos de inventario: ${faltantes.join(', ')}`);
+
+      // Validar longitud/formato de los códigos (OCT/ECT/OCC/EDO = 5, FPC = 7)
+      const LONGITUDES: Record<string, number> = { OCT: 5, ECT: 5, OCC: 5, EDO: 5, FPC: 7 };
+      const malFormato = [...new Set(
+        (f.inventarios_codigos ?? [])
+          .filter(c => LONGITUDES[c.codigo] != null && (c.valor ?? '').trim().length !== LONGITUDES[c.codigo])
+          .map(c => c.codigo)
+      )];
+      if (malFormato.length) out.push(`Longitud de códigos: ${malFormato.join(', ')} (OCT/ECT/OCC/EDO = 5, FPC = 7 dígitos)`);
     }
+
+    // Aprobación dual (solo Almacén): si se inició, debe estar completa
+    if (f.destino_inventarios === 'ALMACEN') {
+      if (f.fecha_envio_aprobacion_ops && !f.fecha_aprobacion_ops)
+        out.push('Aprobación dual de Gerencia de Operaciones');
+      if (f.fecha_envio_aprobacion_calidad && !f.fecha_aprobacion_calidad)
+        out.push('Aprobación dual de Calidad Café');
+    }
+
+    return out;
   }
 
-  // Archivo OC u OS requerido (salvo gastos administrativos)
+  // ── CAMINO B: NORMAL (sin inventarios) ──────────────────────────────────────
+  if (!f.centro_costo_id)       out.push('Centro de Costo (CC)');
+  if (!f.centro_operacion_id)   out.push('Centro de Operación (CO)');
+  if (!f.intervalo_entrega_contabilidad) out.push('Intervalo de entrega a Contabilidad');
+
+  // Archivo OC u OS + Aprobación de Gerencia (salvo gastos administrativos)
   if (!f.es_gasto_adm) {
     const docTypes = new Set((f.files ?? []).map(file => file.doc_type));
-    if (!docTypes.has('OC') && !docTypes.has('OS')) {
-      out.push('Archivo OC u OS');
-    }
-  }
-
-  // Aprobación de Gerencia (salvo gastos administrativos)
-  if (!f.es_gasto_adm && !f.fecha_aprobacion_email) {
-    out.push('Aprobación de Gerencia');
+    if (!docTypes.has('OC') && !docTypes.has('OS')) out.push('Archivo OC u OS');
+    if (!f.fecha_aprobacion_email) out.push('Aprobación de Gerencia');
   }
 
   return out;
@@ -163,6 +181,7 @@ import {
   API_BASE_URL,
   downloadFileById,
   deleteFactura,
+  autoEnviarContabilidad,
   type FacturaListItem,
   type Area,
   type FacturaUpdate,
@@ -299,6 +318,28 @@ const itemsPerPage = 20;
   const canDelete = ['fact', 'direccion', 'admin'].includes(getUserRoleCode(user));
   const [facturaToDelete, setFacturaToDelete] = useState<FacturaListItem | null>(null);
   const [deletingRowId, setDeletingRowId] = useState<string | null>(null);
+  const autoEnvioInFlight = useRef(false);
+
+  // Auto-envío a Contabilidad: barre las facturas "Listas" del responsable y las envía solas.
+  const ejecutarAutoEnvioContabilidad = async () => {
+    if (!esResponsable || autoEnvioInFlight.current) return;
+    autoEnvioInFlight.current = true;
+    try {
+      const res = await autoEnviarContabilidad();
+      if (res.total > 0) {
+        const enviadasIds = new Set(res.enviadas.map(e => e.id));
+        setFacturas(prev => prev.filter(f => !enviadasIds.has(f.id)));
+        const plural = res.total > 1;
+        toast.success(
+          `${res.total} factura${plural ? 's' : ''} enviada${plural ? 's' : ''} automáticamente a Contabilidad`
+        );
+      }
+    } catch (err) {
+      console.error('Error en auto-envío a Contabilidad:', err);
+    } finally {
+      autoEnvioInFlight.current = false;
+    }
+  };
 
   const confirmarEliminarFila = async () => {
     if (!facturaToDelete) return;
@@ -326,7 +367,7 @@ const itemsPerPage = 20;
   // Cargar datos iniciales
   useEffect(() => {
     if (user) {
-      loadInboxData();
+      loadInboxData().then(() => ejecutarAutoEnvioContabilidad());
     }
   }, [user]);
 
@@ -471,7 +512,8 @@ const itemsPerPage = 20;
     setAreaSeleccionada('');
     setSoportePagoFiles([]);
     setShowDeleteConfirm(false);
-    loadInboxData(true); // refresca datos en background para que el checklist refleje cambios guardados
+    // refresca datos en background y, si quedó "Listo", lo envía solo a Contabilidad
+    loadInboxData(true).then(() => ejecutarAutoEnvioContabilidad());
   };
 
   const handleDownloadFile = (storageProvider: string, storagePath: string, filename: string) => {

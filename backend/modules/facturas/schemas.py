@@ -391,10 +391,11 @@ class SubmitResponsableOut(BaseModel):
     # Anticipo
     tiene_anticipo: bool
     porcentaje_anticipo: Optional[float]
-    intervalo_entrega_contabilidad: str
-    
+    # Opcional: en el camino de inventarios no se exige intervalo de entrega
+    intervalo_entrega_contabilidad: Optional[str] = None
+
     # Gasto Administrativo
-    es_gasto_adm: bool
+    es_gasto_adm: bool = False
     
     # Archivos (opcional)
     files: Optional[list[dict]] = []

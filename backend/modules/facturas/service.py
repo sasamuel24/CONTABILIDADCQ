@@ -1089,16 +1089,18 @@ Responde ÚNICAMENTE con JSON válido:
         extra_codes = []
         missing_files = []
         
-        # ========== VALIDACIÓN 1: Centro de Costo y Operación ==========
-        if factura.centro_costo_id is None:
-            missing_fields.append("centro_costo_id")
-        if factura.centro_operacion_id is None:
-            missing_fields.append("centro_operacion_id")
-        
-        # ========== VALIDACIÓN 2: Intervalo de entrega ==========
-        if factura.intervalo_entrega_contabilidad is None:
-            missing_fields.append("intervalo_entrega_contabilidad")
-        
+        # ========== VALIDACIÓN 1 y 2: CC/CO + Intervalo (SOLO CAMINO NORMAL) ==========
+        # En el camino de INVENTARIOS no se exigen CC/CO ni intervalo de entrega:
+        # los reemplaza la entrada a inventarios. Esto alinea submit_responsable con
+        # _faltantes_para_contabilidad y el badge "Listo".
+        if not factura.requiere_entrada_inventarios:
+            if factura.centro_costo_id is None:
+                missing_fields.append("centro_costo_id")
+            if factura.centro_operacion_id is None:
+                missing_fields.append("centro_operacion_id")
+            if factura.intervalo_entrega_contabilidad is None:
+                missing_fields.append("intervalo_entrega_contabilidad")
+
         # ========== VALIDACIÓN 3: Anticipo ==========
         # Constraint 1: tiene_anticipo = (porcentaje_anticipo IS NOT NULL)
         if factura.tiene_anticipo and factura.porcentaje_anticipo is None:
@@ -1326,6 +1328,7 @@ Responde ÚNICAMENTE con JSON válido:
             area_actual=area_contabilidad.nombre,
             estado_id=estado_contabilidad.id,
             estado_actual=estado_contabilidad.label,
+            es_gasto_adm=factura.es_gasto_adm,
             proveedor=factura.proveedor,
             numero_factura=factura.numero_factura,
             fecha_emision=factura.fecha_emision,
@@ -1357,7 +1360,137 @@ Responde ÚNICAMENTE con JSON válido:
                 } for f in files
             ]
         )
-    
+
+    @staticmethod
+    def _faltantes_para_contabilidad(factura, codigos, files) -> list:
+        """
+        Devuelve la lista de requisitos que le FALTAN a una factura para enviarse
+        a Contabilidad (vacía = "Lista"). Mismas reglas que `getMissingItems` en el
+        frontend. NO exige nota de crédito.
+
+        Hay DOS caminos excluyentes:
+
+        A) CAMINO INVENTARIOS (requiere_entrada_inventarios = true):
+           - Solo datos de inventarios según destino (Tienda u Almacén):
+             destino + códigos requeridos con longitud correcta (+NP si hay novedad).
+           - Aparte, aprobación dual (solo Almacén): si se inició, debe estar completa.
+           - NO se exige CC/CO, intervalo, OC/OS ni aprobación de gerencia simple.
+
+        B) CAMINO NORMAL (sin inventarios):
+           - Centro de Costo y Centro de Operación.
+           - Intervalo de entrega a Contabilidad.
+           - Si NO es gasto administrativo: archivo OC u OS + Aprobación de Gerencia.
+
+        `codigos` y `files` deben venir ya cargados (eager) para evitar lazy-loads.
+        """
+        faltan = []
+
+        # Anticipo (consistencia; la BD ya lo garantiza vía CheckConstraint)
+        if factura.tiene_anticipo and factura.porcentaje_anticipo is None:
+            faltan.append("porcentaje_anticipo")
+
+        # ── CAMINO A: INVENTARIOS ──────────────────────────────────────────────
+        if factura.requiere_entrada_inventarios:
+            if not factura.destino_inventarios:
+                faltan.append("destino_inventarios")
+            else:
+                codigos_set = {c.codigo for c in codigos}
+                requeridos = (
+                    {"OCT", "ECT", "FPC"} if factura.destino_inventarios == "TIENDA"
+                    else {"OCC", "EDO", "FPC"}
+                )
+                if factura.presenta_novedad:
+                    requeridos.add("NP")
+                faltan_codigos = requeridos - codigos_set
+                if faltan_codigos:
+                    faltan.append(f"codigos_faltantes={sorted(faltan_codigos)}")
+                # Longitud/formato de cada código (OCT/ECT/OCC/EDO = 5, FPC = 7)
+                LONGITUDES = {"OCT": 5, "ECT": 5, "OCC": 5, "EDO": 5, "FPC": 7}
+                mal_formato = sorted({
+                    c.codigo for c in codigos
+                    if LONGITUDES.get(c.codigo) is not None
+                    and len((c.valor or "").strip()) != LONGITUDES[c.codigo]
+                })
+                if mal_formato:
+                    faltan.append(f"longitud_incorrecta={mal_formato}")
+            # Aprobación dual (solo Almacén): si se inició, debe estar completa
+            if factura.destino_inventarios == "ALMACEN":
+                if factura.fecha_envio_aprobacion_ops and not factura.fecha_aprobacion_ops:
+                    faltan.append("aprobacion_ops")
+                if factura.fecha_envio_aprobacion_calidad and not factura.fecha_aprobacion_calidad:
+                    faltan.append("aprobacion_calidad")
+            return faltan
+
+        # ── CAMINO B: NORMAL (sin inventarios) ─────────────────────────────────
+        if factura.centro_costo_id is None:
+            faltan.append("centro_costo_id")
+        if factura.centro_operacion_id is None:
+            faltan.append("centro_operacion_id")
+        if not factura.intervalo_entrega_contabilidad:
+            faltan.append("intervalo_entrega_contabilidad")
+        if not factura.es_gasto_adm:
+            doc_types = {f.doc_type for f in files}
+            if "OC" not in doc_types and "OS" not in doc_types:
+                faltan.append("archivo_OC_OS")
+            if not factura.fecha_aprobacion_email:
+                faltan.append("aprobacion_gerencia")
+
+        return faltan
+
+    async def auto_enviar_listas_a_contabilidad(self, area_id: UUID) -> list[dict]:
+        """
+        Barrido automático: envía a Contabilidad TODAS las facturas del área del
+        Responsable que ya estén "Listas" (mismas reglas que el badge visible).
+
+        Garantías:
+        - Solo se envían facturas que cumplen el checklist completo (`_factura_lista_para_contabilidad`).
+        - La transición usa la lógica canónica `submit_responsable` (fija
+          fecha_envio_contabilidad, area_origen_id, estado y limpia devolución).
+        - Idempotente: una vez enviada, la factura cambia de área y deja de ser candidata.
+
+        Retorna la lista de facturas efectivamente enviadas.
+        """
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from db.models import Factura
+
+        result = await self.db.execute(
+            select(Factura)
+            .options(
+                selectinload(Factura.inventario_codigos),
+                selectinload(Factura.files),
+            )
+            .where(Factura.area_id == area_id)
+        )
+        candidatas = result.scalars().all()
+
+        # Primer paso: decidir cuáles están listas mientras las relaciones siguen
+        # cargadas (antes de cualquier commit que expire los objetos).
+        listas: list[tuple] = []
+        for f in candidatas:
+            if not self._faltantes_para_contabilidad(f, f.inventario_codigos, f.files):
+                listas.append((f.id, f.numero_factura, f.proveedor))
+
+        # Segundo paso: ejecutar la transición canónica por cada factura lista.
+        enviadas: list[dict] = []
+        for fid, numero, proveedor in listas:
+            try:
+                await self.submit_responsable(fid)
+                enviadas.append({
+                    "id": str(fid),
+                    "numero_factura": numero,
+                    "proveedor": proveedor,
+                })
+            except HTTPException as e:
+                logger.warning(f"Auto-envío omitió factura {numero}: {getattr(e, 'detail', e)}")
+            except Exception as e:
+                logger.error(f"Auto-envío falló para factura {numero}: {e}")
+                await self.db.rollback()
+
+        if enviadas:
+            logger.info(f"Auto-envío a Contabilidad: {len(enviadas)} factura(s) enviada(s) del área {area_id}.")
+        return enviadas
+
     async def submit_tesoreria(self, factura_id: UUID) -> SubmitResponsableOut:
         """
         Envía una factura desde CONTABILIDAD a TESORERIA.

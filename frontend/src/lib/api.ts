@@ -619,6 +619,21 @@ export async function confirmarIngestaFactura(facturaId: string, areaId: string)
   });
 }
 
+export interface AutoEnvioContabilidadResult {
+  enviadas: { id: string; numero_factura: string; proveedor: string }[];
+  total: number;
+}
+
+/**
+ * Auto-envío a Contabilidad de las facturas "Listas" del Responsable autenticado.
+ * El backend valida el checklist completo (badge "Listo") y solo envía las que cumplen.
+ */
+export async function autoEnviarContabilidad(): Promise<AutoEnvioContabilidadResult> {
+  return fetchAPI<AutoEnvioContabilidadResult>('/facturas/auto-enviar-contabilidad', {
+    method: 'POST',
+  });
+}
+
 export async function submitGadminTesoreria(facturaId: string): Promise<{ factura_id: string; area_actual: string; estado_actual: string }> {
   const token = getAccessToken();
   const res = await fetch(`${API_BASE_URL}/facturas/${facturaId}/submit-gadmin-tesoreria`, {

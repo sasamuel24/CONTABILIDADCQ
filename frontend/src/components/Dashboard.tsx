@@ -345,13 +345,13 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
                   <div className="p-4 md:p-6">
                     <h2 className="text-gray-900 mb-4" style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>Seguimiento de Facturas por Áreas</h2>
                     <div className="mb-4 md:mb-6 relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 md:w-5 md:h-5 text-gray-400 pointer-events-none" />
                       <input
                         type="text"
                         placeholder="Buscar por número de factura, proveedor o responsable..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 md:pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none text-sm"
+                        className="w-full pl-11 md:pl-12 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none text-sm"
                         style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
                         onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px rgba(20, 170, 184, 0.5)'}
                         onBlur={(e) => e.target.style.boxShadow = ''}

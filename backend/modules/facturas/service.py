@@ -2374,14 +2374,25 @@ Responde ÚNICAMENTE con JSON válido:
 
     async def historial_area(self, user_id: UUID) -> list:
         """
-        Retorna el historial de facturas que pasaron por el área del usuario responsable.
-        Usa tres estrategias combinadas para máxima cobertura:
-          1. factura_asignaciones con area_id == area del usuario
-          2. facturas donde area_origen_id == area del usuario (historial migration / XML)
-          3. facturas actualmente en el área (bandeja activa)
+        Retorna el historial de facturas del área del usuario responsable.
+
+        Una factura pertenece al historial del área X solo si:
+          A) está ACTUALMENTE en X (bandeja activa o devuelta aquí), o
+          B) X la procesó y la envió HACIA ADELANTE: area_origen_id == X y la factura
+             ya avanzó a Contabilidad/Tesorería/Pagada (estado 3/7/5).
+
+        Importante: NO se usan las asignaciones históricas (factura_asignaciones). Esa
+        estrategia mantenía en el historial facturas que fueron REASIGNADAS a otro
+        responsable (p. ej. Trade → Marketing), dejándolas visibles en el área anterior.
+        Con A+B, al reasignarse a otro responsable la factura desaparece del historial
+        del área previa, pero las que avanzaron en el flujo se conservan.
         """
         from sqlalchemy import select
-        from db.models import User, Factura, FacturaAsignacion
+        from db.models import User, Factura
+
+        # Estados "avanzados" (la factura ya salió del responsable hacia el flujo contable):
+        # 3=Pendiente en contabilidad, 7=Pendiente en Tesorería, 5=Pagada.
+        ESTADOS_AVANZADOS = (3, 5, 7)
 
         result = await self.db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
@@ -2392,33 +2403,23 @@ Responde ÚNICAMENTE con JSON válido:
         area_id = user.area_id
         fecha_por_factura: dict = {}
 
-        # Estrategia 1: asignaciones formales al área
-        asign_result = await self.db.execute(
-            select(FacturaAsignacion.factura_id, FacturaAsignacion.created_at)
-            .where(FacturaAsignacion.area_id == area_id)
-            .order_by(FacturaAsignacion.created_at.asc())
-        )
-        for row in asign_result.all():
-            fid = row.factura_id
-            if fid not in fecha_por_factura:
-                fecha_por_factura[fid] = row.created_at
-
-        # Estrategia 2: facturas con area_origen_id apuntando al área
-        origen_result = await self.db.execute(
-            select(Factura.id, Factura.assigned_at)
-            .where(Factura.area_origen_id == area_id)
-        )
-        for row in origen_result.all():
-            fid = row.id
-            if fid not in fecha_por_factura:
-                fecha_por_factura[fid] = row.assigned_at
-
-        # Estrategia 3: facturas actualmente en el área (bandeja)
+        # Estrategia A: facturas actualmente en el área
         current_result = await self.db.execute(
             select(Factura.id, Factura.assigned_at)
             .where(Factura.area_id == area_id)
         )
         for row in current_result.all():
+            fid = row.id
+            if fid not in fecha_por_factura:
+                fecha_por_factura[fid] = row.assigned_at
+
+        # Estrategia B: facturas que el área originó y ya avanzaron en el flujo
+        origen_result = await self.db.execute(
+            select(Factura.id, Factura.assigned_at)
+            .where(Factura.area_origen_id == area_id)
+            .where(Factura.estado_id.in_(ESTADOS_AVANZADOS))
+        )
+        for row in origen_result.all():
             fid = row.id
             if fid not in fecha_por_factura:
                 fecha_por_factura[fid] = row.assigned_at

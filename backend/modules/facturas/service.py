@@ -48,10 +48,11 @@ class FacturaService:
         search: Optional[str] = None,
         only_in_carpeta: bool = False,
         solo_tiendas: bool = False,
+        estado_code: Optional[str] = None,
     ) -> FacturasPaginatedResponse:
         """Lista todas las facturas con paginación y filtros."""
-        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, estado={estado}, search={search}, only_in_carpeta={only_in_carpeta}, solo_tiendas={solo_tiendas}")
-        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta, solo_tiendas=solo_tiendas)
+        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, estado={estado}, search={search}, only_in_carpeta={only_in_carpeta}, solo_tiendas={solo_tiendas}, estado_code={estado_code}")
+        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta, solo_tiendas=solo_tiendas, estado_code=estado_code)
         
         items = []
         for f in facturas:
@@ -162,6 +163,14 @@ class FacturaService:
     async def get_area_counts(self):
         """Retorna conteo de facturas por área (query única con GROUP BY)."""
         return await self.repository.get_counts_by_area()
+
+    async def represadas_tiendas(self):
+        """Resumen de facturas represadas (estado 'asignada') por tienda.
+
+        Usado por el rol jefe_zona para monitorear, en solo lectura, cuántas
+        facturas siguen sin enviarse a Contabilidad en cada tienda.
+        """
+        return await self.repository.get_represadas_tiendas()
 
     async def delete_factura(self, factura_id: UUID) -> None:
         """Elimina una factura y sus registros relacionados."""

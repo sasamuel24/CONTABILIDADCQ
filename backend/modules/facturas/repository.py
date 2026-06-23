@@ -16,7 +16,7 @@ class FacturaRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None, search: Optional[str] = None, only_in_carpeta: bool = False, solo_tiendas: bool = False) -> Tuple[List[Factura], int]:
+    async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None, search: Optional[str] = None, only_in_carpeta: bool = False, solo_tiendas: bool = False, estado_code: Optional[str] = None) -> Tuple[List[Factura], int]:
         """Obtiene todas las facturas con paginación y filtros opcionales.
 
         Optimización: el modelo Factura define 16 relaciones con lazy="selectin",
@@ -62,6 +62,12 @@ class FacturaRepository:
             query = query.join(Estado, Factura.estado_id == Estado.id).where(Estado.label == estado)
             count_query = count_query.join(Estado, Factura.estado_id == Estado.id).where(Estado.label == estado)
 
+        # Filtro por CÓDIGO de estado (estable, no depende del label que puede tener
+        # acentos/espacios). Usado por la vista de represadas del jefe de zona.
+        if estado_code:
+            query = query.join(Estado, Factura.estado_id == Estado.id).where(Estado.code == estado_code)
+            count_query = count_query.join(Estado, Factura.estado_id == Estado.id).where(Estado.code == estado_code)
+
         if search:
             pattern = f"%{search}%"
             search_filter = or_(
@@ -96,6 +102,55 @@ class FacturaRepository:
         )
         return [{'area_id': str(row.id), 'nombre': row.nombre, 'count': row.count} for row in result.all()]
     
+    async def get_represadas_tiendas(self) -> Dict:
+        """Resumen de facturas represadas por tienda.
+
+        Una factura está "represada" cuando sigue en estado 'asignada' (asignada al
+        responsable y aún no enviada a Contabilidad). Solo se consideran las áreas
+        marcadas como tienda (areas.es_tienda). Se agrupa por área en una sola query.
+
+        El INNER JOIN hace que solo aparezcan tiendas que TIENEN represadas (las que
+        están al día no ensucian el reporte).
+        """
+        result = await self.db.execute(
+            select(
+                Area.id,
+                Area.nombre,
+                func.count(Factura.id).label('count'),
+                func.coalesce(func.sum(Factura.total), 0).label('monto'),
+                func.min(Factura.created_at).label('mas_antigua'),
+            )
+            .select_from(Area)
+            .join(Factura, Factura.area_id == Area.id)
+            .join(Estado, Factura.estado_id == Estado.id)
+            .where(Area.es_tienda.is_(True))
+            .where(Estado.code == 'asignada')
+            .group_by(Area.id, Area.nombre)
+            .order_by(func.count(Factura.id).desc())
+        )
+
+        areas: List[Dict] = []
+        total = 0
+        monto_total = 0.0
+        for row in result.all():
+            monto = float(row.monto or 0)
+            total += row.count
+            monto_total += monto
+            areas.append({
+                'area_id': str(row.id),
+                'nombre': row.nombre,
+                'count': row.count,
+                'monto': monto,
+                'mas_antigua': row.mas_antigua.isoformat() if row.mas_antigua else None,
+            })
+
+        return {
+            'total_represadas': total,
+            'monto_total': monto_total,
+            'tiendas_con_represadas': len(areas),
+            'areas': areas,
+        }
+
     async def get_by_id(self, factura_id: UUID) -> Optional[Factura]:
         """Obtiene una factura por ID."""
         result = await self.db.execute(

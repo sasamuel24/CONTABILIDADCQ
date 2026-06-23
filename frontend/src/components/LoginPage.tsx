@@ -53,6 +53,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         navigate('/tecnico-mantenimiento');
       } else if (userRole === 'direccion') {
         navigate('/centro-documental');
+      } else if (userRole === 'jefe_zona') {
+        navigate('/jefe-zona');
       } else {
         navigate('/no-autorizado');
       }

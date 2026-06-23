@@ -72,6 +72,19 @@ async def get_counts_by_area(
     return await service.get_area_counts()
 
 
+@router.get("/represadas-tiendas")
+async def get_represadas_tiendas(
+    _: dict = Depends(get_current_user),
+    service: FacturaService = Depends(get_factura_service),
+):
+    """Resumen de facturas represadas (estado 'asignada') por tienda.
+
+    Informe de monitoreo para el rol jefe_zona: total represadas, monto acumulado
+    y desglose por cada tienda (areas.es_tienda) con la factura más antigua.
+    """
+    return await service.represadas_tiendas()
+
+
 @router.get("/", response_model=FacturasPaginatedResponse)
 async def list_facturas(
     skip: int = 0,
@@ -82,10 +95,11 @@ async def list_facturas(
     search: Optional[str] = Query(None, description="Buscar por número de factura o proveedor"),
     only_in_carpeta: bool = Query(False, description="Solo facturas asignadas a una carpeta"),
     solo_tiendas: bool = Query(False, description="Facturas de TODAS las áreas marcadas como tienda (rol responsable_tiendas)"),
+    estado_code: Optional[str] = Query(None, description="Filtrar por CÓDIGO de estado (estable, p.ej. 'asignada')"),
     service: FacturaService = Depends(get_factura_service)
 ):
     """Lista todas las facturas con paginación y filtros opcionales."""
-    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta, solo_tiendas=solo_tiendas)
+    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta, solo_tiendas=solo_tiendas, estado_code=estado_code)
 
 
 @router.get(

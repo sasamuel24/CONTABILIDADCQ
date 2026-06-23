@@ -594,10 +594,32 @@ export async function getFacturasAreaCounts(): Promise<AreaCount[]> {
   return fetchAPI<AreaCount[]>('/facturas/counts-by-area');
 }
 
+export interface TiendaRepresada {
+  area_id: string;
+  nombre: string;
+  count: number;
+  monto: number;
+  mas_antigua: string | null;
+}
+
+export interface RepresadasTiendasResponse {
+  total_represadas: number;
+  monto_total: number;
+  tiendas_con_represadas: number;
+  areas: TiendaRepresada[];
+}
+
+/**
+ * Resumen de facturas represadas (estado Asignada) por tienda. Rol jefe_zona.
+ */
+export async function getRepresadasTiendas(): Promise<RepresadasTiendasResponse> {
+  return fetchAPI<RepresadasTiendasResponse>('/facturas/represadas-tiendas');
+}
+
 /**
  * Obtener lista paginada de facturas
  */
-export async function getFacturas(skip: number = 0, limit: number = 100, area_id?: string, area_origen_id?: string, search?: string, estado?: string, only_in_carpeta?: boolean, solo_tiendas?: boolean): Promise<FacturasPaginatedResponse> {
+export async function getFacturas(skip: number = 0, limit: number = 100, area_id?: string, area_origen_id?: string, search?: string, estado?: string, only_in_carpeta?: boolean, solo_tiendas?: boolean, estado_code?: string): Promise<FacturasPaginatedResponse> {
   const params = new URLSearchParams();
   params.append('skip', skip.toString());
   params.append('limit', limit.toString());
@@ -607,6 +629,7 @@ export async function getFacturas(skip: number = 0, limit: number = 100, area_id
   if (estado) params.append('estado', estado);
   if (only_in_carpeta) params.append('only_in_carpeta', 'true');
   if (solo_tiendas) params.append('solo_tiendas', 'true');
+  if (estado_code) params.append('estado_code', estado_code);
   return fetchAPI<FacturasPaginatedResponse>(`/facturas/?${params.toString()}`);
 }
 

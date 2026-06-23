@@ -16,6 +16,7 @@ function getRoleHome(role: string): string {
   if (r === 'direccion') return '/centro-documental';
   if (r === 'user') return '/legalizacion';
   if (r === 'tarjeta_cq') return '/tarjeta-cq';
+  if (r === 'jefe_zona') return '/jefe-zona';
   return '';
 }
 

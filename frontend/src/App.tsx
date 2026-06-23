@@ -12,6 +12,7 @@ import { CentroDocumentalPage } from './pages/CentroDocumentalPage';
 import { TecnicoMantenimientoPage } from './pages/TecnicoMantenimientoPage';
 import { LegalizacionPage } from './pages/LegalizacionPage';
 import { TarjetaCQPage } from './pages/TarjetaCQPage';
+import { JefeZonaPage } from './pages/JefeZonaPage';
 import { NoAutorizadoPage } from './pages/NoAutorizadoPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import { AprobarPaquetePage } from './pages/AprobarPaquetePage';
@@ -69,6 +70,7 @@ function AppRoutes() {
     if (r === 'direccion') return '/centro-documental';
     if (r === 'user') return '/legalizacion';
     if (r === 'tarjeta_cq') return '/tarjeta-cq';
+    if (r === 'jefe_zona') return '/jefe-zona';
     return '/no-autorizado';
   };
 
@@ -164,6 +166,14 @@ function AppRoutes() {
             element={
               <ProtectedRoute allowedRoles={['tarjeta_cq']}>
                 <TarjetaCQPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/jefe-zona"
+            element={
+              <ProtectedRoute allowedRoles={['jefe_zona']}>
+                <JefeZonaPage />
               </ProtectedRoute>
             }
           />

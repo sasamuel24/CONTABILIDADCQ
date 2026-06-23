@@ -66,3 +66,6 @@ MIGRACION_BD_*.md
 
 # Artefactos de pruebas Playwright MCP
 .playwright-mcp/
+# Capturas de pantalla / scratch en la raíz
+/image.png
+/image copy*.png

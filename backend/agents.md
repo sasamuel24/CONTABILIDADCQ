@@ -3529,6 +3529,21 @@ bandeja. El router excluye GADMIN explícitamente.
 > `areas.es_tienda` (bool) marca qué áreas son tiendas (~64). Usado por el rol
 > `responsable_tiendas`. Ver sección siguiente.
 
+#### Historial del responsable (`historial_area`)
+
+`GET /facturas/historial-area` → `service.historial_area(user_id)`. Una factura
+aparece en el historial del área X **solo si**:
+- **A)** está ACTUALMENTE en X (`area_id == X`), o
+- **B)** X la originó y ya AVANZÓ en el flujo contable (`area_origen_id == X` y
+  `estado_id IN (3, 5, 7)` = Contabilidad / Pagada / Tesorería).
+
+⚠️ NO usar `factura_asignaciones` (asignaciones históricas) como fuente: mantenía en
+el historial CUALQUIER asignación pasada, por lo que una factura **reasignada** a otro
+responsable (p. ej. Trade → Marketing) seguía visible en el área anterior. Con A+B, al
+reasignarse a otro responsable la factura sale del historial del área previa (su estado
+sigue en 1/2, no avanzado), pero las que el área procesó y envió a Contabilidad/Tesorería
+se conservan. (Fix commit `a67c41f`.)
+
 ### Perfil "Responsable de Tiendas" (bandeja multi-tienda)
 
 Rol `responsable_tiendas`: un único usuario que gestiona OCT/ECT/FPC y envía a

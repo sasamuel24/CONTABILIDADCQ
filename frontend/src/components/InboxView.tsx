@@ -295,6 +295,9 @@ function DevueltaBadge({ motivo, devueltaPor }: { motivo: string; devueltaPor?: 
 export function InboxView() {
   const { user } = useAuth();
   const esResponsable = getUserRoleCode(user) === 'responsable';
+  // Responsable de Tiendas: bandeja multi-tienda (todas las áreas con es_tienda).
+  // Reutiliza la vista del responsable pero carga facturas de TODAS las tiendas.
+  const esResponsableTiendas = getUserRoleCode(user) === 'responsable_tiendas';
   // Gastos Fijos (GADMIN) envía directo a Tesorería, nunca a Contabilidad:
   // no debe dispararse el auto-envío que rebotaría las facturas a Contabilidad.
   const esGadmin = user?.area?.code === 'GADMIN';
@@ -378,8 +381,9 @@ const itemsPerPage = 20;
     if (!silent) setIsLoading(true);
     setError(null);
     
-    // Validar que el usuario tenga área asignada
-    if (!user?.area?.nombre) {
+    // Validar que el usuario tenga área asignada.
+    // El Responsable de Tiendas NO tiene un área única: opera sobre todas las tiendas.
+    if (!esResponsableTiendas && !user?.area?.nombre) {
       setError('Tu usuario no tiene un área asignada. Contacta al administrador.');
       if (!silent) setIsLoading(false);
       return;
@@ -387,7 +391,9 @@ const itemsPerPage = 20;
 
     try {
       const [facturasData, areasData] = await Promise.all([
-        getFacturas(0, 0, user.area?.id),
+        esResponsableTiendas
+          ? getFacturas(0, 0, undefined, undefined, undefined, undefined, undefined, true)
+          : getFacturas(0, 0, user.area?.id),
         getAreas(),
       ]);
 
@@ -952,7 +958,7 @@ const itemsPerPage = 20;
                     </td>
                     <td className="px-6 py-4 text-center" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-2">
-                        {esResponsable && (
+                        {(esResponsable || esResponsableTiendas) && (
                           <ChecklistBadge factura={factura} />
                         )}
                         {canDelete && (

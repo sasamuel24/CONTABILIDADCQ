@@ -10,7 +10,7 @@ function getRoleHome(role: string): string {
   const r = role.toLowerCase();
   if (r === 'admin') return '/global';
   if (r === 'fact') return '/facturacion';
-  if (r === 'responsable') return '/responsable';
+  if (r === 'responsable' || r === 'responsable_tiendas') return '/responsable';
   if (r === 'contabilidad') return '/contabilidad';
   if (r === 'tesoreria' || r === 'tes') return '/tesoreria';
   if (r === 'gerencia') return '/gerencia';

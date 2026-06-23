@@ -16,7 +16,7 @@ class FacturaRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None, search: Optional[str] = None, only_in_carpeta: bool = False) -> Tuple[List[Factura], int]:
+    async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None, search: Optional[str] = None, only_in_carpeta: bool = False, solo_tiendas: bool = False) -> Tuple[List[Factura], int]:
         """Obtiene todas las facturas con paginación y filtros opcionales.
 
         Optimización: el modelo Factura define 16 relaciones con lazy="selectin",
@@ -46,6 +46,13 @@ class FacturaRepository:
         if area_id:
             query = query.where(Factura.area_id == area_id)
             count_query = count_query.where(Factura.area_id == area_id)
+
+        # Bandeja multi-tienda: facturas de TODAS las áreas marcadas como tienda.
+        # Usado por el rol responsable_tiendas (subquery sobre areas.es_tienda).
+        if solo_tiendas:
+            tiendas_subq = select(Area.id).where(Area.es_tienda.is_(True))
+            query = query.where(Factura.area_id.in_(tiendas_subq))
+            count_query = count_query.where(Factura.area_id.in_(tiendas_subq))
 
         if area_origen_id:
             query = query.where(Factura.area_origen_id == area_origen_id)

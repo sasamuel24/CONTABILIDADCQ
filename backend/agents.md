@@ -3526,6 +3526,27 @@ bandeja. El router excluye GADMIN explícitamente.
 | 1 | Contabilidad | 725f5e5a-49d3-4e44-800f-f5ff21e187ac |
 | 2 | Tesorería | b067adcd-13ff-420f-9389-42bfaa78cf9f |
 
+> `areas.es_tienda` (bool) marca qué áreas son tiendas (~64). Usado por el rol
+> `responsable_tiendas`. Ver sección siguiente.
+
+### Perfil "Responsable de Tiendas" (bandeja multi-tienda)
+
+Rol `responsable_tiendas`: un único usuario que gestiona OCT/ECT/FPC y envía a
+Contabilidad las facturas de **TODAS** las tiendas (no se ata a una sola área).
+
+- Identificación de tiendas: columna **`areas.es_tienda`** (flag explícito, robusto;
+  incluye outliers que no llevan "Tienda" en el nombre y excluye el paraguas `b2c`).
+  Sembrada en la migración `k5f6a7b8c9d0`.
+- Listado: `GET /facturas/?solo_tiendas=true` → filtra `Factura.area_id IN (áreas con
+  es_tienda=true)`. Propagado por `service.list_facturas` y `repository.get_all`.
+- La factura conserva su tienda (`area_id`/`area_origen_id`): `submit_responsable`
+  opera sobre la tienda real, así que la trazabilidad por tienda queda intacta.
+- El auto-envío a Contabilidad NO aplica (está gateado al rol `responsable`); este
+  usuario envía manualmente desde el detalle ("Enviar a Contabilidad").
+- Alta del usuario: `create_responsable_tiendas.py` (area_id NULL, must_change_password).
+- Frontend: reutiliza `ResponsablePage`/`InboxView`/`ResponsableFacturaDetail`; la
+  columna "Area Receptora" muestra la tienda de cada factura.
+
 ---
 
 ## 🎨 Frontend - Integración con React

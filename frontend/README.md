@@ -24,6 +24,16 @@
   área; sin ella, las facturas rebotan de vuelta a Contabilidad. El backend también
   excluye GADMIN del barrido (defensa en profundidad).
 
+  ### Perfil "Responsable de Tiendas" (multi-tienda)
+
+  Rol `responsable_tiendas`: reutiliza `ResponsablePage`/`InboxView` pero su bandeja
+  carga las facturas de **todas** las tiendas (`getFacturas(..., solo_tiendas=true)`)
+  en vez de una sola área. No tiene `area` asignada → `InboxView` y `ResponsablePage`
+  omiten la validación de área y muestran "Todas las Tiendas". La columna "Area
+  Receptora" identifica la tienda de cada factura. Captura OCT/ECT/FPC y envía a
+  Contabilidad con el mismo `ResponsableFacturaDetail` que un responsable de tienda.
+  El alta del usuario se hace con `backend/create_responsable_tiendas.py`.
+
   ### Envío Contabilidad → Tesorería
 
   `ContabilidadFacturaDetail.tsx` envía a Tesorería con `asignarFactura` (área +

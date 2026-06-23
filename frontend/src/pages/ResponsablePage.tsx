@@ -8,6 +8,7 @@ import { GastosAdminTrazabilidadView } from '../components/GastosAdminTrazabilid
 import { ResponsableHistorialView } from '../components/ResponsableHistorialView';
 import { AnticiposView } from '../components/AnticiposView';
 import { useAuth } from '../contexts/AuthContext';
+import { getUserRoleCode } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 
 type Seccion = 'bandeja' | 'paquetes' | 'subida' | 'trazabilidad' | 'historial' | 'anticipo';
@@ -28,6 +29,10 @@ export function ResponsablePage() {
 
   const esMant   = user?.area?.code === 'mant';
   const esGadmin = user?.area?.code === 'GADMIN';
+  const esTiendas = getUserRoleCode(user) === 'responsable_tiendas';
+  // El Responsable de Tiendas no tiene un área única: opera sobre todas las tiendas.
+  const areaLabel = esTiendas ? 'Todas las Tiendas' : (user?.area?.nombre || 'CONTABILIDAD CQ');
+  const rolLabel  = esTiendas ? 'Responsable de Tiendas' : 'Responsable de Área';
 
   const NAV: { id: Seccion; label: string; icon: React.ReactNode }[] = [
     { id: 'bandeja',   label: 'Bandeja de Entrada',       icon: <Inbox        className="w-5 h-5" /> },
@@ -94,10 +99,10 @@ export function ResponsablePage() {
             <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
               <div>
                 <p style={{ fontWeight: 700, fontSize: 16, color: '#111827', fontFamily: "'Neutra Text', 'Montserrat', sans-serif", margin: 0 }}>
-                  {user?.area?.nombre || 'CONTABILIDAD CQ'}
+                  {areaLabel}
                 </p>
                 <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 2, fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
-                  Responsable de Área
+                  {rolLabel}
                 </p>
               </div>
               <button
@@ -146,7 +151,7 @@ export function ResponsablePage() {
                   {user?.nombre}
                 </p>
                 <p style={{ fontSize: 11, color: '#9ca3af', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}>
-                  {user?.area?.nombre}
+                  {areaLabel}
                 </p>
               </div>
               <button

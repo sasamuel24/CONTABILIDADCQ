@@ -597,7 +597,7 @@ export async function getFacturasAreaCounts(): Promise<AreaCount[]> {
 /**
  * Obtener lista paginada de facturas
  */
-export async function getFacturas(skip: number = 0, limit: number = 100, area_id?: string, area_origen_id?: string, search?: string, estado?: string, only_in_carpeta?: boolean): Promise<FacturasPaginatedResponse> {
+export async function getFacturas(skip: number = 0, limit: number = 100, area_id?: string, area_origen_id?: string, search?: string, estado?: string, only_in_carpeta?: boolean, solo_tiendas?: boolean): Promise<FacturasPaginatedResponse> {
   const params = new URLSearchParams();
   params.append('skip', skip.toString());
   params.append('limit', limit.toString());
@@ -606,6 +606,7 @@ export async function getFacturas(skip: number = 0, limit: number = 100, area_id
   if (search) params.append('search', search);
   if (estado) params.append('estado', estado);
   if (only_in_carpeta) params.append('only_in_carpeta', 'true');
+  if (solo_tiendas) params.append('solo_tiendas', 'true');
   return fetchAPI<FacturasPaginatedResponse>(`/facturas/?${params.toString()}`);
 }
 

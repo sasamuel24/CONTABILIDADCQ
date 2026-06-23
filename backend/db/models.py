@@ -76,7 +76,13 @@ class Area(Base):
         nullable=False,
         index=True
     )
-    
+    es_tienda: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+        index=True
+    )
+
     # Relaciones
     users: Mapped[List["User"]] = relationship(
         "User",

@@ -47,10 +47,11 @@ class FacturaService:
         estado: Optional[str] = None,
         search: Optional[str] = None,
         only_in_carpeta: bool = False,
+        solo_tiendas: bool = False,
     ) -> FacturasPaginatedResponse:
         """Lista todas las facturas con paginación y filtros."""
-        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, estado={estado}, search={search}, only_in_carpeta={only_in_carpeta}")
-        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta)
+        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, estado={estado}, search={search}, only_in_carpeta={only_in_carpeta}, solo_tiendas={solo_tiendas}")
+        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta, solo_tiendas=solo_tiendas)
         
         items = []
         for f in facturas:

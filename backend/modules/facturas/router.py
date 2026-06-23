@@ -81,10 +81,11 @@ async def list_facturas(
     estado: Optional[str] = Query(None, description="Filtrar por estado de la factura"),
     search: Optional[str] = Query(None, description="Buscar por número de factura o proveedor"),
     only_in_carpeta: bool = Query(False, description="Solo facturas asignadas a una carpeta"),
+    solo_tiendas: bool = Query(False, description="Facturas de TODAS las áreas marcadas como tienda (rol responsable_tiendas)"),
     service: FacturaService = Depends(get_factura_service)
 ):
     """Lista todas las facturas con paginación y filtros opcionales."""
-    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta)
+    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta, solo_tiendas=solo_tiendas)
 
 
 @router.get(

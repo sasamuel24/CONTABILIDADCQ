@@ -39,7 +39,8 @@ export function ResponsablePage() {
     { id: 'historial', label: 'Historial de Facturas',    icon: <History      className="w-5 h-5" /> },
     ...(esMant   ? [{ id: 'paquetes' as Seccion, label: 'Paquetes de Gastos',        icon: <PackageOpen className="w-5 h-5" /> }] : []),
     ...(esGadmin ? [{ id: 'subida'   as Seccion, label: 'Subida Manual de Facturas', icon: <UploadCloud className="w-5 h-5" /> }] : []),
-    { id: 'anticipo',  label: 'Legalizar Anticipo',       icon: <Banknote     className="w-5 h-5" /> },
+    // El Responsable de Tiendas no legaliza anticipos: solo gestiona facturas de tiendas.
+    ...(!esTiendas ? [{ id: 'anticipo' as Seccion, label: 'Legalizar Anticipo', icon: <Banknote className="w-5 h-5" /> }] : []),
   ];
 
   const openDrawer = () => {

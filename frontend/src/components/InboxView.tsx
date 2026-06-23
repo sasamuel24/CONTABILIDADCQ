@@ -292,6 +292,118 @@ function DevueltaBadge({ motivo, devueltaPor }: { motivo: string; devueltaPor?: 
   );
 }
 
+// ── Filtro tipo Excel para la columna "Area Receptora" (filtrar por tienda) ──
+function AreaFilterPopover({
+  areas,
+  selected,
+  onChange,
+}: {
+  areas: string[];
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const [q, setQ] = useState('');
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const FONT = "'Neutra Text', 'Montserrat', sans-serif";
+  const active = selected.size > 0;
+
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, left: r.left });
+    }
+    setOpen(v => !v);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    function handler(e: MouseEvent) {
+      if (
+        popRef.current && !popRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const filtered = areas.filter(a => a.toLowerCase().includes(q.toLowerCase()));
+  const toggle = (a: string) => {
+    const next = new Set(selected);
+    if (next.has(a)) next.delete(a); else next.add(a);
+    onChange(next);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={handleClick}
+        title="Filtrar por tienda"
+        className="inline-flex items-center justify-center w-5 h-5 rounded hover:bg-gray-200 transition-colors shrink-0"
+        style={{ color: active ? '#00829a' : '#9ca3af' }}
+      >
+        <Filter className="w-3.5 h-3.5" fill={active ? '#00829a' : 'none'} />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={popRef}
+          className="fixed bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden flex flex-col"
+          style={{ top: pos.top, left: pos.left, zIndex: 9999, width: 290, maxHeight: 380, fontFamily: FONT }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 bg-gray-50">
+            <Filter className="w-3.5 h-3.5 text-[#00829a]" />
+            <span className="text-xs font-semibold text-gray-700">Filtrar por tienda</span>
+            <button onClick={() => setOpen(false)} className="ml-auto text-gray-300 hover:text-gray-600">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="p-2 border-b border-gray-100">
+            <input
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              placeholder="Buscar tienda..."
+              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none"
+              autoFocus
+            />
+          </div>
+          <div className="flex items-center justify-between px-3 py-1.5 text-xs border-b border-gray-100">
+            <button className="text-[#00829a] hover:underline font-medium" onClick={() => onChange(new Set(areas))}>
+              Seleccionar todo
+            </button>
+            <button className="text-gray-500 hover:underline font-medium" onClick={() => onChange(new Set())}>
+              Limpiar
+            </button>
+          </div>
+          <div className="overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-gray-400">Sin resultados</p>
+            ) : filtered.map(a => (
+              <label key={a} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selected.has(a)}
+                  onChange={() => toggle(a)}
+                  className="rounded border-gray-300 text-[#00829a] focus:ring-[#00829a]"
+                />
+                <span className="text-sm text-gray-700 truncate">{a}</span>
+              </label>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 export function InboxView() {
   const { user } = useAuth();
   const esResponsable = getUserRoleCode(user) === 'responsable';
@@ -318,6 +430,8 @@ export function InboxView() {
   const [sortCol, setSortCol] = useState<InboxSortCol | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const [inventarioTab, setInventarioTab] = useState<'todos' | 'con_inventario' | 'sin_inventario'>('todos');
+  // Filtro por tienda (columna "Area Receptora"). Vacío = todas.
+  const [areaFilter, setAreaFilter] = useState<Set<string>>(new Set());
 const itemsPerPage = 20;
   const esContabilidad = getUserRoleCode(user) === 'contabilidad';
   // Permiso de eliminar facturas: solo Radicación (fact), Dirección y Administrador
@@ -593,8 +707,15 @@ const itemsPerPage = 20;
       inventarioTab === 'todos' ? true :
       inventarioTab === 'con_inventario' ? f.requiere_entrada_inventarios :
       !f.requiere_entrada_inventarios;
-    return matchesSearch && matchesStatus && matchesTab;
+    const matchesArea = areaFilter.size === 0 || areaFilter.has(f.area);
+    return matchesSearch && matchesStatus && matchesTab && matchesArea;
   });
+
+  // Tiendas presentes en la bandeja, para el filtro tipo Excel de "Area Receptora".
+  const areasDisponibles = Array.from(new Set(facturas.map(f => f.area).filter(Boolean)))
+    .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+
+  const handleAreaFilterChange = (next: Set<string>) => { setAreaFilter(next); setCurrentPage(1); };
 
   const statusCounts: Record<string, number> = {
     Todos: facturas.length,
@@ -824,6 +945,13 @@ const itemsPerPage = 20;
                     <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
                       {label}
                       <SortIconInbox col={col} sortCol={sortCol} sortDir={sortDir} />
+                      {col === 'area' && esResponsableTiendas && (
+                        <AreaFilterPopover
+                          areas={areasDisponibles}
+                          selected={areaFilter}
+                          onChange={handleAreaFilterChange}
+                        />
+                      )}
                     </div>
                   </th>
                 ))}
@@ -1017,8 +1145,8 @@ const itemsPerPage = 20;
       {/* Drawer para detalles y asignación de factura */}
       {selectedFactura && (
         <>
-          {/* Si el usuario es responsable, usar el componente de Responsable */}
-          {user?.role === 'responsable' ? (
+          {/* Responsable (y Responsable de Tiendas) usan el componente de Responsable */}
+          {user?.role === 'responsable' || user?.role === 'responsable_tiendas' ? (
             <ResponsableFacturaDetail
               factura={selectedFactura}
               onClose={closeDrawer}

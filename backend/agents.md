@@ -3543,9 +3543,23 @@ Contabilidad las facturas de **TODAS** las tiendas (no se ata a una sola área).
   opera sobre la tienda real, así que la trazabilidad por tienda queda intacta.
 - El auto-envío a Contabilidad NO aplica (está gateado al rol `responsable`); este
   usuario envía manualmente desde el detalle ("Enviar a Contabilidad").
-- Alta del usuario: `create_responsable_tiendas.py` (area_id NULL, must_change_password).
+- Alta del usuario: `create_responsable_tiendas.py` (area_id NULL, must_change_password=true).
+  Personalizable con env `RT_EMAIL`, `RT_PASSWORD`. Idempotente.
 - Frontend: reutiliza `ResponsablePage`/`InboxView`/`ResponsableFacturaDetail`; la
-  columna "Area Receptora" muestra la tienda de cada factura.
+  columna "Area Receptora" muestra la tienda de cada factura, con filtro tipo Excel
+  (embudo) `AreaFilterPopover`. OJO: el detalle se elige por rol en `InboxView`, hay
+  que incluir `responsable_tiendas` junto a `responsable` o cae en el modal genérico.
+
+**Despliegue en producción (EC2/Aurora):** script `deploy-responsable-tiendas-ec2.sh`
+(idempotente). Ejecutar desde `/home/ubuntu/CONTABILIDADCQ/backend`:
+```bash
+git pull origin main
+RT_EMAIL=tiendas@cafequindio.com RT_PASSWORD='ClaveFuerte#2026' bash deploy-responsable-tiendas-ec2.sh
+```
+Hace: `alembic upgrade head` (es_tienda + rol) → `create_responsable_tiendas.py` →
+`systemctl restart contabilidadcq`. Valida que `DATABASE_URL` sea Aurora (no localhost).
+Aparte hay que recompilar y desplegar el frontend (`npm run build`). Aurora solo es
+accesible desde el EC2 (VPC), no desde máquinas locales.
 
 ---
 

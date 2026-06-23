@@ -722,6 +722,13 @@ async def auto_enviar_contabilidad(
     if not user or not user.area_id or role_code != "responsable":
         return {"enviadas": [], "total": 0}
 
+    # Gastos Fijos Café Quindío (GADMIN) NO va a Contabilidad: su flujo es directo
+    # a Tesorería (submit_gadmin_tesoreria). Excluirla del barrido automático evita
+    # que las facturas reboten de vuelta a Contabilidad y nunca lleguen a Tesorería.
+    GADMIN_AREA_ID = UUID("c1589d0c-736b-4af4-89f2-81900d2dac16")
+    if user.area_id == GADMIN_AREA_ID:
+        return {"enviadas": [], "total": 0}
+
     enviadas = await service.auto_enviar_listas_a_contabilidad(user.area_id)
     return {"enviadas": enviadas, "total": len(enviadas)}
 

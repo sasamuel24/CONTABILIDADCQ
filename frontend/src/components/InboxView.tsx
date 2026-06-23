@@ -295,6 +295,9 @@ function DevueltaBadge({ motivo, devueltaPor }: { motivo: string; devueltaPor?: 
 export function InboxView() {
   const { user } = useAuth();
   const esResponsable = getUserRoleCode(user) === 'responsable';
+  // Gastos Fijos (GADMIN) envía directo a Tesorería, nunca a Contabilidad:
+  // no debe dispararse el auto-envío que rebotaría las facturas a Contabilidad.
+  const esGadmin = user?.area?.code === 'GADMIN';
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('Todos');
   const [facturas, setFacturas] = useState<FacturaListItem[]>([]);
@@ -322,7 +325,7 @@ const itemsPerPage = 20;
 
   // Auto-envío a Contabilidad: barre las facturas "Listas" del responsable y las envía solas.
   const ejecutarAutoEnvioContabilidad = async () => {
-    if (!esResponsable || autoEnvioInFlight.current) return;
+    if (!esResponsable || esGadmin || autoEnvioInFlight.current) return;
     autoEnvioInFlight.current = true;
     try {
       const res = await autoEnviarContabilidad();

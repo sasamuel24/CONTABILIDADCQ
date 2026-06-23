@@ -1267,17 +1267,16 @@ Responde ÚNICAMENTE con JSON válido:
                 detail="Área CONTABILIDAD no encontrada en el sistema"
             )
         
-        # Buscar estado (puede ser EN_CONTABILIDAD, PENDIENTE_CONTABILIDAD, etc.)
-        # Estado tiene campos: code, label (no nombre)
+        # Estado canónico "Pendiente en contabilidad" (id=3), igual que el camino
+        # manual (asignaciones/repository fija estado_id=3) y el camino Financiera.
+        # NO usar ILIKE '%pendiente%': sin ORDER BY puede devolver id=4 ('Pendiente')
+        # o id=7 ('Pendiente en Tesoreria'), dejando la factura en un estado que NO
+        # es asignable a Tesorería (validate_factura_assignable_state exige 1,2,3).
         estado_result = await self.db.execute(
-            select(Estado).where(
-                (Estado.code.ilike("%contabilidad%")) |
-                (Estado.label.ilike("%contabilidad%")) |
-                (Estado.label.ilike("%pendiente%"))
-            )
+            select(Estado).where(Estado.id == 3)
         )
-        estado_contabilidad = estado_result.scalars().first()
-        
+        estado_contabilidad = estado_result.scalar_one_or_none()
+
         if not estado_contabilidad:
             # Fallback: buscar por ID si existe un catálogo fijo
             raise HTTPException(

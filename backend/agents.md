@@ -3484,12 +3484,40 @@ class Estado(Base):
 
 ### Estados del Sistema
 
-| ID | Code | Label | Descripción |
+> ⚠️ Catálogo REAL de la tabla `estados` (verificado contra BD). Los `code`/`label`
+> NO siguen el patrón mayúsculas que se documentaba antes. Usar SIEMPRE el `id`.
+
+| ID | Code | Label | Significado |
 |----|------|-------|-------------|
-| 1 | PENDIENTE | Pendiente | Estado inicial |
-| 3 | EN_CONTABILIDAD | En Contabilidad | Después de submit-responsable |
-| 7 | EN_TESORERIA | En Tesorería | Después de submit-tesoreria |
-| 5 | FINALIZADA | Finalizada | Después de close-tesoreria |
+| 1 | recibida | Recibida por radicación | Estado inicial (Radicación) |
+| 2 | asignada | Asignada a responsable | En el área responsable |
+| 3 | 2 | Pendiente en contabilidad | En Contabilidad (canónico tras enviar) |
+| 4 | pendiente | Pendiente | ⚠️ Estado "intruso", NO usar para Contabilidad |
+| 5 | pagada | Pagada | Pagada/finalizada en Tesorería |
+| 7 | Tesoreria | Pendiente en Tesoreria | En Tesorería |
+
+**Estados asignables** (`validate_factura_assignable_state`, asignaciones/repository): solo **1, 2, 3**.
+Una factura en área Contabilidad DEBE quedar en **estado_id=3** para poder enviarse a Tesorería.
+
+#### ⚠️ Gotcha: selección de estado en `submit_responsable`
+
+`submit_responsable` (y por extensión el **auto-envío a Contabilidad**) debe fijar
+**`estado_id = 3`** de forma DETERMINISTA. NO resolver el estado con
+`label ILIKE '%pendiente%'`: ese filtro coincide con los ids **3, 4 y 7**, y un
+`.first()` sin `ORDER BY` puede devolver el id=4 ('Pendiente'), dejando la factura
+en un estado NO asignable a Tesorería → *"Error al Aprobar: solo puede ser asignada
+si está en estado Recibida/Asignada/En contabilidad"*. Fix: `select(Estado).where(Estado.id == 3)`
+(igual que el camino Financiera y el manual `asignarFactura`). Remediación de datos:
+`fix_estado_pendiente_contabilidad.py`.
+
+#### ⚠️ Gotcha: auto-envío y Gastos Fijos (GADMIN)
+
+El barrido `auto_enviar_listas_a_contabilidad` (endpoint `POST /facturas/auto-enviar-contabilidad`,
+solo rol `responsable`) NO debe aplicarse al área **Gastos Fijos Café Quindío (GADMIN,
+`c1589d0c-736b-4af4-89f2-81900d2dac16`)**: su flujo va DIRECTO a Tesorería
+(`submit_gadmin_tesoreria`), no a Contabilidad. Si no se excluye, las facturas que
+Contabilidad envía a Gastos Fijos rebotan solas de vuelta a Contabilidad al abrir la
+bandeja. El router excluye GADMIN explícitamente.
 
 ### Áreas del Sistema
 

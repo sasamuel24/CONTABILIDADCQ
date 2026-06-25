@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Trash2, AlertCircle, ChevronDown, Search } from 'lucide-react';
 import type {
@@ -174,6 +174,19 @@ interface DistribucionRow {
   porcentaje: string;
 }
 
+type DistribucionParaGuardar = Omit<DistribucionCCCO, 'id' | 'factura_id' | 'created_at' | 'updated_at'>;
+
+export type DistribucionCCCOTableHandle = {
+  /**
+   * Valida las filas actuales (marcando errores en la UI) y devuelve las
+   * distribuciones listas para enviar. Permite que el botón global de
+   * "Guardar Cambios" persista la distribución sin un clic separado.
+   */
+  obtenerDistribucionesValidas: () =>
+    | { ok: true; distribuciones: DistribucionParaGuardar[] }
+    | { ok: false; error: string };
+};
+
 interface Props {
   facturaId: string;
   distribuciones: DistribucionCCCO[];
@@ -181,12 +194,12 @@ interface Props {
   centrosOperacion: CentroOperacion[];
   unidadesNegocio: UnidadNegocio[];
   cuentasAuxiliares: CuentaAuxiliar[];
-  onSave: (distribuciones: Omit<DistribucionCCCO, 'id' | 'factura_id' | 'created_at' | 'updated_at'>[]) => Promise<void>;
+  onSave: (distribuciones: DistribucionParaGuardar[]) => Promise<void>;
   saving: boolean;
   requerida?: boolean;
 }
 
-export function DistribucionCCCOTable({
+export const DistribucionCCCOTable = forwardRef<DistribucionCCCOTableHandle, Props>(function DistribucionCCCOTable({
   facturaId,
   distribuciones,
   centrosCosto,
@@ -196,7 +209,7 @@ export function DistribucionCCCOTable({
   onSave,
   saving,
   requerida = true
-}: Props) {
+}, ref) {
   const [rows, setRows] = useState<DistribucionRow[]>([]);
   const [errores, setErrores] = useState<Record<string, string>>({});
 
@@ -265,11 +278,15 @@ export function DistribucionCCCOTable({
     }));
   };
 
-  const validarYGuardar = async () => {
+  // Valida las filas actuales y construye el payload. No toca la UI ni la red.
+  const construirDistribuciones = (): {
+    errores: Record<string, string>;
+    distribuciones: DistribucionParaGuardar[] | null;
+  } => {
     const nuevosErrores: Record<string, string> = {};
 
     // Validar que todas las filas tengan CC y CO
-    rows.forEach((row, index) => {
+    rows.forEach((row) => {
       if (!row.centro_costo_id) {
         nuevosErrores[`${row.tempId}_cc`] = 'Requerido';
       }
@@ -291,10 +308,8 @@ export function DistribucionCCCOTable({
       nuevosErrores.total = `Los porcentajes deben sumar 100%. Total actual: ${totalPorcentaje.toFixed(2)}%`;
     }
 
-    setErrores(nuevosErrores);
-
     if (Object.keys(nuevosErrores).length > 0) {
-      return;
+      return { errores: nuevosErrores, distribuciones: null };
     }
 
     // Convertir a formato API
@@ -306,9 +321,37 @@ export function DistribucionCCCOTable({
       porcentaje: parseFloat(row.porcentaje)
     }));
 
-    await onSave(distribucionesParaEnviar);
+    return { errores: {}, distribuciones: distribucionesParaEnviar };
+  };
+
+  const validarYGuardar = async () => {
+    const { errores: nuevosErrores, distribuciones: data } = construirDistribuciones();
+    setErrores(nuevosErrores);
+
+    if (!data) {
+      return;
+    }
+
+    await onSave(data);
     setErrores({});
   };
+
+  // Permite que el botón global "Guardar Cambios" del responsable persista la
+  // distribución sin depender de un clic separado en "Guardar Distribución".
+  useImperativeHandle(ref, () => ({
+    obtenerDistribucionesValidas: () => {
+      const { errores: nuevosErrores, distribuciones: data } = construirDistribuciones();
+      setErrores(nuevosErrores);
+
+      if (!data) {
+        const mensaje = nuevosErrores.total
+          || 'Hay filas de distribución incompletas: CC, CO y % son obligatorios';
+        return { ok: false as const, error: mensaje };
+      }
+
+      return { ok: true as const, distribuciones: data };
+    }
+  }), [rows]);
 
   const totalPorcentaje = rows.reduce((sum, row) => {
     const p = parseFloat(row.porcentaje);
@@ -517,4 +560,4 @@ export function DistribucionCCCOTable({
       </div>
     </div>
   );
-}
+});

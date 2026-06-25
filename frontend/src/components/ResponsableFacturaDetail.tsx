@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Upload, AlertCircle, Eye, Download, FileText, CheckCircle, Loader2, Trash2, Send, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, InventariosData, UnidadNegocio, CuentaAuxiliar, DistribucionCCCO, AprobadorGerencia } from '../lib/api';
@@ -30,7 +30,7 @@ import {
   reenviarAprobacionDual,
   getFacturaById,
 } from '../lib/api';
-import { DistribucionCCCOTable } from './DistribucionCCCOTable';
+import { DistribucionCCCOTable, type DistribucionCCCOTableHandle } from './DistribucionCCCOTable';
 import { FilePreviewModal } from './FilePreviewModal';
 import { ConfirmModal } from './ConfirmModal';
 import { ComentariosFactura } from './ComentariosFactura';
@@ -188,6 +188,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [loadingDistribucion, setLoadingDistribucion] = useState(true);
   const [savingDistribucion, setSavingDistribucion] = useState(false);
   const [distribRequerida, setDistribRequerida] = useState(true);
+  const distribucionTableRef = useRef<DistribucionCCCOTableHandle>(null);
 
   // Estados para vista previa
   const [previewFile, setPreviewFile] = useState<FileMiniOut | null>(null);
@@ -675,6 +676,19 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
         }
       }
 
+      // Validar y capturar la Distribución CC/CO para guardarla junto con el
+      // resto. Si está marcada como requerida, las filas deben estar completas
+      // y sumar 100%; así "Guardar Cambios" la persiste sin un clic aparte.
+      let distribucionesParaGuardar: Parameters<typeof updateDistribucionCCCO>[1]['distribuciones'] | null = null;
+      if (distribRequerida) {
+        const resultadoDistrib = distribucionTableRef.current?.obtenerDistribucionesValidas();
+        if (resultadoDistrib && !resultadoDistrib.ok) {
+          erroresValidacion.push(`Distribución CC/CO: ${resultadoDistrib.error}`);
+        } else if (resultadoDistrib?.ok) {
+          distribucionesParaGuardar = resultadoDistrib.distribuciones;
+        }
+      }
+
       if (erroresValidacion.length > 0) {
         alert('❌ Errores de validación:\n\n' + erroresValidacion.join('\n'));
         return;
@@ -734,6 +748,17 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
           centro_costo_id: centroCosto,
           centro_operacion_id: centroOperacion,
         });
+      }
+
+      // 2b. Guardar Distribución CC/CO junto con el resto de los cambios.
+      //     Antes solo se persistía con su propio botón "Guardar Distribución",
+      //     por lo que la gente llenaba la tabla, hacía clic en "Guardar Cambios"
+      //     y la distribución nunca se guardaba (Contabilidad la veía vacía).
+      if (distribucionesParaGuardar) {
+        const distribucionesGuardadas = await updateDistribucionCCCO(factura.id, {
+          distribuciones: distribucionesParaGuardar,
+        });
+        setDistribuciones(distribucionesGuardadas);
       }
 
       // 3. Guardar Anticipo e Intervalo
@@ -1874,6 +1899,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 </div>
               ) : (
                 <DistribucionCCCOTable
+                  ref={distribucionTableRef}
                   facturaId={factura.id}
                   distribuciones={distribuciones}
                   centrosCosto={centrosCosto}

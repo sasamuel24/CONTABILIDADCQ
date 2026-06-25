@@ -283,6 +283,26 @@ users(email)                     -- Login por email
 estados(code)                    -- Búsqueda de estado por código
 ```
 
+#### ⚡ Carga de relaciones (lazy loading) — Performance crítico
+
+**Regla de oro:** NUNCA pongas `lazy="selectin"` (ni otra carga ansiosa) en una colección
+**uno-a-muchos** que apunta a una tabla grande (p. ej. `Area.facturas`, `Estado.facturas`,
+`CentroCosto.facturas`). Esa relación se carga **siempre que tocas el objeto padre, aunque la
+respuesta no la use** → un simple `SELECT * FROM areas` termina cargando TODA la tabla `facturas`,
+y como cada `Factura` también tiene relaciones `selectin`, se produce una **cascada exponencial**
+que pone lento TODO el sistema.
+
+> Caso real (Jun-2026): `GET /areas/` tardaba 4-6s y `POST /asignaciones` 7s por esta causa.
+> Tras pasar las colecciones inversas a `lazy="select"`: `asignaciones` bajó a **254 ms**.
+
+- ✅ `lazy="selectin"` SOLO en relaciones **muchos-a-uno** pequeñas (`factura.area`, `factura.estado`).
+- ✅ Colecciones inversas (`catalogo.facturas`) → `lazy="select"`, y cargar con `selectinload()`
+  **explícito** solo en la query que de verdad lo necesita.
+- ✅ Usa `noload(...)` en listados para anular relaciones pesadas no usadas (ver `facturas/repository.py`).
+- 🚩 **Señal de alarma:** si un endpoint devuelve pocos KB pero tarda segundos, casi siempre es el
+  ORM cargando de más (N+1 / eager en cascada). Diagnostica con el header `X-Process-Time`
+  (tiempo de servidor, en `main.py`) y los logs `SLOW`, no por el tiempo del navegador.
+
 #### Datos Iniciales (Seed)
 ```bash
 # Ejecutar después de migraciones
@@ -362,6 +382,8 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 6. **Type hints:** Usar anotaciones de tipo en todas las funciones
 7. **Docstrings:** Documentar funciones y clases
 8. **Variables de entorno:** Secrets en `.env`, NUNCA en código
+9. **Carga ansiosa con criterio:** `selectin` solo en relaciones muchos-a-uno pequeñas; colecciones grandes con `selectinload()` explícito (ver "Carga de relaciones")
+10. **I/O bloqueante en thread:** toda llamada síncrona (boto3/S3, etc.) dentro de un handler async va en `asyncio.to_thread` para no congelar el event loop
 
 ### ❌ NO HACER
 1. **NO** mezclar lógica de negocio en routers
@@ -372,6 +394,8 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 6. **NO** ignorar validaciones de Pydantic
 7. **NO** usar `print()` (usar `logger`)
 8. **NO** hardcodear configuraciones
+9. **NO** poner `lazy="selectin"` en colecciones inversas hacia tablas grandes (`area.facturas`, etc.) → cascada exponencial
+10. **NO** llamar boto3/S3 síncrono sin `asyncio.to_thread` dentro de un endpoint async → congela el worker
 
 ---
 

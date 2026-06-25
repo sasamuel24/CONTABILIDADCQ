@@ -263,6 +263,46 @@ class S3Service:
                 detail="Error al descargar archivo"
             )
     
+    def open_stream(self, key: str) -> tuple[BinaryIO, str, Optional[int]]:
+        """
+        Abre un objeto de S3 para lectura por streaming SIN cargarlo entero en RAM.
+
+        Retorna el StreamingBody de boto3 junto con su content_type y tamaño.
+        El llamador debe leer el body por chunks (en un thread, para no bloquear
+        el event loop) y cerrarlo al terminar.
+
+        Args:
+            key: Ruta del objeto en S3
+
+        Returns:
+            tuple: (body file-like, content_type, content_length|None)
+
+        Raises:
+            HTTPException: 404 si no existe, 500 ante otros errores
+        """
+        try:
+            response = self.s3_client.get_object(Bucket=self.bucket, Key=key)
+            body = response['Body']
+            content_type = response.get('ContentType', 'application/octet-stream')
+            content_length = response.get('ContentLength')
+            logger.info(f"Stream abierto desde S3: {key} (content_type: {content_type})")
+            return body, content_type, content_length
+
+        except ClientError as e:
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            if error_code == 'NoSuchKey':
+                logger.warning(f"Archivo no encontrado en S3: {key}")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Archivo no encontrado en S3"
+                )
+            error_msg = e.response.get('Error', {}).get('Message', 'Error desconocido')
+            logger.error(f"Error abriendo stream de S3: {error_msg}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al descargar archivo: {error_msg}"
+            )
+
     def list_files_in_prefix(self, prefix: str) -> list[dict]:
         """
         Lista todos los archivos en S3 que coincidan con un prefijo.

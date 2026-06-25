@@ -337,7 +337,103 @@ class FileService:
             )
         
         return await self.get_file_content(file.id)
-    
+
+    # Tamaño de chunk para streaming de archivos (256 KB)
+    _STREAM_CHUNK_SIZE = 256 * 1024
+
+    async def _build_s3_stream(self, key: str, filename: str):
+        """
+        Prepara un stream asíncrono de un objeto S3.
+
+        Abre el objeto y lee por chunks SIEMPRE dentro de asyncio.to_thread, de modo
+        que la descarga (boto3 es bloqueante) nunca congele el event loop ni cargue
+        el archivo entero en RAM. Crítico en instancias pequeñas y con 1-2 workers.
+
+        Returns:
+            tuple: (async_iterator, content_type, filename, content_length|None)
+        """
+        from core.s3_service import s3_service
+
+        # get_object se ejecuta ANTES de empezar a responder: si la key no existe,
+        # open_stream lanza 404 aquí (no a mitad del streaming).
+        body, content_type, content_length = await asyncio.to_thread(
+            s3_service.open_stream, key
+        )
+
+        async def iterator():
+            try:
+                while True:
+                    chunk = await asyncio.to_thread(body.read, self._STREAM_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                await asyncio.to_thread(body.close)
+
+        return iterator(), content_type, filename, content_length
+
+    async def _build_local_stream(self, file_path: Path, content_type: str, filename: str):
+        """Prepara un stream asíncrono de un archivo en disco local (fallback)."""
+        if not file_path.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Archivo físico no encontrado en storage"
+            )
+        content_length = file_path.stat().st_size
+
+        async def iterator():
+            f = await asyncio.to_thread(open, file_path, "rb")
+            try:
+                while True:
+                    chunk = await asyncio.to_thread(f.read, self._STREAM_CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                await asyncio.to_thread(f.close)
+
+        return iterator(), content_type, filename, content_length
+
+    async def get_file_stream(self, file_id: UUID):
+        """
+        Versión streaming de get_file_content: entrega el archivo sin bloquear el
+        event loop. Devuelve (async_iterator, content_type, filename, content_length).
+        """
+        file = await self.repository.get_by_id(file_id)
+        if not file:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Archivo con ID {file_id} no encontrado"
+            )
+
+        if file.storage_provider == "local":
+            return await self._build_local_stream(
+                Path(file.storage_path), file.content_type, file.filename
+            )
+
+        if file.storage_provider == "s3":
+            return await self._build_s3_stream(file.storage_path, file.filename)
+
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=f"Storage provider '{file.storage_provider}' no implementado"
+        )
+
+    async def get_pdf_stream_by_factura(self, factura_id: UUID):
+        """Versión streaming de get_pdf_by_factura."""
+        file = await self.repository.get_pdf_by_factura(factura_id)
+        if not file:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No existe PDF asociado a esta factura"
+            )
+        return await self.get_file_stream(file.id)
+
+    async def get_s3_stream_by_key(self, key: str):
+        """Versión streaming de download_from_s3 (por S3 key directa)."""
+        filename = key.split('/')[-1]
+        return await self._build_s3_stream(key, filename)
+
     async def request_upload(
         self,
         factura_id: UUID,

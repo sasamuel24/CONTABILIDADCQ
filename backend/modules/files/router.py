@@ -2,7 +2,7 @@
 Router de FastAPI para el módulo de files.
 """
 from fastapi import APIRouter, Depends, Body, HTTPException, status, UploadFile, File, Form, Query
-from fastapi.responses import Response, JSONResponse
+from fastapi.responses import Response, JSONResponse, StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from uuid import UUID
@@ -121,16 +121,14 @@ async def download_factura_pdf(
     factura_id: UUID,
     service: FileService = Depends(get_file_service)
 ):
-    """Descarga el PDF asociado a una factura."""
-    content, content_type, filename = await service.get_pdf_by_factura(factura_id)
-    
-    return Response(
-        content=content,
-        media_type=content_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
-    )
+    """Descarga el PDF asociado a una factura (streaming, no bloquea el worker)."""
+    iterator, content_type, filename, content_length = await service.get_pdf_stream_by_factura(factura_id)
+
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    if content_length is not None:
+        headers["Content-Length"] = str(content_length)
+
+    return StreamingResponse(iterator, media_type=content_type, headers=headers)
 
 
 @router.get("/facturas/{factura_id}/files", response_model=List[FileResponse])
@@ -294,16 +292,14 @@ async def download_file(
     file_id: UUID,
     service: FileService = Depends(get_file_service)
 ):
-    """Descarga un archivo específico por su ID."""
-    content, content_type, filename = await service.get_file_content(file_id)
-    
-    return Response(
-        content=content,
-        media_type=content_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
-    )
+    """Descarga un archivo específico por su ID (streaming, no bloquea el worker)."""
+    iterator, content_type, filename, content_length = await service.get_file_stream(file_id)
+
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    if content_length is not None:
+        headers["Content-Length"] = str(content_length)
+
+    return StreamingResponse(iterator, media_type=content_type, headers=headers)
 
 
 @router.get("/files/{file_id}/preview")
@@ -311,16 +307,14 @@ async def preview_file(
     file_id: UUID,
     service: FileService = Depends(get_file_service)
 ):
-    """Muestra vista previa de un archivo específico por su ID (inline, sin forzar descarga)."""
-    content, content_type, filename = await service.get_file_content(file_id)
-    
-    return Response(
-        content=content,
-        media_type=content_type,
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"'
-        }
-    )
+    """Muestra vista previa de un archivo por su ID (inline, streaming, no bloquea el worker)."""
+    iterator, content_type, filename, content_length = await service.get_file_stream(file_id)
+
+    headers = {"Content-Disposition": f'inline; filename="{filename}"'}
+    if content_length is not None:
+        headers["Content-Length"] = str(content_length)
+
+    return StreamingResponse(iterator, media_type=content_type, headers=headers)
 
 
 @router.get("/facturas/{factura_id}/files/download")
@@ -336,23 +330,22 @@ async def download_file_by_key(
     Si inline=True, muestra el archivo en el navegador en lugar de descargarlo.
     """
     try:
-        content, filename, content_type = await service.download_from_s3(key)
-        
-        disposition = 'inline' if inline else 'attachment'
-        
-        return Response(
-            content=content,
-            media_type=content_type,
-            headers={
-                "Content-Disposition": f'{disposition}; filename="{filename}"'
-            }
-        )
+        iterator, content_type, filename, content_length = await service.get_s3_stream_by_key(key)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error descargando archivo: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error al descargar el archivo"
         )
+
+    disposition = 'inline' if inline else 'attachment'
+    headers = {"Content-Disposition": f'{disposition}; filename="{filename}"'}
+    if content_length is not None:
+        headers["Content-Length"] = str(content_length)
+
+    return StreamingResponse(iterator, media_type=content_type, headers=headers)
 
 
 @router.delete("/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)

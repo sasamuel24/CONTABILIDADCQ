@@ -93,7 +93,11 @@ class Area(Base):
         "Factura",
         back_populates="area",
         foreign_keys="Factura.area_id",
-        lazy="selectin"
+        # lazy="select" (no "selectin"): listar áreas NO debe cargar todas sus facturas.
+        # Con "selectin" cada GET /areas/ cargaba la tabla facturas entera (+ sus 16
+        # relaciones) aunque la respuesta no las use → 4-6s. Si se necesitan, usar
+        # selectinload explícito en la query.
+        lazy="select"
     )
     
     def __repr__(self):
@@ -160,7 +164,7 @@ class User(Base, TimestampMixin):
         "Factura",
         back_populates="assigned_user",
         foreign_keys="[Factura.assigned_to_user_id]",
-        lazy="selectin"
+        lazy="select"  # no "selectin": evita cargar todas las facturas del usuario al cargar el usuario
     )
     
     # Constraints
@@ -199,7 +203,7 @@ class Estado(Base):
     facturas: Mapped[List["Factura"]] = relationship(
         "Factura",
         back_populates="estado",
-        lazy="selectin"
+        lazy="select"  # no "selectin": listar/usar estados no debe cargar la tabla facturas entera
     )
     
     def __repr__(self):
@@ -237,7 +241,7 @@ class CentroCosto(Base, TimestampMixin):
         "Factura",
         back_populates="centro_costo",
         foreign_keys="Factura.centro_costo_id",
-        lazy="selectin"
+        lazy="select"  # no "selectin": GET /centros-costo no debe cargar todas las facturas
     )
     
     def __repr__(self):
@@ -275,7 +279,7 @@ class CentroOperacion(Base, TimestampMixin):
         "Factura",
         back_populates="centro_operacion",
         foreign_keys="Factura.centro_operacion_id",
-        lazy="selectin"
+        lazy="select"  # no "selectin": GET /centros-operacion no debe cargar todas las facturas
     )
 
     def __repr__(self):
@@ -313,7 +317,7 @@ class UnidadNegocio(Base, TimestampMixin):
         "Factura",
         back_populates="unidad_negocio",
         foreign_keys="Factura.unidad_negocio_id",
-        lazy="selectin"
+        lazy="select"  # no "selectin": GET /unidades-negocio no debe cargar todas las facturas
     )
     
     def __repr__(self):
@@ -351,7 +355,7 @@ class CuentaAuxiliar(Base, TimestampMixin):
         "Factura",
         back_populates="cuenta_auxiliar",
         foreign_keys="Factura.cuenta_auxiliar_id",
-        lazy="selectin"
+        lazy="select"  # no "selectin": GET /cuentas-auxiliares no debe cargar todas las facturas
     )
     
     def __repr__(self):

@@ -171,9 +171,11 @@ class AsignacionRepository:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Asignación no encontrada"
             )
-        
-        # Refrescar para asegurar que las relaciones estén actualizadas
-        await self.db.refresh(asignacion)
-        await self.db.refresh(asignacion.factura)
-        
+
+        # El select ya cargó factura/area/responsable (defaults del modelo). Solo
+        # refrescamos el 'estado' de la factura, que acaba de cambiar en esta misma
+        # transacción y debe reflejarse en la respuesta. Antes se hacían dos refresh
+        # completos que recargaban las 16 relaciones de la factura dos veces (~7s).
+        await self.db.refresh(asignacion.factura, ["estado"])
+
         return asignacion

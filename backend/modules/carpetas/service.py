@@ -28,52 +28,59 @@ class CarpetaService:
         return [CarpetaResponse.model_validate(carpeta) for carpeta in carpetas]
     
     async def list_root_folders(self) -> List[CarpetaWithChildren]:
-        """Lista las carpetas raíz con sus hijos."""
+        """Lista las carpetas raíz con sus hijos.
+
+        Arma el árbol en memoria a partir de dos queries planas (ver
+        repository.get_tree_data), sin recorrer relaciones ORM, para evitar la
+        cascada selectin Carpeta -> Factura -> 16 relaciones.
+        """
         logger.info("Listando carpetas raíz")
-        carpetas = await self.repository.get_root_folders()
-        
-        # Construir response manualmente para agregar carpeta_nombre a cada factura
-        result = []
-        for carpeta in carpetas:
-            carpeta_dict = self._build_carpeta_dict(carpeta)
-            result.append(CarpetaWithChildren(**carpeta_dict))
-        
-        return result
-    
-    def _build_carpeta_dict(self, carpeta) -> dict:
-        """Construye un diccionario de carpeta con facturas incluyendo carpeta_nombre."""
+        carpetas, facturas = await self.repository.get_tree_data()
+
+        # Agrupar facturas por carpeta_id e hijos por parent_id (una pasada cada uno).
+        facturas_por_carpeta: dict = {}
+        for f in facturas:
+            facturas_por_carpeta.setdefault(f.carpeta_id, []).append(f)
+
+        hijos_por_padre: dict = {}
+        for c in carpetas:
+            hijos_por_padre.setdefault(c.parent_id, []).append(c)
+
+        roots = hijos_por_padre.get(None, [])
+        return [self._build_carpeta(c, facturas_por_carpeta, hijos_por_padre) for c in roots]
+
+    def _build_carpeta(self, carpeta, facturas_por_carpeta: dict, hijos_por_padre: dict) -> CarpetaWithChildren:
+        """Construye recursivamente una CarpetaWithChildren desde los mapas planos."""
         from modules.carpetas.schemas import FacturaEnCarpeta
-        
-        # Construir facturas con carpeta_nombre
+
         facturas_out = [
             FacturaEnCarpeta(
                 id=f.id,
                 numero_factura=f.numero_factura,
                 proveedor=f.proveedor,
                 total=float(f.total),
-                estado=f.estado.label if f.estado else '',
-                carpeta_nombre=carpeta.nombre
+                estado=f.estado or '',
+                carpeta_nombre=carpeta.nombre,
             )
-            for f in carpeta.facturas
+            for f in facturas_por_carpeta.get(carpeta.id, [])
         ]
-        
-        # Construir hijos recursivamente
+
         children_out = [
-            self._build_carpeta_dict(child)
-            for child in carpeta.children
+            self._build_carpeta(child, facturas_por_carpeta, hijos_por_padre)
+            for child in hijos_por_padre.get(carpeta.id, [])
         ]
-        
-        return {
-            "id": carpeta.id,
-            "nombre": carpeta.nombre,
-            "parent_id": carpeta.parent_id,
-            "factura_id": carpeta.factura_id,
-            "created_at": carpeta.created_at,
-            "updated_at": carpeta.updated_at,
-            "facturas": facturas_out,
-            "children": children_out
-        }
-    
+
+        return CarpetaWithChildren(
+            id=carpeta.id,
+            nombre=carpeta.nombre,
+            parent_id=carpeta.parent_id,
+            factura_id=carpeta.factura_id,
+            created_at=carpeta.created_at,
+            updated_at=carpeta.updated_at,
+            facturas=facturas_out,
+            children=children_out,
+        )
+
     async def get_carpeta(self, carpeta_id: UUID) -> CarpetaResponse:
         """Obtiene una carpeta por su ID."""
         logger.info(f"Obteniendo carpeta: {carpeta_id}")

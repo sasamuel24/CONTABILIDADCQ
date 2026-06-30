@@ -27,31 +27,40 @@ class CarpetaRepository:
         )
         return list(result.scalars().all())
     
-    async def get_root_folders(self) -> List[Carpeta]:
-        """Obtiene las carpetas raíz (sin parent_id) con toda la jerarquía.
+    async def get_tree_data(self) -> tuple[List[Carpeta], list]:
+        """Devuelve los datos crudos para armar el árbol de carpetas en el service.
 
-        Cada factura del árbol solo aporta id/numero_factura/proveedor/total/estado
-        al response (ver FacturaEnCarpeta). Pero el modelo Factura define 16 relaciones
-        lazy="selectin", así que sin frenarlas cada factura cargada arrastraría files,
-        asignaciones, comentarios, tokens, distribución, centros, carpeta... en cascada.
-        `noload('*')` tras `estado` deja viva solo la relación que el response usa y
-        elimina ~15 selectin innecesarios por nivel.
+        En lugar de recorrer relaciones ORM (que disparan cascada: el modelo tiene
+        Carpeta.parent/children/factura/facturas en lazy="selectin", y cada Factura
+        arrastra sus 16 relaciones selectin), hace solo DOS queries planas:
+          1. Todas las carpetas, SIN relaciones (noload '*'), solo columnas.
+          2. Todas las facturas que están en alguna carpeta, solo las columnas que
+             el response (FacturaEnCarpeta) usa + el label del estado vía join.
+        El árbol se reconstruye en memoria por parent_id / carpeta_id. Esto elimina
+        por completo la cascada y la dependencia de la profundidad del árbol.
         """
-        # Opciones aplicadas a las facturas de cada carpeta: cargar SOLO estado y
-        # anular (noload) las demás relaciones de Factura para frenar la cascada.
-        solo_estado = (selectinload(Factura.estado), noload("*"))
-        result = await self.db.execute(
+        carpetas_result = await self.db.execute(
             select(Carpeta)
-            .options(
-                selectinload(Carpeta.facturas).options(*solo_estado),
-                selectinload(Carpeta.children).selectinload(Carpeta.facturas).options(*solo_estado),
-                selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.facturas).options(*solo_estado),
-                selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.facturas).options(*solo_estado),
-            )
-            .where(Carpeta.parent_id.is_(None))
+            .options(noload("*"))
             .order_by(Carpeta.nombre)
         )
-        return list(result.scalars().all())
+        carpetas = list(carpetas_result.scalars().all())
+
+        facturas_result = await self.db.execute(
+            select(
+                Factura.id,
+                Factura.numero_factura,
+                Factura.proveedor,
+                Factura.total,
+                Factura.carpeta_id,
+                Estado.label.label("estado"),
+            )
+            .outerjoin(Estado, Factura.estado_id == Estado.id)
+            .where(Factura.carpeta_id.isnot(None))
+        )
+        facturas = facturas_result.all()
+
+        return carpetas, facturas
     
     async def get_by_id(self, carpeta_id: UUID) -> Optional[Carpeta]:
         """Obtiene una carpeta por su ID con toda la jerarquía."""

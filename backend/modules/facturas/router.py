@@ -16,6 +16,7 @@ from modules.facturas.schemas import (
     FacturaUpdate,
     FacturaResponse,
     FacturasPaginatedResponse,
+    FacturaBandejaItem,
     EstadoUpdateRequest,
     EstadoUpdateResponse,
     InventariosPatchIn,
@@ -85,6 +86,19 @@ async def get_represadas_tiendas(
     return await service.represadas_tiendas()
 
 
+@router.get("/bandeja-tesoreria", response_model=List[FacturaBandejaItem])
+async def bandeja_tesoreria(
+    service: FacturaService = Depends(get_factura_service)
+):
+    """Bandeja de Tesorería: facturas en carpeta con SOLO las columnas de la lista.
+
+    Reemplazo rápido de GET /facturas/?only_in_carpeta=true&limit=0: un SELECT plano
+    sin selectin ni FacturaListItem completo. El detalle se trae con
+    GET /facturas/?factura_id=... al hacer click.
+    """
+    return await service.bandeja_tesoreria()
+
+
 @router.get("/", response_model=FacturasPaginatedResponse)
 async def list_facturas(
     skip: int = 0,
@@ -96,10 +110,11 @@ async def list_facturas(
     only_in_carpeta: bool = Query(False, description="Solo facturas asignadas a una carpeta"),
     solo_tiendas: bool = Query(False, description="Facturas de TODAS las áreas marcadas como tienda (rol responsable_tiendas)"),
     estado_code: Optional[str] = Query(None, description="Filtrar por CÓDIGO de estado (estable, p.ej. 'asignada')"),
+    factura_id: Optional[UUID] = Query(None, description="Traer UNA factura completa por id (para el detalle de la bandeja)"),
     service: FacturaService = Depends(get_factura_service)
 ):
     """Lista todas las facturas con paginación y filtros opcionales."""
-    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta, solo_tiendas=solo_tiendas, estado_code=estado_code)
+    return await service.list_facturas(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta, solo_tiendas=solo_tiendas, estado_code=estado_code, factura_id=factura_id)
 
 
 @router.get(

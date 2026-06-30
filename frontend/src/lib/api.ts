@@ -634,6 +634,104 @@ export async function getFacturas(skip: number = 0, limit: number = 100, area_id
 }
 
 /**
+ * Item mínimo de la bandeja de Tesorería (explorador de carpetas).
+ * Solo las columnas que la lista muestra/filtra; el detalle se trae aparte por id.
+ */
+export interface FacturaBandeja {
+  id: string;
+  numero_factura: string;
+  proveedor: string;
+  total: number;
+  estado: string;
+  area: string;
+  fecha_emision: string | null;
+  fecha_vencimiento: string | null;
+  carpeta_id: string | null;
+}
+
+/**
+ * Convierte un item slim de bandeja en un FacturaListItem completo con defaults,
+ * para no tocar el tipado del explorador. Los campos no usados por la LISTA quedan
+ * en null/[]/false; el objeto completo real se obtiene con getFacturaListItem al
+ * abrir el detalle.
+ */
+function bandejaToListItem(b: FacturaBandeja): FacturaListItem {
+  return {
+    id: b.id,
+    proveedor: b.proveedor,
+    numero_factura: b.numero_factura,
+    fecha_emision: b.fecha_emision,
+    fecha_vencimiento: b.fecha_vencimiento,
+    area: b.area,
+    area_id: null,
+    total: b.total,
+    estado: b.estado,
+    nit_proveedor: null,
+    pendiente_confirmacion: false,
+    ai_area_confianza: null,
+    ai_area_razonamiento: null,
+    centro_costo: null,
+    centro_operacion: null,
+    centro_costo_id: null,
+    centro_operacion_id: null,
+    requiere_entrada_inventarios: false,
+    destino_inventarios: null,
+    presenta_novedad: false,
+    inventarios_codigos: [],
+    tiene_anticipo: false,
+    porcentaje_anticipo: null,
+    intervalo_entrega_contabilidad: null,
+    es_gasto_adm: false,
+    motivo_devolucion: null,
+    devuelta_por_nombre: null,
+    area_origen_id: null,
+    files: [],
+    carpeta_id: b.carpeta_id,
+    carpeta: null,
+    carpeta_tesoreria_id: null,
+    carpeta_tesoreria: null,
+    unidad_negocio_id: null,
+    unidad_negocio: null,
+    cuenta_auxiliar_id: null,
+    cuenta_auxiliar: null,
+    fecha_envio_gerencia: null,
+    fecha_aprobacion_email: null,
+    aprobado_por_nombre: null,
+    aprobado_por_email: null,
+    fecha_envio_aprobacion_ops: null,
+    fecha_aprobacion_ops: null,
+    aprobado_ops_nombre: null,
+    aprobado_ops_email: null,
+    aprobacion_ops_aprobador_id: null,
+    fecha_envio_aprobacion_calidad: null,
+    fecha_aprobacion_calidad: null,
+    aprobado_calidad_nombre: null,
+    aprobado_calidad_email: null,
+    aprobacion_calidad_aprobador_id: null,
+    fecha_envio_contabilidad: null,
+  };
+}
+
+/**
+ * Bandeja de Tesorería: lista mínima de facturas en carpeta (endpoint slim y rápido).
+ * Devuelve FacturaListItem[] (con defaults) para mantener el tipado del explorador.
+ */
+export async function getFacturasBandejaTesoreria(): Promise<FacturaListItem[]> {
+  const items = await fetchAPI<FacturaBandeja[]>('/facturas/bandeja-tesoreria');
+  return items.map(bandejaToListItem);
+}
+
+/**
+ * Trae UNA factura completa como FacturaListItem (para abrir el detalle desde la
+ * bandeja slim). Reutiliza el listado filtrando por factura_id.
+ */
+export async function getFacturaListItem(facturaId: string): Promise<FacturaListItem> {
+  const res = await fetchAPI<FacturasPaginatedResponse>(`/facturas/?factura_id=${facturaId}`);
+  if (!res.items.length) throw new Error('Factura no encontrada');
+  return res.items[0];
+}
+
+/**
  * Confirmar área de ingesta para una factura
  */
 export async function confirmarIngestaFactura(facturaId: string, areaId: string): Promise<void> {

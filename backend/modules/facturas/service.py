@@ -8,6 +8,7 @@ from modules.facturas.schemas import (
     FacturaResponse,
     FacturasPaginatedResponse,
     FacturaListItem,
+    FacturaBandejaItem,
     EstadoUpdateResponse,
     InventariosPatchIn,
     InventariosOut,
@@ -49,10 +50,11 @@ class FacturaService:
         only_in_carpeta: bool = False,
         solo_tiendas: bool = False,
         estado_code: Optional[str] = None,
+        factura_id: Optional[UUID] = None,
     ) -> FacturasPaginatedResponse:
         """Lista todas las facturas con paginación y filtros."""
-        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, estado={estado}, search={search}, only_in_carpeta={only_in_carpeta}, solo_tiendas={solo_tiendas}, estado_code={estado_code}")
-        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta, solo_tiendas=solo_tiendas, estado_code=estado_code)
+        logger.info(f"Listando facturas: skip={skip}, limit={limit}, area_id={area_id}, estado={estado}, search={search}, only_in_carpeta={only_in_carpeta}, solo_tiendas={solo_tiendas}, estado_code={estado_code}, factura_id={factura_id}")
+        facturas, total = await self.repository.get_all(skip=skip, limit=limit, area_id=area_id, area_origen_id=area_origen_id, estado=estado, search=search, only_in_carpeta=only_in_carpeta, solo_tiendas=solo_tiendas, estado_code=estado_code, factura_id=factura_id)
         
         items = []
         for f in facturas:
@@ -160,6 +162,24 @@ class FacturaService:
             per_page=limit
         )
     
+    async def bandeja_tesoreria(self) -> List[FacturaBandejaItem]:
+        """Bandeja de Tesorería: lista mínima de facturas en carpeta (query plana)."""
+        rows = await self.repository.get_bandeja_tesoreria()
+        return [
+            FacturaBandejaItem(
+                id=r.id,
+                numero_factura=r.numero_factura,
+                proveedor=r.proveedor,
+                total=float(r.total),
+                estado=r.estado or '',
+                area=r.area or '',
+                fecha_emision=r.fecha_emision,
+                fecha_vencimiento=r.fecha_vencimiento,
+                carpeta_id=r.carpeta_id,
+            )
+            for r in rows
+        ]
+
     async def get_area_counts(self):
         """Retorna conteo de facturas por área (query única con GROUP BY)."""
         return await self.repository.get_counts_by_area()

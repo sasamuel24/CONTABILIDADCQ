@@ -16,7 +16,33 @@ class FacturaRepository:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None, search: Optional[str] = None, only_in_carpeta: bool = False, solo_tiendas: bool = False, estado_code: Optional[str] = None) -> Tuple[List[Factura], int]:
+    async def get_bandeja_tesoreria(self) -> list:
+        """Bandeja de Tesorería: facturas en carpeta, SOLO columnas usadas por la lista.
+
+        Un único SELECT plano con joins de una fila (estado, área). No usa selectin ni
+        carga el ORM Factura completo, así que evita construir N objetos de 60 campos +
+        ~5 selectin. Es el reemplazo rápido de GET /facturas/?only_in_carpeta=true&limit=0.
+        """
+        result = await self.db.execute(
+            select(
+                Factura.id,
+                Factura.numero_factura,
+                Factura.proveedor,
+                Factura.total,
+                Factura.fecha_emision,
+                Factura.fecha_vencimiento,
+                Factura.carpeta_id,
+                Estado.label.label("estado"),
+                Area.nombre.label("area"),
+            )
+            .outerjoin(Estado, Factura.estado_id == Estado.id)
+            .outerjoin(Area, Factura.area_id == Area.id)
+            .where(Factura.carpeta_id.isnot(None))
+            .order_by(Factura.created_at.desc())
+        )
+        return result.all()
+
+    async def get_all(self, skip: int = 0, limit: int = 0, area_id: Optional[UUID] = None, area_origen_id: Optional[UUID] = None, estado: Optional[str] = None, search: Optional[str] = None, only_in_carpeta: bool = False, solo_tiendas: bool = False, estado_code: Optional[str] = None, factura_id: Optional[UUID] = None) -> Tuple[List[Factura], int]:
         """Obtiene todas las facturas con paginación y filtros opcionales.
 
         Optimización: el modelo Factura define 16 relaciones con lazy="selectin",
@@ -60,6 +86,12 @@ class FacturaRepository:
 
         query = select(Factura).options(*opciones)
         count_query = select(func.count(Factura.id))
+
+        # Traer UNA factura completa por id (usado al abrir el detalle desde la bandeja
+        # slim, que solo tiene columnas mínimas). Reutiliza todo el mapeo de FacturaListItem.
+        if factura_id:
+            query = query.where(Factura.id == factura_id)
+            count_query = count_query.where(Factura.id == factura_id)
 
         if area_id:
             query = query.where(Factura.area_id == area_id)

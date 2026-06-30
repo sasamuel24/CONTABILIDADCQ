@@ -119,6 +119,27 @@ class CarpetaEnFactura(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class FacturaBandejaItem(BaseModel):
+    """Esquema mínimo para la bandeja de Tesorería (explorador de carpetas).
+
+    Solo las columnas que la lista realmente muestra/filtra. Se arma con UN SELECT
+    plano (sin selectin ni construir el FacturaListItem completo de 60 campos), lo
+    que evita el cuello de botella de ese listado con limit=0. El detalle completo
+    se trae aparte al hacer click en una factura.
+    """
+    id: UUID
+    numero_factura: str
+    proveedor: str
+    total: float
+    estado: str = ''
+    area: str = ''
+    fecha_emision: Optional[date] = None
+    fecha_vencimiento: Optional[date] = None
+    carpeta_id: Optional[UUID] = None
+
+    model_config = {"from_attributes": True}
+
+
 class FacturaListItem(BaseModel):
     """Esquema resumido para listado de facturas."""
     id: UUID

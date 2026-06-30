@@ -24,7 +24,8 @@ import {
 } from 'lucide-react';
 import {
   getCarpetas,
-  getFacturas,
+  getFacturasBandejaTesoreria,
+  getFacturaListItem,
   updateFacturaEstado,
   type Carpeta,
   type FacturaListItem
@@ -144,11 +145,11 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
         setError(null);
         const [carpetasData, facturasData] = await Promise.all([
           getCarpetas(),
-          getFacturas(0, 0, undefined, undefined, undefined, undefined, true),
+          getFacturasBandejaTesoreria(),
         ]);
         setCarpetasRaiz(carpetasData);
         const map = new Map<string, FacturaListItem>();
-        facturasData.items.forEach(f => map.set(f.id, f));
+        facturasData.forEach(f => map.set(f.id, f));
         setAllFacturas(map);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Error al cargar datos';
@@ -219,13 +220,20 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
     setSearchQuery('');
   };
 
-  const handleFacturaClick = (factura: FacturaListItem) => {
+  const handleFacturaClick = async (factura: FacturaListItem) => {
     // Si hay selección activa, toggle en lugar de abrir detalle
     if (selectedFacturaIds.size > 0) {
       toggleSelectFactura(factura.id);
       return;
     }
-    setSelectedFactura(factura);
+    // Los items de la bandeja son slim; el detalle necesita el objeto completo.
+    try {
+      const full = await getFacturaListItem(factura.id);
+      setSelectedFactura(full);
+    } catch (err) {
+      console.error('Error cargando detalle de factura:', err);
+      setSelectedFactura(factura); // fallback al item slim
+    }
   };
 
   // Multi-select handlers
@@ -304,11 +312,11 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
     try {
       const [carpetasData, facturasData] = await Promise.all([
         getCarpetas(),
-        getFacturas(0, 0, undefined, undefined, undefined, undefined, true)
+        getFacturasBandejaTesoreria()
       ]);
       setCarpetasRaiz(carpetasData);
       const facturasMap = new Map<string, FacturaListItem>();
-      facturasData.items.forEach(f => facturasMap.set(f.id, f));
+      facturasData.forEach(f => facturasMap.set(f.id, f));
       setAllFacturas(facturasMap);
     } catch (err) {
       console.error('Error reloading:', err);
@@ -340,11 +348,11 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
       try {
         const [carpetasData, facturasData] = await Promise.all([
           getCarpetas(),
-          getFacturas(0, 0, undefined, undefined, undefined, undefined, true)
+          getFacturasBandejaTesoreria()
         ]);
         setCarpetasRaiz(carpetasData);
         const facturasMap = new Map<string, FacturaListItem>();
-        facturasData.items.forEach(f => facturasMap.set(f.id, f));
+        facturasData.forEach(f => facturasMap.set(f.id, f));
         setAllFacturas(facturasMap);
       } catch (err) {
         console.error('Error reloading:', err);

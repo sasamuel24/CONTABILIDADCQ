@@ -5,7 +5,7 @@ from uuid import UUID
 from typing import Optional, List
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, noload
 from db.models import CarpetaTesoreria, Factura
 
 
@@ -22,49 +22,53 @@ class CarpetaTesoreriaRepository:
             .where(CarpetaTesoreria.id == carpeta_id)
             .options(
                 selectinload(CarpetaTesoreria.parent),
-                selectinload(CarpetaTesoreria.children),
-                selectinload(CarpetaTesoreria.facturas)
+                selectinload(CarpetaTesoreria.children)
+                    .selectinload(CarpetaTesoreria.facturas).noload("*"),
+                selectinload(CarpetaTesoreria.facturas).noload("*")
             )
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
     
     async def get_all(self, parent_id: Optional[UUID] = None) -> List[CarpetaTesoreria]:
-        """Obtiene todas las carpetas, opcionalmente filtradas por parent_id."""
+        """Obtiene todas las carpetas, opcionalmente filtradas por parent_id.
+
+        Las facturas de cada carpeta solo aportan id/numero_factura/proveedor/total
+        (ver FacturaEnCarpetaTesoreria). El modelo Factura tiene 16 relaciones
+        lazy="selectin", así que sin frenarlas cada factura del árbol arrastraría
+        files/asignaciones/comentarios/tokens/etc en cascada. Cargamos las facturas
+        en cada nivel del árbol con noload('*') para traer SOLO sus columnas.
+
+        Antes esto se resolvía con `_load_children_recursive`, que hacía un
+        `db.refresh(child, [...])` por cada carpeta hija = N+1 de round-trips además
+        de la cascada. Al cargar el árbol con selectin explícito por nivel ya no hace
+        falta esa recursión.
+        """
         stmt = (
             select(CarpetaTesoreria)
             .options(
+                selectinload(CarpetaTesoreria.facturas).noload("*"),
+                selectinload(CarpetaTesoreria.children)
+                    .selectinload(CarpetaTesoreria.facturas).noload("*"),
                 selectinload(CarpetaTesoreria.children)
                     .selectinload(CarpetaTesoreria.children)
-                    .selectinload(CarpetaTesoreria.children),
-                selectinload(CarpetaTesoreria.facturas)
+                    .selectinload(CarpetaTesoreria.facturas).noload("*"),
+                selectinload(CarpetaTesoreria.children)
+                    .selectinload(CarpetaTesoreria.children)
+                    .selectinload(CarpetaTesoreria.children)
+                    .selectinload(CarpetaTesoreria.facturas).noload("*"),
             )
         )
-        
+
         if parent_id is not None:
             stmt = stmt.where(CarpetaTesoreria.parent_id == parent_id)
         else:
             # Solo carpetas raíz si no se especifica parent_id
             stmt = stmt.where(CarpetaTesoreria.parent_id.is_(None))
-        
+
         result = await self.db.execute(stmt)
-        carpetas = list(result.scalars().all())
-        
-        # Asegurarnos de que todos los children están cargados
-        for carpeta in carpetas:
-            await self._load_children_recursive(carpeta)
-        
-        return carpetas
-    
-    async def _load_children_recursive(self, carpeta: CarpetaTesoreria):
-        """Carga recursivamente todos los children de una carpeta."""
-        if carpeta.children:
-            for child in carpeta.children:
-                # Cargar los facturas del child
-                await self.db.refresh(child, ['facturas', 'children'])
-                if child.children:
-                    await self._load_children_recursive(child)
-    
+        return list(result.scalars().all())
+
     async def create(
         self,
         nombre: str,
@@ -159,8 +163,9 @@ class CarpetaTesoreriaRepository:
             select(CarpetaTesoreria)
             .where(CarpetaTesoreria.nombre.ilike(f"%{query}%"))
             .options(
-                selectinload(CarpetaTesoreria.children),
-                selectinload(CarpetaTesoreria.facturas)
+                selectinload(CarpetaTesoreria.children)
+                    .selectinload(CarpetaTesoreria.facturas).noload("*"),
+                selectinload(CarpetaTesoreria.facturas).noload("*")
             )
         )
         result = await self.db.execute(stmt)

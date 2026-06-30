@@ -31,8 +31,12 @@ class FacturaRepository:
             selectinload(Factura.inventario_codigos),
             selectinload(Factura.unidad_negocio),
             selectinload(Factura.cuenta_auxiliar),
-            selectinload(Factura.carpeta),
-            selectinload(Factura.carpeta_tesoreria),
+            # carpeta/carpeta_tesoreria solo aportan id/nombre/parent_id al listado.
+            # noload('*') evita que cada Carpeta (lazy="selectin" en parent/children/
+            # facturas) arrastre todas SUS facturas y subcarpetas en cascada, y que
+            # cada una de esas facturas re-dispare sus 16 relaciones selectin.
+            selectinload(Factura.carpeta).noload("*"),
+            selectinload(Factura.carpeta_tesoreria).noload("*"),
             # Relaciones NO usadas en el listado -> no cargarlas (anulan el selectin del modelo)
             noload(Factura.asignaciones),
             noload(Factura.comentarios),

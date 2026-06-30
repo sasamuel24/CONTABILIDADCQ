@@ -3,7 +3,7 @@ Repositorio para operaciones de carpetas.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, noload
 from typing import List, Optional
 from uuid import UUID
 from db.models import Carpeta, Factura, Estado
@@ -28,15 +28,25 @@ class CarpetaRepository:
         return list(result.scalars().all())
     
     async def get_root_folders(self) -> List[Carpeta]:
-        """Obtiene las carpetas raíz (sin parent_id) con toda la jerarquía."""
-        factura_con_estado = selectinload(Carpeta.facturas).selectinload(Factura.estado)
+        """Obtiene las carpetas raíz (sin parent_id) con toda la jerarquía.
+
+        Cada factura del árbol solo aporta id/numero_factura/proveedor/total/estado
+        al response (ver FacturaEnCarpeta). Pero el modelo Factura define 16 relaciones
+        lazy="selectin", así que sin frenarlas cada factura cargada arrastraría files,
+        asignaciones, comentarios, tokens, distribución, centros, carpeta... en cascada.
+        `noload('*')` tras `estado` deja viva solo la relación que el response usa y
+        elimina ~15 selectin innecesarios por nivel.
+        """
+        # Opciones aplicadas a las facturas de cada carpeta: cargar SOLO estado y
+        # anular (noload) las demás relaciones de Factura para frenar la cascada.
+        solo_estado = (selectinload(Factura.estado), noload("*"))
         result = await self.db.execute(
             select(Carpeta)
             .options(
-                factura_con_estado,
-                selectinload(Carpeta.children).selectinload(Carpeta.facturas).selectinload(Factura.estado),
-                selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.facturas).selectinload(Factura.estado),
-                selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.facturas).selectinload(Factura.estado),
+                selectinload(Carpeta.facturas).options(*solo_estado),
+                selectinload(Carpeta.children).selectinload(Carpeta.facturas).options(*solo_estado),
+                selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.facturas).options(*solo_estado),
+                selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.children).selectinload(Carpeta.facturas).options(*solo_estado),
             )
             .where(Carpeta.parent_id.is_(None))
             .order_by(Carpeta.nombre)

@@ -300,11 +300,11 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
       }
     }
     
-    // Recargar datos
+    // Recargar datos (solo facturas en carpeta = bandeja de Tesorería, payload liviano)
     try {
       const [carpetasData, facturasData] = await Promise.all([
         getCarpetas(),
-        getFacturas(0, 10000)
+        getFacturas(0, 0, undefined, undefined, undefined, undefined, true)
       ]);
       setCarpetasRaiz(carpetasData);
       const facturasMap = new Map<string, FacturaListItem>();
@@ -313,7 +313,7 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
     } catch (err) {
       console.error('Error reloading:', err);
     }
-    
+
     setSelectedFacturaIds(new Set());
     setIsBatchClosing(false);
     
@@ -340,7 +340,7 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
       try {
         const [carpetasData, facturasData] = await Promise.all([
           getCarpetas(),
-          getFacturas(0, 10000)
+          getFacturas(0, 0, undefined, undefined, undefined, undefined, true)
         ]);
         setCarpetasRaiz(carpetasData);
         const facturasMap = new Map<string, FacturaListItem>();

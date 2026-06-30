@@ -26,8 +26,7 @@ class FacturaRepository:
         las queries de asignaciones, comentarios, tokens y distribución (≈40% del
         tiempo de BD según pg_stat_statements) que antes se ejecutaban sin necesidad.
         """
-        query = select(Factura).options(
-            selectinload(Factura.files),
+        opciones = [
             selectinload(Factura.inventario_codigos),
             selectinload(Factura.unidad_negocio),
             selectinload(Factura.cuenta_auxiliar),
@@ -44,7 +43,22 @@ class FacturaRepository:
             noload(Factura.distribucion_ccco),
             noload(Factura.area_origen),
             noload(Factura.assigned_user),
-        )
+        ]
+        if only_in_carpeta:
+            # Bandeja de Tesorería (único caller de only_in_carpeta): la lista NO muestra
+            # archivos ni nombres de centro, y el detalle los re-obtiene por id. Anular
+            # 'files' (el selectin más pesado y el grueso del payload) + los centros
+            # recorta drásticamente la respuesta. Se mantienen inventario_codigos,
+            # unidad_negocio y cuenta_auxiliar porque el detalle SÍ los lee del item.
+            opciones += [
+                noload(Factura.files),
+                noload(Factura.centro_costo),
+                noload(Factura.centro_operacion),
+            ]
+        else:
+            opciones.append(selectinload(Factura.files))
+
+        query = select(Factura).options(*opciones)
         count_query = select(func.count(Factura.id))
 
         if area_id:

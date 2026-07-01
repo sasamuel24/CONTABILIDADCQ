@@ -137,11 +137,7 @@ export function ReasignarAreaModal({ isOpen, onClose, factura, onSuccess }: Reas
 
   const areasFiltradas = useMemo(() => {
     const q = areaQuery.trim().toLowerCase();
-    // Tesorería no es un área reasignable por esta vía: una factura solo llega a
-    // Tesorería desde Contabilidad (con carpeta asignada). Asignarla directo aquí la
-    // dejaría "en el limbo" (estado Pendiente en Tesorería pero invisible en la bandeja).
-    const TESORERIA_AREA_ID = 'b067adcd-13ff-420f-9389-42bfaa78cf9f';
-    const base = areas.filter(a => a.id !== factura.area_id && a.id !== TESORERIA_AREA_ID);
+    const base = areas.filter(a => a.id !== factura.area_id);
     if (!q) return base;
     return base.filter(a =>
       a.nombre.toLowerCase().includes(q) || (a.code || '').toLowerCase().includes(q),

@@ -22,6 +22,7 @@ const ROLES = [
   { code: 'mant',          label: 'Mantenimiento' },
   { code: 'direccion',     label: 'Dirección' },
   { code: 'tarjeta_cq',   label: 'Responsable Tarjeta CQ' },
+  { code: 'comercial',    label: 'Comercial (Tarjeta Comercial)' },
   { code: 'jefe_zona',    label: 'Jefe de Zona' },
 ];
 
@@ -37,6 +38,7 @@ const ROL_BADGE: Record<string, { bg: string; text: string; border: string }> = 
   mant:         { bg: '#dcfce7', text: '#15803d', border: '#bbf7d0' },
   direccion:    { bg: '#f3f4f6', text: '#374151', border: '#e5e7eb' },
   tarjeta_cq:   { bg: '#fff7ed', text: '#c2410c', border: '#fed7aa' },
+  comercial:    { bg: '#f5f3ff', text: '#7c3aed', border: '#ddd6fe' },
   jefe_zona:    { bg: '#ecfeff', text: '#0e7490', border: '#a5f3fc' },
 };
 

@@ -149,21 +149,6 @@ class AsignacionRepository:
             factura.estado_id = 3  # En contabilidad
             factura.fecha_envio_contabilidad = datetime.utcnow()
         elif str(area_id) == TESORERIA_AREA_ID:
-            # La bandeja de Tesorería solo muestra facturas que están dentro de una
-            # carpeta (carpeta_id), y esa carpeta la asigna Contabilidad. Si se asigna
-            # una factura directamente a Tesorería sin carpeta, queda "en el limbo":
-            # estado 7 + área Tesorería pero invisible en la bandeja, sin pasar por
-            # Contabilidad. Bloqueamos esa ruta y exigimos el flujo correcto
-            # (Contabilidad -> submit-tesoreria).
-            if factura.carpeta_id is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=(
-                        "La factura debe pasar primero por Contabilidad antes de ir a "
-                        "Tesorería. No puede asignarse directamente a Tesorería porque "
-                        "quedaría sin carpeta y no aparecería en la bandeja de Tesorería."
-                    )
-                )
             factura.estado_id = 7  # Pendiente en Tesoreria
             factura.fecha_envio_tesoreria = datetime.utcnow()
         else:

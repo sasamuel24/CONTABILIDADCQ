@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { WeekPickerInput } from '../components/WeekPickerInput';
+import { ConfirmModal } from '../components/ConfirmModal';
 import {
   CategoriaGasto,
   GastoOut,
@@ -964,6 +965,7 @@ function DetallePaquete({
   const [gastos, setGastos] = useState<GastoLocal[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [confirmEnviar, setConfirmEnviar] = useState(false);
   const [escaneandoId, setEscaneandoId] = useState<string | null>(null);
   const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
   const [centrosOperacion, setCentrosOperacion] = useState<CentroOperacion[]>([]);
@@ -1240,11 +1242,7 @@ function DetallePaquete({
     }
   };
 
-  const handleEnviar = async () => {
-    const confirmar = window.confirm(
-      '¿Enviar el paquete para revision? Una vez enviado no podras modificarlo hasta recibir respuesta.'
-    );
-    if (!confirmar) return;
+  const confirmarEnviar = async () => {
     setSaving(true);
     try {
       await persistirCambios();
@@ -1294,7 +1292,7 @@ function DetallePaquete({
                   </button>
                 )}
                 <button
-                  onClick={handleEnviar}
+                  onClick={() => setConfirmEnviar(true)}
                   disabled={saving}
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{
@@ -1429,7 +1427,7 @@ function DetallePaquete({
       {(esBorrador || esDevuelto) && (
         <div className="pb-4">
           <button
-            onClick={handleEnviar}
+            onClick={() => setConfirmEnviar(true)}
             disabled={saving}
             className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl text-base font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             style={{
@@ -1443,6 +1441,19 @@ function DetallePaquete({
           </button>
         </div>
       )}
+
+      {/* Confirmación de envío para revisión */}
+      <ConfirmModal
+        isOpen={confirmEnviar}
+        onClose={() => setConfirmEnviar(false)}
+        onConfirm={confirmarEnviar}
+        type="warning"
+        title={esDevuelto ? 'Reenviar paquete corregido' : 'Enviar paquete para revisión'}
+        message={'¿Enviar el paquete para revisión?\n\nUna vez enviado no podrás modificarlo hasta recibir respuesta.'}
+        confirmText="Enviar"
+        cancelText="Cancelar"
+        showCancel
+      />
     </div>
   );
 }

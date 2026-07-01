@@ -22,7 +22,7 @@ const ROLES = [
   { code: 'mant',          label: 'Mantenimiento' },
   { code: 'direccion',     label: 'Dirección' },
   { code: 'tarjeta_cq',   label: 'Responsable Tarjeta CQ' },
-  { code: 'comercial',    label: 'Comercial (Tarjeta Comercial)' },
+  { code: 'comercial',    label: 'Comercial' },
   { code: 'jefe_zona',    label: 'Jefe de Zona' },
 ];
 

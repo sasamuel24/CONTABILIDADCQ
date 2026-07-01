@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query
+from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 from uuid import UUID
@@ -30,11 +31,12 @@ async def listar_todos(
 
 @router.get("/activos", response_model=List[AprobadorGerenciaOut])
 async def listar_activos(
+    categoria: Optional[str] = Query(None, description="Filtrar por categoría: 'general' | 'comercial'"),
     svc: AprobadorGerenciaService = Depends(_svc),
     _: dict = Depends(get_current_user),
 ):
     """Lista solo los aprobadores activos (para el selector al enviar correo)."""
-    return await svc.listar_activos()
+    return await svc.listar_activos(categoria)
 
 
 @router.post("/", response_model=AprobadorGerenciaOut, status_code=status.HTTP_201_CREATED)

@@ -120,6 +120,8 @@ class GastosService:
 
         if role_code == "tarjeta_cq":
             tipo_flujo = "tarjeta_cq"
+        elif role_code == "comercial":
+            tipo_flujo = "tarjeta_comercial"
         elif area_code.lower() == "mant":
             tipo_flujo = "mantenimiento"
         else:
@@ -220,6 +222,50 @@ class GastosService:
                 logger.error(f"Error notificando a Radicación anticipo paquete: {e}")
             return self._to_out(paquete_actualizado)
 
+        # Flujo tarjeta_comercial: pasa primero por el VALIDADOR (Responsable) antes del gerente.
+        # El comercial selecciona aquí el gerente comercial (se guarda aprobador_id), pero el
+        # token/correo al gerente se genera más tarde, cuando el validador valide (validar_comercial).
+        if paquete.tipo_flujo == "tarjeta_comercial":
+            aprobador_id_efectivo = aprobador_id or paquete.aprobador_id
+            if aprobador_id_efectivo:
+                aprobador = await self.db.get(AprobadorGerencia, aprobador_id_efectivo)
+                if not aprobador or not aprobador.is_active:
+                    raise HTTPException(status_code=400, detail="El gerente seleccionado no es válido o está inactivo.")
+                if aprobador.categoria != "comercial":
+                    raise HTTPException(status_code=400, detail="El gerente seleccionado no pertenece a la categoría comercial.")
+            else:
+                # Auto-asignar el gerente comercial activo (el comercial no selecciona; el envío es directo).
+                result = await self.db.execute(
+                    select(AprobadorGerencia)
+                    .where(AprobadorGerencia.is_active == True)
+                    .where(AprobadorGerencia.categoria == "comercial")
+                    .order_by(AprobadorGerencia.nombre)
+                )
+                gerentes = result.scalars().all()
+                if not gerentes:
+                    raise HTTPException(status_code=400, detail="No hay un gerente comercial configurado. Contacta al administrador.")
+                aprobador_id_efectivo = gerentes[0].id
+            paquete.aprobador_id = aprobador_id_efectivo
+
+            anterior = paquete.estado
+            paquete.estado = "en_validacion"
+            paquete.fecha_envio = datetime.utcnow()
+            await self.paquete_repo.save(paquete)
+            await self.historial_repo.create(HistorialEstadoPaquete(
+                paquete_id=paquete.id, user_id=user_id,
+                estado_anterior=anterior, estado_nuevo="en_validacion",
+            ))
+            await self.db.commit()
+            paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
+            # Notificar al validador (Responsable) para la revisión previa
+            try:
+                await email_service.enviar_notificacion_nuevo_paquete_responsable(
+                    paquete_actualizado, settings.email_responsable
+                )
+            except Exception as e:
+                logger.error(f"Error notificando al validador comercial paquete {paquete_id}: {e}")
+            return self._to_out(paquete_actualizado)
+
         # Para flujo general y tarjeta_cq se requiere aprobador de gerencia
         if paquete.tipo_flujo in ("general", "tarjeta_cq"):
             aprobador_id_efectivo = aprobador_id or paquete.aprobador_id
@@ -268,6 +314,57 @@ class GastosService:
 
         return self._to_out(paquete_actualizado)
 
+    async def validar_comercial(self, paquete_id: UUID, user_id: UUID) -> PaqueteOut:
+        """El VALIDADOR (Responsable) valida un paquete comercial en 'en_validacion':
+        lo pasa a 'en_revision' y genera el token + correo de aprobación al gerente comercial."""
+        paquete = await self._get_paquete_or_404(paquete_id)
+        if paquete.tipo_flujo != "tarjeta_comercial":
+            raise HTTPException(status_code=400, detail="Este endpoint es solo para paquetes de tarjeta comercial.")
+        if paquete.estado != "en_validacion":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Solo paquetes en validación pueden validarse. Estado actual: {paquete.estado}"
+            )
+        if not paquete.aprobador_id:
+            raise HTTPException(status_code=400, detail="El paquete no tiene gerente aprobador comercial asignado.")
+        aprobador = await self.db.get(AprobadorGerencia, paquete.aprobador_id)
+        if not aprobador or not aprobador.is_active:
+            raise HTTPException(status_code=400, detail="El gerente aprobador asignado no es válido o está inactivo.")
+
+        anterior = paquete.estado
+        paquete.estado = "en_revision"
+        paquete.revisado_por_user_id = user_id
+        await self.paquete_repo.save(paquete)
+        await self.historial_repo.create(HistorialEstadoPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            estado_anterior=anterior, estado_nuevo="en_revision",
+        ))
+        await self.comentario_repo.create(ComentarioPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            texto="Validado por el responsable. Enviado al gerente comercial para aprobación.",
+            tipo="aprobacion",
+        ))
+
+        # Genera token y envía correo al gerente comercial (válido 72h)
+        token_str = secrets.token_urlsafe(48)
+        expires_at = datetime.now(tz=timezone.utc) + timedelta(hours=72)
+        token_obj = TokenAprobacionPaquete(
+            paquete_id=paquete.id,
+            token=token_str,
+            usado=False,
+            expires_at=expires_at,
+        )
+        await self.token_repo.create(token_obj)
+        paquete.fecha_envio_gerencia = datetime.now(tz=timezone.utc)
+        await self.db.commit()
+
+        paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
+        await email_service.enviar_solicitud_aprobacion(
+            paquete_actualizado, token_str,
+            email_override=aprobador.email,
+        )
+        return self._to_out(paquete_actualizado)
+
     async def devolver_anticipo_paquete(
         self, paquete_id: UUID, user_id: UUID, motivo: str
     ) -> PaqueteOut:
@@ -301,7 +398,7 @@ class GastosService:
 
         # Determinar email destino según tipo de flujo
         email_override: Optional[str] = None
-        if paquete.tipo_flujo in ("general", "tarjeta_cq"):
+        if paquete.tipo_flujo in ("general", "tarjeta_cq", "tarjeta_comercial"):
             if not paquete.aprobador_id:
                 raise HTTPException(status_code=400, detail="Este paquete no tiene aprobador asignado.")
             aprobador = await self.db.get(AprobadorGerencia, paquete.aprobador_id)
@@ -351,8 +448,8 @@ class GastosService:
 
     async def devolver(self, paquete_id: UUID, user_id: UUID, data: PaqueteDevolver) -> PaqueteOut:
         paquete = await self._get_paquete_or_404(paquete_id)
-        if paquete.estado != "en_revision":
-            raise HTTPException(status_code=400, detail="Solo paquetes en revisión pueden devolverse.")
+        if paquete.estado not in ("en_revision", "en_validacion"):
+            raise HTTPException(status_code=400, detail="Solo paquetes en revisión o en validación pueden devolverse.")
 
         paquete.estado = "devuelto"
         paquete.revisado_por_user_id = user_id
@@ -988,8 +1085,8 @@ class GastosService:
             await email_service.enviar_notificacion_paquete_aprobado_tecnico(paquete_final, paquete_final.tecnico.email)
 
             # Notificar al equipo que procesa el siguiente paso según flujo
-            if paquete_final.tipo_flujo == "general":
-                # Para flujo general notificar a todos los usuarios de Radicación
+            if paquete_final.tipo_flujo in ("general", "tarjeta_comercial"):
+                # Para flujo general / tarjeta_comercial notificar a todos los usuarios de Radicación
                 try:
                     result = await self.db.execute(
                         select(User).join(Rol, User.role_id == Rol.id)

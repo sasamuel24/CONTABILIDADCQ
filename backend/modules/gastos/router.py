@@ -91,7 +91,7 @@ async def crear_paquete(
     user: User = Depends(_get_user_db),
 ):
     role_code = user.role.code.lower() if user.role else ""
-    if not user.area_id and role_code != "tarjeta_cq":
+    if not user.area_id and role_code not in ("tarjeta_cq", "comercial"):
         raise HTTPException(status_code=400, detail="El usuario no tiene un área asignada.")
     area_code = user.area.code.lower() if user.area else ""
     return await svc.crear_paquete(user.id, user.area_id, data, area_code=area_code, role_code=role_code)
@@ -182,6 +182,25 @@ async def aprobar_paquete(
     if role not in {"admin", "responsable"} and area not in {"admin", "responsable", "mant"}:
         raise HTTPException(status_code=403, detail="Solo el Responsable de Mantenimiento puede aprobar paquetes.")
     return await svc.aprobar(paquete_id, user.id)
+
+
+@router.post(
+    "/gastos/paquetes/{paquete_id}/validar",
+    response_model=PaqueteOut,
+    summary="Validar paquete comercial y enviarlo al gerente (responsable/admin)",
+)
+async def validar_paquete_comercial(
+    paquete_id: UUID,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    """El Responsable (validador) valida un paquete de tarjeta comercial en 'en_validacion'
+    y lo pasa a 'en_revision', generando el correo/token de aprobación al gerente comercial."""
+    role = user.role.code.lower() if user.role else ""
+    area = user.area.code.lower() if user.area else ""
+    if role not in {"admin", "responsable"} and area not in {"admin", "responsable"}:
+        raise HTTPException(status_code=403, detail="Solo el Responsable puede validar paquetes comerciales.")
+    return await svc.validar_comercial(paquete_id, user.id)
 
 
 @router.post(
@@ -467,14 +486,14 @@ async def devolver_gasto_individual(
     user: User = Depends(_get_user_db),
 ):
     """
-    Radicación o Admin devuelve un gasto individual al técnico con un motivo.
-    No cambia el estado del paquete completo.
+    Radicación, Admin o el Responsable (validador comercial) devuelve un gasto individual
+    al propietario con un motivo. No cambia el estado del paquete completo.
     """
     role = user.role.code.lower() if user.role else ""
-    if role not in {"admin", "fact"}:
+    if role not in {"admin", "fact", "responsable"}:
         raise HTTPException(
             status_code=403,
-            detail="Solo Radicación o Admin puede devolver gastos individuales."
+            detail="No tienes permisos para devolver gastos individuales."
         )
     return await svc.devolver_gasto_individual(paquete_id, gasto_id, user.id, data.motivo)
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Inbox, LogOut, PackageOpen, UploadCloud, Banknote, History, Menu, X, ChevronRight } from 'lucide-react';
+import { Inbox, LogOut, PackageOpen, UploadCloud, Banknote, History, Menu, X, ChevronRight, CreditCard } from 'lucide-react';
 import { InboxView } from '../components/InboxView';
 import { ResponsablePaquetesView } from '../components/ResponsablePaquetesView';
 import { GastosAdminSubidaView } from '../components/GastosAdminSubidaView';
@@ -11,7 +11,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getUserRoleCode } from '../lib/api';
 import { useNavigate } from 'react-router-dom';
 
-type Seccion = 'bandeja' | 'paquetes' | 'subida' | 'trazabilidad' | 'historial' | 'anticipo';
+type Seccion = 'bandeja' | 'paquetes' | 'comercial' | 'subida' | 'trazabilidad' | 'historial' | 'anticipo';
 
 export function ResponsablePage() {
   const { user, logout } = useAuth();
@@ -38,6 +38,7 @@ export function ResponsablePage() {
     { id: 'bandeja',   label: 'Bandeja de Entrada',       icon: <Inbox        className="w-5 h-5" /> },
     { id: 'historial', label: 'Historial de Facturas',    icon: <History      className="w-5 h-5" /> },
     ...(esMant   ? [{ id: 'paquetes' as Seccion, label: 'Paquetes de Gastos',        icon: <PackageOpen className="w-5 h-5" /> }] : []),
+    ...(!esTiendas ? [{ id: 'comercial' as Seccion, label: 'Validación Comercial',     icon: <CreditCard  className="w-5 h-5" /> }] : []),
     ...(esGadmin ? [{ id: 'subida'   as Seccion, label: 'Subida Manual de Facturas', icon: <UploadCloud className="w-5 h-5" /> }] : []),
     // El Responsable de Tiendas no legaliza anticipos: solo gestiona facturas de tiendas.
     ...(!esTiendas ? [{ id: 'anticipo' as Seccion, label: 'Legalizar Anticipo', icon: <Banknote className="w-5 h-5" /> }] : []),
@@ -190,7 +191,7 @@ export function ResponsablePage() {
           </header>
 
           {/* Contenido */}
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto pb-24 md:pb-0">
             {seccion === 'bandeja'      && <InboxView />}
             {seccion === 'historial'    && <ResponsableHistorialView />}
             {seccion === 'subida'       && esGadmin && <GastosAdminSubidaView />}
@@ -207,10 +208,21 @@ export function ResponsablePage() {
                 <ResponsablePaquetesView onVistaChange={(v) => setEnDetalle(v === 'detalle')} />
               </div>
             )}
+            {seccion === 'comercial' && (
+              <div className={enDetalle ? 'p-4' : 'p-4 md:p-8'}>
+                {!enDetalle && (
+                  <div className="mb-6">
+                    <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>Validación Comercial</h2>
+                    <p className="text-sm text-gray-400 mt-0.5" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>Valida o devuelve los paquetes de tarjeta comercial antes del gerente</p>
+                  </div>
+                )}
+                <ResponsablePaquetesView modo="comercial" onVistaChange={(v) => setEnDetalle(v === 'detalle')} />
+              </div>
+            )}
           </main>
 
           {/* Mobile bottom nav */}
-          <nav className="md:hidden flex items-stretch bg-white border-t border-gray-200 flex-shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex items-stretch bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
             {NAV.slice(0, 4).map((item) => {
               const activo = seccion === item.id;
               return (

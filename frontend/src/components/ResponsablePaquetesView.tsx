@@ -8,6 +8,7 @@ import {
   listPaquetesGastos,
   getPaqueteGasto,
   aprobarPaquete,
+  validarPaquete,
   devolverPaquete,
   devolverGasto,
   pagarPaquete,
@@ -103,6 +104,7 @@ type EstadoUI = {
 
 const ESTADO_MAP: Record<EstadoPaquete, EstadoUI> = {
   borrador:      { label: 'Borrador',          bg: '#f3f4f6', color: '#6b7280', dot: '#9ca3af' },
+  en_validacion: { label: 'En validación',     bg: '#f5f3ff', color: '#7c3aed', dot: '#8b5cf6' },
   en_revision:   { label: 'En revisión',       bg: '#fffbeb', color: '#b45309', dot: '#f59e0b' },
   devuelto:      { label: 'Devuelto',           bg: '#fef2f2', color: '#dc2626', dot: '#ef4444' },
   aprobado:      { label: 'Pendiente',          bg: '#fff7ed', color: '#c2410c', dot: '#f97316' },
@@ -207,11 +209,13 @@ function DetallePaqueteResponsable({
   onCerrar,
   onAccion,
   soloDevueltos = false,
+  modo = 'mantenimiento',
 }: {
   paqueteId: string;
   onCerrar: () => void;
   onAccion: () => void;
   soloDevueltos?: boolean;
+  modo?: 'mantenimiento' | 'comercial';
 }) {
   const [paquete, setPaquete] = useState<PaqueteOut | null>(null);
   const { user } = useAuth();
@@ -350,11 +354,16 @@ function DetallePaqueteResponsable({
     }
     setLoadingAprobar(true);
     try {
-      await aprobarPaquete(paquete.id);
-      toast.success('Paquete aprobado correctamente');
+      if (modo === 'comercial') {
+        await validarPaquete(paquete.id);
+        toast.success('Paquete validado. Se envió el correo de aprobación al gerente comercial.');
+      } else {
+        await aprobarPaquete(paquete.id);
+        toast.success('Paquete aprobado correctamente');
+      }
       onAccion();
     } catch (e: unknown) {
-      const msg = (e as { detail?: string })?.detail ?? 'Error al aprobar';
+      const msg = (e as { detail?: string })?.detail ?? (modo === 'comercial' ? 'Error al validar' : 'Error al aprobar');
       toast.error(msg);
     } finally {
       setLoadingAprobar(false);
@@ -586,9 +595,13 @@ function DetallePaqueteResponsable({
   const esFact = ['admin', 'fact'].includes(rolActual) || ['admin', 'fact'].includes(areaActual);
   const esTes = ['admin', 'tesoreria', 'tes'].includes(rolActual) || ['admin', 'tesoreria', 'tes'].includes(areaActual);
 
-  const puedeActuar = paquete.estado === 'en_revision' && esResponsable;
+  // En modo comercial el validador (responsable) actúa sobre 'en_validacion'; en mantenimiento sobre 'en_revision'.
+  const estadoAccion = modo === 'comercial' ? 'en_validacion' : 'en_revision';
+  const puedeActuar = paquete.estado === estadoAccion && esResponsable;
   const puedeEnviarTesoreria = paquete.estado === 'aprobado' && esFact;
   const puedeDevolverComoFact = paquete.estado === 'aprobado' && esFact;
+  // Devolución individual de gastos (columna "Acción"): Radicación (aprobado) y el validador comercial (en_validacion).
+  const puedeDevolverGasto = puedeDevolverComoFact || (modo === 'comercial' && puedeActuar);
   // Doc contable visible (para ver/descargar) desde aprobado en adelante
   const verDocContable = ['aprobado', 'en_tesoreria', 'pagado'].includes(paquete.estado);
   // Radicación puede gestionar doc contable en cualquier estado visible
@@ -600,8 +613,8 @@ function DetallePaqueteResponsable({
   const gastosVisibles = filtroGastos === 'devueltos' ? gastosDevueltos : paquete.gastos;
   const hayDevueltos = gastosDevueltos.length > 0;
   // Cualquier rol puede subir documentos mientras está en revisión
-  const puedeSubirDocs = paquete.estado === 'en_revision';
-  const puedeEditarAsignaciones = paquete.estado === 'en_revision';
+  const puedeSubirDocs = paquete.estado === estadoAccion;
+  const puedeEditarAsignaciones = paquete.estado === estadoAccion;
   const puedeMarcarPagado = paquete.estado === 'en_tesoreria' && esTes;
 
   return (
@@ -763,7 +776,7 @@ function DetallePaqueteResponsable({
                       style={{ backgroundColor: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
                     >
                       <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>Correo enviado al <strong>Gerente Administrativo</strong></span>
+                      <span>Correo enviado al <strong>{modo === 'comercial' ? 'Gerente Comercial' : 'Gerente Administrativo'}</strong></span>
                     </div>
                   )}
                   <button
@@ -782,7 +795,7 @@ function DetallePaqueteResponsable({
                       : correoGerEnviado
                         ? <RefreshCw className="w-3.5 h-3.5" />
                         : <Send className="w-3.5 h-3.5" />}
-                    {correoGerEnviado ? 'Reenviar correo' : 'Enviar correo al Gerente Administrativo'}
+                    {correoGerEnviado ? 'Reenviar correo' : `Enviar correo al ${modo === 'comercial' ? 'Gerente Comercial' : 'Gerente Administrativo'}`}
                   </button>
                 </div>
               ) : paquete.aprobacion_gerencia_filename ? (
@@ -893,6 +906,26 @@ function DetallePaqueteResponsable({
               >
                 {savingAsignaciones ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                 Guardar asignaciones
+              </button>
+            </div>
+          )}
+
+          {/* Botones de acción — Validación Comercial (validador) */}
+          {puedeActuar && modo === 'comercial' && (
+            <div className="flex gap-3 mt-6 pt-5 border-t border-gray-100 flex-wrap items-center">
+              <div className="flex-1">
+                <p className="text-xs text-gray-500" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                  Revisa los gastos y soportes. Puedes devolver gastos individuales (columna "Acción") sin frenar los demás. Al validar, el paquete pasa al gerente comercial para su aprobación por correo.
+                </p>
+              </div>
+              <button
+                onClick={handleAprobar}
+                disabled={loadingAprobar || loadingDevolver}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+              >
+                {loadingAprobar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Validar y enviar al gerente
               </button>
             </div>
           )}
@@ -1037,14 +1070,14 @@ function DetallePaqueteResponsable({
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs" style={{ minWidth: puedeDevolverComoFact ? 1450 : 1350 }}>
+              <table className="w-full text-xs" style={{ minWidth: puedeDevolverGasto ? 1450 : 1350 }}>
                 <thead>
                   <tr style={{ backgroundColor: '#00829a' }}>
                     {[
                       'Fecha', 'Pagado a', 'NIT', 'Concepto', 'No. Recibo',
                       'Centro Costo', 'Centro Operación', 'Cuenta Contable',
                       'Valor', 'Soporte', 'CF PDF',
-                      ...(puedeDevolverComoFact ? ['Acción'] : []),
+                      ...(puedeDevolverGasto ? ['Acción'] : []),
                     ].map((h) => (
                       <th
                         key={h}
@@ -1251,7 +1284,7 @@ function DetallePaqueteResponsable({
                           )}
                         </td>
 
-                        {puedeDevolverComoFact && (
+                        {puedeDevolverGasto && (
                           <td className="px-2 py-2">
                             {g.estado_gasto === 'devuelto' ? (
                               <span
@@ -1286,7 +1319,7 @@ function DetallePaqueteResponsable({
                       {fmtMonto(gastosVisibles.reduce((s, g) => s + g.valor_pagado, 0))}
                     </td>
                     <td /><td />
-                    {puedeDevolverComoFact && <td />}
+                    {puedeDevolverGasto && <td />}
                   </tr>
                   {filtroGastos === 'devueltos' && paquete.monto_total > gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0) && (
                     <tr>
@@ -1297,7 +1330,7 @@ function DetallePaqueteResponsable({
                         {fmtMonto(paquete.monto_total - gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0))}
                       </td>
                       <td /><td />
-                      {puedeDevolverComoFact && <td />}
+                      {puedeDevolverGasto && <td />}
                     </tr>
                   )}
                 </tfoot>
@@ -1459,9 +1492,11 @@ type Filtro = 'todos' | EstadoPaquete;
 export function ResponsablePaquetesView({
   onVistaChange,
   soloAnticipos = false,
+  modo = 'mantenimiento',
 }: {
   onVistaChange?: (v: 'lista' | 'detalle') => void;
   soloAnticipos?: boolean;
+  modo?: 'mantenimiento' | 'comercial';
 }) {
   const { user } = useAuth();
   const rolLista = user?.role?.toLowerCase() ?? '';
@@ -1500,11 +1535,18 @@ export function ResponsablePaquetesView({
 
   const paquetesEnviados = paquetes
     .filter((p) => p.estado !== 'borrador')
-    .filter((p) => !soloAnticipos || p.anticipo !== null);
+    .filter((p) => !soloAnticipos || p.anticipo !== null)
+    .filter((p) => {
+      // Modo comercial: SOLO paquetes de tarjeta comercial.
+      if (modo === 'comercial') return p.tipo_flujo === 'tarjeta_comercial';
+      // Modo mantenimiento: ocultar comerciales (Radicación/fact sí los procesa cuando están aprobados).
+      return esFact || p.tipo_flujo !== 'tarjeta_comercial';
+    });
 
-  // Para radicación: "En revisión" muestra los aprobados por responsable (pendientes de enviar a tesorería)
-  // Para responsable: "En revisión" muestra los enviados por el técnico (pendientes de aprobar)
-  const estadoRevision: EstadoPaquete = esFact ? 'aprobado' : 'en_revision';
+  // Comercial: "Por validar" = en_validacion.
+  // Radicación: "En revisión" = aprobados pendientes de enviar a tesorería.
+  // Responsable mant: "En revisión" = enviados por el técnico pendientes de aprobar.
+  const estadoRevision: EstadoPaquete = modo === 'comercial' ? 'en_validacion' : (esFact ? 'aprobado' : 'en_revision');
 
   const paquetesFiltrados =
     filtro === 'todos'
@@ -1521,7 +1563,7 @@ export function ResponsablePaquetesView({
   ).length;
 
   const FILTROS: { value: Filtro; label: string }[] = [
-    { value: 'en_revision',  label: 'En revisión' },
+    { value: 'en_revision',  label: modo === 'comercial' ? 'Por validar' : 'En revisión' },
     { value: 'en_tesoreria', label: 'En Tesorería' },
     { value: 'devuelto',     label: 'Devueltos' },
     { value: 'pagado',       label: 'Pagados' },
@@ -1535,6 +1577,7 @@ export function ResponsablePaquetesView({
         onCerrar={irALista}
         onAccion={irALista}
         soloDevueltos={abrioDesdeDevueltos}
+        modo={modo}
       />
     );
   }

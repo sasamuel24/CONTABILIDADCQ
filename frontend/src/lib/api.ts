@@ -1824,7 +1824,7 @@ export async function deleteComentario(comentarioId: string): Promise<void> {
 // MÓDULO GASTOS / LEGALIZACIÓN DE TÉCNICOS DE MANTENIMIENTO
 // ============================================================================
 
-export type EstadoPaquete = 'borrador' | 'en_revision' | 'devuelto' | 'aprobado' | 'en_tesoreria' | 'pagado';
+export type EstadoPaquete = 'borrador' | 'en_validacion' | 'en_revision' | 'devuelto' | 'aprobado' | 'en_tesoreria' | 'pagado';
 
 export type CategoriaGasto =
   | 'Combustible'
@@ -1910,7 +1910,7 @@ export interface PaqueteOut {
   fecha_inicio: string;
   fecha_fin: string;
   estado: EstadoPaquete;
-  tipo_flujo: 'mantenimiento' | 'general';
+  tipo_flujo: 'mantenimiento' | 'general' | 'tarjeta_cq' | 'tarjeta_comercial';
   monto_total: number;
   monto_a_pagar: number | null;
   total_documentos: number;
@@ -1941,7 +1941,7 @@ export interface PaqueteListItem {
   fecha_inicio: string;
   fecha_fin: string;
   estado: EstadoPaquete;
-  tipo_flujo: 'mantenimiento' | 'general';
+  tipo_flujo: 'mantenimiento' | 'general' | 'tarjeta_cq' | 'tarjeta_comercial';
   monto_total: number;
   monto_a_pagar: number | null;
   total_documentos: number;
@@ -2033,6 +2033,11 @@ export async function enviarPaquete(
 /** Admin aprueba el paquete */
 export async function aprobarPaquete(paqueteId: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/aprobar`, { method: 'POST' });
+}
+
+/** Responsable (validador) valida un paquete comercial: en_validacion → en_revision (envía al gerente) */
+export async function validarPaquete(paqueteId: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/validar`, { method: 'POST' });
 }
 
 /** Admin devuelve el paquete con un motivo */
@@ -2386,6 +2391,7 @@ export interface AprobadorGerencia {
   cargo: string;
   email: string;
   is_active: boolean;
+  categoria: string; // 'general' | 'comercial'
   created_at: string;
 }
 
@@ -2393,12 +2399,14 @@ export interface AprobadorGerenciaCreate {
   nombre: string;
   cargo: string;
   email: string;
+  categoria?: string;
 }
 
 export interface AprobadorGerenciaUpdate {
   nombre?: string;
   cargo?: string;
   email?: string;
+  categoria?: string;
 }
 
 /** Lista todos los aprobadores (activos e inactivos) — para el panel admin */
@@ -2406,9 +2414,11 @@ export async function getAprobadoresGerencia(): Promise<AprobadorGerencia[]> {
   return fetchAPI<AprobadorGerencia[]>('/aprobadores-gerencia/');
 }
 
-/** Lista solo los aprobadores activos — para el selector al enviar correo */
-export async function getAprobadoresActivos(): Promise<AprobadorGerencia[]> {
-  return fetchAPI<AprobadorGerencia[]>('/aprobadores-gerencia/activos');
+/** Lista solo los aprobadores activos — para el selector al enviar correo.
+ *  categoria opcional: 'general' | 'comercial' para filtrar por flujo. */
+export async function getAprobadoresActivos(categoria?: string): Promise<AprobadorGerencia[]> {
+  const qs = categoria ? `?categoria=${encodeURIComponent(categoria)}` : '';
+  return fetchAPI<AprobadorGerencia[]>(`/aprobadores-gerencia/activos${qs}`);
 }
 
 /** Crea un aprobador nuevo */

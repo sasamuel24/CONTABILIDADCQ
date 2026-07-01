@@ -10,7 +10,7 @@ import {
   type AprobadorGerencia,
 } from '../lib/api';
 
-const EMPTY_FORM = { nombre: '', cargo: '', email: '' };
+const EMPTY_FORM = { nombre: '', cargo: '', email: '', categoria: 'general' };
 
 export function AprobadoresGerenciaAdmin() {
   const [aprobadores, setAprobadores] = useState<AprobadorGerencia[]>([]);
@@ -48,7 +48,7 @@ export function AprobadoresGerenciaAdmin() {
 
   const abrirEditar = (a: AprobadorGerencia) => {
     setEditingId(a.id);
-    setForm({ nombre: a.nombre, cargo: a.cargo, email: a.email });
+    setForm({ nombre: a.nombre, cargo: a.cargo, email: a.email, categoria: a.categoria || 'general' });
     setShowModal(true);
   };
 
@@ -145,6 +145,7 @@ export function AprobadoresGerenciaAdmin() {
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Nombre</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Cargo</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-700">Email</th>
+                <th className="text-center px-4 py-3 font-semibold text-gray-700">Categoría</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-700">Estado</th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-700">Acciones</th>
               </tr>
@@ -156,6 +157,14 @@ export function AprobadoresGerenciaAdmin() {
                   <td className="px-4 py-3 text-gray-600">{a.cargo}</td>
                   <td className="px-4 py-3 text-gray-600 font-mono text-xs max-w-[220px]">
                     <span className="block truncate" title={a.email}>{a.email}</span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold"
+                      style={a.categoria === 'comercial'
+                        ? { backgroundColor: '#f5f3ff', color: '#7c3aed', border: '1px solid #ddd6fe' }
+                        : { backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}>
+                      {a.categoria === 'comercial' ? 'Comercial' : 'General'}
+                    </span>
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span
@@ -258,6 +267,17 @@ export function AprobadoresGerenciaAdmin() {
                   placeholder="gerente@caféquindio.com"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
                 />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Categoría de flujo</label>
+                <select
+                  value={form.categoria}
+                  onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
+                >
+                  <option value="general">General (mantenimiento / general / tarjeta CQ)</option>
+                  <option value="comercial">Comercial (tarjeta comercial)</option>
+                </select>
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">

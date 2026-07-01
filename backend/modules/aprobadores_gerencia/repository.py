@@ -15,12 +15,15 @@ class AprobadorGerenciaRepository:
         )
         return list(result.scalars().all())
 
-    async def get_activos(self) -> List[AprobadorGerencia]:
-        result = await self.db.execute(
+    async def get_activos(self, categoria: Optional[str] = None) -> List[AprobadorGerencia]:
+        q = (
             select(AprobadorGerencia)
             .where(AprobadorGerencia.is_active == True)
             .order_by(AprobadorGerencia.nombre)
         )
+        if categoria:
+            q = q.where(AprobadorGerencia.categoria == categoria)
+        result = await self.db.execute(q)
         return list(result.scalars().all())
 
     async def get_by_id(self, aprobador_id: UUID) -> Optional[AprobadorGerencia]:

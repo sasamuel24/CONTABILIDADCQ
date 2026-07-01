@@ -24,8 +24,8 @@ class AprobadorGerenciaService:
         items = await self.repo.get_all()
         return [self._to_out(i) for i in items]
 
-    async def listar_activos(self) -> List[AprobadorGerenciaOut]:
-        items = await self.repo.get_activos()
+    async def listar_activos(self, categoria: str | None = None) -> List[AprobadorGerenciaOut]:
+        items = await self.repo.get_activos(categoria)
         return [self._to_out(i) for i in items]
 
     async def crear(self, data: AprobadorGerenciaCreate) -> AprobadorGerenciaOut:
@@ -39,6 +39,7 @@ class AprobadorGerenciaService:
             nombre=data.nombre,
             cargo=data.cargo,
             email=data.email,
+            categoria=data.categoria or "general",
             is_active=True,
         )
         obj = await self.repo.create(obj)
@@ -61,6 +62,8 @@ class AprobadorGerenciaService:
                     detail=f"El email {data.email} ya está en uso por otro aprobador."
                 )
             obj.email = data.email
+        if data.categoria is not None:
+            obj.categoria = data.categoria
         await self.db.commit()
         await self.db.refresh(obj)
         return self._to_out(obj)

@@ -1187,11 +1187,11 @@ class PaqueteGasto(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint(
-            "estado IN ('borrador','en_revision','devuelto','aprobado','en_tesoreria','pagado')",
+            "estado IN ('borrador','en_validacion','en_revision','devuelto','aprobado','en_tesoreria','pagado')",
             name="check_estado_paquete_valid"
         ),
         CheckConstraint(
-            "tipo_flujo IN ('mantenimiento','general','tarjeta_cq')",
+            "tipo_flujo IN ('mantenimiento','general','tarjeta_cq','tarjeta_comercial')",
             name="check_tipo_flujo_valid"
         ),
     )
@@ -1523,6 +1523,17 @@ class AprobadorGerencia(Base, TimestampMixin):
     cargo: Mapped[str] = mapped_column(String(150), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Categoría de flujo: 'general' (mantenimiento/general/tarjeta_cq) | 'comercial' (tarjeta_comercial)
+    categoria: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="general", server_default="general"
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "categoria IN ('general','comercial')",
+            name="check_aprobador_categoria_valid"
+        ),
+    )
 
     def __repr__(self):
         return f"<AprobadorGerencia(nombre={self.nombre}, email={self.email})>"

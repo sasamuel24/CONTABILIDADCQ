@@ -379,7 +379,9 @@ export async function fetchAPI<T>(
         error = await response.json();
       } catch {
         const text = await response.text().catch(() => response.statusText);
-        throw new Error(`Error del servidor (${response.status}): ${text}`);
+        const err = new Error(`Error del servidor (${response.status}): ${text}`);
+        (err as Error & { status?: number }).status = response.status;
+        throw err;
       }
 
       // Para errores de validación (422), mostrar detalles completos
@@ -388,13 +390,17 @@ export async function fetchAPI<T>(
         const message = typeof error.detail === 'string'
           ? error.detail
           : JSON.stringify(error.detail);
-        throw new Error(`Error de validación: ${message}`);
+        const err = new Error(`Error de validación: ${message}`);
+        (err as Error & { status?: number }).status = response.status;
+        throw err;
       }
 
       const message = typeof error.detail === 'string'
         ? error.detail
         : error.detail?.message || 'Error en la solicitud';
-      throw new Error(message);
+      const err2 = new Error(message);
+      (err2 as Error & { status?: number }).status = response.status;
+      throw err2;
     }
 
     // Si es 204 No Content, retornar null
@@ -2123,9 +2129,17 @@ export async function editarGasto(
 
 /** Eliminar línea de gasto */
 export async function eliminarGasto(paqueteId: string, gastoId: string): Promise<void> {
-  return fetchAPI<void>(`/gastos/paquetes/${paqueteId}/gastos/${gastoId}`, {
-    method: 'DELETE',
-  });
+  try {
+    return await fetchAPI<void>(`/gastos/paquetes/${paqueteId}/gastos/${gastoId}`, {
+      method: 'DELETE',
+    });
+  } catch (err) {
+    // 404 = el gasto ya no existe en el backend (borrado en otra sesión o fila
+    // obsoleta). El objetivo -que el gasto no exista- ya se cumplió, así que lo
+    // tratamos como éxito idempotente y dejamos que la UI elimine la fila.
+    if ((err as { status?: number })?.status === 404) return;
+    throw err;
+  }
 }
 
 // --- Archivos soporte -------------------------------------------------------

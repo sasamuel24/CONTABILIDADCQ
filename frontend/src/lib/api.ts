@@ -1869,6 +1869,8 @@ export interface GastoOut {
   cuenta_auxiliar: { id: string; codigo: string; descripcion: string } | null;
   valor_pagado: number;
   orden: number;
+  observaciones?: string | null;
+  solicitud_id?: string | null;
   archivos: ArchivoGastoOut[];
   estado_gasto: string;
   motivo_devolucion_gasto?: string | null;
@@ -1910,6 +1912,15 @@ export interface AnticipoBrief {
   descripcion: string | null;
 }
 
+export interface SolicitudAprobacionOut {
+  id: string;
+  aprobador: AprobadorBrief;
+  estado: 'pendiente' | 'aprobada' | 'anulada';
+  expires_at: string;
+  fecha_respuesta: string | null;
+  created_at: string;
+}
+
 export interface PaqueteOut {
   id: string;
   semana: string;
@@ -1930,6 +1941,10 @@ export interface PaqueteOut {
   revisado_por: { id: string; nombre: string; email: string } | null;
   aprobador: AprobadorBrief | null;
   anticipo: AnticipoBrief | null;
+  comercial_hijo?: { id: string; nombre: string } | null;
+  solicitudes?: SolicitudAprobacionOut[];
+  aprobacion_parcial?: boolean | null;
+  solicitudes_pendientes?: number | null;
   gastos: GastoOut[];
   comentarios: ComentarioPaqueteOut[];
   historial_estados: HistorialEstadoOut[];
@@ -1959,6 +1974,7 @@ export interface PaqueteListItem {
   tecnico: { id: string; nombre: string; email: string } | null;
   aprobador: AprobadorBrief | null;
   anticipo: AnticipoBrief | null;
+  comercial_hijo?: { id: string; nombre: string } | null;
   created_at: string;
   updated_at: string;
 }
@@ -1979,6 +1995,7 @@ export interface GastoCreate {
   cuenta_auxiliar_id?: string;
   valor_pagado: number;
   orden?: number;
+  observaciones?: string;
 }
 
 export interface GastoUpdate {
@@ -1992,6 +2009,7 @@ export interface GastoUpdate {
   cuenta_auxiliar_id?: string;
   valor_pagado?: number;
   orden?: number;
+  observaciones?: string;
 }
 
 // --- Paquetes ---------------------------------------------------------------
@@ -2014,12 +2032,24 @@ export async function getPaqueteGasto(paqueteId: string): Promise<PaqueteOut> {
 }
 
 /** Crear nuevo paquete semanal */
-export async function createPaqueteGasto(semana: string): Promise<PaqueteOut> {
+export async function createPaqueteGasto(semana: string, comercialHijoId?: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>('/gastos/paquetes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ semana }),
+    body: JSON.stringify({ semana, ...(comercialHijoId ? { comercial_hijo_id: comercialHijoId } : {}) }),
   });
+}
+
+// --- Hijos comerciales (flujo tarjeta comercial) -----------------------------
+
+export interface ComercialHijo {
+  id: string;
+  nombre: string;
+}
+
+/** Hijos comerciales activos del comercial padre autenticado */
+export async function getMisHijosComerciales(): Promise<ComercialHijo[]> {
+  return fetchAPI<ComercialHijo[]>('/gastos/comercial/mis-hijos');
 }
 
 // --- Workflow ---------------------------------------------------------------
@@ -2044,6 +2074,19 @@ export async function aprobarPaquete(paqueteId: string): Promise<PaqueteOut> {
 /** Responsable (validador) valida un paquete comercial: en_validacion → en_revision (envía al gerente) */
 export async function validarPaquete(paqueteId: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/validar`, { method: 'POST' });
+}
+
+/** Responsable valida un paquete comercial dividiéndolo en N solicitudes de aprobación,
+ *  cada una con su aprobador. Todos los gastos deben quedar asignados. */
+export async function validarPaqueteMultiple(
+  paqueteId: string,
+  solicitudes: { aprobador_id: string; gasto_ids: string[] }[]
+): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/validar-multiple`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ solicitudes }),
+  });
 }
 
 /** Admin devuelve el paquete con un motivo */

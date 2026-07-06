@@ -3,6 +3,10 @@ import httpx
 from typing import Optional
 from core.logging import logger
 from core.config import settings
+from core.s3_service import s3_service
+
+# Vigencia de los enlaces a soportes en el correo de aprobación (igual al token: 72 horas)
+SOPORTE_URL_EXPIRES_IN = 72 * 3600
 
 
 class EmailService:
@@ -65,25 +69,78 @@ class EmailService:
             resp.raise_for_status()
 
     async def enviar_solicitud_aprobacion(
-        self, paquete, token_str: str, email_override: Optional[str] = None
+        self, paquete, token_str: str, email_override: Optional[str] = None,
+        solo_gastos_ids: Optional[set] = None,
+        es_visto_bueno: bool = False,
     ) -> None:
         """
         Envía correo de solicitud de aprobación al aprobador.
         paquete: instancia de PaqueteGasto con gastos cargados.
+        solo_gastos_ids: si se indica, el correo es una SOLICITUD PARCIAL — la tabla
+        y el monto incluyen solo esos gastos (flujo comercial multi-gerente).
+        es_visto_bueno: solicitud de visto bueno general del gerente comercial —
+        muestra el paquete completo y aclara que otros aprobadores actúan en paralelo.
         """
         try:
             folio = getattr(paquete, "folio", None) or str(paquete.id)[:8]
             nombre_tecnico = paquete.tecnico.nombre if paquete.tecnico else "Técnico"
             semana = paquete.semana
-            monto_total = float(paquete.monto_total)
             fecha_inicio = paquete.fecha_inicio.strftime("%d/%m/%Y")
             fecha_fin = paquete.fecha_fin.strftime("%d/%m/%Y")
 
+            gastos_correo = [
+                g for g in paquete.gastos
+                if solo_gastos_ids is None or g.id in solo_gastos_ids
+            ]
+            monto_total = float(sum(float(g.valor_pagado) for g in gastos_correo)) \
+                if solo_gastos_ids is not None else float(paquete.monto_total)
+            es_parcial = solo_gastos_ids is not None and len(gastos_correo) < len(paquete.gastos)
+            if es_visto_bueno:
+                nota_parcial = (
+                    f'<p style="background:#e0f2fe;border:1px solid #bae6fd;border-radius:4px;'
+                    f'padding:10px 14px;color:#075985;font-size:0.9em">'
+                    f'Usted recibe esta solicitud como <strong>gerente comercial</strong> para dar el '
+                    f'<strong>visto bueno final del paquete completo</strong>. Los gastos también están '
+                    f'siendo aprobados en paralelo por los gerentes de cada centro; el paquete pasará a '
+                    f'Radicación cuando todas las aprobaciones estén registradas.</p>'
+                )
+            elif es_parcial:
+                nota_parcial = (
+                    f'<p style="background:#fef3c7;border:1px solid #fde68a;border-radius:4px;'
+                    f'padding:10px 14px;color:#92400e;font-size:0.9em">'
+                    f'Esta solicitud incluye <strong>{len(gastos_correo)} de {len(paquete.gastos)}</strong> '
+                    f'gastos del paquete. Los demás gastos fueron asignados a otros aprobadores; '
+                    f'usted solo aprueba los listados abajo.</p>'
+                )
+            else:
+                nota_parcial = ""
+
+            # Flujo tarjeta_comercial: paquete legalizado a nombre de un hijo comercial
+            hijo = getattr(paquete, "comercial_hijo", None)
+            fila_hijo = (
+                f'<tr><td style="padding:4px 12px;font-weight:bold">A nombre de:</td>'
+                f'<td>{hijo.nombre}</td></tr>'
+            ) if hijo else ""
+
             # Construir filas de la tabla de gastos
             filas_gastos = ""
-            for g in paquete.gastos:
+            for g in gastos_correo:
                 ca = g.cuenta_auxiliar
                 cuenta_str = f"{ca.codigo} — {ca.descripcion}" if ca else "—"
+
+                # Enlaces a los soportes adjuntos (URLs prefirmadas de S3, misma vigencia que el token)
+                links_soportes = []
+                for arch in getattr(g, "archivos", []) or []:
+                    try:
+                        url_soporte = s3_service.presign_get_url(arch.s3_key, expires_in=SOPORTE_URL_EXPIRES_IN)
+                        links_soportes.append(
+                            f"<a href='{url_soporte}' target='_blank' "
+                            f"style='color:#1a3c6e;text-decoration:underline'>{arch.filename}</a>"
+                        )
+                    except Exception as e_arch:
+                        logger.warning(f"No se pudo generar enlace de soporte {arch.s3_key}: {e_arch}")
+                soporte_str = "<br>".join(links_soportes) if links_soportes else "—"
+
                 filas_gastos += (
                     f"<tr>"
                     f"<td style='padding:6px;border:1px solid #ddd'>{g.fecha.strftime('%d/%m/%Y')}</td>"
@@ -92,6 +149,7 @@ class EmailService:
                     f"<td style='padding:6px;border:1px solid #ddd'>{cuenta_str}</td>"
                     f"<td style='padding:6px;border:1px solid #ddd;text-align:right'>"
                     f"${float(g.valor_pagado):,.2f}</td>"
+                    f"<td style='padding:6px;border:1px solid #ddd'>{soporte_str}</td>"
                     f"</tr>"
                 )
 
@@ -101,11 +159,13 @@ class EmailService:
             <html><body style="font-family:Arial,sans-serif;color:#333">
             <h2 style="color:#1a3c6e">Solicitud de Aprobación de Gastos</h2>
             <p>Se ha enviado un paquete de gastos para su aprobación.</p>
+            {nota_parcial}
             <table style="border-collapse:collapse;margin-bottom:16px">
               <tr><td style="padding:4px 12px;font-weight:bold">Folio:</td><td>{folio}</td></tr>
               <tr><td style="padding:4px 12px;font-weight:bold">Técnico:</td><td>{nombre_tecnico}</td></tr>
+              {fila_hijo}
               <tr><td style="padding:4px 12px;font-weight:bold">Semana:</td><td>{semana} ({fecha_inicio} – {fecha_fin})</td></tr>
-              <tr><td style="padding:4px 12px;font-weight:bold">Monto Total:</td>
+              <tr><td style="padding:4px 12px;font-weight:bold">{'Monto de esta solicitud:' if es_parcial else 'Monto Total:'}</td>
                   <td style="font-size:1.1em;font-weight:bold;color:#1a6e3c">${monto_total:,.2f} COP</td></tr>
             </table>
 
@@ -118,10 +178,14 @@ class EmailService:
                   <th style="padding:8px;border:1px solid #ddd">Concepto</th>
                   <th style="padding:8px;border:1px solid #ddd">Cuenta Contable</th>
                   <th style="padding:8px;border:1px solid #ddd">Valor</th>
+                  <th style="padding:8px;border:1px solid #ddd">Soporte</th>
                 </tr>
               </thead>
               <tbody>{filas_gastos}</tbody>
             </table>
+            <p style="color:#888;font-size:0.85em">
+              Los enlaces de la columna "Soporte" abren la imagen o PDF adjuntado y son válidos por 72 horas.
+            </p>
 
             <p>Para aprobar este paquete, haga clic en el siguiente enlace (válido por 72 horas):</p>
             <p>

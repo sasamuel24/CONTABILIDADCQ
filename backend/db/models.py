@@ -1151,9 +1151,24 @@ class PaqueteGasto(Base, TimestampMixin):
         nullable=True,
         index=True
     )
+    # Flujo tarjeta_comercial: hijo comercial a cuyo nombre el padre legaliza el paquete
+    comercial_hijo_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("comerciales_hijos.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True
+    )
 
     # Relaciones
     tecnico: Mapped["User"] = relationship("User", foreign_keys=[user_id], lazy="selectin")
+    comercial_hijo: Mapped[Optional["ComercialHijo"]] = relationship(
+        "ComercialHijo", foreign_keys=[comercial_hijo_id], lazy="selectin"
+    )
+    # Solicitudes parciales de aprobación (flujo comercial multi-gerente).
+    # lazy="select": cargar explícitamente con selectinload donde se necesite.
+    solicitudes: Mapped[List["SolicitudAprobacion"]] = relationship(
+        "SolicitudAprobacion", lazy="select", cascade="all, delete-orphan"
+    )
     area: Mapped["Area"] = relationship("Area", lazy="selectin")
     revisado_por: Mapped[Optional["User"]] = relationship(
         "User", foreign_keys=[revisado_por_user_id], lazy="selectin"
@@ -1234,6 +1249,13 @@ class GastoLegalizacion(Base, TimestampMixin):
     )
     valor_pagado: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
     orden: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
+    observaciones: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # Solicitud parcial de aprobación a la que fue asignado este gasto (flujo comercial multi-gerente)
+    solicitud_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("solicitudes_aprobacion.id", ondelete="SET NULL"),
+        nullable=True, index=True
+    )
 
     cm_pdf_s3_key: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True
@@ -1537,6 +1559,70 @@ class AprobadorGerencia(Base, TimestampMixin):
 
     def __repr__(self):
         return f"<AprobadorGerencia(nombre={self.nombre}, email={self.email})>"
+
+
+class SolicitudAprobacion(Base, TimestampMixin):
+    """Solicitud parcial de aprobación de un paquete: un subconjunto de gastos
+    enviado a un aprobador de gerencia con su propio token. El paquete pasa a
+    'aprobado' cuando TODAS sus solicitudes están aprobadas."""
+    __tablename__ = "solicitudes_aprobacion"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    paquete_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("paquetes_gastos.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    aprobador_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("aprobadores_gerencia.id", ondelete="RESTRICT"),
+        nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    estado: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pendiente", server_default="pendiente"
+    )
+    expires_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    fecha_respuesta: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    usado_por_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+
+    aprobador: Mapped["AprobadorGerencia"] = relationship(
+        "AprobadorGerencia", foreign_keys=[aprobador_id], lazy="selectin"
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "estado IN ('pendiente','aprobada','anulada')",
+            name="check_solicitud_estado_valid"
+        ),
+    )
+
+    def __repr__(self):
+        return f"<SolicitudAprobacion(paquete={self.paquete_id}, aprobador={self.aprobador_id}, estado={self.estado})>"
+
+
+class ComercialHijo(Base, TimestampMixin):
+    """Vendedor (hijo) a cargo de un usuario comercial padre. No tiene login;
+    el padre legaliza paquetes de tarjeta comercial a su nombre."""
+    __tablename__ = "comerciales_hijos"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    padre_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    nombre: Mapped[str] = mapped_column(String(200), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    def __repr__(self):
+        return f"<ComercialHijo(nombre={self.nombre}, padre={self.padre_user_id})>"
 
 
 class TokenAprobacionFactura(Base, TimestampMixin):

@@ -91,6 +91,7 @@ class GastoCreate(BaseModel):
     cuenta_auxiliar_id: Optional[UUID] = None
     valor_pagado: Decimal = Field(..., gt=0)
     orden: int = Field(0, ge=0)
+    observaciones: Optional[str] = Field(None, max_length=500)
 
 
 class GastoUpdate(BaseModel):
@@ -104,6 +105,7 @@ class GastoUpdate(BaseModel):
     cuenta_auxiliar_id: Optional[UUID] = None
     valor_pagado: Optional[Decimal] = Field(None, gt=0)
     orden: Optional[int] = Field(None, ge=0)
+    observaciones: Optional[str] = Field(None, max_length=500)
 
 
 class GastoOut(BaseModel):
@@ -122,6 +124,8 @@ class GastoOut(BaseModel):
     cuenta_auxiliar: Optional[CuentaAuxiliarBrief]
     valor_pagado: Decimal
     orden: int
+    observaciones: Optional[str] = None
+    solicitud_id: Optional[UUID] = None
     estado_gasto: str = "pendiente"
     motivo_devolucion_gasto: Optional[str] = None
     archivos: List[ArchivoGastoOut] = []
@@ -174,9 +178,36 @@ class HistorialEstadoOut(BaseModel):
 ESTADOS_VALIDOS = {"borrador", "en_revision", "devuelto", "aprobado", "en_tesoreria", "pagado"}
 
 
+class ComercialHijoBrief(BaseModel):
+    id: UUID
+    nombre: str
+    model_config = {"from_attributes": True}
+
+
+class SolicitudAprobacionOut(BaseModel):
+    id: UUID
+    aprobador: AprobadorBrief
+    estado: str
+    expires_at: datetime
+    fecha_respuesta: Optional[datetime] = None
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class SolicitudAprobacionCreate(BaseModel):
+    aprobador_id: UUID
+    gasto_ids: List[UUID] = Field(..., min_length=1)
+
+
+class ValidarMultipleRequest(BaseModel):
+    solicitudes: List[SolicitudAprobacionCreate] = Field(..., min_length=1)
+
+
 class PaqueteCreate(BaseModel):
     semana: str = Field(..., pattern=r"^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$",
                         description="Semana ISO, ej: 2026-W09")
+    # Flujo tarjeta_comercial: hijo comercial a cuyo nombre se legaliza (opcional)
+    comercial_hijo_id: Optional[UUID] = None
 
 
 class PaqueteEnviarRequest(BaseModel):
@@ -207,6 +238,11 @@ class PaqueteOut(BaseModel):
     revisado_por: Optional[UserBrief]
     aprobador: Optional[AprobadorBrief] = None
     anticipo: Optional[AnticipoBrief] = None
+    comercial_hijo: Optional[ComercialHijoBrief] = None
+    solicitudes: List[SolicitudAprobacionOut] = []
+    # Solo en la respuesta de aprobar-por-token cuando el token es de una solicitud parcial
+    aprobacion_parcial: Optional[bool] = None
+    solicitudes_pendientes: Optional[int] = None
     gastos: List[GastoOut] = []
     comentarios: List[ComentarioPaqueteOut] = []
     historial_estados: List[HistorialEstadoOut] = []
@@ -237,6 +273,7 @@ class PaqueteListItem(BaseModel):
     tecnico: Optional[UserBrief] = None
     aprobador: Optional[AprobadorBrief] = None
     anticipo: Optional[AnticipoBrief] = None
+    comercial_hijo: Optional[ComercialHijoBrief] = None
     created_at: datetime
     updated_at: datetime
     model_config = {"from_attributes": True}

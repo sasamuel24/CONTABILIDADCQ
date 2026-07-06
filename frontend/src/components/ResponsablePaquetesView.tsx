@@ -9,6 +9,8 @@ import {
   getPaqueteGasto,
   aprobarPaquete,
   validarPaquete,
+  validarPaqueteMultiple,
+  getAprobadoresActivos,
   devolverPaquete,
   devolverGasto,
   pagarPaquete,
@@ -35,6 +37,7 @@ import {
   CentroCosto,
   CentroOperacion,
   CuentaAuxiliar,
+  AprobadorGerencia,
 } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
@@ -260,6 +263,19 @@ function DetallePaqueteResponsable({
   // Ediciones locales de asignaciones por gasto
   const [asignaciones, setAsignaciones] = useState<Record<string, AsignacionLocal>>({});
 
+  // Solicitudes múltiples de aprobación (modo comercial): grupos de gastos por aprobador
+  const [aprobadoresActivos, setAprobadoresActivos] = useState<AprobadorGerencia[]>([]);
+  const [seleccionGastos, setSeleccionGastos] = useState<Set<string>>(new Set());
+  const [gruposSolicitud, setGruposSolicitud] = useState<{ aprobadorId: string; gastoIds: string[] }[]>([]);
+  const [aprobadorGrupoId, setAprobadorGrupoId] = useState('');
+  const [loadingValidarMultiple, setLoadingValidarMultiple] = useState(false);
+
+  useEffect(() => {
+    if (modo === 'comercial') {
+      getAprobadoresActivos().then(setAprobadoresActivos).catch(() => {});
+    }
+  }, [modo]);
+
   // Sincronizar correoGerEnviado cuando se actualiza el paquete
   useEffect(() => {
     if (paquete) setCorreoGerEnviado(!!paquete.fecha_envio_gerencia);
@@ -367,6 +383,46 @@ function DetallePaqueteResponsable({
       toast.error(msg);
     } finally {
       setLoadingAprobar(false);
+    }
+  };
+
+  // --- Solicitudes múltiples (modo comercial) ---
+
+  const toggleSeleccionGasto = (gastoId: string) => {
+    setSeleccionGastos((prev) => {
+      const next = new Set(prev);
+      if (next.has(gastoId)) next.delete(gastoId); else next.add(gastoId);
+      return next;
+    });
+  };
+
+  const handleAgregarGrupo = () => {
+    if (!aprobadorGrupoId) { toast.error('Selecciona el aprobador para esta solicitud'); return; }
+    if (seleccionGastos.size === 0) { toast.error('Marca al menos un gasto para la solicitud'); return; }
+    setGruposSolicitud((prev) => [...prev, { aprobadorId: aprobadorGrupoId, gastoIds: Array.from(seleccionGastos) }]);
+    setSeleccionGastos(new Set());
+    setAprobadorGrupoId('');
+  };
+
+  const handleQuitarGrupo = (idx: number) => {
+    setGruposSolicitud((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleValidarMultiple = async () => {
+    if (!paquete) return;
+    if (hayAsignacionesDirty) await handleGuardarAsignaciones();
+    setLoadingValidarMultiple(true);
+    try {
+      await validarPaqueteMultiple(
+        paquete.id,
+        gruposSolicitud.map((g) => ({ aprobador_id: g.aprobadorId, gasto_ids: g.gastoIds })),
+      );
+      toast.success(`Paquete validado. Se enviaron ${gruposSolicitud.length} solicitud(es) de aprobación.`);
+      onAccion();
+    } catch (e: unknown) {
+      toast.error((e as { detail?: string })?.detail ?? 'Error al enviar las solicitudes');
+    } finally {
+      setLoadingValidarMultiple(false);
     }
   };
 
@@ -612,6 +668,15 @@ function DetallePaqueteResponsable({
   const gastosDevueltos = paquete.gastos.filter((g) => g.estado_gasto === 'devuelto');
   const gastosVisibles = filtroGastos === 'devueltos' ? gastosDevueltos : paquete.gastos;
   const hayDevueltos = gastosDevueltos.length > 0;
+
+  // Solicitudes múltiples (modo comercial): mapa gasto → índice de grupo armado
+  const modoSeleccion = modo === 'comercial' && puedeActuar;
+  const gastoEnGrupo: Record<string, number> = {};
+  gruposSolicitud.forEach((g, i) => g.gastoIds.forEach((id) => { gastoEnGrupo[id] = i; }));
+  const gastosSinAsignar = paquete.gastos.filter(
+    (g) => g.estado_gasto !== 'devuelto' && gastoEnGrupo[g.id] === undefined,
+  );
+  const solicitudesVisibles = (paquete.solicitudes ?? []).filter((s) => s.estado !== 'anulada');
   // Cualquier rol puede subir documentos mientras está en revisión
   const puedeSubirDocs = paquete.estado === estadoAccion;
   const puedeEditarAsignaciones = paquete.estado === estadoAccion;
@@ -711,6 +776,9 @@ function DetallePaqueteResponsable({
               <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
                 <span className="text-gray-400">Técnico: </span>
                 <span className="font-semibold text-gray-700">{paquete.tecnico?.nombre ?? '—'}</span>
+                {paquete.comercial_hijo && (
+                  <span className="text-gray-400"> · A nombre de: <span className="font-semibold text-gray-700">{paquete.comercial_hijo.nombre}</span></span>
+                )}
               </span>
             </div>
             <div className="flex items-center gap-2 text-gray-600">
@@ -910,23 +978,144 @@ function DetallePaqueteResponsable({
             </div>
           )}
 
+          {/* Estado de las solicitudes de aprobación (flujo comercial multi-gerente) */}
+          {solicitudesVisibles.length > 0 && (
+            <div className="mt-6 pt-5 border-t border-gray-100">
+              <p className="text-sm font-bold text-gray-700 mb-3" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                Solicitudes de aprobación ({solicitudesVisibles.filter((s) => s.estado === 'aprobada').length}/{solicitudesVisibles.length} aprobadas)
+              </p>
+              <div className="space-y-2">
+                {solicitudesVisibles.map((s) => (
+                  <div key={s.id} className="flex items-center gap-3 rounded-lg border px-4 py-2.5"
+                    style={{ borderColor: s.estado === 'aprobada' ? '#bbf7d0' : '#fde68a', backgroundColor: s.estado === 'aprobada' ? '#f0fdf4' : '#fffbeb' }}>
+                    {s.estado === 'aprobada'
+                      ? <CheckCircle2 className="w-4 h-4 shrink-0 text-green-600" />
+                      : <Mail className="w-4 h-4 shrink-0 text-amber-500" />}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-700 truncate" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                        {s.aprobador.nombre} <span className="font-normal text-gray-400">· {s.aprobador.cargo}</span>
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {paquete.gastos.filter((g) => g.solicitud_id === s.id).length === 0
+                          ? <>Visto bueno general del paquete · {fmtMonto(paquete.monto_total)}</>
+                          : <>{paquete.gastos.filter((g) => g.solicitud_id === s.id).length} gasto(s) ·{' '}
+                            {fmtMonto(paquete.gastos.filter((g) => g.solicitud_id === s.id).reduce((sum, g) => sum + g.valor_pagado, 0))}</>}
+                      </p>
+                    </div>
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full"
+                      style={{ backgroundColor: s.estado === 'aprobada' ? '#dcfce7' : '#fef3c7', color: s.estado === 'aprobada' ? '#16a34a' : '#b45309' }}>
+                      {s.estado === 'aprobada' ? `Aprobada ${s.fecha_respuesta ? fmtFecha(s.fecha_respuesta.slice(0, 10)) : ''}` : 'Pendiente'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Botones de acción — Validación Comercial (validador) */}
           {puedeActuar && modo === 'comercial' && (
-            <div className="flex gap-3 mt-6 pt-5 border-t border-gray-100 flex-wrap items-center">
-              <div className="flex-1">
-                <p className="text-xs text-gray-500" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                  Revisa los gastos y soportes. Puedes devolver gastos individuales (columna "Acción") sin frenar los demás. Al validar, el paquete pasa al gerente comercial para su aprobación por correo.
-                </p>
+            <div className="mt-6 pt-5 border-t border-gray-100">
+              {/* Armado de solicitudes múltiples por aprobador */}
+              <p className="text-sm font-bold text-gray-700 mb-1" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                Solicitudes de aprobación
+              </p>
+              <p className="text-xs text-gray-500 mb-3" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                Puedes enviar todo al gerente comercial con "Validar y enviar al gerente", o armar varias solicitudes:
+                marca gastos con la columna "Sel." (p.ej. por centro de operación), elige el aprobador y agrégalos como solicitud.
+                Cada aprobador recibirá un correo solo con sus gastos, y el paquete quedará aprobado cuando todos respondan.
+              </p>
+              {gruposSolicitud.length > 0 && paquete.aprobador && !gruposSolicitud.some((g) => g.aprobadorId === paquete.aprobador?.id) && (
+                <div className="flex items-start gap-2 rounded-lg border px-3 py-2 mb-3"
+                  style={{ backgroundColor: '#eff6ff', borderColor: '#bfdbfe' }}>
+                  <Mail className="w-4 h-4 shrink-0 mt-0.5 text-blue-500" />
+                  <p className="text-xs text-blue-700" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                    Además de tus solicitudes, se enviará automáticamente una solicitud de <strong>visto bueno del paquete completo</strong> al
+                    gerente comercial (<strong>{paquete.aprobador.nombre}</strong>). El paquete pasará a Radicación solo cuando él y todos los
+                    aprobadores hayan aprobado.
+                  </p>
+                </div>
+              )}
+
+              {gruposSolicitud.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {gruposSolicitud.map((grupo, idx) => {
+                    const aprob = aprobadoresActivos.find((a) => a.id === grupo.aprobadorId);
+                    const monto = paquete.gastos.filter((g) => grupo.gastoIds.includes(g.id)).reduce((s, g) => s + g.valor_pagado, 0);
+                    return (
+                      <div key={idx} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5">
+                        <span className="text-xs font-bold px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: '#e0f5f7', color: '#00829a' }}>
+                          S{idx + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-700 truncate" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                            {aprob ? `${aprob.nombre} · ${aprob.cargo}` : 'Aprobador'}
+                          </p>
+                          <p className="text-xs text-gray-500">{grupo.gastoIds.length} gasto(s) · {fmtMonto(monto)}</p>
+                        </div>
+                        <button onClick={() => handleQuitarGrupo(idx)}
+                          className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="flex gap-2 flex-wrap items-center mb-4">
+                <select value={aprobadorGrupoId} onChange={(e) => setAprobadorGrupoId(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 bg-white min-w-[220px]"
+                  style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                  <option value="">-- Aprobador para la solicitud --</option>
+                  {aprobadoresActivos.map((a) => (
+                    <option key={a.id} value={a.id}>{a.nombre} — {a.cargo}</option>
+                  ))}
+                </select>
+                <button onClick={handleAgregarGrupo}
+                  disabled={seleccionGastos.size === 0 || !aprobadorGrupoId}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-40 border"
+                  style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                  <CheckCircle2 className="w-4 h-4" />
+                  Agregar solicitud ({seleccionGastos.size} seleccionado{seleccionGastos.size !== 1 ? 's' : ''})
+                </button>
               </div>
-              <button
-                onClick={handleAprobar}
-                disabled={loadingAprobar || loadingDevolver}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-              >
-                {loadingAprobar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                Validar y enviar al gerente
-              </button>
+
+              <div className="flex gap-3 flex-wrap items-center">
+                <div className="flex-1">
+                  {gruposSolicitud.length > 0 ? (
+                    <p className="text-xs" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif', color: gastosSinAsignar.length > 0 ? '#d97706' : '#16a34a' }}>
+                      {gastosSinAsignar.length > 0
+                        ? `Faltan ${gastosSinAsignar.length} gasto(s) por asignar a una solicitud.`
+                        : 'Todos los gastos están asignados. Listo para enviar.'}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-500" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                      Puedes devolver gastos individuales (columna "Acción") sin frenar los demás.
+                    </p>
+                  )}
+                </div>
+                {gruposSolicitud.length === 0 ? (
+                  <button
+                    onClick={handleAprobar}
+                    disabled={loadingAprobar || loadingDevolver}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    {loadingAprobar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    Validar y enviar al gerente
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleValidarMultiple}
+                    disabled={loadingValidarMultiple || loadingDevolver || gastosSinAsignar.length > 0}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    {loadingValidarMultiple ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Enviar {gruposSolicitud.length} solicitud{gruposSolicitud.length !== 1 ? 'es' : ''} de aprobación
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -1074,6 +1263,7 @@ function DetallePaqueteResponsable({
                 <thead>
                   <tr style={{ backgroundColor: '#00829a' }}>
                     {[
+                      ...(modoSeleccion ? ['Sel.'] : []),
                       'Fecha', 'Pagado a', 'NIT', 'Concepto', 'No. Recibo',
                       'Centro Costo', 'Centro Operación', 'Cuenta Contable',
                       'Valor', 'Soporte', 'CF PDF',
@@ -1099,6 +1289,23 @@ function DetallePaqueteResponsable({
                         className="border-t border-gray-100"
                         style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#f8fafc' }}
                       >
+                        {modoSeleccion && (
+                          <td className="px-2 py-2 text-center">
+                            {g.estado_gasto === 'devuelto' ? (
+                              <span className="text-xs text-gray-300">—</span>
+                            ) : gastoEnGrupo[g.id] !== undefined ? (
+                              <span className="text-xs font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
+                                style={{ backgroundColor: '#e0f5f7', color: '#00829a' }}
+                                title={`Asignado a la solicitud ${gastoEnGrupo[g.id] + 1}`}>
+                                S{gastoEnGrupo[g.id] + 1}
+                              </span>
+                            ) : (
+                              <input type="checkbox" checked={seleccionGastos.has(g.id)}
+                                onChange={() => toggleSeleccionGasto(g.id)}
+                                className="w-4 h-4 cursor-pointer" style={{ accentColor: '#00829a' }} />
+                            )}
+                          </td>
+                        )}
                         <td className="px-2 py-2 text-gray-600 whitespace-nowrap" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
                           {fmtFecha(g.fecha)}
                         </td>
@@ -1110,6 +1317,11 @@ function DetallePaqueteResponsable({
                         </td>
                         <td className="px-2 py-2 text-gray-700" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif', minWidth: 120 }}>
                           {g.concepto}
+                          {g.observaciones && (
+                            <p className="mt-1 italic" style={{ fontSize: 11, color: '#b45309' }} title={g.observaciones}>
+                              Obs: {g.observaciones}
+                            </p>
+                          )}
                         </td>
                         <td className="px-2 py-2 text-gray-500" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif', minWidth: 80 }}>
                           {g.no_recibo || '—'}
@@ -1487,7 +1699,7 @@ function DetallePaqueteResponsable({
 // ---------------------------------------------------------------------------
 
 type Vista = 'lista' | 'detalle';
-type Filtro = 'todos' | EstadoPaquete;
+type Filtro = 'todos' | 'esperando_gerentes' | EstadoPaquete;
 
 export function ResponsablePaquetesView({
   onVistaChange,
@@ -1555,15 +1767,20 @@ export function ResponsablePaquetesView({
         ? paquetesEnviados.filter(
             (p) => p.estado === 'devuelto' || p.tiene_gastos_devueltos
           )
-        : paquetesEnviados.filter((p) => p.estado === (filtro === 'en_revision' ? estadoRevision : filtro));
+        : filtro === 'esperando_gerentes'
+          ? paquetesEnviados.filter((p) => p.estado === 'en_revision')
+          : paquetesEnviados.filter((p) => p.estado === (filtro === 'en_revision' ? estadoRevision : filtro));
 
-  const pendientes = paquetes.filter((p) => p.estado === estadoRevision).length;
-  const devueltosCount = paquetes.filter(
-    (p) => p.estado !== 'borrador' && (p.estado === 'devuelto' || p.tiene_gastos_devueltos)
+  // Contar sobre paquetesEnviados (ya filtrados por modo) para que los badges
+  // coincidan con lo que la vista realmente muestra.
+  const pendientes = paquetesEnviados.filter((p) => p.estado === estadoRevision).length;
+  const devueltosCount = paquetesEnviados.filter(
+    (p) => p.estado === 'devuelto' || p.tiene_gastos_devueltos
   ).length;
 
   const FILTROS: { value: Filtro; label: string }[] = [
     { value: 'en_revision',  label: modo === 'comercial' ? 'Por validar' : 'En revisión' },
+    ...(modo === 'comercial' ? [{ value: 'esperando_gerentes' as Filtro, label: 'Esperando gerentes' }] : []),
     { value: 'en_tesoreria', label: 'En Tesorería' },
     { value: 'devuelto',     label: 'Devueltos' },
     { value: 'pagado',       label: 'Pagados' },
@@ -1690,7 +1907,10 @@ export function ResponsablePaquetesView({
               <div className="flex items-center gap-4 text-xs text-gray-500">
                 <span className="flex items-center gap-1">
                   <User className="w-3 h-3" />
-                  <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>{p.tecnico?.nombre ?? '—'}</span>
+                  <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                    {p.tecnico?.nombre ?? '—'}
+                    {p.comercial_hijo && <span className="text-gray-400"> → {p.comercial_hijo.nombre}</span>}
+                  </span>
                 </span>
                 <span className="flex items-center gap-1">
                   <Banknote className="w-3 h-3" />

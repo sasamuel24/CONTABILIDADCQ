@@ -9,14 +9,14 @@ from typing import Optional
 
 from db.session import get_db
 from core.auth import get_current_user
-from db.models import User
+from db.models import User, ComercialHijo
 from modules.gastos.service import GastosService
 from modules.gastos.schemas import (
     PaqueteCreate, PaqueteOut, PaqueteListResponse, PaqueteEnviarRequest,
     GastoCreate, GastoUpdate, GastoOut, GastoCreateResponse,
     ArchivoGastoOut, PaqueteDevolver, GastoDevolverRequest,
     PagarPaqueteIn, PagarMasivoIn, PagarMasivoOut,
-    ExtraccionDatosOut,
+    ExtraccionDatosOut, ComercialHijoBrief, ValidarMultipleRequest,
 )
 
 router = APIRouter(tags=["Gastos"])
@@ -43,6 +43,30 @@ async def _get_user_db(
 
 def _svc(db: AsyncSession = Depends(get_db)) -> GastosService:
     return GastosService(db)
+
+
+# =============================================================================
+# HIJOS COMERCIALES
+# =============================================================================
+
+@router.get(
+    "/gastos/comercial/mis-hijos",
+    response_model=list[ComercialHijoBrief],
+    summary="Listar los hijos comerciales del usuario actual (rol comercial)",
+)
+async def listar_mis_hijos_comerciales(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(_get_user_db),
+):
+    """Devuelve los vendedores (hijos) activos a cargo del comercial padre autenticado,
+    para legalizar paquetes a su nombre. Si no tiene hijos, devuelve lista vacía."""
+    result = await db.execute(
+        select(ComercialHijo)
+        .where(ComercialHijo.padre_user_id == user.id)
+        .where(ComercialHijo.is_active == True)
+        .order_by(ComercialHijo.nombre)
+    )
+    return result.scalars().all()
 
 
 # =============================================================================
@@ -201,6 +225,28 @@ async def validar_paquete_comercial(
     if role not in {"admin", "responsable"} and area not in {"admin", "responsable"}:
         raise HTTPException(status_code=403, detail="Solo el Responsable puede validar paquetes comerciales.")
     return await svc.validar_comercial(paquete_id, user.id)
+
+
+@router.post(
+    "/gastos/paquetes/{paquete_id}/validar-multiple",
+    response_model=PaqueteOut,
+    summary="Validar paquete comercial con N solicitudes a distintos aprobadores (responsable/admin)",
+)
+async def validar_paquete_comercial_multiple(
+    paquete_id: UUID,
+    data: ValidarMultipleRequest,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    """El Responsable divide los gastos del paquete en varias solicitudes de aprobación,
+    cada una dirigida a un aprobador distinto (p.ej. por centro de operación). Todos los
+    gastos deben quedar asignados. El paquete queda 'aprobado' cuando todas las
+    solicitudes sean aprobadas por sus gerentes."""
+    role = user.role.code.lower() if user.role else ""
+    area = user.area.code.lower() if user.area else ""
+    if role not in {"admin", "responsable"} and area not in {"admin", "responsable"}:
+        raise HTTPException(status_code=403, detail="Solo el Responsable puede validar paquetes comerciales.")
+    return await svc.validar_comercial_multiple(paquete_id, user.id, data)
 
 
 @router.post(

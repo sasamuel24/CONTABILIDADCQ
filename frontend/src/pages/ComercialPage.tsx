@@ -25,6 +25,7 @@ import {
   Sparkles,
   CreditCard,
   ShieldCheck,
+  UserRound,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
@@ -49,14 +50,14 @@ import {
   getDownloadUrlArchivoGasto,
   getCentrosCosto,
   getCentrosOperacion,
-  getCuentasAuxiliares,
   getAprobadoresActivos,
   reenviarGasto,
   checkBuzon,
   extraerDatosImagen,
+  getMisHijosComerciales,
+  ComercialHijo,
   CentroCosto,
   CentroOperacion,
-  CuentaAuxiliar,
 } from '../lib/api';
 
 // ============================================================
@@ -75,6 +76,7 @@ type GastoLocal = {
   centroCostoId: string;
   centroOperacionId: string;
   cuentaAuxiliarId: string;
+  observaciones: string;
   archivos: ArchivoGastoOut[];
   pendingFiles: { localKey: string; file: File; categoria: CategoriaGasto }[];
   isDirty: boolean;
@@ -147,6 +149,7 @@ function gastoOutToLocal(g: GastoOut): GastoLocal {
     centroCostoId: g.centro_costo_id ?? '',
     centroOperacionId: g.centro_operacion_id ?? '',
     cuentaAuxiliarId: g.cuenta_auxiliar_id ?? '',
+    observaciones: g.observaciones ?? '',
     archivos: g.archivos,
     pendingFiles: [],
     isDirty: false,
@@ -168,6 +171,7 @@ function filaVaciaLocal(): GastoLocal {
     centroCostoId: '',
     centroOperacionId: '',
     cuentaAuxiliarId: '',
+    observaciones: '',
     archivos: [],
     pendingFiles: [],
     isDirty: false,
@@ -288,7 +292,6 @@ interface CardGastoProps {
   saving: boolean;
   centrosCosto: CentroCosto[];
   centrosOperacion: CentroOperacion[];
-  cuentasAuxiliares: CuentaAuxiliar[];
   onCampo: (localId: string, campo: keyof GastoLocal, valor: string) => void;
   onEliminarFila: (localId: string) => void;
   onAdjuntar: (localId: string, file: File, categoria: CategoriaGasto) => void;
@@ -302,7 +305,7 @@ interface CardGastoProps {
 
 function CardGasto({
   fila, idx, bloqueado, saving,
-  centrosCosto, centrosOperacion, cuentasAuxiliares,
+  centrosCosto, centrosOperacion,
   onCampo, onEliminarFila, onAdjuntar,
   onQuitarArchivoGuardado, onQuitarArchivoPendiente,
   onVerArchivo, onReenviarGasto, onEscanear, escaneando,
@@ -448,7 +451,7 @@ function CardGasto({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide"
               style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Centro de Costos</label>
@@ -467,17 +470,24 @@ function CardGasto({
                 {centrosOperacion.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               </select>}
           </div>
+        </div>
+
+        {(!bloqueado || fila.observaciones.trim() !== '') && (
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide"
-              style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Cuenta Contable</label>
-            {bloqueado ? <p className={inputReadCls}>{cuentasAuxiliares.find(c => c.id === fila.cuentaAuxiliarId)
-              ? `${cuentasAuxiliares.find(c => c.id === fila.cuentaAuxiliarId)!.codigo} - ${cuentasAuxiliares.find(c => c.id === fila.cuentaAuxiliarId)!.descripcion}` : '—'}</p>
-              : <select value={fila.cuentaAuxiliarId} onChange={(e) => onCampo(fila.localId, 'cuentaAuxiliarId', e.target.value)} className={selectCls}>
-                <option value="">-- Seleccionar --</option>
-                {cuentasAuxiliares.map(c => <option key={c.id} value={c.id}>{c.codigo} - {c.descripcion}</option>)}
-              </select>}
+              style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+              Observaciones <span className="normal-case font-normal text-gray-400">(opcional)</span>
+            </label>
+            {bloqueado ? (
+              <p className={`${inputReadCls} whitespace-pre-wrap`}>{fila.observaciones}</p>
+            ) : (
+              <textarea rows={2} maxLength={500} placeholder="Anota aquí cualquier observación sobre este gasto..."
+                value={fila.observaciones}
+                onChange={(e) => onCampo(fila.localId, 'observaciones', e.target.value)}
+                className={`${inputCls} resize-y`} />
+            )}
           </div>
-        </div>
+        )}
 
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide"
@@ -561,7 +571,6 @@ interface TablaGastosProps {
   saving: boolean;
   centrosCosto: CentroCosto[];
   centrosOperacion: CentroOperacion[];
-  cuentasAuxiliares: CuentaAuxiliar[];
   onCampo: (localId: string, campo: keyof GastoLocal, valor: string) => void;
   onAgregarFila: () => void;
   onEliminarFila: (localId: string) => void;
@@ -574,7 +583,7 @@ interface TablaGastosProps {
   escaneandoId: string | null;
 }
 
-function TablaGastos({ filas, bloqueado, saving, centrosCosto, centrosOperacion, cuentasAuxiliares, onCampo, onAgregarFila, onEliminarFila, onAdjuntar, onQuitarArchivoGuardado, onQuitarArchivoPendiente, onVerArchivo, onReenviarGasto, onEscanear, escaneandoId }: TablaGastosProps) {
+function TablaGastos({ filas, bloqueado, saving, centrosCosto, centrosOperacion, onCampo, onAgregarFila, onEliminarFila, onAdjuntar, onQuitarArchivoGuardado, onQuitarArchivoPendiente, onVerArchivo, onReenviarGasto, onEscanear, escaneandoId }: TablaGastosProps) {
   const totalCalculado = filas.reduce((acc, f) => acc + (parseFloat(f.valorPagado.replace(/[^0-9.]/g, '')) || 0), 0);
 
   return (
@@ -600,7 +609,7 @@ function TablaGastos({ filas, bloqueado, saving, centrosCosto, centrosOperacion,
       <div className="space-y-3">
         {filas.map((fila, idx) => (
           <CardGasto key={fila.localId} fila={fila} idx={idx} bloqueado={bloqueado} saving={saving}
-            centrosCosto={centrosCosto} centrosOperacion={centrosOperacion} cuentasAuxiliares={cuentasAuxiliares}
+            centrosCosto={centrosCosto} centrosOperacion={centrosOperacion}
             onCampo={onCampo} onEliminarFila={onEliminarFila} onAdjuntar={onAdjuntar}
             onQuitarArchivoGuardado={onQuitarArchivoGuardado} onQuitarArchivoPendiente={onQuitarArchivoPendiente}
             onVerArchivo={onVerArchivo} onReenviarGasto={onReenviarGasto}
@@ -651,11 +660,10 @@ function DetallePaqueteComercial({
   const [escaneandoId, setEscaneandoId] = useState<string | null>(null);
   const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
   const [centrosOperacion, setCentrosOperacion] = useState<CentroOperacion[]>([]);
-  const [cuentasAuxiliares, setCuentasAuxiliares] = useState<CuentaAuxiliar[]>([]);
 
   useEffect(() => {
-    Promise.all([getCentrosCosto(), getCentrosOperacion(), getCuentasAuxiliares()])
-      .then(([cc, co, ca]) => { setCentrosCosto(cc); setCentrosOperacion(co); setCuentasAuxiliares(ca); })
+    Promise.all([getCentrosCosto(), getCentrosOperacion()])
+      .then(([cc, co]) => { setCentrosCosto(cc); setCentrosOperacion(co); })
       .catch(() => {});
   }, []);
 
@@ -793,6 +801,7 @@ function DetallePaqueteComercial({
           centro_costo_id: fila.centroCostoId || undefined,
           centro_operacion_id: fila.centroOperacionId || undefined,
           cuenta_auxiliar_id: fila.cuentaAuxiliarId || undefined,
+          observaciones: fila.observaciones.trim() || undefined,
         });
         gastoId = creado.id;
         if (creado.aviso_buzon) toast.info(creado.aviso_buzon, { duration: 8000 });
@@ -803,6 +812,7 @@ function DetallePaqueteComercial({
           no_recibo: fila.noRecibo || undefined, valor_pagado: parseFloat(fila.valorPagado) || undefined,
           centro_costo_id: fila.centroCostoId || undefined, centro_operacion_id: fila.centroOperacionId || undefined,
           cuenta_auxiliar_id: fila.cuentaAuxiliarId || undefined,
+          observaciones: fila.observaciones.trim(),
         });
       }
       for (const pf of fila.pendingFiles) {
@@ -897,6 +907,12 @@ function DetallePaqueteComercial({
               <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#00829a' }}>
                 <Banknote className="w-4 h-4" /> {fmtMonto(paquete.monto_total)}
               </span>
+              {paquete.comercial_hijo && (
+                <span className="flex items-center gap-1.5 text-xs text-gray-400">
+                  <UserRound className="w-3.5 h-3.5" style={{ color: '#00829a' }} />
+                  A nombre de: <strong className="text-gray-600">{paquete.comercial_hijo.nombre}</strong>
+                </span>
+              )}
               {paquete.aprobador && (
                 <span className="flex items-center gap-1.5 text-xs text-gray-400">
                   <BadgeCheck className="w-3.5 h-3.5 text-amber-500" />
@@ -944,7 +960,7 @@ function DetallePaqueteComercial({
 
       <div className="bg-white rounded-2xl border border-gray-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
         <TablaGastos filas={gastos} bloqueado={bloqueado} saving={saving}
-          centrosCosto={centrosCosto} centrosOperacion={centrosOperacion} cuentasAuxiliares={cuentasAuxiliares}
+          centrosCosto={centrosCosto} centrosOperacion={centrosOperacion}
           onCampo={handleCampo} onAgregarFila={handleAgregarFila} onEliminarFila={handleEliminarFila}
           onAdjuntar={handleAdjuntar} onQuitarArchivoGuardado={handleQuitarArchivoGuardado}
           onQuitarArchivoPendiente={handleQuitarArchivoPendiente} onVerArchivo={handleVerArchivo}
@@ -982,13 +998,15 @@ function NuevoPaqueteComercialForm({
   const [saving, setSaving] = useState(false);
   const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
   const [centrosOperacion, setCentrosOperacion] = useState<CentroOperacion[]>([]);
-  const [cuentasAuxiliares, setCuentasAuxiliares] = useState<CuentaAuxiliar[]>([]);
   const [escaneandoId, setEscaneandoId] = useState<string | null>(null);
+  const [hijos, setHijos] = useState<ComercialHijo[]>([]);
+  const [hijoId, setHijoId] = useState('');
 
   useEffect(() => {
-    Promise.all([getCentrosCosto(), getCentrosOperacion(), getCuentasAuxiliares()])
-      .then(([cc, co, ca]) => { setCentrosCosto(cc); setCentrosOperacion(co); setCuentasAuxiliares(ca); })
+    Promise.all([getCentrosCosto(), getCentrosOperacion()])
+      .then(([cc, co]) => { setCentrosCosto(cc); setCentrosOperacion(co); })
       .catch(() => {});
+    getMisHijosComerciales().then(setHijos).catch(() => {});
   }, []);
 
   const handleCampo = (localId: string, campo: keyof GastoLocal, valor: string) => {
@@ -1038,7 +1056,7 @@ function NuevoPaqueteComercialForm({
 
     setSaving(true);
     try {
-      const paquete = await createPaqueteGasto(semana);
+      const paquete = await createPaqueteGasto(semana, hijoId || undefined);
       for (const fila of filasValidas) {
         const creado = await agregarGasto(paquete.id, {
           fecha: fila.fecha || new Date().toISOString().slice(0, 10),
@@ -1048,6 +1066,7 @@ function NuevoPaqueteComercialForm({
           centro_costo_id: fila.centroCostoId || undefined,
           centro_operacion_id: fila.centroOperacionId || undefined,
           cuenta_auxiliar_id: fila.cuentaAuxiliarId || undefined,
+          observaciones: fila.observaciones.trim() || undefined,
         });
         if (creado.aviso_buzon) toast.info(creado.aviso_buzon, { duration: 8000 });
         for (const pf of fila.pendingFiles) {
@@ -1096,11 +1115,34 @@ function NuevoPaqueteComercialForm({
             </p>
           </div>
         </div>
+
+        {hijos.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <label className="block text-sm font-bold text-gray-700 mb-2" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+              Legalizar a nombre de
+            </label>
+            <div className="flex items-start gap-4 flex-wrap">
+              <div className="flex-1 min-w-[200px] max-w-xs">
+                <select value={hijoId} onChange={(e) => setHijoId(e.target.value)}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 transition-colors bg-white focus:outline-none focus:ring-2 focus:border-transparent">
+                  <option value="">A nombre propio</option>
+                  {hijos.map(h => <option key={h.id} value={h.id}>{h.nombre}</option>)}
+                </select>
+              </div>
+              <div className="flex items-start gap-2 bg-teal-50 border border-teal-100 rounded-xl p-3 flex-1 min-w-[200px]">
+                <UserRound className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#00829a' }} />
+                <p className="text-xs" style={{ color: '#00829a' }}>
+                  Selecciona el comercial de tu equipo si estás legalizando gastos en su nombre.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
         <TablaGastos filas={filas} bloqueado={false} saving={saving}
-          centrosCosto={centrosCosto} centrosOperacion={centrosOperacion} cuentasAuxiliares={cuentasAuxiliares}
+          centrosCosto={centrosCosto} centrosOperacion={centrosOperacion}
           onCampo={handleCampo} onAgregarFila={handleAgregarFila} onEliminarFila={handleEliminarFila}
           onAdjuntar={handleAdjuntar} onQuitarArchivoGuardado={handleQuitarArchivoGuardado}
           onQuitarArchivoPendiente={handleQuitarArchivoPendiente} onVerArchivo={() => {}}
@@ -1159,6 +1201,11 @@ function PaqueteCardComercial({ p, onClick }: { p: PaqueteListItem; onClick: () 
           <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#00829a' }}>
             <Banknote className="w-4 h-4" /> {fmtMonto(p.monto_total)}
           </span>
+          {p.comercial_hijo && (
+            <span className="flex items-center gap-1.5 text-xs text-gray-400">
+              <UserRound className="w-3.5 h-3.5" style={{ color: '#00829a' }} /> {p.comercial_hijo.nombre}
+            </span>
+          )}
           <span className="flex items-center gap-1.5 text-xs text-gray-400">
             <FileText className="w-3.5 h-3.5" /> {p.total_documentos} doc{p.total_documentos !== 1 ? 's' : ''}
           </span>

@@ -39,10 +39,24 @@ export function AprobarPaquetePage() {
         {!loading && paquete && (
           <div>
             <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-green-700 mb-2">¡Paquete Aprobado!</h2>
-            <p className="text-gray-600 mb-6">
-              El paquete de gastos ha sido aprobado exitosamente.
-            </p>
+            {paquete.aprobacion_parcial && (paquete.solicitudes_pendientes ?? 0) > 0 ? (
+              <>
+                <h2 className="text-xl font-bold text-green-700 mb-2">¡Aprobación registrada!</h2>
+                <p className="text-gray-600 mb-6">
+                  Los gastos a su cargo fueron aprobados. El paquete quedará aprobado por completo
+                  cuando respondan los demás aprobadores ({paquete.solicitudes_pendientes} solicitud
+                  {(paquete.solicitudes_pendientes ?? 0) !== 1 ? 'es' : ''} pendiente
+                  {(paquete.solicitudes_pendientes ?? 0) !== 1 ? 's' : ''}).
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-xl font-bold text-green-700 mb-2">¡Paquete Aprobado!</h2>
+                <p className="text-gray-600 mb-6">
+                  El paquete de gastos ha sido aprobado exitosamente.
+                </p>
+              </>
+            )}
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-left">
               <table className="w-full text-sm">
                 <tbody>
@@ -70,7 +84,9 @@ export function AprobarPaquetePage() {
               </table>
             </div>
             <p className="text-gray-500 text-sm mt-4">
-              El área de Radicación recibirá una notificación y enviará el paquete a Tesorería.
+              {paquete.aprobacion_parcial && (paquete.solicitudes_pendientes ?? 0) > 0
+                ? 'No necesita hacer nada más. Su aprobación quedó registrada en el sistema.'
+                : 'El área de Radicación recibirá una notificación y enviará el paquete a Tesorería.'}
             </p>
           </div>
         )}

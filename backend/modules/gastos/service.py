@@ -10,7 +10,7 @@ from typing import Optional, Tuple, List
 from db.models import (
     PaqueteGasto, GastoLegalizacion, ArchivoGasto,
     ComentarioPaquete, HistorialEstadoPaquete, TokenAprobacionPaquete, User, Rol,
-    AprobadorGerencia, Anticipo,
+    AprobadorGerencia, Anticipo, ComercialHijo, SolicitudAprobacion,
 )
 from sqlalchemy import select
 from core.s3_service import s3_service
@@ -24,7 +24,8 @@ from modules.gastos.repository import (
 from modules.gastos.token_repository import TokenAprobacionRepository
 from modules.gastos.schemas import (
     PaqueteCreate, GastoCreate, GastoUpdate, PaqueteDevolver,
-    PaqueteOut, PaqueteListItem, GastoOut, GastoCreateResponse, ArchivoGastoOut, ComentarioPaqueteOut
+    PaqueteOut, PaqueteListItem, GastoOut, GastoCreateResponse, ArchivoGastoOut, ComentarioPaqueteOut,
+    ValidarMultipleRequest,
 )
 from modules.facturas.repository import FacturaRepository
 
@@ -127,6 +128,22 @@ class GastosService:
         else:
             tipo_flujo = "general"
 
+        # Flujo tarjeta_comercial: el padre puede legalizar a nombre de un hijo comercial
+        comercial_hijo_id = None
+        if data.comercial_hijo_id:
+            if tipo_flujo != "tarjeta_comercial":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Solo los paquetes de tarjeta comercial pueden legalizarse a nombre de un hijo comercial.",
+                )
+            hijo = await self.db.get(ComercialHijo, data.comercial_hijo_id)
+            if not hijo or not hijo.is_active or hijo.padre_user_id != user_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="El comercial seleccionado no es válido o no pertenece a tu equipo.",
+                )
+            comercial_hijo_id = hijo.id
+
         paquete = PaqueteGasto(
             user_id=user_id,
             area_id=area_id,
@@ -136,6 +153,7 @@ class GastosService:
             estado="borrador",
             folio=folio,
             tipo_flujo=tipo_flujo,
+            comercial_hijo_id=comercial_hijo_id,
         )
         try:
             await self.paquete_repo.create(paquete)
@@ -365,6 +383,130 @@ class GastosService:
         )
         return self._to_out(paquete_actualizado)
 
+    async def validar_comercial_multiple(
+        self, paquete_id: UUID, user_id: UUID, data: ValidarMultipleRequest
+    ) -> PaqueteOut:
+        """El VALIDADOR (Responsable) valida un paquete comercial dividiendo los gastos
+        en N solicitudes de aprobación, cada una dirigida a un aprobador distinto
+        (p.ej. por centro de operación/costo). El paquete pasa a 'en_revision' y queda
+        'aprobado' solo cuando TODAS las solicitudes sean aprobadas."""
+        paquete = await self._get_paquete_or_404(paquete_id)
+        if paquete.tipo_flujo != "tarjeta_comercial":
+            raise HTTPException(status_code=400, detail="Este endpoint es solo para paquetes de tarjeta comercial.")
+        if paquete.estado != "en_validacion":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Solo paquetes en validación pueden validarse. Estado actual: {paquete.estado}"
+            )
+
+        # El gerente comercial del paquete SIEMPRE debe dar su visto bueno:
+        # el paquete solo pasa a Radicación cuando él y todos los aprobadores específicos aprueben.
+        if not paquete.aprobador_id:
+            raise HTTPException(status_code=400, detail="El paquete no tiene gerente comercial asignado.")
+        gerente_comercial = await self.db.get(AprobadorGerencia, paquete.aprobador_id)
+        if not gerente_comercial or not gerente_comercial.is_active:
+            raise HTTPException(status_code=400, detail="El gerente comercial asignado no es válido o está inactivo.")
+
+        # Gastos que requieren aprobación (los devueltos están con el comercial para corrección)
+        gastos_requeridos = {g.id: g for g in paquete.gastos if g.estado_gasto != "devuelto"}
+        if not gastos_requeridos:
+            raise HTTPException(status_code=400, detail="El paquete no tiene gastos pendientes por aprobar.")
+
+        # Validar aprobadores y cobertura sin solapamiento
+        asignados: set = set()
+        aprobadores: dict = {}
+        for sol in data.solicitudes:
+            aprobador = await self.db.get(AprobadorGerencia, sol.aprobador_id)
+            if not aprobador or not aprobador.is_active:
+                raise HTTPException(status_code=400, detail="Uno de los aprobadores seleccionados no es válido o está inactivo.")
+            aprobadores[sol.aprobador_id] = aprobador
+            for gid in sol.gasto_ids:
+                if gid not in gastos_requeridos:
+                    raise HTTPException(status_code=400, detail="Uno de los gastos seleccionados no pertenece al paquete o está devuelto.")
+                if gid in asignados:
+                    raise HTTPException(status_code=400, detail="Un gasto no puede estar en dos solicitudes a la vez.")
+                asignados.add(gid)
+        faltantes = set(gastos_requeridos.keys()) - asignados
+        if faltantes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Faltan {len(faltantes)} gasto(s) por asignar a una solicitud. Todos los gastos deben quedar cubiertos.",
+            )
+
+        # Anular solicitudes pendientes previas (re-validación tras devolución)
+        result = await self.db.execute(
+            select(SolicitudAprobacion)
+            .where(SolicitudAprobacion.paquete_id == paquete.id)
+            .where(SolicitudAprobacion.estado == "pendiente")
+        )
+        for previa in result.scalars().all():
+            previa.estado = "anulada"
+
+        # Crear solicitudes con token propio (72h) y asignar gastos
+        ahora = datetime.now(tz=timezone.utc)
+        expires_at = ahora + timedelta(hours=72)
+        creadas = []  # (solicitud, aprobador, gasto_ids | None para visto bueno general)
+        for sol in data.solicitudes:
+            solicitud = SolicitudAprobacion(
+                paquete_id=paquete.id,
+                aprobador_id=sol.aprobador_id,
+                token=secrets.token_urlsafe(48),
+                estado="pendiente",
+                expires_at=expires_at,
+            )
+            self.db.add(solicitud)
+            await self.db.flush()
+            for gid in sol.gasto_ids:
+                gastos_requeridos[gid].solicitud_id = solicitud.id
+            creadas.append((solicitud, aprobadores[sol.aprobador_id], list(sol.gasto_ids)))
+
+        # Si el gerente comercial no está entre los aprobadores elegidos, se crea una
+        # solicitud adicional de VISTO BUENO GENERAL (sin gastos propios: cubre el paquete completo).
+        if paquete.aprobador_id not in aprobadores:
+            visto_bueno = SolicitudAprobacion(
+                paquete_id=paquete.id,
+                aprobador_id=paquete.aprobador_id,
+                token=secrets.token_urlsafe(48),
+                estado="pendiente",
+                expires_at=expires_at,
+            )
+            self.db.add(visto_bueno)
+            await self.db.flush()
+            creadas.append((visto_bueno, gerente_comercial, None))
+
+        anterior = paquete.estado
+        paquete.estado = "en_revision"
+        paquete.revisado_por_user_id = user_id
+        paquete.fecha_envio_gerencia = ahora
+        await self.paquete_repo.save(paquete)
+        nombres = ", ".join(
+            a.nombre + (" (visto bueno general)" if gids is None else "")
+            for _, a, gids in creadas
+        )
+        await self.historial_repo.create(HistorialEstadoPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            estado_anterior=anterior, estado_nuevo="en_revision",
+        ))
+        await self.comentario_repo.create(ComentarioPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            texto=f"Validado por el responsable. {len(creadas)} solicitud(es) de aprobación enviadas a: {nombres}.",
+            tipo="aprobacion",
+        ))
+        await self.db.commit()
+
+        paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
+        for solicitud, aprobador, gasto_ids in creadas:
+            try:
+                await email_service.enviar_solicitud_aprobacion(
+                    paquete_actualizado, solicitud.token,
+                    email_override=aprobador.email,
+                    solo_gastos_ids=set(gasto_ids) if gasto_ids is not None else None,
+                    es_visto_bueno=gasto_ids is None,
+                )
+            except Exception as e:
+                logger.error(f"Error enviando solicitud {solicitud.id} a {aprobador.email}: {e}")
+        return self._to_out(paquete_actualizado)
+
     async def devolver_anticipo_paquete(
         self, paquete_id: UUID, user_id: UUID, motivo: str
     ) -> PaqueteOut:
@@ -395,6 +537,47 @@ class GastosService:
         paquete = await self._get_paquete_or_404(paquete_id)
         if paquete.estado != "en_revision":
             raise HTTPException(status_code=400, detail="Solo se puede reenviar el correo cuando el paquete está en revisión.")
+
+        # Con solicitudes parciales pendientes NO se reenvía el correo de paquete completo:
+        # crearía un token que aprobaría todo el paquete saltándose las solicitudes.
+        result = await self.db.execute(
+            select(SolicitudAprobacion)
+            .where(SolicitudAprobacion.paquete_id == paquete.id)
+            .where(SolicitudAprobacion.estado == "pendiente")
+        )
+        pendientes = result.scalars().all()
+        if pendientes:
+            # Renovar tokens vencidos antes de reenviar
+            now_utc = datetime.now(tz=timezone.utc)
+            renovadas = False
+            for solicitud in pendientes:
+                exp = solicitud.expires_at
+                if exp.tzinfo is None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                if exp <= now_utc:
+                    solicitud.token = secrets.token_urlsafe(48)
+                    solicitud.expires_at = now_utc + timedelta(hours=72)
+                    renovadas = True
+            if renovadas:
+                await self.db.commit()
+
+            for solicitud in pendientes:
+                aprobador = await self.db.get(AprobadorGerencia, solicitud.aprobador_id)
+                if not aprobador:
+                    continue
+                # Sin gastos propios = visto bueno general del gerente comercial (paquete completo)
+                gasto_ids = {g.id for g in paquete.gastos if g.solicitud_id == solicitud.id}
+                try:
+                    await email_service.enviar_solicitud_aprobacion(
+                        paquete, solicitud.token,
+                        email_override=aprobador.email,
+                        solo_gastos_ids=gasto_ids if gasto_ids else None,
+                        es_visto_bueno=not gasto_ids,
+                    )
+                except Exception as e:
+                    logger.error(f"Error reenviando solicitud {solicitud.id} a {aprobador.email}: {e}")
+            logger.info(f"Correos de {len(pendientes)} solicitud(es) pendiente(s) reenviados para paquete {paquete_id}")
+            return {"message": f"Se reenviaron los correos de {len(pendientes)} solicitud(es) pendiente(s)."}
 
         # Determinar email destino según tipo de flujo
         email_override: Optional[str] = None
@@ -450,6 +633,15 @@ class GastosService:
         paquete = await self._get_paquete_or_404(paquete_id)
         if paquete.estado not in ("en_revision", "en_validacion"):
             raise HTTPException(status_code=400, detail="Solo paquetes en revisión o en validación pueden devolverse.")
+
+        # Anular solicitudes parciales pendientes: sus enlaces de aprobación dejan de servir
+        result = await self.db.execute(
+            select(SolicitudAprobacion)
+            .where(SolicitudAprobacion.paquete_id == paquete.id)
+            .where(SolicitudAprobacion.estado == "pendiente")
+        )
+        for solicitud in result.scalars().all():
+            solicitud.estado = "anulada"
 
         paquete.estado = "devuelto"
         paquete.revisado_por_user_id = user_id
@@ -666,6 +858,7 @@ class GastosService:
             cuenta_auxiliar_id=data.cuenta_auxiliar_id,
             valor_pagado=data.valor_pagado,
             orden=data.orden,
+            observaciones=data.observaciones,
         )
         await self.gasto_repo.create(gasto)
         await self.paquete_repo.recalculate_totals(paquete_id)
@@ -1036,6 +1229,13 @@ class GastosService:
         try:
             token_obj = await self.token_repo.get_by_token(token_str)
             if not token_obj:
+                # ¿Es el token de una solicitud parcial (flujo comercial multi-gerente)?
+                result = await self.db.execute(
+                    select(SolicitudAprobacion).where(SolicitudAprobacion.token == token_str)
+                )
+                solicitud = result.scalar_one_or_none()
+                if solicitud:
+                    return await self._aprobar_solicitud(solicitud, ip)
                 raise HTTPException(status_code=404, detail="Token de aprobación no válido.")
 
             if token_obj.usado:
@@ -1080,26 +1280,9 @@ class GastosService:
             ))
             await self.db.commit()
 
-            # Notificar al propietario del paquete
+            # Notificar al propietario y al equipo del siguiente paso
             paquete_final = await self.paquete_repo.get_by_id(paquete.id)
-            await email_service.enviar_notificacion_paquete_aprobado_tecnico(paquete_final, paquete_final.tecnico.email)
-
-            # Notificar al equipo que procesa el siguiente paso según flujo
-            if paquete_final.tipo_flujo in ("general", "tarjeta_comercial"):
-                # Para flujo general / tarjeta_comercial notificar a todos los usuarios de Radicación
-                try:
-                    result = await self.db.execute(
-                        select(User).join(Rol, User.role_id == Rol.id)
-                        .where(Rol.code.in_(["fact"]))
-                        .where(User.is_active == True)
-                    )
-                    fact_users = result.scalars().all()
-                    for u in fact_users:
-                        await email_service.enviar_notificacion_aprobado(paquete_final, u.email)
-                except Exception as e:
-                    logger.error(f"Error enviando notificaciones fact para paquete {paquete.id}: {e}")
-            else:
-                await email_service.enviar_notificacion_aprobado(paquete_final, settings.email_responsable)
+            await self._notificar_paquete_aprobado(paquete_final)
 
             return self._to_out(paquete_final)
         except HTTPException:
@@ -1107,6 +1290,99 @@ class GastosService:
         except Exception as e:
             await self.db.rollback()
             logger.error(f"Error al aprobar paquete por token: {e}")
+            raise HTTPException(status_code=500, detail="Error interno al procesar la aprobación.")
+
+    async def _notificar_paquete_aprobado(self, paquete_final: PaqueteGasto) -> None:
+        """Notifica al propietario y al equipo que procesa el siguiente paso tras la aprobación."""
+        await email_service.enviar_notificacion_paquete_aprobado_tecnico(paquete_final, paquete_final.tecnico.email)
+        if paquete_final.tipo_flujo in ("general", "tarjeta_comercial"):
+            # Para flujo general / tarjeta_comercial notificar a todos los usuarios de Radicación
+            try:
+                result = await self.db.execute(
+                    select(User).join(Rol, User.role_id == Rol.id)
+                    .where(Rol.code.in_(["fact"]))
+                    .where(User.is_active == True)
+                )
+                fact_users = result.scalars().all()
+                for u in fact_users:
+                    await email_service.enviar_notificacion_aprobado(paquete_final, u.email)
+            except Exception as e:
+                logger.error(f"Error enviando notificaciones fact para paquete {paquete_final.id}: {e}")
+        else:
+            await email_service.enviar_notificacion_aprobado(paquete_final, settings.email_responsable)
+
+    async def _aprobar_solicitud(self, solicitud: SolicitudAprobacion, ip: str) -> PaqueteOut:
+        """Aprueba una solicitud parcial (flujo comercial multi-gerente). El paquete pasa a
+        'aprobado' solo cuando no quedan solicitudes pendientes."""
+        try:
+            if solicitud.estado == "aprobada":
+                raise HTTPException(status_code=400, detail="Esta solicitud ya fue aprobada.")
+            if solicitud.estado == "anulada":
+                raise HTTPException(status_code=400, detail="Esta solicitud fue anulada. Solicite un nuevo enlace al responsable.")
+
+            now_utc = datetime.now(tz=timezone.utc)
+            expires_at = solicitud.expires_at
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if now_utc > expires_at:
+                raise HTTPException(status_code=400, detail="El enlace de aprobación ha expirado.")
+
+            paquete = await self._get_paquete_or_404(solicitud.paquete_id)
+            if paquete.estado != "en_revision":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El paquete está en estado '{paquete.estado}' y no puede aprobarse por este medio."
+                )
+
+            solicitud.estado = "aprobada"
+            solicitud.fecha_respuesta = now_utc
+            solicitud.usado_por_ip = ip
+            await self.db.flush()
+
+            aprobador = await self.db.get(AprobadorGerencia, solicitud.aprobador_id)
+            nombre_aprobador = aprobador.nombre if aprobador else "Aprobador"
+
+            # ¿Quedan solicitudes pendientes?
+            result = await self.db.execute(
+                select(SolicitudAprobacion)
+                .where(SolicitudAprobacion.paquete_id == paquete.id)
+                .where(SolicitudAprobacion.estado == "pendiente")
+            )
+            pendientes = len(result.scalars().all())
+
+            await self.comentario_repo.create(ComentarioPaquete(
+                paquete_id=paquete.id, user_id=None,
+                texto=(
+                    f"Solicitud parcial aprobada por {nombre_aprobador} vía enlace de email."
+                    + (f" Quedan {pendientes} solicitud(es) pendiente(s)." if pendientes
+                       else " Todas las solicitudes fueron aprobadas.")
+                ),
+                tipo="aprobacion",
+            ))
+
+            if pendientes == 0:
+                paquete.estado = "aprobado"
+                paquete.fecha_aprobacion = now_utc
+                await self.paquete_repo.save(paquete)
+                await self.historial_repo.create(HistorialEstadoPaquete(
+                    paquete_id=paquete.id, user_id=None,
+                    estado_anterior="en_revision", estado_nuevo="aprobado",
+                ))
+            await self.db.commit()
+
+            paquete_final = await self.paquete_repo.get_by_id(paquete.id)
+            if pendientes == 0:
+                await self._notificar_paquete_aprobado(paquete_final)
+
+            out = self._to_out(paquete_final)
+            out.aprobacion_parcial = True
+            out.solicitudes_pendientes = pendientes
+            return out
+        except HTTPException:
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error al aprobar solicitud parcial: {e}")
             raise HTTPException(status_code=500, detail="Error interno al procesar la aprobación.")
 
     # ------------------------------------------------------------------

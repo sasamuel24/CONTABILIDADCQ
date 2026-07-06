@@ -31,6 +31,7 @@ class PaqueteRepository:
                 selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.cuenta_auxiliar),
                 selectinload(PaqueteGasto.comentarios).selectinload(ComentarioPaquete.user),
                 selectinload(PaqueteGasto.historial_estados).selectinload(HistorialEstadoPaquete.user),
+                selectinload(PaqueteGasto.solicitudes),
             )
             .where(PaqueteGasto.id == paquete_id)
         )

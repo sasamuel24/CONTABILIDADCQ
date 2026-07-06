@@ -77,3 +77,25 @@ Todas las peticiones al backend automáticamente incluyen el header:
 ```
 Authorization: Bearer <access_token>
 ```
+
+---
+
+# Flujo Tarjeta Comercial — Ventanas del Frontend
+
+> Actualizado 6-Jul-2026. Detalle backend en `backend/agents.md` (sección "Módulo: Flujo Tarjeta Comercial").
+
+## Ventanas y componentes
+
+| Ventana | Archivo | Notas |
+|---|---|---|
+| Página del Comercial | `src/pages/ComercialPage.tsx` | Todo en un archivo: lista, historial, nuevo paquete, detalle con pipeline visual. SIN campo Cuenta Contable. Campo "Observaciones (opcional)" por gasto. Si el padre tiene hijos (`GET /gastos/comercial/mis-hijos`), muestra select "Legalizar a nombre de" al crear paquete |
+| Validación Comercial | `src/pages/ResponsablePage.tsx` (sección `comercial`) + `src/components/ResponsablePaquetesView.tsx` con `modo="comercial"` | Filtros: "Por validar" (en_validacion), "Esperando gerentes" (en_revision, solo modo comercial). Columna "Sel." con checkboxes para armar N solicitudes por aprobador; panel de grupos; lista de estado "Solicitudes de aprobación (X/N aprobadas)" con el visto bueno del gerente comercial visible como Pendiente |
+| Aprobación del gerente | `src/pages/AprobarPaquetePage.tsx` (ruta pública `/aprobar-paquete?token=`) | Aprueba al cargar. Si el token es de una solicitud parcial y quedan pendientes, muestra "¡Aprobación registrada!" con el conteo de solicitudes que faltan |
+| Admin de gerentes | `src/components/AprobadoresGerenciaAdmin.tsx` | Aprobadores con categoría general/comercial |
+
+## Convenciones importantes
+
+- Los badges de los filtros en `ResponsablePaquetesView` se calculan sobre `paquetesEnviados` (lista ya filtrada por modo), NUNCA sobre `paquetes` completo — si no, aparecen contadores fantasma de otros flujos.
+- El estado `aprobado` se etiqueta "Pendiente" en la vista de Radicación (= pendiente de envío a Tesorería); no confundir con pendiente de aprobación de gerente (`en_revision`).
+- Las observaciones del gasto se muestran como nota ámbar bajo el Concepto en la tabla del validador (la tabla ya es muy ancha para otra columna).
+- Cliente API: `src/lib/api.ts` — `getMisHijosComerciales`, `createPaqueteGasto(semana, hijoId?)`, `validarPaquete`, `validarPaqueteMultiple`, `getAprobadoresActivos(categoria?)`.

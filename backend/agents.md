@@ -3898,4 +3898,72 @@ frontend/
 
 ---
 
-**Última actualización:** 29 de diciembre de 2025
+## 💳 Módulo: Flujo Tarjeta Comercial (rol `comercial`)
+
+> Actualizado 6-Jul-2026. Flujo de legalización de gastos con tarjeta comercial:
+> Comercial → Validador (Responsable) → Gerente(s) por token email → Radicación → Tesorería.
+
+### Cadena de estados del paquete
+
+```
+borrador → en_validacion → en_revision → aprobado → en_tesoreria → pagado
+              ↓ (devolución)    ↓ (devolución)
+           devuelto  ←──────────┘
+```
+
+- `en_validacion`: esperando al **Validador** (rol `responsable`, sección "Validación Comercial").
+- `en_revision`: esperando aprobación de gerente(s) vía token email (72h).
+- Los gastos individuales pueden devolverse (`estado_gasto='devuelto'`) sin frenar el paquete.
+
+### Actores y reglas clave
+
+| Actor | Rol/mecanismo | Función |
+|---|---|---|
+| Comercial (padre) | rol `comercial`, sin área | Crea paquetes (`tipo_flujo='tarjeta_comercial'`), puede legalizar **a nombre de un hijo comercial** |
+| Hijo comercial | tabla `comerciales_hijos` (SIN login) | Vendedor a cargo del padre; se elige en dropdown al crear el paquete |
+| Validador | rol `responsable` | Valida en `en_validacion`; puede devolver paquete o gastos individuales; decide a qué gerentes enviar |
+| Gerente comercial | `aprobadores_gerencia.categoria='comercial'`, auto-asignado en `enviar()` | **SIEMPRE debe aprobar** (visto bueno) antes de Radicación |
+| Otros gerentes | cualquier `aprobadores_gerencia` activo | Aprueban solicitudes parciales (subset de gastos, p.ej. por centro de operación) |
+
+### Tablas específicas
+
+- `comerciales_hijos`: id, padre_user_id (FK users, CASCADE), nombre, is_active. Seed idempotente: `seed_hijos_comercial.py` (editar dict `HIJOS_POR_PADRE` para agregar).
+- `solicitudes_aprobacion`: id, paquete_id, aprobador_id, token único, estado (`pendiente|aprobada|anulada`), expires_at, fecha_respuesta. Una solicitud SIN gastos asignados = **visto bueno general** del gerente comercial (cubre el paquete completo).
+- `paquetes_gastos.comercial_hijo_id` (FK SET NULL) y `gastos_legalizacion.solicitud_id` (FK SET NULL).
+- `gastos_legalizacion.observaciones` (String 500, opcional).
+
+### Endpoints específicos (modules/gastos/router.py)
+
+| Endpoint | Quién | Qué hace |
+|---|---|---|
+| `GET /gastos/comercial/mis-hijos` | comercial | Hijos activos del padre autenticado |
+| `POST /gastos/paquetes/{id}/validar` | responsable/admin | Validación simple: 1 token → gerente comercial |
+| `POST /gastos/paquetes/{id}/validar-multiple` | responsable/admin | N solicitudes `{aprobador_id, gasto_ids[]}`; cobertura total obligatoria, sin solapamiento; agrega automáticamente el visto bueno del gerente comercial si no está entre los elegidos |
+| `POST /gastos/paquetes/aprobar-por-token` | público (email) | Acepta tokens de `tokens_aprobacion_paquetes` Y de `solicitudes_aprobacion`; el paquete pasa a `aprobado` solo cuando NO quedan solicitudes pendientes (respuesta incluye `aprobacion_parcial` y `solicitudes_pendientes`) |
+| `POST /gastos/paquetes/{id}/reenviar-correo` | responsable/admin | Si hay solicitudes pendientes: reenvía SUS correos (renueva tokens vencidos); NO crea token de paquete completo (evitaría el visto bueno) |
+
+### Reglas de negocio críticas
+
+1. **El gerente comercial siempre aprueba**: `validar_comercial_multiple` exige `paquete.aprobador_id` y crea solicitud de visto bueno general si no fue incluido. El paquete NO pasa a Radicación sin su aprobación.
+2. **Cobertura total**: todos los gastos no-devueltos deben quedar asignados a exactamente una solicitud.
+3. **Devolución del paquete** (`devolver`): anula las solicitudes pendientes (los enlaces viejos dejan de servir).
+4. **Correo al aprobador** (`email_service.enviar_solicitud_aprobacion`): incluye columna **Soporte** con URLs prefirmadas S3 de 72h (misma vigencia del token; el cliente S3 usa credenciales IAM estáticas, requisito para que duren 72h); soporta `solo_gastos_ids` (tabla parcial + monto de la solicitud) y `es_visto_bueno` (nota azul de visto bueno final); muestra fila "A nombre de" cuando el paquete tiene hijo comercial.
+5. La UI del comercial NO pide Cuenta Contable (es opcional en el API; el responsable la asigna después si aplica).
+
+### Migraciones del flujo (orden)
+
+`n8o9p0q1r2s3` (rol+estados) → `o9p0q1r2s3t4` (observaciones) → `p0q1r2s3t4u5` (comerciales_hijos) → `q1r2s3t4u5v6` (solicitudes_aprobacion).
+
+### Deploy en producción (EC2)
+
+```bash
+git pull
+alembic upgrade head              # ANTES de reiniciar (si no: UndefinedColumnError 500)
+python seed_hijos_comercial.py    # idempotente
+sudo systemctl restart contabilidadcq.service
+```
+El frontend se despliega solo (Amplify) con el push; el backend NO.
+
+---
+
+**Última actualización:** 6 de julio de 2026

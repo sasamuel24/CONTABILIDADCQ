@@ -83,6 +83,8 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
         "https://main.d174bkkc7dp7ba.amplifyapp.com",
+        "https://docuflowcafequindio.com",
+        "https://www.docuflowcafequindio.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],

@@ -3966,4 +3966,46 @@ El frontend se despliega solo (Amplify) con el push; el backend NO.
 
 ---
 
+## 🌐 Dominios, CORS y URLs de Producción
+
+> Actualizado 6-Jul-2026, tras migrar al dominio propio.
+
+### Arquitectura de URLs
+
+```
+Navegador → https://docuflowcafequindio.com            (frontend: AWS Amplify, dominio propio)
+              ↓ VITE_API_BASE_URL
+            https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1/api/v1   (API Gateway)
+              ↓
+            EC2 (FastAPI, servicio systemd contabilidadcq.service)
+              ↓
+            Aurora PostgreSQL (cluster-cafe-quindio, BD contabilidad)
+```
+
+- **Dominio de producción:** `https://docuflowcafequindio.com` (custom domain en Amplify).
+- **Dominio anterior (sigue activo como respaldo):** `https://main.d174bkkc7dp7ba.amplifyapp.com`.
+- La URL del API Gateway **no cambia** al cambiar el dominio del frontend.
+
+### CORS — ⚠️ gotcha importante
+
+Los orígenes permitidos están **quemados en `main.py`** (`app.add_middleware(CORSMiddleware, allow_origins=[...])`).
+La variable `CORS_ORIGINS` del `.env` y `settings.cors_origins` **NO las lee el middleware** — son decorativas hoy.
+**Para permitir un dominio nuevo: editar la lista en `main.py`**, commit, pull en EC2 y restart.
+
+### Variables del `.env` en EC2 relacionadas con el dominio
+
+- `FRONTEND_URL=https://docuflowcafequindio.com` — construye TODOS los enlaces de los correos
+  (aprobación por token `/aprobar-paquete`, `/aprobar-factura`, `/aprobar-anticipo`, botones "ir al sistema").
+  Si apunta al dominio viejo, los correos llevan al dominio viejo.
+- `CORS_ORIGINS` — mantener sincronizada con `main.py` por consistencia, aunque hoy no se use.
+
+### Checklist al cambiar de dominio
+
+1. Amplify → Hosting → Custom domains: conectar dominio + certificado SSL emitido.
+2. `main.py`: agregar el dominio (con y sin `www`) a `allow_origins` → commit + push.
+3. EC2: `git pull` + editar `FRONTEND_URL` en `backend/.env` + `sudo systemctl restart contabilidadcq.service`.
+4. Verificar: login desde el dominio nuevo (CORS ok) y un correo de aprobación (enlace con dominio nuevo).
+
+---
+
 **Última actualización:** 6 de julio de 2026

@@ -99,3 +99,14 @@ Authorization: Bearer <access_token>
 - El estado `aprobado` se etiqueta "Pendiente" en la vista de Radicación (= pendiente de envío a Tesorería); no confundir con pendiente de aprobación de gerente (`en_revision`).
 - Las observaciones del gasto se muestran como nota ámbar bajo el Concepto en la tabla del validador (la tabla ya es muy ancha para otra columna).
 - Cliente API: `src/lib/api.ts` — `getMisHijosComerciales`, `createPaqueteGasto(semana, hijoId?)`, `validarPaquete`, `validarPaqueteMultiple`, `getAprobadoresActivos(categoria?)`.
+
+---
+
+# Dominio y Despliegue del Frontend
+
+> Actualizado 6-Jul-2026.
+
+- **URL de producción:** `https://docuflowcafequindio.com` (AWS Amplify con dominio propio; el dominio anterior `https://main.d174bkkc7dp7ba.amplifyapp.com` sigue activo como respaldo).
+- **Despliegue:** automático — cada `git push` a `main` dispara el build de Amplify. El backend NO se despliega con el push (requiere pull + restart en EC2, ver `backend/agents.md`).
+- **`VITE_API_BASE_URL`:** apunta al API Gateway (`https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1/api/v1`). Se configura en las variables de entorno de Amplify (con fallback en `.env.production` y en `src/lib/api.ts`). **No cambia cuando cambia el dominio del frontend.**
+- **Al cambiar de dominio:** lo que rompe no es el frontend sino el CORS del backend (lista quemada en `backend/main.py`) y los enlaces de correos (`FRONTEND_URL` del `.env` en EC2). Checklist completo en `backend/agents.md` → "Dominios, CORS y URLs de Producción".

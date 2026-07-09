@@ -1405,8 +1405,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       
       {/* Modal centrado */}
       <div className="fixed inset-0 z-50 overflow-y-auto">
-        <div className="flex min-h-full items-center justify-center p-6">
-          <div className="w-full max-w-3xl bg-white shadow-2xl rounded-lg border border-gray-200 my-8">
+        <div className="flex items-center justify-center p-6">
+          <div className="w-full bg-white shadow-2xl rounded-lg border border-gray-200 my-8">
             {/* Header */}
             <div className="text-white p-6 rounded-t-lg" style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}}>
               <div className="flex items-start justify-between mb-4">

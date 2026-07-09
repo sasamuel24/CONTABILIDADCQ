@@ -1171,10 +1171,10 @@ const itemsPerPage = 20;
               
               {/* Drawer Panel - Centrado y optimizado para scroll */}
               <div className="fixed inset-0 z-50 overflow-y-auto">
-                <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
-                  <div className="w-full max-w-2xl bg-white shadow-2xl rounded-lg border border-gray-200 my-8">
+                <div className="flex items-center justify-center p-4">
+                  <div className="w-full bg-white shadow-2xl rounded-lg border border-gray-200 my-8">
                     {/* Header - Sticky para que siempre sea visible */}
-                    <div className="sticky top-0 z-10 text-white rounded-t-lg" style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}}>
+                    <div className="text-white rounded-t-lg" style={{background: 'linear-gradient(to right, #00829a, #14aab8)'}}>
                       <div className="p-4 sm:p-6">
                         <div className="flex items-start justify-between mb-4">
                           <div className="flex-1 mt-2">

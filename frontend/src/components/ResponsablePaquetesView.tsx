@@ -30,6 +30,8 @@ import {
   getCmPdfGastoDownloadUrl,
   eliminarCmPdfGasto,
   exportarPlanoPaquete,
+  analizarImpuestosPaquete,
+  actualizarValorSinImpuestos,
   PaqueteListItem,
   PaqueteOut,
   GastoOut,
@@ -66,6 +68,7 @@ import {
   X as XIcon,
   Trash2,
   FileCheck,
+  Sparkles,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -92,6 +95,27 @@ function formatSemanaLabel(semana: string | null | undefined) {
 
 function formatRango(inicio: string, fin: string) {
   return `${fmtFecha(inicio)} al ${fmtFecha(fin)}`;
+}
+
+/** Badge del origen del valor sin impuestos: IA, manual o sin desglose (= total) */
+function VsiBadge({ fuente }: { fuente: string | null | undefined }) {
+  if (!fuente) return null;
+  const map: Record<string, { label: string; bg: string; color: string; title: string }> = {
+    ia:           { label: 'IA',  bg: '#e6f7fa', color: '#00829a', title: 'Calculado automáticamente desde el soporte' },
+    manual:       { label: 'M',   bg: '#f3f4f6', color: '#6b7280', title: 'Digitado manualmente por Facturación' },
+    sin_desglose: { label: '=T',  bg: '#f0fdf4', color: '#15803d', title: 'El soporte no discrimina impuestos: igual al valor total' },
+  };
+  const ui = map[fuente];
+  if (!ui) return null;
+  return (
+    <span
+      className="inline-block px-1 py-0.5 rounded text-[10px] font-bold shrink-0"
+      style={{ backgroundColor: ui.bg, color: ui.color }}
+      title={ui.title}
+    >
+      {ui.label}
+    </span>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -239,6 +263,11 @@ function DetallePaqueteResponsable({
   const [correoGerEnviado, setCorreoGerEnviado] = useState(false);
   const [loadingExportar, setLoadingExportar] = useState(false);
   const [filtroGastos, setFiltroGastos] = useState<'todos' | 'devueltos'>(soloDevueltos ? 'devueltos' : 'todos');
+
+  // Valor sin impuestos (base antes de IVA): análisis IA + edición manual
+  const [loadingAnalizarIVA, setLoadingAnalizarIVA] = useState(false);
+  const [vsiEdits, setVsiEdits] = useState<Record<string, string>>({});
+  const [savingVsi, setSavingVsi] = useState<Record<string, boolean>>({});
 
   // Documento Contable General
   const [uploadingDocContable, setUploadingDocContable] = useState(false);
@@ -633,6 +662,66 @@ function DetallePaqueteResponsable({
     }
   };
 
+  const handleAnalizarIVA = async () => {
+    if (!paquete) return;
+    setLoadingAnalizarIVA(true);
+    try {
+      const res = await analizarImpuestosPaquete(paquete.id);
+      const updated = await getPaqueteGasto(paquete.id);
+      setPaquete(updated);
+      if (res.procesados === 0) {
+        toast.info('Todos los gastos ya tienen valor sin impuestos calculado');
+      } else if (res.para_revision > 0) {
+        const fallidos = res.resultados.filter((r) => !['ok', 'sin_desglose'].includes(r.resultado));
+        const pendientes = fallidos.map((r) => r.pagado_a).join(', ');
+        const detalle = fallidos.find((r) => r.detalle)?.detalle;
+        toast.warning(
+          `${res.calculados + res.sin_desglose} de ${res.procesados} calculados. Revisar manualmente: ${pendientes}${detalle ? ` — ${detalle}` : ''}`,
+          { duration: 10000 }
+        );
+      } else {
+        toast.success(
+          `Valores sin IVA calculados: ${res.calculados} con impuestos detectados, ${res.sin_desglose} sin desglose (= total)`
+        );
+      }
+    } catch (e) {
+      const msg = (e as { detail?: string })?.detail ?? 'Error al analizar los impuestos';
+      toast.error(msg);
+    } finally {
+      setLoadingAnalizarIVA(false);
+    }
+  };
+
+  const handleGuardarVsi = async (g: GastoOut) => {
+    if (!paquete) return;
+    const raw = vsiEdits[g.id];
+    if (raw === undefined) return;
+    const limpiar = () => setVsiEdits((p) => { const n = { ...p }; delete n[g.id]; return n; });
+    const num = Number(raw);
+    if (raw.trim() === '' || isNaN(num) || num <= 0 || num === g.valor_sin_impuestos) {
+      limpiar();
+      return;
+    }
+    if (num > g.valor_pagado) {
+      toast.error('El valor sin impuestos no puede ser mayor al valor pagado');
+      return;
+    }
+    setSavingVsi((p) => ({ ...p, [g.id]: true }));
+    try {
+      const updated = await actualizarValorSinImpuestos(paquete.id, g.id, num);
+      setPaquete((prev) => prev
+        ? { ...prev, gastos: prev.gastos.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)) }
+        : prev);
+      limpiar();
+      toast.success('Valor sin impuestos actualizado');
+    } catch (e) {
+      const msg = (e as { detail?: string })?.detail ?? 'Error al guardar el valor';
+      toast.error(msg);
+    } finally {
+      setSavingVsi((p) => ({ ...p, [g.id]: false }));
+    }
+  };
+
   const selectCls = 'w-full rounded px-1.5 py-1 text-xs text-gray-800 border border-transparent hover:border-gray-200 focus:border-gray-300 focus:bg-white focus:outline-none bg-transparent';
 
   if (loading) {
@@ -664,6 +753,8 @@ function DetallePaqueteResponsable({
   const puedeGestionarDocContable = verDocContable && esFact;
   // CF PDF: radicación puede subir cuando aprobado; todos ven si existe
   const puedeGestionarCmPdf = paquete.estado === 'aprobado' && esFact;
+  // Valor sin impuestos: Facturación lo gestiona desde que el paquete llega aprobado
+  const puedeGestionarVSI = esFact && ['aprobado', 'en_tesoreria', 'pagado'].includes(paquete.estado);
 
   const gastosDevueltos = paquete.gastos.filter((g) => g.estado_gasto === 'devuelto');
   const gastosVisibles = filtroGastos === 'devueltos' ? gastosDevueltos : paquete.gastos;
@@ -743,6 +834,21 @@ function DetallePaqueteResponsable({
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {puedeGestionarVSI && (
+                <button
+                  onClick={handleAnalizarIVA}
+                  disabled={loadingAnalizarIVA}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white shrink-0 transition-opacity disabled:opacity-50"
+                  style={{ background: '#7c3aed', fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
+                  title="Analizar los soportes con IA y calcular el valor antes de IVA/impoconsumo de cada gasto"
+                >
+                  {loadingAnalizarIVA
+                    ? <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />
+                    : <Sparkles className="w-3.5 h-3.5" />
+                  }
+                  {loadingAnalizarIVA ? 'Analizando...' : 'Calcular sin IVA (IA)'}
+                </button>
+              )}
               <button
                 onClick={async () => {
                   setLoadingExportar(true);
@@ -1259,14 +1365,14 @@ function DetallePaqueteResponsable({
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs" style={{ minWidth: puedeDevolverGasto ? 1450 : 1350 }}>
+              <table className="w-full text-xs" style={{ minWidth: puedeDevolverGasto ? 1560 : 1460 }}>
                 <thead>
                   <tr style={{ backgroundColor: '#00829a' }}>
                     {[
                       ...(modoSeleccion ? ['Sel.'] : []),
                       'Fecha', 'Pagado a', 'NIT', 'Concepto', 'No. Recibo',
                       'Centro Costo', 'Centro Operación', 'Cuenta Contable',
-                      'Valor', 'Soporte', 'CF PDF',
+                      'Valor', 'Valor sin IVA', 'Soporte', 'CF PDF',
                       ...(puedeDevolverGasto ? ['Acción'] : []),
                     ].map((h) => (
                       <th
@@ -1392,6 +1498,35 @@ function DetallePaqueteResponsable({
 
                         <td className="px-2 py-2 font-semibold whitespace-nowrap" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', color: '#00829a' }}>
                           {fmtMonto(g.valor_pagado)}
+                        </td>
+
+                        {/* VALOR SIN IVA */}
+                        <td className="px-2 py-2 whitespace-nowrap" style={{ minWidth: 120 }}>
+                          {puedeGestionarVSI && g.estado_gasto !== 'devuelto' ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={0}
+                                value={vsiEdits[g.id] ?? (g.valor_sin_impuestos ?? '')}
+                                onChange={(e) => setVsiEdits((p) => ({ ...p, [g.id]: e.target.value }))}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                onBlur={() => handleGuardarVsi(g)}
+                                disabled={!!savingVsi[g.id]}
+                                placeholder="—"
+                                className="w-20 rounded px-1.5 py-1 text-xs text-gray-800 border border-gray-200 focus:border-gray-300 focus:outline-none disabled:opacity-50"
+                                style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                                title="Valor antes de IVA/impoconsumo (Enter para guardar)"
+                              />
+                              {savingVsi[g.id]
+                                ? <Loader2 className="w-3 h-3 animate-spin text-gray-400 shrink-0" />
+                                : <VsiBadge fuente={g.vsi_fuente} />}
+                            </div>
+                          ) : (
+                            <span className="flex items-center gap-1 font-semibold" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', color: g.valor_sin_impuestos != null ? '#374151' : '#d1d5db' }}>
+                              {g.valor_sin_impuestos != null ? fmtMonto(g.valor_sin_impuestos) : '—'}
+                              <VsiBadge fuente={g.vsi_fuente} />
+                            </span>
+                          )}
                         </td>
                         <td className="px-2 py-2">
                           {g.archivos.length > 0 ? (
@@ -1530,6 +1665,11 @@ function DetallePaqueteResponsable({
                     <td className="py-3 px-2 font-bold text-sm" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: filtroGastos === 'devueltos' ? '#ef4444' : '#00829a' }}>
                       {fmtMonto(gastosVisibles.reduce((s, g) => s + g.valor_pagado, 0))}
                     </td>
+                    <td className="py-3 px-2 font-bold text-sm" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#374151' }}>
+                      {gastosVisibles.some((g) => g.valor_sin_impuestos != null)
+                        ? fmtMonto(gastosVisibles.reduce((s, g) => s + (g.valor_sin_impuestos ?? g.valor_pagado), 0))
+                        : ''}
+                    </td>
                     <td /><td />
                     {puedeDevolverGasto && <td />}
                   </tr>
@@ -1541,7 +1681,7 @@ function DetallePaqueteResponsable({
                       <td className="py-2 px-2 font-bold text-sm text-green-700" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
                         {fmtMonto(paquete.monto_total - gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0))}
                       </td>
-                      <td /><td />
+                      <td /><td /><td />
                       {puedeDevolverGasto && <td />}
                     </tr>
                   )}

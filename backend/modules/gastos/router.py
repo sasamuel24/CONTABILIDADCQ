@@ -17,6 +17,7 @@ from modules.gastos.schemas import (
     ArchivoGastoOut, PaqueteDevolver, GastoDevolverRequest,
     PagarPaqueteIn, PagarMasivoIn, PagarMasivoOut,
     ExtraccionDatosOut, ComercialHijoBrief, ValidarMultipleRequest,
+    ValorSinImpuestosUpdate, AnalisisImpuestoGastoOut, AnalisisImpuestosResponse,
 )
 
 router = APIRouter(tags=["Gastos"])
@@ -831,6 +832,262 @@ Ejemplo 2 (factura electrónica de ferretería):
 
 
 # =============================================================================
+# VALOR SIN IMPUESTOS (BASE ANTES DE IVA) — ANÁLISIS IA + AJUSTE MANUAL
+# =============================================================================
+
+# Roles que validan los gastos para el archivo plano (Radicación/Facturación)
+_ROLES_VSI = {"admin", "fact", "contabilidad"}
+
+_PROMPT_IMPUESTOS = """Analiza este documento (factura, tiquete o recibo colombiano) y extrae el desglose de impuestos.
+Devuelve ÚNICAMENTE un objeto JSON, sin texto adicional, sin markdown.
+
+Campos:
+- total: valor total pagado del documento, en números enteros (sin signo peso, sin puntos de miles). null si no es legible.
+- subtotal: valor antes de impuestos si el documento lo muestra (etiquetado "Subtotal", "Base", "Valor antes de IVA" o similar). Entero o null.
+- iva: suma total del IVA discriminado en el documento (cualquier tarifa: 19%, 5%, etc.). Entero. Usa 0 SOLO si el documento muestra explícitamente IVA en $0 o "Excluido/Exento". null si no aparece ninguna línea de IVA.
+- impoconsumo: valor del impuesto al consumo (INC, "Impoconsumo", "Ipoconsumo", típico en restaurantes, tarifa 8%). Entero o null si no aparece.
+- propina: propina o servicio voluntario si aparece discriminado. Entero o null.
+- desglose_visible: true si el documento discrimina impuestos (tiene líneas de Subtotal/IVA/INC), false si solo muestra un valor total sin desglose (típico en tiquetes de transporte, peajes, recibos simples).
+
+Ejemplo restaurante:
+{"total":58900,"subtotal":50000,"iva":0,"impoconsumo":4000,"propina":4900,"desglose_visible":true}
+Ejemplo ferretería con IVA:
+{"total":11900,"subtotal":10000,"iva":1900,"impoconsumo":null,"propina":null,"desglose_visible":true}
+Ejemplo tiquete de transporte sin desglose:
+{"total":45000,"subtotal":null,"iva":null,"impoconsumo":null,"propina":null,"desglose_visible":false}"""
+
+_MEDIA_TYPES_IMAGEN = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+
+
+def _check_rol_vsi(user: User) -> None:
+    role = (user.role.code if user.role else "").lower()
+    area = (user.area.code if user.area else "").lower()
+    if role not in _ROLES_VSI and area not in _ROLES_VSI:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo Radicación/Facturación puede gestionar el valor sin impuestos.",
+        )
+
+
+async def _extraer_impuestos_soporte(client, contenido: bytes, content_type: str) -> dict:
+    """Envía el soporte (imagen o PDF) a Claude Haiku y devuelve el JSON de impuestos."""
+    import base64
+    import json
+
+    b64 = base64.standard_b64encode(contenido).decode("utf-8")
+    if content_type in _MEDIA_TYPES_IMAGEN:
+        bloque = {
+            "type": "image",
+            "source": {"type": "base64", "media_type": content_type, "data": b64},
+        }
+    elif content_type == "application/pdf":
+        bloque = {
+            "type": "document",
+            "source": {"type": "base64", "media_type": "application/pdf", "data": b64},
+        }
+    else:
+        raise ValueError(f"Tipo de soporte no analizable: {content_type}")
+
+    message = await client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=512,
+        messages=[{"role": "user", "content": [bloque, {"type": "text", "text": _PROMPT_IMPUESTOS}]}],
+    )
+    raw = message.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+    return json.loads(raw)
+
+
+@router.post(
+    "/gastos/paquetes/{paquete_id}/analizar-impuestos",
+    response_model=AnalisisImpuestosResponse,
+    summary="Calcular el valor sin impuestos de los gastos del paquete usando IA sobre los soportes",
+)
+async def analizar_impuestos_paquete(
+    paquete_id: UUID,
+    force: bool = Query(False, description="Recalcular también gastos que ya tienen valor (excepto los manuales)"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(_get_user_db),
+):
+    """
+    Para cada gasto activo del paquete sin valor_sin_impuestos, descarga su
+    soporte de S3, extrae el desglose de impuestos con Claude Haiku y calcula
+    la base antes de IVA/impoconsumo. Solo persiste valores que cuadran
+    matemáticamente (base + impuestos ≈ total registrado); el resto queda
+    marcado para revisión manual.
+    """
+    import asyncio
+    from decimal import Decimal
+    from anthropic import AsyncAnthropic
+    from core.config import settings
+    from core.s3_service import s3_service
+    from db.models import PaqueteGasto, GastoLegalizacion
+
+    _check_rol_vsi(user)
+    if not settings.anthropic_api_key:
+        raise HTTPException(status_code=503, detail="Servicio de IA no configurado. Contacte al administrador.")
+
+    result = await db.execute(
+        select(PaqueteGasto)
+        .options(selectinload(PaqueteGasto.gastos).selectinload(GastoLegalizacion.archivos))
+        .where(PaqueteGasto.id == paquete_id)
+    )
+    paquete = result.scalar_one_or_none()
+    if not paquete:
+        raise HTTPException(status_code=404, detail="Paquete no encontrado.")
+
+    candidatos = [
+        g for g in paquete.gastos
+        if g.estado_gasto != "devuelto"
+        and (g.valor_sin_impuestos is None or (force and g.vsi_fuente != "manual"))
+    ]
+
+    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    sem = asyncio.Semaphore(5)
+
+    async def analizar(gasto) -> dict:
+        """Solo lectura (S3 + IA). No toca la sesión de BD."""
+        soporte = next(
+            (a for a in gasto.archivos
+             if a.content_type in _MEDIA_TYPES_IMAGEN or a.content_type == "application/pdf"),
+            None,
+        )
+        if not soporte:
+            return {"gasto": gasto, "resultado": "sin_soporte",
+                    "detalle": "El gasto no tiene soporte analizable (imagen o PDF)."}
+        async with sem:
+            try:
+                contenido = await asyncio.to_thread(s3_service.get_file_content, soporte.s3_key)
+                if len(contenido) > 20 * 1024 * 1024:
+                    return {"gasto": gasto, "resultado": "error", "detalle": "Soporte demasiado grande para analizar."}
+                datos = await _extraer_impuestos_soporte(client, contenido, soporte.content_type)
+            except Exception as exc:  # noqa: BLE001 — un soporte ilegible no debe tumbar el lote
+                return {"gasto": gasto, "resultado": "error",
+                        "detalle": f"No se pudo analizar el soporte: {str(exc)[:300]}"}
+
+        valor_pagado = Decimal(gasto.valor_pagado)
+        tolerancia = max(Decimal(100), (valor_pagado * Decimal("0.01")).quantize(Decimal("1")))
+
+        def _num(campo) -> Optional[Decimal]:
+            v = datos.get(campo)
+            if v is None:
+                return None
+            try:
+                return Decimal(str(v))
+            except Exception:
+                return None
+
+        iva = _num("iva")
+        inc = _num("impoconsumo")
+        total_doc = _num("total")
+        desglose = bool(datos.get("desglose_visible"))
+        impuestos = (iva or Decimal(0)) + (inc or Decimal(0))
+
+        # Sin desglose de impuestos → la base es el total pagado
+        if not desglose or impuestos == 0:
+            return {"gasto": gasto, "resultado": "sin_desglose", "valor": valor_pagado,
+                    "iva": iva, "inc": inc,
+                    "detalle": "El soporte no discrimina impuestos; se usa el valor total."}
+
+        # Con impuestos: el total leído debe coincidir con el valor registrado
+        if total_doc is None or abs(total_doc - valor_pagado) > tolerancia:
+            return {"gasto": gasto, "resultado": "revision", "iva": iva, "inc": inc,
+                    "detalle": f"El total leído del soporte ({total_doc}) no coincide con el valor registrado ({valor_pagado})."}
+
+        base = valor_pagado - impuestos
+        if base <= 0:
+            return {"gasto": gasto, "resultado": "revision", "iva": iva, "inc": inc,
+                    "detalle": "Los impuestos leídos superan el valor del gasto."}
+
+        return {"gasto": gasto, "resultado": "ok", "valor": base, "iva": iva, "inc": inc,
+                "detalle": None}
+
+    analisis = await asyncio.gather(*(analizar(g) for g in candidatos))
+
+    # Aplicar mutaciones secuencialmente (la sesión async no es thread-safe)
+    resultados: list[AnalisisImpuestoGastoOut] = []
+    calculados = sin_desglose = para_revision = 0
+    for r in analisis:
+        gasto = r["gasto"]
+        if r["resultado"] == "ok":
+            gasto.valor_sin_impuestos = r["valor"]
+            gasto.vsi_fuente = "ia"
+            calculados += 1
+        elif r["resultado"] == "sin_desglose":
+            gasto.valor_sin_impuestos = r["valor"]
+            gasto.vsi_fuente = "sin_desglose"
+            sin_desglose += 1
+        else:
+            para_revision += 1
+        resultados.append(AnalisisImpuestoGastoOut(
+            gasto_id=gasto.id,
+            pagado_a=gasto.pagado_a,
+            resultado=r["resultado"],
+            valor_sin_impuestos=r.get("valor"),
+            iva_detectado=r.get("iva"),
+            impoconsumo_detectado=r.get("inc"),
+            detalle=r.get("detalle"),
+        ))
+
+    await db.commit()
+
+    return AnalisisImpuestosResponse(
+        procesados=len(candidatos),
+        calculados=calculados,
+        sin_desglose=sin_desglose,
+        para_revision=para_revision,
+        resultados=resultados,
+    )
+
+
+@router.patch(
+    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/valor-sin-impuestos",
+    response_model=GastoOut,
+    summary="Digitar/corregir manualmente el valor sin impuestos de un gasto",
+)
+async def actualizar_valor_sin_impuestos(
+    paquete_id: UUID,
+    gasto_id: UUID,
+    data: ValorSinImpuestosUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(_get_user_db),
+):
+    from db.models import GastoLegalizacion
+
+    _check_rol_vsi(user)
+
+    result = await db.execute(
+        select(GastoLegalizacion).where(
+            GastoLegalizacion.id == gasto_id,
+            GastoLegalizacion.paquete_id == paquete_id,
+        )
+    )
+    gasto = result.scalar_one_or_none()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado en este paquete.")
+
+    from decimal import Decimal
+    if data.valor > Decimal(gasto.valor_pagado):
+        raise HTTPException(
+            status_code=422,
+            detail="El valor sin impuestos no puede ser mayor al valor pagado.",
+        )
+
+    gasto.valor_sin_impuestos = data.valor
+    gasto.vsi_fuente = "manual"
+    await db.commit()
+
+    result = await db.execute(
+        select(GastoLegalizacion).where(GastoLegalizacion.id == gasto_id)
+    )
+    return GastoOut.model_validate(result.scalar_one())
+
+
+# =============================================================================
 # EXPORTAR ARCHIVO PLANO XLSX POR PAQUETE
 # =============================================================================
 
@@ -907,6 +1164,9 @@ async def exportar_plano_paquete(
         co_codigo       = gasto.centro_operacion.codigo.strip() if gasto.centro_operacion else ""
         cc_codigo       = gasto.centro_costo.codigo.strip()     if gasto.centro_costo     else ""
         notas           = f"{gasto.no_recibo or ''} {gasto.pagado_a} {gasto.concepto}".upper().strip()[:80]
+        # Base antes de IVA/impoconsumo validada por Facturación (IA o manual);
+        # si aún no fue validada, cae al valor total pagado.
+        valor_db = gasto.valor_sin_impuestos if gasto.valor_sin_impuestos is not None else gasto.valor_pagado
 
         ws.append([
             ID_CO,
@@ -917,7 +1177,7 @@ async def exportar_plano_paquete(
             paquete_un,                     # F351_ID_UN
             cc_codigo,                      # F351_ID_CCOSTO
             None,                           # F351_ID_FE (vacío)
-            round(float(gasto.valor_pagado)), # F351_VALOR_DB
+            round(float(valor_db)),        # F351_VALOR_DB (sin impuestos)
             0,                              # F351_VALOR_CR
             0,                              # F351_BASE_GRAVABLE
             None,                           # F351_DOCTO_BANCO

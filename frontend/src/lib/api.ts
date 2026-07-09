@@ -1868,6 +1868,8 @@ export interface GastoOut {
   centro_operacion: { id: string; nombre: string } | null;
   cuenta_auxiliar: { id: string; codigo: string; descripcion: string } | null;
   valor_pagado: number;
+  valor_sin_impuestos: number | null;
+  vsi_fuente: 'ia' | 'manual' | 'sin_desglose' | null;
   orden: number;
   observaciones?: string | null;
   solicitud_id?: string | null;
@@ -2391,6 +2393,47 @@ export async function devolverGasto(
     {
       method: 'POST',
       body: JSON.stringify({ motivo }),
+    }
+  );
+}
+
+export interface AnalisisImpuestoGastoOut {
+  gasto_id: string;
+  pagado_a: string;
+  resultado: 'ok' | 'sin_desglose' | 'revision' | 'sin_soporte' | 'error';
+  valor_sin_impuestos: number | null;
+  iva_detectado: number | null;
+  impoconsumo_detectado: number | null;
+  detalle: string | null;
+}
+
+export interface AnalisisImpuestosResponse {
+  procesados: number;
+  calculados: number;
+  sin_desglose: number;
+  para_revision: number;
+  resultados: AnalisisImpuestoGastoOut[];
+}
+
+/** Facturación: calcular con IA el valor sin impuestos de los gastos del paquete */
+export async function analizarImpuestosPaquete(paqueteId: string): Promise<AnalisisImpuestosResponse> {
+  return fetchAPI<AnalisisImpuestosResponse>(
+    `/gastos/paquetes/${paqueteId}/analizar-impuestos`,
+    { method: 'POST' }
+  );
+}
+
+/** Facturación: digitar/corregir manualmente el valor sin impuestos de un gasto */
+export async function actualizarValorSinImpuestos(
+  paqueteId: string,
+  gastoId: string,
+  valor: number
+): Promise<GastoOut> {
+  return fetchAPI<GastoOut>(
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/valor-sin-impuestos`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ valor }),
     }
   );
 }

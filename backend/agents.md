@@ -4020,4 +4020,78 @@ Si un cambio de backend viene acompañado de un ajuste visual en el frontend (o 
 
 ---
 
+## 🧩 Schemas Pydantic sobre ORM: campos escalares que en el modelo son relaciones (gotcha)
+
+> Añadido 9-Jul-2026, tras el bug "Error al actualizar carpeta: validation error ... estado, input_type=Estado".
+
+### El problema
+
+En el ORM, `Factura.estado` **NO es un string**: es una relación al objeto `Estado`
+(`db/models.py`, `estado: Mapped["Estado"] = relationship(...)`). Lo mismo aplica a `area`,
+`assigned_user`, etc. Si un schema de respuesta con `from_attributes=True` declara ese campo
+como escalar (`estado: str`) y se valida con `model_validate(objeto_orm)`, Pydantic recibe el
+objeto `Estado(...)` donde esperaba un string y el endpoint revienta con **500 validation error**
+— aunque la operación de BD ya se haya commiteado (el error es al serializar la respuesta).
+
+### Caso real (9-Jul-2026)
+
+`FacturaEnCarpeta.estado: str` (`modules/carpetas/schemas.py`) funcionaba en el árbol de carpetas
+(`list_root_folders`) porque esa ruta arma el string a mano desde una query plana con
+`Estado.label`. Pero `update_carpeta` / `get_carpeta` devuelven
+`CarpetaResponse.model_validate(carpeta_orm)`, y en cuanto la carpeta tenía hijos con facturas,
+el campo recibía el objeto `Estado` → error al "Asignar a Carpeta" desde el frontend.
+La asignación SÍ se guardaba; solo fallaba la respuesta.
+
+### La regla
+
+1. Si un schema con `from_attributes` declara como escalar un campo que en el ORM es relación,
+   **agregar un `field_validator(mode='before')`** que haga la conversión:
+   ```python
+   @field_validator('estado', mode='before')
+   @classmethod
+   def _estado_a_str(cls, v):
+       if v is None:
+           return ''
+       return getattr(v, 'label', v) or ''   # objeto Estado → label; string pasa intacto
+   ```
+2. Si un schema se llena por **dos rutas** (query plana con columnas ya-string Y
+   `model_validate` sobre ORM), probar AMBAS: la ruta plana no cubre la ruta ORM.
+3. Señal de alarma en errores de usuario: `input_value=<Estado(...)>, input_type=Estado` en un
+   validation error de respuesta = campo escalar recibiendo un objeto de relación ORM.
+
+---
+
+## 🔎 Rol `direccion` — Trazabilidad de Legalizaciones (solo lectura)
+
+> Actualizado 9-Jul-2026. Ventana del frontend documentada en `frontend/AGENTS.md` → "Perfil Dirección".
+
+El **Director Contable** usa el rol `direccion` (código exacto en `roles.code`; NO existe "director"). Es un perfil de **monitoreo de solo lectura**: consulta facturas (Centro Documental) y la trazabilidad de TODOS los paquetes de legalización de gastos (los 4 `tipo_flujo`: `mantenimiento`, `general` —cajas menores—, `tarjeta_cq`, `tarjeta_comercial`).
+
+### ⚠️ Gotcha: los roles admin de gastos están DUPLICADOS en dos sets
+
+Para que un rol vea todos los paquetes hay que agregarlo en **AMBOS** lugares (si solo se toca uno, lista pero recibe 403 al abrir el detalle):
+
+1. `modules/gastos/router.py` → `ROLES_ADMIN` (~L24-25): gobierna el **listado** `GET /gastos/paquetes` (rama `list_paquetes_admin`).
+2. `modules/gastos/service.py` → `roles_admin` dentro de `_check_access` (~L1499-1500): gobierna el **detalle** `GET /gastos/paquetes/{id}` y las URLs prefirmadas de descarga de soportes.
+
+`direccion` ya está en ambos desde el commit `4fac3e2` (9-Jul-2026). **NO** agregarlo a `_check_editable` ni a los checks de endpoints de escritura (aprobar, pagar, devolver, subir docs): el director no procesa.
+
+### No se creó ningún endpoint nuevo
+
+La trazabilidad se alimenta 100% de lo existente:
+
+- `GET /gastos/paquetes` (paginado, máx. 200 por llamada; el frontend hace bucle hasta `total`).
+- `GET /gastos/paquetes/{id}` — el `PaqueteOut` ya embebe `historial_estados` (con el usuario que hizo cada cambio) y `comentarios`.
+
+### Fuente de auditoría
+
+- Tabla `historial_estados_paquete` (`HistorialEstadoPaquete`, `db/models.py` ~L1392): auditoría **inmutable** con `paquete_id`, `user_id` (quién), `estado_anterior` → `estado_nuevo`, `created_at` (cuándo). Se escribe en cada transición del service (18 puntos en `modules/gastos/service.py`); si se agrega una transición nueva, **hay que escribir su registro de historial** o la línea de tiempo del director quedará incompleta.
+- Complementan: `comentarios_paquete` (observaciones/devoluciones/aprobaciones) y los hitos de fecha del propio paquete (`fecha_envio`, `fecha_envio_gerencia`, `fecha_aprobacion`, `fecha_envio_tesoreria`, `fecha_pago`).
+
+### Deploy
+
+Orden obligatorio: **backend primero** (pull + restart en EC2) y luego el frontend (Amplify). Si el frontend llega antes, la pestaña "Trazabilidad Legalizaciones" del director devuelve 403 al cargar.
+
+---
+
 **Última actualización:** 9 de julio de 2026

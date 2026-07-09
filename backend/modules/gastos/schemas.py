@@ -123,6 +123,8 @@ class GastoOut(BaseModel):
     centro_operacion: Optional[CentroOperacionBrief]
     cuenta_auxiliar: Optional[CuentaAuxiliarBrief]
     valor_pagado: Decimal
+    valor_sin_impuestos: Optional[Decimal] = None
+    vsi_fuente: Optional[str] = None
     orden: int
     observaciones: Optional[str] = None
     solicitud_id: Optional[UUID] = None
@@ -142,6 +144,33 @@ class GastoCreateResponse(GastoOut):
 
 class GastoDevolverRequest(BaseModel):
     motivo: str
+
+
+class ValorSinImpuestosUpdate(BaseModel):
+    """Facturación digita/corrige manualmente el valor antes de impuestos."""
+    valor: Decimal = Field(..., gt=0)
+
+
+class AnalisisImpuestoGastoOut(BaseModel):
+    """Resultado del análisis IA de impuestos para un gasto individual."""
+    gasto_id: UUID
+    pagado_a: str
+    # 'ok' (impuestos detectados y cuadran) | 'sin_desglose' (soporte sin
+    # discriminación de impuestos) | 'revision' (no cuadra, requiere manual)
+    # | 'sin_soporte' | 'error'
+    resultado: str
+    valor_sin_impuestos: Optional[Decimal] = None
+    iva_detectado: Optional[Decimal] = None
+    impoconsumo_detectado: Optional[Decimal] = None
+    detalle: Optional[str] = None
+
+
+class AnalisisImpuestosResponse(BaseModel):
+    procesados: int
+    calculados: int
+    sin_desglose: int
+    para_revision: int
+    resultados: List[AnalisisImpuestoGastoOut]
 
 
 # ---------------------------------------------------------------------------

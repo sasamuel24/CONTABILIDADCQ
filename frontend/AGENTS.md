@@ -102,6 +102,30 @@ Authorization: Bearer <access_token>
 
 ---
 
+# Perfil Dirección (Director Contable) — Centro Documental + Trazabilidad
+
+> Actualizado 9-Jul-2026. Detalle backend en `backend/agents.md` → "Rol `direccion` — Trazabilidad de Legalizaciones".
+
+## Ventanas y componentes
+
+| Ventana | Archivo | Notas |
+|---|---|---|
+| Página del director (rol `direccion`, ruta `/centro-documental`) | `src/pages/CentroDocumentalPage.tsx` | Toggle dinámico `vista: 'documental' \| 'trazabilidad'` con pills segmented (activa = gradiente de marca). Vista documental: KPIs (facturas, valor total, en revisión, sin archivar — reaccionan a los filtros), filtros con chips, tabla de facturas |
+| Trazabilidad de legalizaciones | `src/components/DirectorTrazabilidadView.tsx` | **Autocontenido y SOLO LECTURA** (cero botones de acción). Lista todos los `tipo_flujo` con KPIs por los 7 estados, filtros (texto/flujo/estado/rango fechas) y tabla paginada. Incluye `DetallePaqueteDirector`: pipeline visual + **línea de tiempo de auditoría** (`historial_estados`: quién, cuándo, estado_anterior → estado_nuevo) + observaciones + gastos |
+| Panel de carpetas | `src/components/CarpetasPanel.tsx` | Armonizado con el diseño (rounded-2xl, header con título en micro-mayúsculas) |
+
+## Convenciones y gotchas de este perfil
+
+- **`ESTADOS_CONFIG` propio con los 7 estados**, incluido `en_validacion` — el de `TesoreriaPaquetesView` lo omite. No reutilizar el de Tesorería.
+- La carga de trazabilidad pagina en bucle `listPaquetesGastos({ skip, limit: 200 })` hasta `total` (límite del backend: 200/página).
+- `PipelineEstadoDirector` es una copia adaptada del `PipelineEstado` de `LegalizacionPage` (que NO está exportado) trabajando con estados snake_case (`en_validacion`=paso 1, `devuelto`=paso 2 en rojo).
+- No se reutilizó `TesoreriaPaquetesView` con prop `readOnly` a propósito: esa vista tiene pago masivo y modales de pago; enhebrar readOnly arriesga regresiones en pagos.
+- **Diseño del Centro Documental** (aplican los gotchas del snapshot CSS): contenedor a `maxWidth: 1600` inline (no `max-w-7xl`), tabla con `minWidth: 1000` dentro de `overflow-x-auto`, grilla de filtros definida inline (`gridTemplateColumns`, NO `lg:grid-cols-*`), inputs `type="date"` con `minWidth: 0, flex: 1` (su ancho intrínseco desbordaba la tarjeta de filtros), foco de marca vía handlers `focusBrand` (no `focus:ring-*`), y márgenes problemáticos en inline (`ml-2` no existe en el snapshot).
+- Tipografía con constantes `F_BOLD` / `F_DEMI` / `F_BOOK` (Neutra Text) definidas al inicio de `CentroDocumentalPage.tsx`.
+- **Deploy:** la pestaña Trazabilidad requiere que el backend en EC2 ya tenga el rol `direccion` habilitado (pull + restart) — si Amplify publica antes, da 403 al cargar.
+
+---
+
 # Dominio y Despliegue del Frontend
 
 > Actualizado 6-Jul-2026.
@@ -142,3 +166,14 @@ Authorization: Bearer <access_token>
 ## Cómo auditar (script rápido)
 
 Extraer los tokens de `className` de `src/**/*.tsx` y compararlos contra los selectores `.clase` de `src/index.css` (des-escapando `\:` `\.` `\/`). Los que no aparezcan, no aplican.
+
+---
+
+# Errores "validation error for ..." al asignar/editar carpetas
+
+> Añadido 9-Jul-2026, tras el bug en "Asignar a Carpeta" con facturas en estado Pagada.
+
+- La asignación de una factura a carpeta se hace con **PUT `/carpetas/{id}`** (`updateCarpeta` en `src/lib/api.ts`, usado por `AsignarCarpetaModal.tsx`, `CarpetasPanel.tsx` y `CarpetasPanelTesoreria.tsx`).
+- Si el modal muestra un error tipo `"Error al actualizar carpeta: 1 validation error for CarpetaResponse ... input_type=Estado"`, es un **bug de serialización del backend** (schema Pydantic esperando string donde el ORM entrega un objeto de relación), NO un error del usuario ni del frontend. Detalle y regla en `backend/agents.md` → "Schemas Pydantic sobre ORM".
+- **Importante:** en esos casos la operación casi siempre **SÍ se guardó** (el commit en BD ocurre antes de serializar la respuesta). Antes de reintentar la asignación, refrescar el árbol de carpetas y verificar — reintentar a ciegas puede archivar la factura dos veces o en carpeta equivocada.
+- Caso concreto (corregido 9-Jul-2026): asignar una factura a una carpeta cuyos hijos contenían facturas hacía reventar la respuesta porque `FacturaEnCarpeta.estado` recibía el objeto `Estado` del ORM. Fix: `field_validator(mode='before')` en `backend/modules/carpetas/schemas.py`.

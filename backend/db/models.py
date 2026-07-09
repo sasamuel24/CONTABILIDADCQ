@@ -1248,6 +1248,10 @@ class GastoLegalizacion(Base, TimestampMixin):
         nullable=True
     )
     valor_pagado: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+    # Valor antes de impuestos (base sin IVA/impoconsumo) para el archivo plano.
+    # NULL = pendiente de validar. vsi_fuente: 'ia' | 'manual' | 'sin_desglose'
+    valor_sin_impuestos: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    vsi_fuente: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     orden: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
     observaciones: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     # Solicitud parcial de aprobación a la que fue asignado este gasto (flujo comercial multi-gerente)

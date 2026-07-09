@@ -4094,4 +4094,44 @@ Orden obligatorio: **backend primero** (pull + restart en EC2) y luego el fronte
 
 ---
 
+## 💰 Valor sin Impuestos por Gasto + Análisis IA de Soportes (archivo plano)
+
+> Añadido 9-Jul-2026. Ventana del frontend documentada en `frontend/AGENTS.md` → "Valor sin IVA en el detalle del paquete".
+
+**Problema que resuelve:** el archivo plano contable (`GET /gastos/paquetes/{id}/exportar-plano`) llenaba `F351_VALOR_DB` con `valor_pagado` (total con IVA) y Facturación corregía el Excel a mano gasto por gasto para dejar la base antes de impuestos.
+
+### Modelo de datos
+
+`gastos_legalizacion` (migración `r2s3t4u5v6w7`, aplicada en Aurora el 9-Jul-2026):
+
+- `valor_sin_impuestos NUMERIC(14,2) NULL` — base antes de IVA/impoconsumo. `NULL` = pendiente de validar.
+- `vsi_fuente VARCHAR(20) NULL` — origen del valor: `ia` (extraído del soporte), `manual` (digitado por Facturación), `sin_desglose` (el soporte no discrimina impuestos → base = total).
+
+### Endpoints (en `modules/gastos/router.py`, sección "VALOR SIN IMPUESTOS")
+
+| Endpoint | Qué hace |
+|---|---|
+| `POST /gastos/paquetes/{id}/analizar-impuestos?force=` | Para cada gasto activo (no devuelto) **sin** `valor_sin_impuestos`: baja el primer soporte analizable de S3 (imagen JPG/PNG/WEBP/GIF o PDF), lo manda a Claude Haiku (`claude-haiku-4-5-20251001`, prompt `_PROMPT_IMPUESTOS`) que devuelve `{total, subtotal, iva, impoconsumo, propina, desglose_visible}`, y decide (ver reglas). Concurrencia con `asyncio.Semaphore(5)` + `asyncio.to_thread` para S3 (boto3 es síncrono — no bloquear el event loop). Con `force=true` recalcula todo excepto los `manual`. Devuelve resumen `{procesados, calculados, sin_desglose, para_revision, resultados[]}`. |
+| `PATCH /gastos/paquetes/{id}/gastos/{gid}/valor-sin-impuestos` | Ajuste manual (body `{valor}`). Valida `valor <= valor_pagado`. Marca `vsi_fuente='manual'`. |
+
+**Permisos (`_check_rol_vsi`):** rol o área en `{admin, fact, contabilidad}`. **Sin restricción de estado del paquete** (Facturación actúa sobre paquetes `aprobado`, que `_check_editable` bloquearía — por eso NO se reutilizó `editar_gasto`).
+
+### Reglas de decisión del análisis (a prueba de errores de lectura)
+
+1. `desglose_visible=false` o impuestos leídos = 0 → `valor_sin_impuestos = valor_pagado`, fuente `sin_desglose` (taxis, peajes, régimen simplificado).
+2. Con impuestos: solo persiste si el `total` leído del soporte cuadra con `valor_pagado` registrado (tolerancia `max($100, 1%)`). Entonces `base = valor_pagado - iva - impoconsumo`, fuente `ia`.
+3. Si no cuadra, la base sale ≤ 0, no hay soporte analizable, o la IA falla → el gasto queda `NULL` (resultado `revision`/`sin_soporte`/`error` con `detalle`) para digitación manual. **Nunca se guarda un valor que no cuadre.**
+
+### Export
+
+`F351_VALOR_DB = valor_sin_impuestos ?? valor_pagado` (fallback al total si no fue validado). `F351_BASE_GRAVABLE` sigue en 0 — **pendiente confirmar con contabilidad** si el plano SIESA espera el IVA en fila aparte (cuenta de IVA descontable) o en base gravable; si cambia, tocar solo `exportar_plano_paquete`.
+
+### ⚠️ Gotchas
+
+- **400 "credit balance is too low"** de Anthropic = la cuenta de la `ANTHROPIC_API_KEY` (`.env`) sin créditos. Afecta este análisis Y `extraer-datos-imagen` de los técnicos. Verificar saldo ANTES de diagnosticar código: el error llega como resultado `error` por gasto con el mensaje en `detalle`.
+- **La migración hay que correrla en la EC2** (`venv/bin/alembic upgrade head`) al hacer pull: el 9-Jul-2026 se hizo pull+restart sin migrar y todos los endpoints de gastos devolvieron 500 `UndefinedColumnError`. "La BD es compartida" NO exime: el que aplica la migración es alembic desde donde se corra, y si el código nuevo llega antes que las columnas, el ORM revienta.
+- Los `Decimal` de Pydantic v2 se serializan como **string** en JSON (`"15945.00"`): el frontend suma con `toNum()` (ver `frontend/AGENTS.md`).
+
+---
+
 **Última actualización:** 9 de julio de 2026

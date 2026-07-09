@@ -169,6 +169,31 @@ Extraer los tokens de `className` de `src/**/*.tsx` y compararlos contra los sel
 
 ---
 
+# Valor sin IVA en el detalle del paquete (Radicación) + análisis IA
+
+> Añadido 9-Jul-2026. Detalle backend en `backend/agents.md` → "Valor sin Impuestos por Gasto + Análisis IA de Soportes".
+
+Todo vive en `src/components/ResponsablePaquetesView.tsx` (detalle del paquete que Radicación abre desde `/facturacion`):
+
+- **Botón morado "Calcular sin IVA (IA)"** junto a "Exportar plano" — visible con `puedeGestionarVSI` (= `esFact` y paquete en `aprobado | en_tesoreria | pagado`). Llama `analizarImpuestosPaquete(paqueteId)` (`api.ts`), recarga el paquete y muestra toast con el resumen; si hay gastos para revisión, el toast incluye el `detalle` del primer fallo (ahí aparece p. ej. el error de créditos de Anthropic).
+- **Columna "Valor sin IVA"** entre "Valor" y "Soporte": input editable para `puedeGestionarVSI` (Enter o blur guardan vía `actualizarValorSinImpuestos`), texto formateado para el resto. Badge `VsiBadge` de origen: `IA` (teal), `M` (manual, gris), `=T` (sin desglose, verde). El pie de tabla suma la columna con fallback `valor_sin_impuestos ?? valor_pagado`.
+- **Formato es-CO**: el input es `type="text"` con `inputMode="numeric"` y muestra `fmtNumero()` (miles con punto: `17.950`); al guardar se parsea con `parseNumeroCO()` (quita puntos de miles, coma = decimal). No usar `type="number"` — no admite separador de miles.
+- La IA es incremental: el botón solo procesa gastos sin valor y nunca pisa los `manual`; se puede dar clic las veces que sea.
+
+## ⚠️ Gotcha: los Decimal del backend llegan como STRING
+
+Pydantic v2 serializa `Decimal` como string JSON (`valor_pagado: "15945.00"`). Sumarlos con `+` en un `reduce` **concatena strings y da NaN**. En `ResponsablePaquetesView` existe `toNum()` y todos los agregados lo usan — al agregar cualquier cálculo con montos de gastos/paquetes, pasar SIEMPRE por `toNum()` (o `Number()`), nunca sumar el campo crudo.
+
+---
+
+# Validación de Centros al crear/enviar paquetes (Comercial, Tarjeta CQ, Legalización)
+
+> Añadido 9-Jul-2026 (commit `5f22481`).
+
+`ComercialPage.tsx`, `TarjetaCQPage.tsx` y `LegalizacionPage.tsx` bloquean con `toast.error` la creación (`NuevoPaquete*Form`) y el envío (`handleEnviar` del detalle) si algún gasto con datos no tiene **Centro de Costo Y Centro de Operación**. La validación filtra primero `filasConDatos` (alguna celda diligenciada) para no exigir centros en filas vacías de la grilla. Es validación de UX — el backend no la exige; si se agrega un flujo nuevo de captura de gastos, replicarla.
+
+---
+
 # Errores "validation error for ..." al asignar/editar carpetas
 
 > Añadido 9-Jul-2026, tras el bug en "Asignar a Carpeta" con facturas en estado Pagada.

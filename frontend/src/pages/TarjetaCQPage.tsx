@@ -831,6 +831,16 @@ function DetallePaqueteCQ({
   };
 
   const handleEnviar = () => {
+    const filasConDatos = gastos.filter(
+      (f) => f.fecha || f.noIdentificacion || f.pagadoA || f.concepto || f.valorPagado
+    );
+    const sinCentros = filasConDatos.filter((f) => !f.centroCostoId || !f.centroOperacionId);
+    if (sinCentros.length > 0) {
+      toast.error(
+        `Todos los gastos deben tener Centro de Costo y Centro de Operación antes de enviar. Pendiente${sinCentros.length !== 1 ? 's' : ''}: ${sinCentros.length} gasto${sinCentros.length !== 1 ? 's' : ''}.`
+      );
+      return;
+    }
     // Tarjeta CQ siempre requiere selección de aprobador de gerencia
     setAprobadorSeleccionado(paquete?.aprobador?.id ?? '');
     setShowAprobadorModal(true);
@@ -1107,6 +1117,14 @@ function NuevoPaqueteCQForm({
     if (!semana) { toast.error('Selecciona la semana de gastos'); return; }
     const filasValidas = filas.filter(f => f.fecha || f.noIdentificacion || f.pagadoA || f.concepto || f.valorPagado);
     if (filasValidas.length === 0) { toast.error('Agrega al menos un gasto con datos'); return; }
+
+    const sinCentros = filasValidas.filter(f => !f.centroCostoId || !f.centroOperacionId);
+    if (sinCentros.length > 0) {
+      toast.error(
+        `Todos los gastos deben tener Centro de Costo y Centro de Operación. Pendiente${sinCentros.length !== 1 ? 's' : ''}: ${sinCentros.length} gasto${sinCentros.length !== 1 ? 's' : ''}.`
+      );
+      return;
+    }
 
     setSaving(true);
     try {

@@ -1709,6 +1709,14 @@ function NuevoPaqueteForm({
       return;
     }
 
+    const sinCentros = filasValidas.filter((f) => !f.centroCostoId || !f.centroOperacionId);
+    if (sinCentros.length > 0) {
+      toast.error(
+        `Todos los gastos deben tener Centro de Costo y Centro de Operación. Pendiente${sinCentros.length !== 1 ? 's' : ''}: ${sinCentros.length} gasto${sinCentros.length !== 1 ? 's' : ''}.`
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       // Crear el paquete — el input type=week retorna "2026-W09" nativamente

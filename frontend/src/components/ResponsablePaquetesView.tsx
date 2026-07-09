@@ -1891,8 +1891,9 @@ export function ResponsablePaquetesView({
     .filter((p) => {
       // Modo comercial: SOLO paquetes de tarjeta comercial.
       if (modo === 'comercial') return p.tipo_flujo === 'tarjeta_comercial';
-      // Modo mantenimiento: ocultar comerciales (Radicación/fact sí los procesa cuando están aprobados).
-      return esFact || p.tipo_flujo !== 'tarjeta_comercial';
+      // Modo mantenimiento: SOLO paquetes de mantenimiento; los flujos general/tarjeta_cq/comercial
+      // los aprueba gerencia por token (Radicación/fact sí los procesa en todos los flujos).
+      return esFact || p.tipo_flujo === 'mantenimiento';
     });
 
   // Comercial: "Por validar" = en_validacion.

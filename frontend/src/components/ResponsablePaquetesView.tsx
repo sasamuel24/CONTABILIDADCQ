@@ -1929,11 +1929,17 @@ export function ResponsablePaquetesView({
           )
         : filtro === 'esperando_gerentes'
           ? paquetesEnviados.filter((p) => p.estado === 'en_revision')
-          : paquetesEnviados.filter((p) => p.estado === (filtro === 'en_revision' ? estadoRevision : filtro));
+          : filtro === 'en_revision'
+            // Los paquetes con gastos devueltos esperan correcciones del técnico:
+            // viven en la pestaña "Devueltos" hasta que se corrigen.
+            ? paquetesEnviados.filter((p) => p.estado === estadoRevision && !p.tiene_gastos_devueltos)
+            : paquetesEnviados.filter((p) => p.estado === filtro);
 
   // Contar sobre paquetesEnviados (ya filtrados por modo) para que los badges
   // coincidan con lo que la vista realmente muestra.
-  const pendientes = paquetesEnviados.filter((p) => p.estado === estadoRevision).length;
+  const pendientes = paquetesEnviados.filter(
+    (p) => p.estado === estadoRevision && !p.tiene_gastos_devueltos
+  ).length;
   const devueltosCount = paquetesEnviados.filter(
     (p) => p.estado === 'devuelto' || p.tiene_gastos_devueltos
   ).length;
@@ -1960,7 +1966,7 @@ export function ResponsablePaquetesView({
   }
 
   return (
-    <div className="max-w-3xl">
+    <div>
       {/* Filtros */}
       <div className="flex items-center gap-2 mb-6 flex-wrap">
         <Filter className="w-4 h-4 text-gray-400" />
@@ -2044,7 +2050,7 @@ export function ResponsablePaquetesView({
                         {p.folio}
                       </span>
                     )}
-                    {p.tiene_gastos_devueltos && (
+                    {filtro === 'devuelto' && p.tiene_gastos_devueltos && (
                       <span
                         className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-semibold"
                         style={{ backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}

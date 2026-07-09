@@ -79,6 +79,22 @@ function fmtMonto(v: number | string) {
   return `$ ${Number(v).toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+/** El backend serializa Decimal como string en JSON; coerciona a número antes de sumar */
+function toNum(v: number | string | null | undefined): number {
+  const n = Number(v);
+  return isNaN(n) ? 0 : n;
+}
+
+/** Número con separador de miles es-CO, sin signo peso (ej: 17.950) */
+function fmtNumero(v: number | string) {
+  return Number(v).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+}
+
+/** Parsea un número digitado en formato es-CO ("17.950" o "17950") */
+function parseNumeroCO(raw: string): number {
+  return Number(raw.replace(/\./g, '').replace(',', '.').trim());
+}
+
 function fmtFecha(iso: string | null | undefined) {
   if (!iso) return '—';
   const [y, m, d] = iso.split('-');
@@ -697,12 +713,12 @@ function DetallePaqueteResponsable({
     const raw = vsiEdits[g.id];
     if (raw === undefined) return;
     const limpiar = () => setVsiEdits((p) => { const n = { ...p }; delete n[g.id]; return n; });
-    const num = Number(raw);
-    if (raw.trim() === '' || isNaN(num) || num <= 0 || num === g.valor_sin_impuestos) {
+    const num = parseNumeroCO(raw);
+    if (raw.trim() === '' || isNaN(num) || num <= 0 || num === toNum(g.valor_sin_impuestos)) {
       limpiar();
       return;
     }
-    if (num > g.valor_pagado) {
+    if (num > toNum(g.valor_pagado)) {
       toast.error('El valor sin impuestos no puede ser mayor al valor pagado');
       return;
     }
@@ -889,7 +905,7 @@ function DetallePaqueteResponsable({
             </div>
             <div className="flex items-center gap-2 text-gray-600">
               <Banknote className="w-4 h-4 text-gray-400" />
-              {paquete.monto_a_pagar !== null && paquete.monto_a_pagar !== paquete.monto_total ? (
+              {paquete.monto_a_pagar !== null && toNum(paquete.monto_a_pagar) !== toNum(paquete.monto_total) ? (
                 <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="flex flex-col gap-0.5">
                   <span>
                     <span className="text-gray-400">Total bruto: </span>
@@ -897,7 +913,7 @@ function DetallePaqueteResponsable({
                   </span>
                   <span>
                     <span className="text-gray-400">Gastos devueltos: </span>
-                    <span className="font-semibold text-red-500">−{fmtMonto(paquete.monto_total - paquete.monto_a_pagar)}</span>
+                    <span className="font-semibold text-red-500">−{fmtMonto(toNum(paquete.monto_total) - toNum(paquete.monto_a_pagar))}</span>
                   </span>
                   <span>
                     <span className="text-gray-400">A pagar: </span>
@@ -1105,7 +1121,7 @@ function DetallePaqueteResponsable({
                         {paquete.gastos.filter((g) => g.solicitud_id === s.id).length === 0
                           ? <>Visto bueno general del paquete · {fmtMonto(paquete.monto_total)}</>
                           : <>{paquete.gastos.filter((g) => g.solicitud_id === s.id).length} gasto(s) ·{' '}
-                            {fmtMonto(paquete.gastos.filter((g) => g.solicitud_id === s.id).reduce((sum, g) => sum + g.valor_pagado, 0))}</>}
+                            {fmtMonto(paquete.gastos.filter((g) => g.solicitud_id === s.id).reduce((sum, g) => sum + toNum(g.valor_pagado), 0))}</>}
                       </p>
                     </div>
                     <span className="text-xs font-bold px-2.5 py-1 rounded-full"
@@ -1146,7 +1162,7 @@ function DetallePaqueteResponsable({
                 <div className="space-y-2 mb-3">
                   {gruposSolicitud.map((grupo, idx) => {
                     const aprob = aprobadoresActivos.find((a) => a.id === grupo.aprobadorId);
-                    const monto = paquete.gastos.filter((g) => grupo.gastoIds.includes(g.id)).reduce((s, g) => s + g.valor_pagado, 0);
+                    const monto = paquete.gastos.filter((g) => grupo.gastoIds.includes(g.id)).reduce((s, g) => s + toNum(g.valor_pagado), 0);
                     return (
                       <div key={idx} className="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5">
                         <span className="text-xs font-bold px-1.5 py-0.5 rounded shrink-0" style={{ backgroundColor: '#e0f5f7', color: '#00829a' }}>
@@ -1239,11 +1255,11 @@ function DetallePaqueteResponsable({
                       Total bruto: <span className="line-through">{fmtMonto(paquete.monto_total)}</span>
                     </p>
                     <p className="text-red-600">
-                      Gastos devueltos: −{fmtMonto(gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0))}
+                      Gastos devueltos: −{fmtMonto(gastosDevueltos.reduce((s, g) => s + toNum(g.valor_pagado), 0))}
                       <span className="text-gray-400 ml-1">({gastosDevueltos.length} gasto{gastosDevueltos.length !== 1 ? 's' : ''})</span>
                     </p>
                     <p className="font-bold text-green-700 mt-0.5">
-                      A pagar a Tesorería: {fmtMonto(paquete.monto_total - gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0))}
+                      A pagar a Tesorería: {fmtMonto(toNum(paquete.monto_total) - gastosDevueltos.reduce((s, g) => s + toNum(g.valor_pagado), 0))}
                     </p>
                   </div>
                 ) : (
@@ -1505,10 +1521,13 @@ function DetallePaqueteResponsable({
                           {puedeGestionarVSI && g.estado_gasto !== 'devuelto' ? (
                             <div className="flex items-center gap-1">
                               <input
-                                type="number"
-                                min={0}
-                                value={vsiEdits[g.id] ?? (g.valor_sin_impuestos ?? '')}
-                                onChange={(e) => setVsiEdits((p) => ({ ...p, [g.id]: e.target.value }))}
+                                type="text"
+                                inputMode="numeric"
+                                value={vsiEdits[g.id] ?? (g.valor_sin_impuestos != null ? fmtNumero(g.valor_sin_impuestos) : '')}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  if (/^[\d.,]*$/.test(v)) setVsiEdits((p) => ({ ...p, [g.id]: v }));
+                                }}
                                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
                                 onBlur={() => handleGuardarVsi(g)}
                                 disabled={!!savingVsi[g.id]}
@@ -1663,23 +1682,23 @@ function DetallePaqueteResponsable({
                       {filtroGastos === 'devueltos' ? 'Total devueltos' : 'Total'}
                     </td>
                     <td className="py-3 px-2 font-bold text-sm" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: filtroGastos === 'devueltos' ? '#ef4444' : '#00829a' }}>
-                      {fmtMonto(gastosVisibles.reduce((s, g) => s + g.valor_pagado, 0))}
+                      {fmtMonto(gastosVisibles.reduce((s, g) => s + toNum(g.valor_pagado), 0))}
                     </td>
                     <td className="py-3 px-2 font-bold text-sm" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#374151' }}>
                       {gastosVisibles.some((g) => g.valor_sin_impuestos != null)
-                        ? fmtMonto(gastosVisibles.reduce((s, g) => s + (g.valor_sin_impuestos ?? g.valor_pagado), 0))
+                        ? fmtMonto(gastosVisibles.reduce((s, g) => s + toNum(g.valor_sin_impuestos ?? g.valor_pagado), 0))
                         : ''}
                     </td>
                     <td /><td />
                     {puedeDevolverGasto && <td />}
                   </tr>
-                  {filtroGastos === 'devueltos' && paquete.monto_total > gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0) && (
+                  {filtroGastos === 'devueltos' && toNum(paquete.monto_total) > gastosDevueltos.reduce((s, g) => s + toNum(g.valor_pagado), 0) && (
                     <tr>
                       <td colSpan={7} className="py-2 px-2 text-xs font-semibold text-green-700" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
                         Monto a pagar (sin devueltos)
                       </td>
                       <td className="py-2 px-2 font-bold text-sm text-green-700" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
-                        {fmtMonto(paquete.monto_total - gastosDevueltos.reduce((s, g) => s + g.valor_pagado, 0))}
+                        {fmtMonto(toNum(paquete.monto_total) - gastosDevueltos.reduce((s, g) => s + toNum(g.valor_pagado), 0))}
                       </td>
                       <td /><td /><td />
                       {puedeDevolverGasto && <td />}

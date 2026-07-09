@@ -33,7 +33,7 @@ CATEGORIAS_VALIDAS = {
     'Combustible', 'Hospedaje', 'Alimentacion',
     'Viaticos / Casetas', 'Materiales', 'Otro'
 }
-TIPOS_ARCHIVO = {'application/pdf', 'image/jpeg', 'image/png', 'image/jpg'}
+TIPOS_ARCHIVO = {'application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'image/webp'}
 ESTADOS_EDITABLE = {'borrador', 'devuelto'}
 
 
@@ -211,6 +211,24 @@ class GastosService:
             raise HTTPException(status_code=403, detail="Solo el propietario puede enviar el paquete.")
         if not paquete.gastos:
             raise HTTPException(status_code=400, detail="El paquete debe tener al menos un gasto antes de enviarse.")
+
+        # Todo gasto debe tener Centro de Costo y Centro de Operación asignados
+        gastos_incompletos = [
+            g for g in paquete.gastos
+            if not g.centro_costo_id or not g.centro_operacion_id
+        ]
+        if gastos_incompletos:
+            nombres = ", ".join(
+                (g.pagado_a or "(sin nombre)") for g in gastos_incompletos[:5]
+            )
+            extra = "…" if len(gastos_incompletos) > 5 else ""
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Todos los gastos deben tener Centro de Costo y Centro de Operación "
+                    f"antes de enviar el paquete. Gastos incompletos: {nombres}{extra}"
+                ),
+            )
 
         # Paquetes de anticipo pasan por Radicación antes de Tesorería.
         # El anticipo ya fue aprobado por el jefe → van directamente a 'aprobado'

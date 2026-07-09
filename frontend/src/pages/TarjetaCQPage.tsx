@@ -388,7 +388,7 @@ function CardGasto({
       )}
 
       <div className="px-5 py-4 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide"
               style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Fecha</label>
@@ -411,7 +411,7 @@ function CardGasto({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide"
               style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Concepto</label>
@@ -443,7 +443,7 @@ function CardGasto({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide"
               style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Centro de Costos</label>
@@ -761,6 +761,14 @@ function DetallePaqueteCQ({
 
   const handleEscanear = async (localId: string, file: File) => {
     setEscaneandoId(localId);
+    // La foto escaneada queda adjunta de una vez como soporte del gasto
+    const fila = gastos.find(f => f.localId === localId);
+    if (fila && fila.archivos.length + fila.pendingFiles.length < 2) {
+      handleAdjuntar(localId, file, 'Otro');
+      toast.info('La foto escaneada quedó adjunta como soporte.');
+    } else {
+      toast.warning('El gasto ya tiene 2 soportes; la foto escaneada no se adjuntó.');
+    }
     try {
       const datos = await extraerDatosImagen(file);
       const campos: Partial<Record<keyof GastoLocal, string>> = {};
@@ -1070,6 +1078,14 @@ function NuevoPaqueteCQForm({
   };
   const handleEscanear = async (localId: string, file: File) => {
     setEscaneandoId(localId);
+    // La foto escaneada queda adjunta de una vez como soporte del gasto
+    const fila = filas.find(f => f.localId === localId);
+    if (fila && fila.archivos.length + fila.pendingFiles.length < 2) {
+      handleAdjuntar(localId, file, 'Otro');
+      toast.info('La foto escaneada quedó adjunta como soporte.');
+    } else {
+      toast.warning('El gasto ya tiene 2 soportes; la foto escaneada no se adjuntó.');
+    }
     try {
       const datos = await extraerDatosImagen(file);
       const campos: Partial<Record<keyof GastoLocal, string>> = {};
@@ -1138,7 +1154,7 @@ function NuevoPaqueteCQForm({
           Semana de gastos <span className="text-red-500">*</span>
         </label>
         <div className="flex items-start gap-4 flex-wrap">
-          <div className="flex-1 min-w-[200px] max-w-xs">
+          <div className="flex-1 min-w-[200px]">
             <WeekPickerInput
               value={semana}
               onChange={setSemana}
@@ -1302,7 +1318,7 @@ export function TarjetaCQPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="shrink-0" style={{ background: 'linear-gradient(to right, #00829a, #14aab8)' }}>
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+        <div className="mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center">
               <CreditCard className="w-5 h-5 text-white" />
@@ -1337,7 +1353,7 @@ export function TarjetaCQPage() {
           </div>
         </div>
 
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+        <div className="mx-auto px-4 sm:px-6">
           <div className="flex items-end gap-1">
             <button onClick={irALista}
               className={`flex items-center gap-2 px-4 py-3 text-sm font-semibold rounded-t-xl transition-all ${
@@ -1373,7 +1389,7 @@ export function TarjetaCQPage() {
 
       {(vista === 'lista' || vista === 'historial') && (
         <div className="bg-white border-b border-gray-100 shadow-sm">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+          <div className="mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
                 {vista === 'historial' ? 'Historial de envios' : 'Mis Paquetes Tarjeta CQ'}
@@ -1398,7 +1414,7 @@ export function TarjetaCQPage() {
       )}
 
       <main className="flex-1 overflow-auto">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        <div className="mx-auto px-4 sm:px-6 py-6">
 
           {vista === 'nuevo' && (
             <NuevoPaqueteCQForm aprobadores={aprobadores} onCerrar={irALista}
@@ -1410,7 +1426,7 @@ export function TarjetaCQPage() {
           )}
 
           {vista === 'historial' && (
-            <div className="max-w-2xl mx-auto">
+            <div className="mx-auto">
               {loading && (
                 <div className="flex flex-col items-center justify-center h-48 gap-3">
                   <Loader2 className="w-10 h-10 animate-spin" style={{ color: '#00829a' }} />
@@ -1436,7 +1452,7 @@ export function TarjetaCQPage() {
           )}
 
           {vista === 'lista' && (
-            <div className="max-w-2xl mx-auto space-y-8">
+            <div className="mx-auto">
               {loading && (
                 <div className="flex flex-col items-center justify-center h-48 gap-3">
                   <Loader2 className="w-10 h-10 animate-spin" style={{ color: '#00829a' }} />

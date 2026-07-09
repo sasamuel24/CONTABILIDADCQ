@@ -769,6 +769,14 @@ function DetallePaqueteComercial({
 
   const handleEscanear = async (localId: string, file: File) => {
     setEscaneandoId(localId);
+    // La foto escaneada queda adjunta de una vez como soporte del gasto
+    const fila = gastos.find(f => f.localId === localId);
+    if (fila && fila.archivos.length + fila.pendingFiles.length < 2) {
+      handleAdjuntar(localId, file, 'Otro');
+      toast.info('La foto escaneada quedó adjunta como soporte.');
+    } else {
+      toast.warning('El gasto ya tiene 2 soportes; la foto escaneada no se adjuntó.');
+    }
     try {
       const datos = await extraerDatosImagen(file);
       const campos: Partial<Record<keyof GastoLocal, string>> = {};
@@ -1032,6 +1040,14 @@ function NuevoPaqueteComercialForm({
   };
   const handleEscanear = async (localId: string, file: File) => {
     setEscaneandoId(localId);
+    // La foto escaneada queda adjunta de una vez como soporte del gasto
+    const fila = filas.find(f => f.localId === localId);
+    if (fila && fila.archivos.length + fila.pendingFiles.length < 2) {
+      handleAdjuntar(localId, file, 'Otro');
+      toast.info('La foto escaneada quedó adjunta como soporte.');
+    } else {
+      toast.warning('El gasto ya tiene 2 soportes; la foto escaneada no se adjuntó.');
+    }
     try {
       const datos = await extraerDatosImagen(file);
       const campos: Partial<Record<keyof GastoLocal, string>> = {};

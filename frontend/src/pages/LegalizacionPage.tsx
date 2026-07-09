@@ -1155,6 +1155,14 @@ export function DetallePaquete({
 
   const handleEscanear = async (localId: string, file: File) => {
     setEscaneandoId(localId);
+    // La foto escaneada queda adjunta de una vez como soporte del gasto
+    const filaEscaneada = gastos.find((f) => f.localId === localId);
+    if (filaEscaneada && filaEscaneada.archivos.length + filaEscaneada.pendingFiles.length < 2) {
+      handleAdjuntar(localId, file, 'Otro');
+      toast.info('La foto escaneada quedó adjunta como soporte.');
+    } else {
+      toast.warning('El gasto ya tiene 2 soportes; la foto escaneada no se adjuntó.');
+    }
     try {
       const datos = await extraerDatosImagen(file);
       const campos: Partial<Record<keyof GastoLocal, string>> = {};
@@ -1251,6 +1259,16 @@ export function DetallePaquete({
   };
 
   const handleEnviar = () => {
+    const filasConDatos = gastos.filter(
+      (f) => f.fecha || f.noIdentificacion || f.pagadoA || f.concepto || f.valorPagado
+    );
+    const sinCentros = filasConDatos.filter((f) => !f.centroCostoId || !f.centroOperacionId);
+    if (sinCentros.length > 0) {
+      toast.error(
+        `Todos los gastos deben tener Centro de Costo y Centro de Operación antes de enviar. Pendiente${sinCentros.length !== 1 ? 's' : ''}: ${sinCentros.length} gasto${sinCentros.length !== 1 ? 's' : ''}.`
+      );
+      return;
+    }
     // Paquetes de anticipo van directo a Tesorería sin selección de aprobador
     if (paquete?.anticipo) {
       handleEnviarConfirmado();
@@ -1643,6 +1661,14 @@ function NuevoPaqueteForm({
 
   const handleEscanear = async (localId: string, file: File) => {
     setEscaneandoId(localId);
+    // La foto escaneada queda adjunta de una vez como soporte del gasto
+    const filaEscaneada = filas.find((f) => f.localId === localId);
+    if (filaEscaneada && filaEscaneada.archivos.length + filaEscaneada.pendingFiles.length < 2) {
+      handleAdjuntar(localId, file, 'Otro');
+      toast.info('La foto escaneada quedó adjunta como soporte.');
+    } else {
+      toast.warning('El gasto ya tiene 2 soportes; la foto escaneada no se adjuntó.');
+    }
     try {
       const datos = await extraerDatosImagen(file);
       const campos: Partial<Record<keyof GastoLocal, string>> = {};

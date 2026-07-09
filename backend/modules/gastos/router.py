@@ -21,7 +21,8 @@ from modules.gastos.schemas import (
 
 router = APIRouter(tags=["Gastos"])
 
-ROLES_ADMIN = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable"}
+# direccion = Director Contable, solo lectura (trazabilidad)
+ROLES_ADMIN = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable", "direccion"}
 
 
 async def _get_user_db(

@@ -200,6 +200,40 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
     );
   }, [currentFolder, allFacturas, searchQuery]);
 
+  // Índice global: id de factura → carpeta que la contiene y su ruta completa
+  const facturaCarpetaIndex = useMemo(() => {
+    const index = new Map<string, { carpeta: Carpeta; ruta: string }>();
+    const walk = (items: Carpeta[], trail: string[]) => {
+      for (const c of items) {
+        const path = [...trail, c.nombre];
+        for (const ref of c.facturas || []) {
+          index.set(String(ref.id), { carpeta: c, ruta: path.join(' › ') });
+        }
+        if (c.children) walk(c.children, path);
+      }
+    };
+    walk(carpetasRaiz, []);
+    return index;
+  }, [carpetasRaiz]);
+
+  // Búsqueda global de facturas por número o proveedor en TODAS las carpetas
+  const facturasBusquedaGlobal = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    const results: { factura: FacturaListItem; carpeta: Carpeta; ruta: string }[] = [];
+    for (const factura of allFacturas.values()) {
+      if (filtroPendientes && factura.estado === 'Pagada') continue;
+      if (
+        !factura.numero_factura.toLowerCase().includes(q) &&
+        !factura.proveedor.toLowerCase().includes(q)
+      ) continue;
+      const loc = facturaCarpetaIndex.get(String(factura.id));
+      if (!loc) continue;
+      results.push({ factura, carpeta: loc.carpeta, ruta: loc.ruta });
+    }
+    return results.slice(0, 50);
+  }, [searchQuery, allFacturas, facturaCarpetaIndex, filtroPendientes]);
+
   // Navegación
   const navigateToFolder = (folderId: string) => {
     setCurrentFolderId(folderId);
@@ -233,6 +267,20 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
     } catch (err) {
       console.error('Error cargando detalle de factura:', err);
       setSelectedFactura(factura); // fallback al item slim
+    }
+  };
+
+  // Clic en resultado de búsqueda global: navega a la carpeta y abre la factura
+  const handleResultadoBusquedaClick = async (factura: FacturaListItem, carpeta: Carpeta) => {
+    setCurrentFolderId(carpeta.id);
+    setSearchQuery('');
+    setSelectedFacturaIds(new Set());
+    try {
+      const full = await getFacturaListItem(factura.id);
+      setSelectedFactura(full);
+    } catch (err) {
+      console.error('Error cargando detalle de factura:', err);
+      setSelectedFactura(factura);
     }
   };
 
@@ -486,9 +534,9 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={currentFolder 
-              ? `Buscar en "${currentFolder.nombre}"...` 
-              : 'Buscar carpetas...'
+            placeholder={currentFolder
+              ? `Buscar en "${currentFolder.nombre}" o N° de factura en todas las carpetas...`
+              : 'Buscar por N° de factura, proveedor o carpeta...'
             }
             style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
             className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none"
@@ -614,8 +662,122 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
               </div>
             )}
 
+            {/* Resultados globales de búsqueda de facturas */}
+            {searchQuery.trim() !== '' && facturasBusquedaGlobal.length > 0 && (
+              <div className="mb-6">
+                <p
+                  style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  className="text-xs uppercase tracking-wider text-gray-400 mb-3"
+                >
+                  Facturas encontradas ({facturasBusquedaGlobal.length})
+                </p>
+                <div className="space-y-2">
+                  {facturasBusquedaGlobal.map(({ factura, carpeta, ruta }) => {
+                    const isHovered = hoveredFactura === `search-${factura.id}`;
+                    const status = statusConfig[factura.estado] || { color: '#6b7280', bgColor: '#f9fafb', border: '#e5e7eb' };
+
+                    return (
+                      <div
+                        key={`search-${factura.id}`}
+                        onClick={() => handleResultadoBusquedaClick(factura, carpeta)}
+                        onMouseEnter={() => setHoveredFactura(`search-${factura.id}`)}
+                        onMouseLeave={() => setHoveredFactura(null)}
+                        className="flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-200"
+                        style={{
+                          backgroundColor: isHovered ? '#fafbfc' : 'white',
+                          borderColor: isHovered ? '#00829a' : '#e5e7eb',
+                          boxShadow: isHovered
+                            ? '0 4px 15px -3px rgba(0, 130, 154, 0.12)'
+                            : '0 1px 2px 0 rgba(0, 0, 0, 0.03)',
+                        }}
+                      >
+                        {/* File Icon */}
+                        <div
+                          className="w-11 h-11 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: status.bgColor }}
+                        >
+                          <FileText className="w-5 h-5" style={{ color: status.color }} />
+                        </div>
+
+                        {/* Main Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p
+                              style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                              className="text-sm font-semibold text-gray-900 truncate"
+                            >
+                              {factura.numero_factura}
+                            </p>
+                            <span
+                              className="px-2 py-0.5 rounded-full text-xs font-medium border flex-shrink-0"
+                              style={{
+                                color: status.color,
+                                backgroundColor: status.bgColor,
+                                borderColor: status.border
+                              }}
+                            >
+                              {factura.estado}
+                            </span>
+                          </div>
+                          <p
+                            style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                            className="text-sm text-gray-500 truncate"
+                          >
+                            {factura.proveedor}
+                          </p>
+                          {/* Ruta de la carpeta donde está archivada */}
+                          <div className="flex items-center gap-1.5 mt-1 min-w-0">
+                            <Folder className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#d4a017' }} />
+                            <span
+                              style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif', color: '#00829a' }}
+                              className="text-xs truncate"
+                              title={ruta}
+                            >
+                              {ruta}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Details */}
+                        <div className="hidden md:flex flex-col items-end gap-1 flex-shrink-0">
+                          <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                            <Building2 className="w-3.5 h-3.5 text-gray-400" />
+                            <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                              {factura.area}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <DollarSign className="w-3.5 h-3.5 text-gray-400" />
+                            <span
+                              style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                              className="text-sm font-semibold text-gray-900"
+                            >
+                              ${factura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Action */}
+                        <div className="flex-shrink-0">
+                          <div
+                            className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors"
+                            style={{
+                              backgroundColor: isHovered ? '#e0f5f7' : 'transparent',
+                              color: '#00829a'
+                            }}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Facturas in current folder */}
-            {visibleFacturas.length > 0 && (
+            {searchQuery.trim() === '' && visibleFacturas.length > 0 && (
               <div>
                 {/* Selection bar */}
                 <div className="flex items-center justify-between mb-3">
@@ -827,7 +989,7 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
             )}
 
             {/* Empty State */}
-            {visibleFolders.length === 0 && visibleFacturas.length === 0 && (
+            {visibleFolders.length === 0 && visibleFacturas.length === 0 && facturasBusquedaGlobal.length === 0 && (
               <div className="flex flex-col items-center justify-center py-20">
                 <div 
                   className="w-20 h-20 rounded-2xl flex items-center justify-center mb-4"

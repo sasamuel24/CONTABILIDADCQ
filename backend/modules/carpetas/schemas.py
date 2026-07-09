@@ -1,7 +1,7 @@
 """
 Esquemas Pydantic para el módulo de carpetas.
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from uuid import UUID
 from typing import Optional, List
 from datetime import datetime
@@ -48,6 +48,14 @@ class FacturaEnCarpeta(BaseModel):
     carpeta_nombre: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator('estado', mode='before')
+    @classmethod
+    def _estado_a_str(cls, v):
+        # En rutas ORM (model_validate) llega el objeto Estado, no un string
+        if v is None:
+            return ''
+        return getattr(v, 'label', v) or ''
 
 
 class CarpetaResponse(BaseModel):

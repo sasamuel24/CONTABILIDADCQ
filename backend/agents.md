@@ -4008,4 +4008,16 @@ La variable `CORS_ORIGINS` del `.env` y `settings.cors_origins` **NO las lee el 
 
 ---
 
-**Última actualización:** 6 de julio de 2026
+## 🎨 Frontend: NO hay Tailwind real (gotcha para bugs visuales)
+
+> Actualizado 9-Jul-2026. Detalle completo en `frontend/AGENTS.md` → "CSS: NO hay Tailwind real".
+
+Si un cambio de backend viene acompañado de un ajuste visual en el frontend (o alguien reporta "se ve cortado / no aparece / no gira"), recordar:
+
+- El frontend **no compila Tailwind**: `frontend/src/index.css` es un snapshot parcial de utilidades. Una clase Tailwind que no esté definida ahí **no hace nada** (así estuvo roto `h-screen` y los layouts de página colapsaban a la altura del contenido).
+- Antes de "arreglar" un estilo, verificar que la clase exista en `index.css`; si falta, añadir su definición estándar a mano ahí (bloque "Utilidades estructurales").
+- `frontend/src/styles/globals.css` no se importa; editarlo no tiene efecto.
+
+---
+
+**Última actualización:** 9 de julio de 2026

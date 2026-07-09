@@ -210,10 +210,10 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+    <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #e5e7eb', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-        <h3 style={{fontFamily: 'Neutra Text Bold, Montserrat, sans-serif'}} className="font-semibold text-gray-900 text-sm">
+      <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid #f3f4f6' }}>
+        <h3 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', color: '#9ca3af'}} className="text-xs font-semibold uppercase tracking-wide">
           Carpetas
         </h3>
         <button
@@ -313,7 +313,9 @@ export function CarpetasPanel({ onSelectCarpeta, selectedCarpeta }: CarpetasPane
           </div>
         ) : carpetas.length === 0 ? (
           <div className="px-4 py-8 text-center">
-            <Folder className="w-10 h-10 text-gray-300 mx-auto mb-2" />
+            <div className="mx-auto mb-3 flex items-center justify-center rounded-full" style={{ width: 52, height: 52, backgroundColor: '#e0f5f7' }}>
+              <Folder className="w-6 h-6" style={{ color: '#00829a' }} />
+            </div>
             <p style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-sm text-gray-600">No hay carpetas</p>
             <p style={{fontFamily: 'Neutra Text Book, Montserrat, sans-serif'}} className="text-xs text-gray-400 mt-1">
               Crea una carpeta para organizar tus facturas

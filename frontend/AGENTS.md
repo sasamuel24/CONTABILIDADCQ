@@ -110,3 +110,35 @@ Authorization: Bearer <access_token>
 - **Despliegue:** automático — cada `git push` a `main` dispara el build de Amplify. El backend NO se despliega con el push (requiere pull + restart en EC2, ver `backend/agents.md`).
 - **`VITE_API_BASE_URL`:** apunta al API Gateway (`https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1/api/v1`). Se configura en las variables de entorno de Amplify (con fallback en `.env.production` y en `src/lib/api.ts`). **No cambia cuando cambia el dominio del frontend.**
 - **Al cambiar de dominio:** lo que rompe no es el frontend sino el CORS del backend (lista quemada en `backend/main.py`) y los enlaces de correos (`FRONTEND_URL` del `.env` en EC2). Checklist completo en `backend/agents.md` → "Dominios, CORS y URLs de Producción".
+
+---
+
+# ⚠️ CSS: NO hay Tailwind real — `index.css` es un snapshot parcial
+
+> Actualizado 9-Jul-2026. Este es el gotcha #1 de cualquier bug visual del frontend.
+
+## El problema
+
+- El proyecto **NO tiene Tailwind instalado**: no hay paquete `tailwindcss`, ni PostCSS, ni plugin en `vite.config.ts`.
+- `src/index.css` es un **snapshot congelado** de utilidades Tailwind v4.1.3 (export de una herramienta de diseño). Solo existen las clases que quedaron literalmente escritas en ese archivo.
+- `src/styles/globals.css` existe pero **no se importa en ningún lado** (solo `main.tsx` → `index.css`). No sirve editarlo.
+- **Consecuencia:** cualquier clase Tailwind usada en un componente que no esté definida en `index.css` NO HACE NADA, silenciosamente. Auditoría del 9-Jul-2026: ~688 tokens de className usados en `src/**/*.tsx` no existían en el CSS (`text-xs` con 642 usos, `font-semibold` 431, `rounded-xl` 178, `truncate`, `border-2`, `hidden`, `animate-spin`, etc.). La app "se veía bien" en gran parte por estilos inline y por las reglas base de `h1`–`h4`.
+
+## Síntomas típicos que causó (ya corregidos el 9-Jul-2026)
+
+- Layouts `flex h-screen` (TesoreriaPage, ContabilidadPage, GerenciaPage, ResponsablePage, Dashboard) **colapsaban a la altura del contenido**: sidebar a media pantalla, usuario flotando, fondo blanco debajo. Fix: se definió a mano `.h-screen` + `html, body, #root { height: 100% }`.
+- Input de subir PDF visible en el panel de carpetas de Tesorería (`hidden` no existía).
+- Barra móvil de ResponsablePage visible en escritorio (`md:hidden` no existía).
+- Spinners que no giraban (`animate-spin`), chevrons que no rotaban (`rotate-180`), textos que no se truncaban (`truncate`), panel de carpetas sin ancho (`w-80`), modales a pantalla completa (`max-w-2xl`).
+
+## Regla al escribir/editar componentes
+
+1. **Antes de asumir que una clase Tailwind funciona, verificar que exista**: `grep "\.nombre-clase" src/index.css` (ojo con el escape de `:` y `.` → `.sm\:flex`, `.w-3\.5`).
+2. Si falta y se necesita: **añadir su definición estándar de Tailwind a mano** en el bloque "Utilidades estructurales" de `index.css` (después del fix de `h-screen`), o usar `style` inline.
+3. Las variantes responsive van **en pareja**: nunca añadir `.hidden` sin sus `sm:`/`md:` correspondientes (y viceversa) o se oculta contenido de escritorio.
+4. Los keyframes propios se llaman `cq-spin` y `cq-pulse` (no `spin`/`pulse`) para no chocar con nada.
+5. **NO activar en bloque las clases cosméticas que siguen faltando** (`text-xs`, `font-semibold`, `rounded-xl`, paddings): cambiarían la apariencia de toda la app en todos los roles de golpe. Si algún día se instala Tailwind real, hacerlo con revisión visual completa de cada rol.
+
+## Cómo auditar (script rápido)
+
+Extraer los tokens de `className` de `src/**/*.tsx` y compararlos contra los selectores `.clase` de `src/index.css` (des-escapando `\:` `\.` `\/`). Los que no aparezcan, no aplican.

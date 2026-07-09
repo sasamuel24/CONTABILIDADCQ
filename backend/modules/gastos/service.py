@@ -1496,7 +1496,8 @@ class GastosService:
         return gasto
 
     def _check_access(self, paquete: PaqueteGasto, user_id: UUID, user_role: str, user_area: str = "") -> None:
-        roles_admin = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable"}
+        # direccion = Director Contable, solo lectura (trazabilidad)
+        roles_admin = {"admin", "fact", "contabilidad", "tesoreria", "tes", "gerencia", "responsable", "direccion"}
         if user_role.lower() not in roles_admin and user_area.lower() not in roles_admin and paquete.user_id != user_id:
             raise HTTPException(status_code=403, detail="No tienes acceso a este paquete.")
 

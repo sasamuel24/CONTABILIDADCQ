@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { WeekPickerInput } from '../components/WeekPickerInput';
+import { SearchableSelect } from '../components/SearchableSelect';
 import {
   CategoriaGasto,
   GastoOut,
@@ -456,19 +457,21 @@ function CardGasto({
             <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide"
               style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Centro de Costos</label>
             {bloqueado ? <p className={inputReadCls}>{centrosCosto.find(c => c.id === fila.centroCostoId)?.nombre || '—'}</p>
-              : <select value={fila.centroCostoId} onChange={(e) => { onCampo(fila.localId, 'centroCostoId', e.target.value); onCampo(fila.localId, 'centroOperacionId', ''); }} className={selectCls}>
-                <option value="">-- Seleccionar --</option>
-                {centrosCosto.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>}
+              : <SearchableSelect portal
+                options={centrosCosto.map(c => ({ value: c.id, label: c.nombre }))}
+                value={fila.centroCostoId}
+                onChange={(id) => { onCampo(fila.localId, 'centroCostoId', id); onCampo(fila.localId, 'centroOperacionId', ''); }}
+                placeholder="-- Seleccionar --" />}
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide"
               style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Centro de Operacion</label>
             {bloqueado ? <p className={inputReadCls}>{centrosOperacion.find(c => c.id === fila.centroOperacionId)?.nombre || '—'}</p>
-              : <select value={fila.centroOperacionId} onChange={(e) => onCampo(fila.localId, 'centroOperacionId', e.target.value)} className={selectCls}>
-                <option value="">-- Seleccionar --</option>
-                {centrosOperacion.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-              </select>}
+              : <SearchableSelect portal
+                options={centrosOperacion.map(c => ({ value: c.id, label: c.nombre }))}
+                value={fila.centroOperacionId}
+                onChange={(id) => onCampo(fila.localId, 'centroOperacionId', id)}
+                placeholder="-- Seleccionar --" />}
           </div>
         </div>
 

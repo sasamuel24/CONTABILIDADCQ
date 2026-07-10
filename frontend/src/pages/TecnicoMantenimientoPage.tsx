@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { WeekPickerInput } from '../components/WeekPickerInput';
+import { SearchableSelect } from '../components/SearchableSelect';
 import { ConfirmModal } from '../components/ConfirmModal';
 import {
   CategoriaGasto,
@@ -615,17 +616,13 @@ function CardGasto({
                 {(() => { const cc = centrosCosto.find(c => c.id === fila.centroCostoId); return cc ? `${cc.codigo} - ${cc.nombre}` : '—'; })()}
               </p>
             ) : (
-              <select
+              <SearchableSelect
+                portal
+                options={centrosCosto.map(c => ({ value: c.id, label: `${c.codigo} - ${c.nombre}` }))}
                 value={fila.centroCostoId}
-                onChange={(e) => onCampo(fila.localId, 'centroCostoId', e.target.value)}
-                className={selectCls}
-                style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
-              >
-                <option value="">-- Seleccionar --</option>
-                {centrosCosto.map(c => (
-                  <option key={c.id} value={c.id}>{c.codigo} - {c.nombre}</option>
-                ))}
-              </select>
+                onChange={(id) => onCampo(fila.localId, 'centroCostoId', id)}
+                placeholder="-- Seleccionar --"
+              />
             )}
           </div>
           <div>
@@ -638,17 +635,13 @@ function CardGasto({
                 {(() => { const co = centrosOperacion.find(c => c.id === fila.centroOperacionId); return co ? `${co.codigo} - ${co.nombre}` : '—'; })()}
               </p>
             ) : (
-              <select
+              <SearchableSelect
+                portal
+                options={centrosOperacion.map(c => ({ value: c.id, label: `${c.codigo} - ${c.nombre}` }))}
                 value={fila.centroOperacionId}
-                onChange={(e) => onCampo(fila.localId, 'centroOperacionId', e.target.value)}
-                className={selectCls}
-                style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
-              >
-                <option value="">-- Seleccionar --</option>
-                {centrosOperacion.map(c => (
-                  <option key={c.id} value={c.id}>{c.codigo} - {c.nombre}</option>
-                ))}
-              </select>
+                onChange={(id) => onCampo(fila.localId, 'centroOperacionId', id)}
+                placeholder="-- Seleccionar --"
+              />
             )}
           </div>
           <div>

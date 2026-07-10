@@ -4134,4 +4134,89 @@ Orden obligatorio: **backend primero** (pull + restart en EC2) y luego el fronte
 
 ---
 
-**Última actualización:** 9 de julio de 2026
+## 🔁 Deduplicación de facturas por número + PROVEEDOR (fix del "Error HTTP: 409" en gastos fijos)
+
+> Añadido 10-Jul-2026. Lado frontend en `frontend/AGENTS.md` → "Error HTTP: 409 en Subida Manual de Facturas".
+
+**Bug que corrige:** `create_factura` (`modules/facturas/service.py` ~L263) deduplicaba **solo por `numero_factura`** (global, sin proveedor ni área). Las cuentas de cobro no tienen número real y la IA extrae textos genéricos como `CUENTA DE COBRO JUNIO`, que se repiten entre proveedores. Cadena del fallo (caso real 10-Jul-2026, perfil gastos fijos):
+
+1. Usuario registra la cuenta de cobro de Julieta Galvis con N° `CUENTA DE COBRO JUNIO`.
+2. Ya existía una factura con ese número exacto (de JUAN GONZALO VALENCIA) → el backend **devolvía la factura del otro proveedor** en vez de crear una nueva.
+3. El frontend intentaba adjuntarle el PDF de Julieta → la factura ajena ya tenía `FACTURA_PDF` → **409 `file_already_exists`**. Riesgo real: si no lo hubiera tenido, el PDF de Julieta quedaba adjunto a la factura de otro proveedor.
+
+**Fix:**
+
+- Nuevo `FacturaRepository.get_by_numero_and_proveedor(numero, proveedor)`: número exacto + proveedor comparado con `lower(trim(...))`; usa `.first()` (no `scalar_one_or_none`) por si ya hay duplicados históricos.
+- `create_factura` dedupe con ese método. El reintento del MISMO proveedor sigue siendo idempotente (devuelve la existente, que era la intención original: evitar huérfanas sin PDF al reintentar).
+- `get_by_numero` (solo número) **sigue existiendo** — lo usan `GET /facturas/by-numero` y el buzón de gastos (`no_recibo`). No tocarlo sin revisar esos usos.
+
+### ⚠️ Gotcha: el router de files devuelve los errores SIN clave `detail`
+
+`modules/files/router.py` (~L280) captura las `HTTPException` 400/409/500 del upload y responde `JSONResponse(content=e.detail)` → el body queda `{"code": ..., "message": ...}` **plano**, no `{"detail": ...}` como el resto de la API. Cualquier frontend que lea `error.detail` muestra el genérico "Error HTTP: 409" (así se ocultó este bug). Los mensajes 409 de duplicado en `files/service.py` ahora dicen "La factura ya tiene un archivo de tipo {doc_type} adjunto...".
+
+### Diagnóstico rápido de un 409 al registrar factura
+
+```sql
+-- ver colisiones de número (vía SSH a la EC2 + psql a Aurora)
+SELECT f.id, f.numero_factura, f.proveedor, f.created_at,
+       (SELECT count(*) FROM files fi WHERE fi.factura_id=f.id AND fi.doc_type='FACTURA_PDF') AS pdfs
+FROM facturas f WHERE f.numero_factura ILIKE '%CUENTA DE COBRO%' ORDER BY f.created_at;
+```
+
+Solución de usuario sin código: cambiar el N° Factura a algo único (`CUENTA DE COBRO JULIO JULIETA`).
+
+---
+
+## 🗑️ Eliminar paquetes de gastos de prueba (no hay endpoint)
+
+> Confirmado 10-Jul-2026 (se borraron PKG-2026-00219 y PKG-2026-00204).
+
+No existe DELETE de paquetes en la API; se hace por SQL en Aurora vía SSH a la EC2. Las tablas hijas reales son `gastos_legalizacion`, `archivos_gasto`, `comentarios_paquete`, `historial_estados_paquete` y `tokens_aprobacion_paquetes` (NO existe `gastos_tecnicos`), todas con `ON DELETE CASCADE`. Procedimiento: `SELECT` de verificación por `folio` (con conteo de gastos) → `DELETE FROM paquetes_gastos WHERE folio IN (...)` → `SELECT count(*)` de confirmación.
+
+---
+
+## 👥 Roles del sistema (tabla `roles`) y redirección en el frontend
+
+> Añadido 10-Jul-2026, tras el incidente del rol `comercial` atrapado en "Acceso No Autorizado" (fix frontend en commit `d440ea5`; detalle en `frontend/AGENTS.md` → "Redirección por rol").
+
+### Roles reales en producción (Aurora, 10-Jul-2026)
+
+Los roles NO están hardcodeados en un enum del backend: viven en la tabla `roles` (FK `users.role_id`) y el `code` es texto libre. Snapshot real con conteo de usuarios:
+
+| `roles.code` | Usuarios | Página home (frontend) |
+|---|---|---|
+| `admin` | 2 | `/global` |
+| `fact` | 2 | `/facturacion` |
+| `responsable` | 102 | `/responsable` |
+| `responsable_tiendas` | 1 | `/responsable` |
+| `contabilidad` | 1 | `/contabilidad` |
+| `tesoreria` | 5 | `/tesoreria` |
+| `Gerencia` ⚠️ mayúscula | 1 | `/gerencia` |
+| `tecnico` / `Tecnico` ⚠️ duplicado | 1 / 10 | `/tecnico-mantenimiento` |
+| `direccion` | 4 | `/centro-documental` |
+| `user` | — | `/legalizacion` |
+| `tarjeta_cq` | 20 | `/tarjeta-cq` |
+| `comercial` | 19 | `/comercial` |
+| `jefe_zona` | 1 | `/jefe-zona` |
+
+### ⚠️ Gotchas
+
+- **Códigos con mayúsculas y duplicados existen en producción** (`Gerencia`, `Tecnico`+`tecnico`). Toda comparación de rol —backend o frontend— debe normalizar con lowercase (los informes ya filtran con `LOWER(r.code)`). Al crear roles nuevos, usar SIEMPRE snake_case en minúscula.
+- **Crear un rol en la BD no basta**: hay que registrarlo en los 3 mapas rol→ruta del frontend (`App.tsx`, `ProtectedRoute.tsx`, `NoAutorizadoPage.tsx` — checklist en `frontend/AGENTS.md`) y, si debe ver gastos, en los DOS sets de roles admin de gastos (ver sección "Rol `direccion`").
+- `users.area_id` es **nullable**: hay usuarios activos sin área (los 19 `comercial`, entre otros). Ninguna validación de acceso debe asumir que el usuario tiene área.
+- Query de diagnóstico (desde la EC2, ver sección de deploy para el SSH) cuando un usuario reporta problemas de acceso:
+  ```sql
+  SELECT u.nombre, u.email, u.is_active, r.code AS rol, a.nombre AS area
+  FROM users u
+  LEFT JOIN roles r ON r.id = u.role_id
+  LEFT JOIN areas a ON a.id = u.area_id
+  WHERE u.email ILIKE '%<nombre-o-email>%' OR u.nombre ILIKE '%<nombre-o-email>%';
+  ```
+
+### Caso real (10-Jul-2026)
+
+Vanessa Galindo (`ventasejecafetero@cafequindio.com.co`, rol `comercial`, sin área) no podía entrar en producción: login OK pero caía en "Acceso No Autorizado" y quedaba atascada. Causa: `LoginPage.tsx` tenía un mapa rol→ruta propio y desactualizado (sin `comercial`). El backend NO tuvo nada que ver — con login válido + rol correcto en BD, el diagnóstico va directo a los mapas del frontend.
+
+---
+
+**Última actualización:** 10 de julio de 2026

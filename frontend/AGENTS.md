@@ -202,3 +202,59 @@ Pydantic v2 serializa `Decimal` como string JSON (`valor_pagado: "15945.00"`). S
 - Si el modal muestra un error tipo `"Error al actualizar carpeta: 1 validation error for CarpetaResponse ... input_type=Estado"`, es un **bug de serialización del backend** (schema Pydantic esperando string donde el ORM entrega un objeto de relación), NO un error del usuario ni del frontend. Detalle y regla en `backend/agents.md` → "Schemas Pydantic sobre ORM".
 - **Importante:** en esos casos la operación casi siempre **SÍ se guardó** (el commit en BD ocurre antes de serializar la respuesta). Antes de reintentar la asignación, refrescar el árbol de carpetas y verificar — reintentar a ciegas puede archivar la factura dos veces o en carpeta equivocada.
 - Caso concreto (corregido 9-Jul-2026): asignar una factura a una carpeta cuyos hijos contenían facturas hacía reventar la respuesta porque `FacturaEnCarpeta.estado` recibía el objeto `Estado` del ORM. Fix: `field_validator(mode='before')` en `backend/modules/carpetas/schemas.py`.
+
+---
+
+# ⚠️ Redirección por rol — mapas rol→ruta DUPLICADOS
+
+> Añadido 10-Jul-2026 (commit `d440ea5`), tras el incidente del rol `comercial` en producción. Roles reales de la BD en `backend/agents.md` → "Roles del sistema".
+
+## El incidente
+
+Los 19 usuarios con rol `comercial` (p. ej. Vanessa Galindo) quedaban **atrapados en "Acceso No Autorizado"** al iniciar sesión en producción. El login era exitoso; el problema era de redirección: `LoginPage.tsx` tenía su **propio** mapa rol→ruta desactualizado (sin `comercial`, `user`, `tarjeta_cq` ni `responsable_tiendas`) y cualquier rol desconocido caía en `/no-autorizado`. Como `NoAutorizadoPage` tampoco conocía `comercial`, su auto-redirección de rescate no disparaba y el usuario quedaba atascado (los roles `user`/`tarjeta_cq` sí rebotaban — por eso nadie lo notó antes).
+
+## Estado actual (post-fix)
+
+El mapa rol→ruta sigue existiendo en **3 lugares** que deben mantenerse sincronizados:
+
+| Archivo | Función | Rol desconocido cae en |
+|---|---|---|
+| `src/App.tsx` | `roleRedirect()` — **fuente de verdad**; la usan las rutas `/` y `*` | `/no-autorizado` |
+| `src/components/ProtectedRoute.tsx` | `getRoleHome()` — rebote cuando el rol no está en `allowedRoles` de la ruta | `/login` |
+| `src/pages/NoAutorizadoPage.tsx` | `getRoleHome()` — auto-redirección de rescate; **si falta el rol aquí, el usuario queda ATASCADO** | se queda en la página |
+
+`LoginPage.tsx` **ya NO tiene mapa propio**: tras autenticar navega a `/` y `roleRedirect()` de App.tsx decide. No volver a poner lógica de redirección por rol en el login.
+
+## Checklist al crear un rol nuevo
+
+1. `App.tsx`: agregar la `<Route>` con su `<ProtectedRoute allowedRoles={['nuevo_rol']}>` **y** la línea en `roleRedirect()`.
+2. `ProtectedRoute.tsx`: agregar la línea en `getRoleHome()`.
+3. `NoAutorizadoPage.tsx`: agregar la línea en `getRoleHome()` — es el que se olvida y el que deja gente atascada.
+4. Verificación rápida: `grep -rn "getRoleHome\|roleRedirect" src/` y confirmar que el rol aparece en los 3 mapas.
+
+## Gotchas
+
+- Las comparaciones usan `.toLowerCase()` — necesario porque en la tabla `roles` de la BD hay códigos con mayúsculas (`Gerencia`, `Tecnico` conviven con `tecnico`). Nunca comparar `user.role` crudo.
+- `user.role` puede llegar como string o como objeto `{code}` según el endpoint: usar `getUserRoleCode(user)` (`src/lib/api.ts`) en vez de `user.role` directo.
+- Diagnóstico de "un usuario ve Acceso No Autorizado con login válido": (1) consultar su rol real en Aurora (query en `backend/agents.md` → "Roles del sistema"), (2) verificar que ese código exista en los 3 mapas. Casi nunca es un problema de credenciales ni de backend.
+- "Área: Sin área" en la pantalla de No Autorizado NO es el problema: `users.area_id` es nullable y roles como `comercial` o `tarjeta_cq` no dependen del área para entrar a su página.
+
+---
+
+# "Error HTTP: 409" en Subida Manual de Facturas (gastos fijos)
+
+> Añadido 10-Jul-2026. Causa raíz y fix backend en `backend/agents.md` → "Deduplicación de facturas por número + PROVEEDOR".
+
+**Qué era:** en `GastosAdminSubidaView.tsx` (perfil gastos fijos), registrar una cuenta de cobro fallaba con el genérico "Error HTTP: 409". NO era un fallo del upload en sí: `POST /facturas/` deduplicaba solo por número y devolvía la **factura de otro proveedor** con el mismo texto genérico (`CUENTA DE COBRO JUNIO`), y adjuntarle el PDF chocaba con el `FACTURA_PDF` que esa factura ya tenía.
+
+**Por qué el mensaje era genérico (regla a recordar):** el router de files del backend responde los errores 400/409/500 del upload con body **plano** `{code, message}`, sin la clave `detail` que usa el resto de la API. Todo handler que haga `error.detail || fallback` cae al fallback. Desde el 10-Jul-2026, `uploadFacturaFileViaBackend` (`src/lib/api.ts`) y el `handleSubmit` de `GastosAdminSubidaView.tsx` extraen el mensaje con la cascada:
+
+```ts
+(typeof err.detail === 'string' && err.detail) || err.detail?.message || err.message || fallback
+```
+
+Al agregar un fetch nuevo contra endpoints de files, usar esa misma cascada — y OJO: `new Error(err.detail)` con `detail` objeto (formato `{code, message}` o los 422 de FastAPI, que traen array) muestra `[object Object]`.
+
+## Gotcha: el fallback silencioso del upload
+
+`uploadFacturaFile` (`src/lib/api.ts`) intenta primero el camino presigned (request-upload-url → PUT a S3 → confirm-upload) y si CUALQUIER paso falla cae a `uploadFacturaFileViaBackend` (multipart) — el usuario solo ve el error del segundo intento. Además `confirm-upload` NO verifica duplicados en el backend (solo request-upload-url lo hace): si confirm alcanzó a registrar en BD pero la respuesta se perdió, el fallback choca con su propio archivo y da 409 con el PDF **ya subido**. Ante un 409 inesperado, verificar en la Bandeja de Entrada si la factura quedó registrada antes de reintentar o diagnosticar.

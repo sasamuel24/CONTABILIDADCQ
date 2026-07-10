@@ -36,29 +36,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         return;
       }
       
-      // Redirigir según el rol del usuario
-      const userRole = user.role?.toLowerCase();
-      
-      if (userRole === 'admin' || userRole === 'fact') {
-        navigate('/global');
-      } else if (userRole === 'responsable') {
-        navigate('/responsable');
-      } else if (userRole === 'contabilidad') {
-        navigate('/contabilidad');
-      } else if (userRole === 'tesoreria') {
-        navigate('/tesoreria');
-      } else if (userRole === 'gerencia') {
-        navigate('/gerencia');
-      } else if (userRole === 'tecnico') {
-        navigate('/tecnico-mantenimiento');
-      } else if (userRole === 'direccion') {
-        navigate('/centro-documental');
-      } else if (userRole === 'jefe_zona') {
-        navigate('/jefe-zona');
-      } else {
-        navigate('/no-autorizado');
-      }
-      
+      // Redirigir a "/" y dejar que roleRedirect (App.tsx) resuelva la ruta del rol
+      navigate('/', { replace: true });
+
       onLogin(email);
     } catch (err) {
       // Mensaje específico para error de credenciales

@@ -358,7 +358,7 @@ export function DetalleAuditoriaTes({
             <div className="flex items-center gap-2 text-gray-600">
               <User className="w-4 h-4 text-gray-400" />
               <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                <span className="text-gray-400">Técnico: </span>
+                <span className="text-gray-400">Técnico / Responsable: </span>
                 <span className="font-semibold text-gray-700">{paquete.tecnico?.nombre ?? '—'}</span>
               </span>
             </div>
@@ -469,7 +469,7 @@ export function DetalleAuditoriaTes({
                   </div>
                 ) : (
                   <p className="text-xs text-gray-500" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                    Verifique los documentos y confirme el pago al técnico.
+                    Verifique los documentos y confirme el pago al técnico o responsable.
                   </p>
                 )}
               </div>
@@ -1174,7 +1174,7 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
               <div className="flex gap-3 mb-4 flex-wrap">
                 <input
                   type="text"
-                  placeholder="Filtrar por técnico..."
+                  placeholder="Filtrar por técnico / responsable..."
                   value={filtroNombre}
                   onChange={e => { setFiltroNombre(e.target.value); setPaginaTraz(1); }}
                   className="text-sm px-3 py-1.5 rounded-lg border outline-none"
@@ -1215,7 +1215,7 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
                   <table className="w-full text-sm">
                     <thead>
                       <tr style={{ backgroundColor: '#00829a' }}>
-                        {['Folio', 'Semana', 'Técnico', 'Monto total', 'Valor a pagar', 'Estado', 'Última actualización'].map(h => (
+                        {['Folio', 'Semana', 'Técnico / Responsable', 'Monto total', 'Valor a pagar', 'Estado', 'Última actualización'].map(h => (
                           <th key={h} className="px-5 py-3 text-left font-semibold text-white whitespace-nowrap"
                             style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', fontSize: 12 }}>
                             {h}
@@ -1383,7 +1383,7 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
           <div className="px-5 py-3 border-b" style={{ borderColor: '#e5e7eb' }}>
             <input
               type="text"
-              placeholder="Filtrar por nombre del técnico..."
+              placeholder="Filtrar por nombre del técnico o responsable..."
               value={filtroNombre}
               onChange={(e) => setFiltroNombre(e.target.value)}
               className="w-full max-w-xs text-sm px-3 py-1.5 rounded-lg border outline-none"
@@ -1410,7 +1410,7 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
                 {/* Cabeceras ordenables — solo activas en pendientes */}
                 {([
                   { label: 'Semana',                col: 'semana' as SortCol,                  icon: <CalendarDays className="w-3.5 h-3.5" /> },
-                  { label: 'Técnico',               col: 'tecnico' as SortCol,                 icon: <User className="w-3.5 h-3.5" /> },
+                  { label: 'Técnico / Responsable', col: 'tecnico' as SortCol,                 icon: <User className="w-3.5 h-3.5" /> },
                   { label: 'Monto total',            col: 'monto_total' as SortCol,             icon: <Banknote className="w-3.5 h-3.5" /> },
                   { label: 'Valor a pagar',          col: 'monto_a_pagar' as SortCol,           icon: <Banknote className="w-3.5 h-3.5" /> },
                   { label: 'Enviado por Radicación', col: 'fecha_envio_tesoreria' as SortCol,   icon: <CalendarDays className="w-3.5 h-3.5" /> },

@@ -947,7 +947,13 @@ async function uploadFacturaFileViaBackend(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: 'Error al subir archivo' }));
-    throw new Error(error.detail || `Error HTTP: ${response.status}`);
+    // El router de files devuelve {code, message} plano; otros endpoints usan {detail}
+    const msg =
+      (typeof error.detail === 'string' && error.detail) ||
+      error.detail?.message ||
+      error.message ||
+      `Error HTTP: ${response.status}`;
+    throw new Error(msg);
   }
 
   return response.json();

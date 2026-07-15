@@ -214,6 +214,20 @@ class FacturaRepository:
             select(Factura).where(Factura.numero_factura == numero_factura)
         )
         return result.scalar_one_or_none()
+
+    async def get_by_numero_and_proveedor(
+        self, numero_factura: str, proveedor: str
+    ) -> Optional[Factura]:
+        """Obtiene una factura por número y proveedor. Números como
+        'CUENTA DE COBRO JUNIO' se repiten entre proveedores distintos,
+        por eso el número solo no identifica la factura."""
+        result = await self.db.execute(
+            select(Factura).where(
+                Factura.numero_factura == numero_factura,
+                func.lower(func.trim(Factura.proveedor)) == proveedor.strip().lower(),
+            )
+        )
+        return result.scalars().first()
     
     async def create(self, factura_data: dict) -> Factura:
         """Crea una nueva factura."""

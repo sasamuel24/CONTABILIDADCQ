@@ -474,7 +474,7 @@ class FileService:
             if existing:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail={"code": "file_already_exists", "message": "Ya existe un archivo para este doc_type"}
+                    detail={"code": "file_already_exists", "message": f"La factura ya tiene un archivo de tipo {doc_type} adjunto; es posible que ya haya sido registrada antes"}
                 )
 
         from core.s3_service import s3_service
@@ -635,7 +635,7 @@ class FileService:
                     status_code=status.HTTP_409_CONFLICT,
                     detail={
                         "code": "file_already_exists",
-                        "message": "Ya existe un archivo PDF para este factura_id y doc_type"
+                        "message": f"La factura ya tiene un archivo de tipo {doc_type} adjunto; es posible que ya haya sido registrada antes"
                     }
                 )
         else:

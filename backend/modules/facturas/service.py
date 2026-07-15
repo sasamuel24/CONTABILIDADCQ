@@ -265,12 +265,18 @@ class FacturaService:
         logger.info(f"Creando nueva factura: {factura_data.numero_factura}")
 
         # Evitar duplicado: si ya existe una factura con el mismo numero_factura
-        # devolver la existente en lugar de crear un segundo registro huérfano sin PDF.
-        existing = await self.repository.get_by_numero(factura_data.numero_factura)
+        # Y el mismo proveedor, devolver la existente en lugar de crear un segundo
+        # registro huérfano sin PDF. El número solo no basta: textos genéricos como
+        # 'CUENTA DE COBRO JUNIO' se repiten entre proveedores distintos y devolver
+        # la factura de otro proveedor termina adjuntándole el PDF equivocado.
+        existing = await self.repository.get_by_numero_and_proveedor(
+            factura_data.numero_factura, factura_data.proveedor
+        )
         if existing:
             logger.info(
-                f"Factura {factura_data.numero_factura} ya existe (id={existing.id}), "
-                "devolviendo registro existente en lugar de crear duplicado."
+                f"Factura {factura_data.numero_factura} de {factura_data.proveedor} "
+                f"ya existe (id={existing.id}), devolviendo registro existente "
+                "en lugar de crear duplicado."
             )
             return await self.get_factura(existing.id)
 

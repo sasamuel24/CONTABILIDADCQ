@@ -145,7 +145,12 @@ export function GastosAdminSubidaView() {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `Error ${res.status} al crear la factura`);
+        const msg =
+          (typeof err.detail === 'string' && err.detail) ||
+          err.detail?.message ||
+          err.message ||
+          `Error ${res.status} al crear la factura`;
+        throw new Error(msg);
       }
 
       const factura = await res.json();

@@ -550,9 +550,13 @@ class GastosService:
         await self.db.commit()
         return self._to_out(await self.paquete_repo.get_by_id(paquete_id))
 
-    async def reenviar_correo_aprobacion(self, paquete_id: UUID, user_id: UUID) -> dict:
+    async def reenviar_correo_aprobacion(
+        self, paquete_id: UUID, user_id: UUID, solo_propietario: bool = False
+    ) -> dict:
         """Genera un nuevo token y reenvía el correo de solicitud de aprobación."""
         paquete = await self._get_paquete_or_404(paquete_id)
+        if solo_propietario and paquete.user_id != user_id:
+            raise HTTPException(status_code=403, detail="No tienes permisos para reenviar el correo de aprobación.")
         if paquete.estado != "en_revision":
             raise HTTPException(status_code=400, detail="Solo se puede reenviar el correo cuando el paquete está en revisión.")
 

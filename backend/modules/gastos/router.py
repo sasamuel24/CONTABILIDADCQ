@@ -178,7 +178,7 @@ async def enviar_paquete(
 
 @router.post(
     "/gastos/paquetes/{paquete_id}/reenviar-correo-aprobacion",
-    summary="Reenviar correo de solicitud de aprobación (admin/responsable)",
+    summary="Reenviar correo de solicitud de aprobación (admin/responsable/propietario)",
 )
 async def reenviar_correo_aprobacion(
     paquete_id: UUID,
@@ -188,9 +188,8 @@ async def reenviar_correo_aprobacion(
     """Genera un nuevo token y reenvía el correo de aprobación al aprobador."""
     role = user.role.code.lower() if user.role else ""
     area = user.area.code.lower() if user.area else ""
-    if role not in {"admin", "responsable", "fact"} and area not in {"admin", "responsable", "mant", "fact"}:
-        raise HTTPException(status_code=403, detail="No tienes permisos para reenviar el correo de aprobación.")
-    return await svc.reenviar_correo_aprobacion(paquete_id, user.id)
+    es_gestor = role in {"admin", "responsable", "fact"} or area in {"admin", "responsable", "mant", "fact"}
+    return await svc.reenviar_correo_aprobacion(paquete_id, user.id, solo_propietario=not es_gestor)
 
 
 @router.post(

@@ -52,6 +52,7 @@ import {
   getCuentasAuxiliares,
   getAprobadoresActivos,
   reenviarGasto,
+  reenviarCorreoAprobacion,
   checkBuzon,
   extraerDatosImagen,
   CentroCosto,
@@ -649,6 +650,7 @@ function DetallePaqueteCQ({
   const [gastos, setGastos] = useState<GastoLocal[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reenviandoCorreo, setReenviandoCorreo] = useState(false);
   const [escaneandoId, setEscaneandoId] = useState<string | null>(null);
   const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
   const [centrosOperacion, setCentrosOperacion] = useState<CentroOperacion[]>([]);
@@ -862,6 +864,16 @@ function DetallePaqueteCQ({
     }
   };
 
+  const handleReenviarCorreo = async () => {
+    setReenviandoCorreo(true);
+    try {
+      await reenviarCorreoAprobacion(paqueteId);
+      toast.success(`Correo de aprobación reenviado${paquete.aprobador ? ` a ${paquete.aprobador.nombre}` : ' al gerente'}. El nuevo enlace es válido por 72 horas.`);
+    } catch (err: any) {
+      toast.error(err?.detail || err?.message || 'Error al reenviar el correo de aprobación');
+    } finally { setReenviandoCorreo(false); }
+  };
+
   const esBorrador = paquete.estado === 'borrador';
   const esDevuelto = paquete.estado === 'devuelto';
 
@@ -959,11 +971,21 @@ function DetallePaqueteCQ({
       {['En revision', 'Aprobado', 'Pagado'].includes(estadoUI) && (
         <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
           <Info className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-blue-600" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-            {estadoUI === 'En revision' && `Esperando aprobación del gerente${paquete.aprobador ? ` (${paquete.aprobador.nombre})` : ''}. Se enviará un correo con el enlace de aprobación (válido 72 horas).`}
-            {estadoUI === 'Aprobado' && 'Gastos aprobados por el gerente. El área de Radicación procesará el envío a Tesorería.'}
-            {estadoUI === 'Pagado' && 'Este paquete fue pagado y legalizado exitosamente.'}
-          </p>
+          <div className="flex-1">
+            <p className="text-sm text-blue-600" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+              {estadoUI === 'En revision' && `Esperando aprobación del gerente${paquete.aprobador ? ` (${paquete.aprobador.nombre})` : ''}. Se enviará un correo con el enlace de aprobación (válido 72 horas).`}
+              {estadoUI === 'Aprobado' && 'Gastos aprobados por el gerente. El área de Radicación procesará el envío a Tesorería.'}
+              {estadoUI === 'Pagado' && 'Este paquete fue pagado y legalizado exitosamente.'}
+            </p>
+            {estadoUI === 'En revision' && (
+              <button onClick={handleReenviarCorreo} disabled={reenviandoCorreo}
+                className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ background: 'linear-gradient(to right, #00829a, #14aab8)', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                {reenviandoCorreo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                Reenviar correo al gerente
+              </button>
+            )}
+          </div>
         </div>
       )}
 

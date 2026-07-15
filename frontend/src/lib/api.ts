@@ -410,6 +410,14 @@ export async function fetchAPI<T>(
 
     return response.json();
   } catch (error) {
+    if (error instanceof TypeError) {
+      // fetch() falló a nivel de red (API Gateway rechaza >10 MB sin CORS,
+      // caída de conexión, etc.) — el mensaje nativo "Failed to fetch" no le
+      // dice nada al usuario.
+      throw new Error(
+        'No se pudo conectar con el servidor. Verifica tu conexión a internet; si estabas subiendo un archivo, es posible que sea demasiado pesado.'
+      );
+    }
     if (error instanceof Error) {
       throw error;
     }
@@ -2195,6 +2203,42 @@ export async function eliminarGasto(paqueteId: string, gastoId: string): Promise
 
 // --- Archivos soporte -------------------------------------------------------
 
+// API Gateway rechaza peticiones de más de 10 MB sin cabeceras CORS y el
+// navegador solo reporta "Failed to fetch"; las fotos de celular superan ese
+// límite con facilidad, así que se comprimen antes de subir.
+const LIMITE_SUBIDA_MB = 9;
+const UMBRAL_COMPRESION_BYTES = 1.5 * 1024 * 1024;
+
+export async function comprimirImagen(file: File): Promise<File> {
+  if (!file.type.startsWith('image/') || file.size <= UMBRAL_COMPRESION_BYTES) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const MAX_LADO = 2200;
+    const escala = Math.min(1, MAX_LADO / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * escala));
+    canvas.height = Math.max(1, Math.round(bitmap.height * escala));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', 0.82));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch {
+    // Formato que el navegador no decodifica (p.ej. HEIC): se sube tal cual
+    return file;
+  }
+}
+
+function validarTamanoSubida(file: File): void {
+  if (file.size > LIMITE_SUBIDA_MB * 1024 * 1024) {
+    throw new Error(
+      `El archivo "${file.name}" pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y supera el límite de ${LIMITE_SUBIDA_MB} MB. Adjunta una versión más liviana.`
+    );
+  }
+}
+
 /** Subir soporte (PDF o imagen) para un gasto */
 export async function subirArchivoGasto(
   paqueteId: string,
@@ -2202,9 +2246,11 @@ export async function subirArchivoGasto(
   categoria: CategoriaGasto,
   file: File
 ): Promise<ArchivoGastoOut> {
+  const archivo = await comprimirImagen(file);
+  validarTamanoSubida(archivo);
   const formData = new FormData();
   formData.append('categoria', categoria);
-  formData.append('file', file);
+  formData.append('file', archivo);
   return fetchAPI<ArchivoGastoOut>(
     `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/archivos`,
     { method: 'POST', body: formData }
@@ -2238,8 +2284,10 @@ export interface ExtraccionDatosOut {
 
 /** Extraer datos de factura desde imagen usando Claude Haiku */
 export async function extraerDatosImagen(file: File): Promise<ExtraccionDatosOut> {
+  const imagen = await comprimirImagen(file);
+  validarTamanoSubida(imagen);
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', imagen);
   return fetchAPI<ExtraccionDatosOut>('/gastos/extraer-datos-imagen', {
     method: 'POST',
     body: formData,

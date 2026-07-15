@@ -1711,9 +1711,10 @@ function NuevoPaqueteForm({
     }
 
     setSaving(true);
+    let paquete: PaqueteOut | null = null;
     try {
       // Crear el paquete — el input type=week retorna "2026-W09" nativamente
-      const paquete = await createPaqueteGasto(semana);
+      paquete = await createPaqueteGasto(semana);
 
       // Agregar gastos
       for (const fila of filasValidas) {
@@ -1740,7 +1741,14 @@ function NuevoPaqueteForm({
       onCreado(paquete.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al crear el paquete';
-      toast.error(msg);
+      if (paquete) {
+        // El paquete ya quedó en BD: llevar al usuario al borrador para que lo
+        // complete allí en vez de crear duplicados reintentando desde cero.
+        toast.error(`${msg} El paquete quedó guardado en Borradores: complétalo desde allí, no lo crees de nuevo.`, { duration: 10000 });
+        onCreado(paquete.id);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setSaving(false);
     }

@@ -1130,8 +1130,9 @@ function NuevoPaqueteCQForm({
     }
 
     setSaving(true);
+    let paquete: PaqueteOut | null = null;
     try {
-      const paquete = await createPaqueteGasto(semana);
+      paquete = await createPaqueteGasto(semana);
       for (const fila of filasValidas) {
         const creado = await agregarGasto(paquete.id, {
           fecha: fila.fecha || new Date().toISOString().slice(0, 10),
@@ -1150,7 +1151,15 @@ function NuevoPaqueteCQForm({
       toast.success('Paquete creado correctamente');
       onCreado(paquete.id);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Error al crear el paquete');
+      const msg = err instanceof Error ? err.message : 'Error al crear el paquete';
+      if (paquete) {
+        // El paquete ya quedó en BD: llevar al usuario al borrador para que lo
+        // complete allí en vez de crear duplicados reintentando desde cero.
+        toast.error(`${msg} El paquete quedó guardado en Borradores: complétalo desde allí, no lo crees de nuevo.`, { duration: 10000 });
+        onCreado(paquete.id);
+      } else {
+        toast.error(msg);
+      }
     } finally { setSaving(false); }
   };
 

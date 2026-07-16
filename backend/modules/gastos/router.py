@@ -1151,6 +1151,18 @@ async def exportar_plano_paquete(
     ID_CO = "001"
     gastos_activos = [g for g in paquete.gastos if g.estado_gasto != "devuelto"]
 
+    sin_validar = [g for g in gastos_activos if g.valor_sin_impuestos is None]
+    if sin_validar:
+        nombres = ", ".join(f"{g.pagado_a} (${g.valor_pagado:,.0f})" for g in sin_validar[:5])
+        extra = f" y {len(sin_validar) - 5} más" if len(sin_validar) > 5 else ""
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{len(sin_validar)} gasto(s) sin valor sin IVA validado: {nombres}{extra}. "
+                "Usa 'Calcular sin IVA (IA)' o edítalos manualmente antes de exportar el plano."
+            ),
+        )
+
     for gasto in gastos_activos:
         auxiliar_codigo = gasto.cuenta_auxiliar.codigo.strip() if gasto.cuenta_auxiliar else ""
         nit_raw = (gasto.no_identificacion or "").strip().replace(".", "").replace("-", "")
@@ -1163,9 +1175,10 @@ async def exportar_plano_paquete(
         co_codigo       = gasto.centro_operacion.codigo.strip() if gasto.centro_operacion else ""
         cc_codigo       = gasto.centro_costo.codigo.strip()     if gasto.centro_costo     else ""
         notas           = f"{gasto.no_recibo or ''} {gasto.pagado_a} {gasto.concepto}".upper().strip()[:80]
-        # Base antes de IVA/impoconsumo validada por Facturación (IA o manual);
-        # si aún no fue validada, cae al valor total pagado.
-        valor_db = gasto.valor_sin_impuestos if gasto.valor_sin_impuestos is not None else gasto.valor_pagado
+        # Base antes de IVA/impoconsumo validada por Facturación (IA o manual).
+        # Los gastos sin validar bloquean el export arriba (409), así que aquí
+        # valor_sin_impuestos nunca es None.
+        valor_db = gasto.valor_sin_impuestos
 
         ws.append([
             ID_CO,

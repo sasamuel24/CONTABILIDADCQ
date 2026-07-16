@@ -4124,7 +4124,7 @@ Orden obligatorio: **backend primero** (pull + restart en EC2) y luego el fronte
 
 ### Export
 
-`F351_VALOR_DB = valor_sin_impuestos ?? valor_pagado` (fallback al total si no fue validado). `F351_BASE_GRAVABLE` sigue en 0 — **pendiente confirmar con contabilidad** si el plano SIESA espera el IVA en fila aparte (cuenta de IVA descontable) o en base gravable; si cambia, tocar solo `exportar_plano_paquete`.
+`F351_VALOR_DB = valor_sin_impuestos` (columna I del XLSX). Desde 16-jul-2026 el export **bloquea con 409** si algún gasto activo tiene `valor_sin_impuestos = NULL` (el mensaje lista hasta 5 gastos pendientes) — ya no hay fallback silencioso a `valor_pagado`; Facturación debe validar con la IA o manualmente antes de exportar. `F351_BASE_GRAVABLE` sigue en 0 — **pendiente confirmar con contabilidad** si el plano SIESA espera el IVA en fila aparte (cuenta de IVA descontable) o en base gravable; si cambia, tocar solo `exportar_plano_paquete`.
 
 ### ⚠️ Gotchas
 

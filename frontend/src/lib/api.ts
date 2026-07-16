@@ -1884,6 +1884,7 @@ export interface GastoOut {
   valor_pagado: number;
   valor_sin_impuestos: number | null;
   vsi_fuente: 'ia' | 'manual' | 'sin_desglose' | null;
+  cruce: boolean;
   orden: number;
   observaciones?: string | null;
   solicitud_id?: string | null;
@@ -2488,6 +2489,21 @@ export async function actualizarValorSinImpuestos(
     {
       method: 'PATCH',
       body: JSON.stringify({ valor }),
+    }
+  );
+}
+
+/** Facturación marca/desmarca el check de cruce de un gasto (visible en Tesorería) */
+export async function actualizarCruceGasto(
+  paqueteId: string,
+  gastoId: string,
+  cruce: boolean
+): Promise<GastoOut> {
+  return fetchAPI<GastoOut>(
+    `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/cruce`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ cruce }),
     }
   );
 }

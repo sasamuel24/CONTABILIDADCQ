@@ -4126,6 +4126,10 @@ Orden obligatorio: **backend primero** (pull + restart en EC2) y luego el fronte
 
 `F351_VALOR_DB = valor_sin_impuestos` (columna I del XLSX). Desde 16-jul-2026 el export **bloquea con 409** si algún gasto activo tiene `valor_sin_impuestos = NULL` (el mensaje lista hasta 5 gastos pendientes) — ya no hay fallback silencioso a `valor_pagado`; Facturación debe validar con la IA o manualmente antes de exportar. `F351_BASE_GRAVABLE` sigue en 0 — **pendiente confirmar con contabilidad** si el plano SIESA espera el IVA en fila aparte (cuenta de IVA descontable) o en base gravable; si cambia, tocar solo `exportar_plano_paquete`.
 
+### Check "Cruce" (16-jul-2026)
+
+`gastos_legalizacion.cruce BOOLEAN NOT NULL DEFAULT false` (migración `u5v6w7x8y9z0`). Facturación lo marca/desmarca por gasto vía `PATCH /gastos/paquetes/{id}/gastos/{gasto_id}/cruce` (permiso `_check_rol_vsi`, body `{cruce: bool}`); columna checkbox "Cruce" en `ResponsablePaquetesView.tsx` y badge solo-lectura en `TesoreriaPaquetesView.tsx`. No afecta el export plano.
+
 ### ⚠️ Gotchas
 
 - **400 "credit balance is too low"** de Anthropic = la cuenta de la `ANTHROPIC_API_KEY` (`.env`) sin créditos. Afecta este análisis Y `extraer-datos-imagen` de los técnicos. Verificar saldo ANTES de diagnosticar código: el error llega como resultado `error` por gasto con el mensaje en `detalle`.

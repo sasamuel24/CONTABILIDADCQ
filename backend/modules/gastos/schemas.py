@@ -125,6 +125,7 @@ class GastoOut(BaseModel):
     valor_pagado: Decimal
     valor_sin_impuestos: Optional[Decimal] = None
     vsi_fuente: Optional[str] = None
+    cruce: bool = False
     orden: int
     observaciones: Optional[str] = None
     solicitud_id: Optional[UUID] = None
@@ -149,6 +150,11 @@ class GastoDevolverRequest(BaseModel):
 class ValorSinImpuestosUpdate(BaseModel):
     """Facturación digita/corrige manualmente el valor antes de impuestos."""
     valor: Decimal = Field(..., gt=0)
+
+
+class CruceUpdate(BaseModel):
+    """Facturación marca/desmarca el check de cruce de un gasto."""
+    cruce: bool
 
 
 class AnalisisImpuestoGastoOut(BaseModel):

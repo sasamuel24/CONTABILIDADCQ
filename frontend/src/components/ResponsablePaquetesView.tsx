@@ -32,6 +32,7 @@ import {
   exportarPlanoPaquete,
   analizarImpuestosPaquete,
   actualizarValorSinImpuestos,
+  actualizarCruceGasto,
   PaqueteListItem,
   PaqueteOut,
   GastoOut,
@@ -284,6 +285,7 @@ function DetallePaqueteResponsable({
   const [loadingAnalizarIVA, setLoadingAnalizarIVA] = useState(false);
   const [vsiEdits, setVsiEdits] = useState<Record<string, string>>({});
   const [savingVsi, setSavingVsi] = useState<Record<string, boolean>>({});
+  const [savingCruce, setSavingCruce] = useState<Record<string, boolean>>({});
 
   // Documento Contable General
   const [uploadingDocContable, setUploadingDocContable] = useState(false);
@@ -735,6 +737,22 @@ function DetallePaqueteResponsable({
       toast.error(msg);
     } finally {
       setSavingVsi((p) => ({ ...p, [g.id]: false }));
+    }
+  };
+
+  const handleToggleCruce = async (g: GastoOut) => {
+    if (!paquete || savingCruce[g.id]) return;
+    setSavingCruce((p) => ({ ...p, [g.id]: true }));
+    try {
+      const updated = await actualizarCruceGasto(paquete.id, g.id, !g.cruce);
+      setPaquete((prev) => prev
+        ? { ...prev, gastos: prev.gastos.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)) }
+        : prev);
+    } catch (e) {
+      const msg = (e as { detail?: string })?.detail ?? 'Error al actualizar el cruce';
+      toast.error(msg);
+    } finally {
+      setSavingCruce((p) => ({ ...p, [g.id]: false }));
     }
   };
 
@@ -1381,14 +1399,14 @@ function DetallePaqueteResponsable({
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs" style={{ minWidth: puedeDevolverGasto ? 1560 : 1460 }}>
+              <table className="w-full text-xs" style={{ minWidth: puedeDevolverGasto ? 1610 : 1510 }}>
                 <thead>
                   <tr style={{ backgroundColor: '#00829a' }}>
                     {[
                       ...(modoSeleccion ? ['Sel.'] : []),
                       'Fecha', 'Pagado a', 'NIT', 'Concepto', 'No. Recibo',
                       'Centro Costo', 'Centro Operación', 'Cuenta Contable',
-                      'Valor', 'Valor sin IVA', 'Soporte', 'CF PDF',
+                      'Valor', 'Valor sin IVA', 'Cruce', 'Soporte', 'CF PDF',
                       ...(puedeDevolverGasto ? ['Acción'] : []),
                     ].map((h) => (
                       <th
@@ -1547,6 +1565,25 @@ function DetallePaqueteResponsable({
                             </span>
                           )}
                         </td>
+
+                        {/* CRUCE */}
+                        <td className="px-2 py-2 text-center">
+                          {g.estado_gasto === 'devuelto' ? (
+                            <span className="text-xs text-gray-300">—</span>
+                          ) : savingCruce[g.id] ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400 inline-block" />
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={!!g.cruce}
+                              onChange={() => handleToggleCruce(g)}
+                              disabled={!puedeGestionarVSI}
+                              className="w-4 h-4 cursor-pointer disabled:cursor-default"
+                              style={{ accentColor: '#00829a' }}
+                              title={puedeGestionarVSI ? 'Marcar cruce (visible en Tesorería)' : 'Cruce'}
+                            />
+                          )}
+                        </td>
                         <td className="px-2 py-2">
                           {g.archivos.length > 0 ? (
                             <div className="flex flex-col gap-1">
@@ -1689,7 +1726,7 @@ function DetallePaqueteResponsable({
                         ? fmtMonto(gastosVisibles.reduce((s, g) => s + toNum(g.valor_sin_impuestos ?? g.valor_pagado), 0))
                         : ''}
                     </td>
-                    <td /><td />
+                    <td /><td /><td />
                     {puedeDevolverGasto && <td />}
                   </tr>
                   {filtroGastos === 'devueltos' && toNum(paquete.monto_total) > gastosDevueltos.reduce((s, g) => s + toNum(g.valor_pagado), 0) && (
@@ -1700,7 +1737,7 @@ function DetallePaqueteResponsable({
                       <td className="py-2 px-2 font-bold text-sm text-green-700" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
                         {fmtMonto(toNum(paquete.monto_total) - gastosDevueltos.reduce((s, g) => s + toNum(g.valor_pagado), 0))}
                       </td>
-                      <td /><td /><td />
+                      <td /><td /><td /><td />
                       {puedeDevolverGasto && <td />}
                     </tr>
                   )}

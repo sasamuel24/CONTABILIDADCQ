@@ -17,7 +17,7 @@ from modules.gastos.schemas import (
     ArchivoGastoOut, PaqueteDevolver, GastoDevolverRequest,
     PagarPaqueteIn, PagarMasivoIn, PagarMasivoOut,
     ExtraccionDatosOut, ComercialHijoBrief, ValidarMultipleRequest,
-    ValorSinImpuestosUpdate, AnalisisImpuestoGastoOut, AnalisisImpuestosResponse,
+    ValorSinImpuestosUpdate, CruceUpdate, AnalisisImpuestoGastoOut, AnalisisImpuestosResponse,
 )
 
 router = APIRouter(tags=["Gastos"])
@@ -1078,6 +1078,41 @@ async def actualizar_valor_sin_impuestos(
 
     gasto.valor_sin_impuestos = data.valor
     gasto.vsi_fuente = "manual"
+    await db.commit()
+
+    result = await db.execute(
+        select(GastoLegalizacion).where(GastoLegalizacion.id == gasto_id)
+    )
+    return GastoOut.model_validate(result.scalar_one())
+
+
+@router.patch(
+    "/gastos/paquetes/{paquete_id}/gastos/{gasto_id}/cruce",
+    response_model=GastoOut,
+    summary="Marcar/desmarcar el check de cruce de un gasto (visible en Tesorería)",
+)
+async def actualizar_cruce_gasto(
+    paquete_id: UUID,
+    gasto_id: UUID,
+    data: CruceUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(_get_user_db),
+):
+    from db.models import GastoLegalizacion
+
+    _check_rol_vsi(user)
+
+    result = await db.execute(
+        select(GastoLegalizacion).where(
+            GastoLegalizacion.id == gasto_id,
+            GastoLegalizacion.paquete_id == paquete_id,
+        )
+    )
+    gasto = result.scalar_one_or_none()
+    if not gasto:
+        raise HTTPException(status_code=404, detail="Gasto no encontrado en este paquete.")
+
+    gasto.cruce = data.cruce
     await db.commit()
 
     result = await db.execute(

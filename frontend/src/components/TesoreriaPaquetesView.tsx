@@ -40,6 +40,7 @@ import {
   Eye,
   ShieldCheck,
   RotateCcw,
+  Check,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -695,10 +696,10 @@ export function DetalleAuditoriaTes({
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs" style={{ minWidth: 1100 }}>
+              <table className="w-full text-xs" style={{ minWidth: 1160 }}>
                 <thead>
                   <tr style={{ backgroundColor: '#00829a' }}>
-                    {['Fecha', 'Pagado a', 'Concepto', 'No. Recibo', 'Centro Costo', 'Centro Operación', 'Cuenta Contable', 'Valor', 'Soportes', 'CF PDF', 'Estado'].map((h) => (
+                    {['Fecha', 'Pagado a', 'Concepto', 'No. Recibo', 'Centro Costo', 'Centro Operación', 'Cuenta Contable', 'Valor', 'Cruce', 'Soportes', 'CF PDF', 'Estado'].map((h) => (
                       <th
                         key={h}
                         className="px-2 py-2.5 text-left font-semibold text-white whitespace-nowrap"
@@ -743,6 +744,21 @@ export function DetalleAuditoriaTes({
                       </td>
                       <td className="px-2 py-2 font-semibold whitespace-nowrap" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', color: '#00829a' }}>
                         {fmtMonto(g.valor_pagado)}
+                      </td>
+
+                      {/* Cruce (marcado por Facturación) */}
+                      <td className="px-2 py-2 text-center">
+                        {g.cruce ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
+                            style={{ backgroundColor: '#e0f5f7', color: '#00829a', border: '1px solid #b9e6ec' }}
+                            title="Gasto marcado como cruce por Facturación"
+                          >
+                            <Check className="w-3 h-3" /> Cruce
+                          </span>
+                        ) : (
+                          <span className="text-gray-300 text-xs">—</span>
+                        )}
                       </td>
 
                       {/* Soportes */}
@@ -826,7 +842,7 @@ export function DetalleAuditoriaTes({
                     <td className="py-3 px-2 font-bold text-sm" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', color: '#0e7490' }}>
                       {fmtMonto(montoAPagar)}
                     </td>
-                    <td colSpan={3} />
+                    <td colSpan={4} />
                   </tr>
                 </tfoot>
               </table>

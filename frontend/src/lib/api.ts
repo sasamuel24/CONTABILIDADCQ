@@ -158,6 +158,11 @@ export interface FacturaListItem {
   aprobado_calidad_email: string | null;
   aprobacion_calidad_aprobador_id: string | null;
   fecha_envio_contabilidad: string | null;
+  // Orden de compra (ingesta N8N) y auto-ruteo a Contabilidad
+  tipo_doc?: string | null;
+  numero_oc?: string | null;
+  estado_oc?: string | null;
+  enrutada_automaticamente?: boolean;
 }
 
 export interface FacturasPaginatedResponse {
@@ -1844,7 +1849,7 @@ export async function deleteComentario(comentarioId: string): Promise<void> {
 // MÓDULO GASTOS / LEGALIZACIÓN DE TÉCNICOS DE MANTENIMIENTO
 // ============================================================================
 
-export type EstadoPaquete = 'borrador' | 'en_validacion' | 'en_revision' | 'devuelto' | 'aprobado' | 'en_tesoreria' | 'pagado';
+export type EstadoPaquete = 'borrador' | 'en_validacion' | 'en_revision' | 'devuelto' | 'aprobado' | 'en_tesoreria' | 'pagado' | 'cruzado';
 
 export type CategoriaGasto =
   | 'Combustible'
@@ -1952,6 +1957,7 @@ export interface PaqueteOut {
   fecha_envio_gerencia: string | null;
   fecha_aprobacion: string | null;
   fecha_pago: string | null;
+  fecha_cruce: string | null;
   folio?: string | null;
   tecnico: { id: string; nombre: string; email: string };
   area: { id: string; nombre: string };
@@ -1985,6 +1991,7 @@ export interface PaqueteListItem {
   total_documentos: number;
   fecha_envio: string | null;
   fecha_envio_tesoreria: string | null;
+  fecha_cruce?: string | null;
   comentario_devolucion: string | null;
   tiene_gastos_devueltos: boolean;
   folio?: string | null;
@@ -2126,6 +2133,11 @@ export async function devolverPaquete(paqueteId: string, motivo: string): Promis
 /** Radicación envía el paquete aprobado a Tesorería */
 export async function enviarATesoreria(paqueteId: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/enviar-tesoreria`, { method: 'POST' });
+}
+
+/** Radicación marca el paquete aprobado como Cruzado (cierre sin pago de Tesorería) */
+export async function marcarCruzadoPaquete(paqueteId: string): Promise<PaqueteOut> {
+  return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/cruzar`, { method: 'POST' });
 }
 
 /** Tesorería marca el paquete como pagado */

@@ -32,6 +32,12 @@ from datetime import datetime
 from db.models import File
 
 
+# Áreas canónicas del auto-ruteo OC (mismos ids en local y producción)
+RADICACION_AREA_ID = UUID("498e9fdb-25f5-42f9-beb8-92564ab6bdf4")
+CONTABILIDAD_AREA_ID_RUTEO = UUID("725f5e5a-49d3-4e44-800f-f5ff21e187ac")
+ESTADO_PENDIENTE_CONTABILIDAD = 3
+
+
 class FacturaService:
     """Servicio que contiene la lógica de negocio de facturas."""
     
@@ -151,6 +157,10 @@ class FacturaService:
                 pendiente_confirmacion=f.pendiente_confirmacion,
                 ai_area_confianza=f.ai_area_confianza,
                 ai_area_razonamiento=f.ai_area_razonamiento,
+                tipo_doc=f.tipo_doc,
+                numero_oc=f.numero_oc,
+                estado_oc=f.estado_oc,
+                enrutada_automaticamente=f.enrutada_automaticamente,
             ))
         
         page = (skip // limit) + 1 if limit > 0 else 1
@@ -219,6 +229,7 @@ class FacturaService:
             proveedor=factura.proveedor,
             numero_factura=factura.numero_factura,
             fecha_emision=factura.fecha_emision,
+            fecha_vencimiento=factura.fecha_vencimiento,
             area_id=factura.area_id,
             area=factura.area.nombre if factura.area else "Sin área",
             total=float(factura.total),
@@ -230,6 +241,12 @@ class FacturaService:
             centro_operacion_id=factura.centro_operacion_id,
             centro_costo=factura.centro_costo.nombre if factura.centro_costo else None,
             centro_operacion=factura.centro_operacion.nombre if factura.centro_operacion else None,
+            unidad_negocio_id=factura.unidad_negocio_id,
+            unidad_negocio=factura.unidad_negocio.descripcion if factura.unidad_negocio else None,
+            tipo_doc=factura.tipo_doc,
+            numero_oc=factura.numero_oc,
+            estado_oc=factura.estado_oc,
+            enrutada_automaticamente=factura.enrutada_automaticamente,
             created_at=factura.created_at,
             updated_at=factura.updated_at,
             motivo_devolucion=factura.motivo_devolucion,
@@ -281,16 +298,217 @@ class FacturaService:
             return await self.get_factura(existing.id)
 
 
-        datos = factura_data.model_dump(exclude={"xml_content", "nit"})
+        datos = factura_data.model_dump(exclude={"xml_content", "nit", "c_costo", "c_operacion", "unidad_negocio", "distribucion"})
         if factura_data.nit:
             datos["nit_proveedor"] = factura_data.nit
+
+        # N8N envía centro de costo/operación y unidad de negocio como texto
+        # (código o nombre); se resuelven contra los catálogos para que la app
+        # los muestre con la UI existente. Si no hay match se deja NULL.
+        if self.db:
+            from db.models import CentroCosto, CentroOperacion, UnidadNegocio
+            if factura_data.c_costo and not datos.get("centro_costo_id"):
+                datos["centro_costo_id"] = await self._resolver_catalogo_id(
+                    CentroCosto, factura_data.c_costo, "nombre"
+                )
+            if factura_data.c_operacion and not datos.get("centro_operacion_id"):
+                datos["centro_operacion_id"] = await self._resolver_catalogo_id(
+                    CentroOperacion, factura_data.c_operacion, "nombre"
+                )
+            if factura_data.unidad_negocio and not datos.get("unidad_negocio_id"):
+                datos["unidad_negocio_id"] = await self._resolver_catalogo_id(
+                    UnidadNegocio, factura_data.unidad_negocio, "descripcion"
+                )
+
         factura = await self.repository.create(datos)
 
+        # Distribución CC/CO de la orden de compra (múltiples líneas con %)
+        distribucion_creada = False
+        if factura_data.distribucion and self.db:
+            distribucion_creada = await self._crear_distribucion_oc(factura, factura_data.distribucion)
+
+        # Distribución implícita: si no vino tabla pero la OC trae CC + CO de
+        # cabecera, crear una sola línea al 100% para que Contabilidad vea la
+        # tabla de distribución llena sin trabajo extra en N8N.
+        if (
+            not distribucion_creada
+            and self.db
+            and factura.numero_oc
+            and factura.centro_costo_id
+            and factura.centro_operacion_id
+        ):
+            distribucion_creada = await self._crear_distribucion_unica(factura)
+
+        # Auto-ruteo OC: si la factura trae orden de compra y los datos que el
+        # responsable llenaría a mano (CC + CO en cabecera, o distribución
+        # completa), salta directo a Contabilidad. Las que no cumplen siguen
+        # el flujo normal (Radicación → responsable).
+        auto_ruteada = await self._auto_rutear_a_contabilidad(factura, distribucion_creada)
+
         # Si viene xml_content, ejecutar asignación automática de área por IA
-        if factura_data.xml_content and self.db:
+        # (solo para las que siguen el flujo normal)
+        if factura_data.xml_content and self.db and not auto_ruteada:
             await self._asignar_area_ia(factura, factura_data.xml_content)
 
         return await self.get_factura(factura.id)
+
+    async def _auto_rutear_a_contabilidad(self, factura, distribucion_creada: bool = False) -> bool:
+        """Evalúa la regla de auto-ruteo OC y, si aplica, envía la factura
+        directo a Contabilidad al momento de crearla.
+
+        Regla: numero_oc presente + clasificación contable completa (CC + CO
+        en cabecera, o distribución CC/CO creada) + sin entrada de inventarios.
+        area_origen_id queda en Radicación para que una devolución desde
+        Contabilidad caiga allá. Controlado por el flag AUTO_RUTEO_OC.
+        """
+        from core.config import settings
+
+        if not (settings.auto_ruteo_oc and self.db):
+            return False
+        clasificacion_completa = (
+            (factura.centro_costo_id and factura.centro_operacion_id)
+            or distribucion_creada
+        )
+        if not (
+            factura.numero_oc
+            and clasificacion_completa
+            and not factura.requiere_entrada_inventarios
+        ):
+            return False
+
+        factura.area_id = CONTABILIDAD_AREA_ID_RUTEO
+        factura.area_origen_id = RADICACION_AREA_ID
+        factura.estado_id = ESTADO_PENDIENTE_CONTABILIDAD
+        factura.fecha_envio_contabilidad = datetime.utcnow()
+        factura.enrutada_automaticamente = True
+        await self.db.commit()
+        await self.db.refresh(factura)
+
+        logger.info(
+            f"Auto-ruteo OC: factura {factura.numero_factura} ({factura.proveedor}) "
+            f"con OC {factura.numero_oc} enviada directo a Contabilidad."
+        )
+        return True
+
+    async def _crear_distribucion_oc(self, factura, items) -> bool:
+        """Crea las filas de distribución CC/CO enviadas por N8N desde la OC.
+
+        Todo-o-nada: si alguna línea no resuelve CC o CO contra los catálogos,
+        no se crea ninguna fila (la factura sigue el flujo normal y el
+        responsable la completa a mano). Acepta `porcentaje` directo o `valor`
+        en pesos (se convierte a % del total de la distribución); los
+        porcentajes se normalizan para sumar exactamente 100.
+        """
+        from db.models import CentroCosto, CentroOperacion, UnidadNegocio, FacturaDistribucionCCCO
+
+        filas = []
+        for item in items:
+            cc_id = await self._resolver_catalogo_id(CentroCosto, item.c_costo, "nombre")
+            co_id = await self._resolver_catalogo_id(CentroOperacion, item.c_operacion, "nombre")
+            if not (cc_id and co_id):
+                logger.warning(
+                    f"Distribución OC de factura {factura.numero_factura}: línea "
+                    f"cc='{item.c_costo}' co='{item.c_operacion}' no resuelve; "
+                    "se omite TODA la distribución."
+                )
+                return False
+            un_id = None
+            if item.unidad_negocio:
+                un_id = await self._resolver_catalogo_id(UnidadNegocio, item.unidad_negocio, "descripcion")
+            filas.append({"cc": cc_id, "co": co_id, "un": un_id, "pct": item.porcentaje, "valor": item.valor})
+
+        # Derivar porcentajes: directos, por valor, o partes iguales
+        if all(f["pct"] is not None for f in filas):
+            pcts = [float(f["pct"]) for f in filas]
+        elif all(f["valor"] is not None for f in filas):
+            total_valores = sum(float(f["valor"]) for f in filas)
+            if total_valores <= 0:
+                logger.warning(f"Distribución OC de factura {factura.numero_factura}: valores en 0; se omite.")
+                return False
+            pcts = [float(f["valor"]) / total_valores * 100 for f in filas]
+        elif len(filas) == 1:
+            pcts = [100.0]
+        else:
+            logger.warning(
+                f"Distribución OC de factura {factura.numero_factura}: líneas sin "
+                "porcentaje ni valor consistentes; se omite."
+            )
+            return False
+
+        # Normalizar redondeo para que la suma sea exactamente 100
+        pcts = [round(p, 2) for p in pcts]
+        diferencia = round(100.0 - sum(pcts), 2)
+        if abs(diferencia) > 5:
+            logger.warning(
+                f"Distribución OC de factura {factura.numero_factura}: los "
+                f"porcentajes suman {sum(pcts)}%; se omite la distribución."
+            )
+            return False
+        pcts[-1] = round(pcts[-1] + diferencia, 2)
+
+        for f, pct in zip(filas, pcts):
+            self.db.add(FacturaDistribucionCCCO(
+                factura_id=factura.id,
+                centro_costo_id=f["cc"],
+                centro_operacion_id=f["co"],
+                unidad_negocio_id=f["un"],
+                porcentaje=pct,
+            ))
+        await self.db.commit()
+
+        logger.info(
+            f"Distribución OC creada para factura {factura.numero_factura}: "
+            f"{len(filas)} línea(s), porcentajes={pcts}."
+        )
+        return True
+
+    async def _crear_distribucion_unica(self, factura) -> bool:
+        """Crea una distribución de una sola línea (100%) con el CC/CO/UN de
+        cabecera de la factura. Usado cuando la OC no trae tabla de distribución."""
+        from db.models import FacturaDistribucionCCCO
+
+        self.db.add(FacturaDistribucionCCCO(
+            factura_id=factura.id,
+            centro_costo_id=factura.centro_costo_id,
+            centro_operacion_id=factura.centro_operacion_id,
+            unidad_negocio_id=factura.unidad_negocio_id,
+            porcentaje=100,
+        ))
+        await self.db.commit()
+        logger.info(
+            f"Distribución única (100%) creada para factura {factura.numero_factura} "
+            "con el CC/CO de cabecera."
+        )
+        return True
+
+    async def _resolver_catalogo_id(self, model, texto: str, campo_nombre: str):
+        """Busca un registro de catálogo por código o nombre (sin distinguir mayúsculas).
+
+        Retorna el id si hay match exacto; None (con warning) si no existe.
+        """
+        from sqlalchemy import select, func, or_
+        texto = texto.strip()
+        campo = getattr(model, campo_nombre)
+        condiciones = [
+            func.upper(model.codigo) == texto.upper(),
+            func.upper(campo) == texto.upper(),
+        ]
+        # N8N suele tratar códigos como número y les quita los ceros iniciales
+        # ("0801" llega como "801"): comparar también sin ceros a la izquierda.
+        if texto.isdigit():
+            condiciones.append(func.ltrim(model.codigo, "0") == texto.lstrip("0"))
+        result = await self.db.execute(
+            select(model.id)
+            .where(or_(*condiciones))
+            .limit(1)
+        )
+        encontrado = result.scalar_one_or_none()
+        if not encontrado:
+            logger.warning(
+                f"{model.__name__} '{texto}' no encontrado en catálogo; "
+                "la factura se guarda sin ese vínculo."
+            )
+        return encontrado
 
     async def _asignar_area_ia(self, factura, xml_content: str) -> None:
         """Asigna área automáticamente usando el XML DIAN y Claude Haiku."""
@@ -559,16 +777,27 @@ Responde ÚNICAMENTE con JSON válido:
         centro_costo_id = factura_data.centro_costo_id if factura_data.centro_costo_id is not None else factura.centro_costo_id
         centro_operacion_id = factura_data.centro_operacion_id if factura_data.centro_operacion_id is not None else factura.centro_operacion_id
         
-        # Lógica: Si se asigna un área nueva, cambiar estado a "Asignada" (estado_id = 2)
+        # Lógica: Si se asigna un área nueva, cambiar estado a "Asignada" (estado_id = 2).
+        # Excepción: si el destino es Contabilidad, el estado correcto es "Pendiente en
+        # contabilidad" (3); dejarla en 2 la volvía invisible para el flujo (aparecía en
+        # la bandeja de Contabilidad pero el botón Devolver rechazaba con 400).
         update_data = factura_data.model_dump(exclude_unset=True)
         if factura_data.area_id is not None and factura_data.area_id != factura.area_id:
-            logger.info(f"Área cambiada de {factura.area_id} a {factura_data.area_id}, actualizando estado a Asignada")
-            update_data['estado_id'] = 2  # Estado: Asignada
-            
+            va_a_contabilidad = factura_data.area_id == CONTABILIDAD_AREA_ID_RUTEO
+            update_data['estado_id'] = ESTADO_PENDIENTE_CONTABILIDAD if va_a_contabilidad else 2
+            if va_a_contabilidad and not factura.fecha_envio_contabilidad:
+                update_data['fecha_envio_contabilidad'] = datetime.utcnow()
+            logger.info(
+                f"Área cambiada de {factura.area_id} a {factura_data.area_id}, "
+                f"estado -> {update_data['estado_id']}"
+            )
+
             # IMPORTANTE: Si area_origen_id es NULL, establecerlo la primera vez
-            # Esto guarda el área original asignada por Radicación y nunca cambia
+            # Esto guarda el área original asignada por Radicación y nunca cambia.
+            # Si el primer destino es Contabilidad, el origen queda en Radicación:
+            # una devolución debe caer allá, nunca en la propia Contabilidad.
             if factura.area_origen_id is None:
-                update_data['area_origen_id'] = factura_data.area_id
+                update_data['area_origen_id'] = RADICACION_AREA_ID if va_a_contabilidad else factura_data.area_id
                 logger.info(f"Estableciendo area_origen_id: {factura_data.area_id}")
         
         factura = await self.repository.update(factura_id, update_data)
@@ -1999,8 +2228,15 @@ Responde ÚNICAMENTE con JSON válido:
                 detail=f"Factura con ID {factura_id} no encontrada"
             )
         
-        # Validar que esté en estado Contabilidad (estado_id = 3)
-        if factura.estado_id != 3:
+        # Validar que esté en estado Contabilidad (estado_id = 3). Se acepta también
+        # una factura en estado 2 cuyo ÁREA ya es Contabilidad: son facturas movidas
+        # a mano con el cambio de área (que antes forzaba estado 2) y deben poder
+        # devolverse igual que las demás.
+        en_contabilidad = (
+            factura.estado_id == ESTADO_PENDIENTE_CONTABILIDAD
+            or (factura.estado_id == 2 and factura.area_id == CONTABILIDAD_AREA_ID_RUTEO)
+        )
+        if not en_contabilidad:
             result_estado = await self.db.execute(
                 select(Estado).where(Estado.id == factura.estado_id)
             )
@@ -2023,9 +2259,16 @@ Responde ÚNICAMENTE con JSON válido:
         )
         user_devuelve = result_user.scalar_one_or_none()
 
-        # Devolver a área origen (que nunca cambia)
-        factura.area_id = factura.area_origen_id
-        factura.estado_id = 2  # Estado "Asignada" (Responsable)
+        # Devolver a área origen (que nunca cambia). Las auto-enrutadas por OC
+        # tienen origen Radicación: allá deben quedar "Recibida", no "Asignada".
+        # Guard: si el origen registrado es la propia Contabilidad (dato legado de
+        # facturas asignadas directo a Contabilidad), devolver a Radicación para
+        # no dejarla girando en la misma bandeja.
+        area_destino = factura.area_origen_id
+        if area_destino == CONTABILIDAD_AREA_ID_RUTEO:
+            area_destino = RADICACION_AREA_ID
+        factura.area_id = area_destino
+        factura.estado_id = 1 if area_destino == RADICACION_AREA_ID else 2
         factura.motivo_devolucion = motivo
         factura.devuelta_por_nombre = user_devuelve.nombre if user_devuelve else None
         factura.assigned_to_user_id = None  # Limpiar asignación específica

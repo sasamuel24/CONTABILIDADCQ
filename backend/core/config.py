@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     
     # API Key para endpoints de ingesta (n8n)
     api_key: str = "change-this-in-production"
+
+    # Auto-ruteo a Contabilidad: facturas creadas por N8N con numero_oc + CC + CO
+    # saltan al responsable y van directo a Contabilidad. Apagado por defecto
+    # para poder desplegar el código y encenderlo cuando se valide en producción.
+    auto_ruteo_oc: bool = False
     
     # CORS
     cors_origins: list[str] = [

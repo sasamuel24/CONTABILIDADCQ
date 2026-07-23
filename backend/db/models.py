@@ -617,6 +617,16 @@ class Factura(Base, TimestampMixin):
     # NIT del proveedor (extraído del XML DIAN)
     nit_proveedor: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Datos de documento / orden de compra (ingesta N8N)
+    tipo_doc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    numero_oc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    estado_oc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Auto-ruteo OC: la factura saltó al responsable y fue directo a Contabilidad
+    enrutada_automaticamente: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+
     # Ingesta automática XML
     pendiente_confirmacion: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default="false"
@@ -1117,6 +1127,10 @@ class PaqueteGasto(Base, TimestampMixin):
     fecha_pago: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
     )
+    # Cierre por cruce: Facturación cierra el paquete sin pasar por pago de Tesorería
+    fecha_cruce: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
     revisado_por_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -1202,7 +1216,7 @@ class PaqueteGasto(Base, TimestampMixin):
 
     __table_args__ = (
         CheckConstraint(
-            "estado IN ('borrador','en_validacion','en_revision','devuelto','aprobado','en_tesoreria','pagado')",
+            "estado IN ('borrador','en_validacion','en_revision','devuelto','aprobado','en_tesoreria','pagado','cruzado')",
             name="check_estado_paquete_valid"
         ),
         CheckConstraint(
@@ -1386,7 +1400,7 @@ class ComentarioPaquete(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "tipo IN ('observacion','devolucion','aprobacion','pago','envio_tesoreria','devolucion_gasto')",
+            "tipo IN ('observacion','devolucion','aprobacion','pago','envio_tesoreria','devolucion_gasto','cruce')",
             name="check_tipo_comentario_paquete_valid"
         ),
     )

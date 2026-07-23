@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Download, FileText, Eye } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Download, FileText, Eye, Zap } from 'lucide-react';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, DistribucionCCCO, UnidadNegocio, CuentaAuxiliar } from '../lib/api';
 import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares, downloadFileById, updateFactura } from '../lib/api';
 import { MOTIVOS_DEVOLUCION } from '../lib/opciones';
@@ -504,6 +504,15 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                 <span className={`px-3 py-1 rounded-full border text-sm ${statusConfig[factura.estado]?.bgColor || 'bg-gray-100 border-gray-200'} ${statusConfig[factura.estado]?.color || 'text-gray-700'}`}>
                   {factura.estado}
                 </span>
+                {factura.enrutada_automaticamente && (
+                  <span
+                    className="px-3 py-1 rounded-full border text-sm flex items-center gap-1 font-medium"
+                    style={{ backgroundColor: '#f5f3ff', borderColor: '#c4b5fd', color: '#6d28d9' }}
+                  >
+                    <Zap className="w-4 h-4" />
+                    Automática · Siesa
+                  </span>
+                )}
               </div>
             </div>
 
@@ -538,6 +547,15 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                       ${factura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                     </span>
                   </div>
+                  {factura.numero_oc && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Orden de Compra</span>
+                      <span className="text-gray-900 font-medium">
+                        {factura.tipo_doc ? `${factura.tipo_doc} ` : ''}{factura.numero_oc}
+                        {factura.estado_oc ? ` · ${factura.estado_oc}` : ''}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -591,6 +609,14 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                               </div>
                             ))}
                           </div>
+                        ) : factura.numero_oc ? (
+                          <span
+                            className="text-sm inline-flex items-center gap-1 px-3 py-1 rounded-full border font-medium"
+                            style={{ backgroundColor: '#f5f3ff', borderColor: '#c4b5fd', color: '#6d28d9' }}
+                          >
+                            <Zap className="w-4 h-4" />
+                            OC {factura.numero_oc} · validada en Siesa{factura.estado_oc ? ` (${factura.estado_oc})` : ''}
+                          </span>
                         ) : (
                           <span className="text-red-600 text-sm flex items-center gap-1">
                             <AlertCircle className="w-4 h-4" />
@@ -634,6 +660,14 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                               </div>
                             )}
                           </div>
+                        ) : factura.enrutada_automaticamente ? (
+                          <span
+                            className="text-sm inline-flex items-center gap-1 px-3 py-1 rounded-full border font-medium"
+                            style={{ backgroundColor: '#f5f3ff', borderColor: '#c4b5fd', color: '#6d28d9' }}
+                          >
+                            <Zap className="w-4 h-4" />
+                            Cubierta por OC {factura.numero_oc} · Siesa{factura.estado_oc ? ` (${factura.estado_oc})` : ''}
+                          </span>
                         ) : (
                           <span className="text-red-600 text-sm flex items-center gap-1">
                             <AlertCircle className="w-4 h-4" />

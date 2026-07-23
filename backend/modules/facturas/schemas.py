@@ -23,6 +23,38 @@ class FacturaBase(BaseModel):
     centro_operacion_id: Optional[UUID] = Field(None, description="ID del centro de operación")
 
 
+class DistribucionOCItem(BaseModel):
+    """Línea de distribución CC/CO enviada por N8N desde la orden de compra.
+
+    Los códigos vienen como texto y se resuelven contra los catálogos.
+    Se acepta `porcentaje` directo o `valor` en pesos (se convierte a % del total
+    de la distribución).
+    """
+    c_costo: str = Field(..., description="Código o nombre del centro de costo")
+    c_operacion: str = Field(..., description="Código o nombre del centro de operación")
+    unidad_negocio: Optional[str] = Field(None, description="Código o descripción de la unidad de negocio")
+    porcentaje: Optional[float] = Field(None, gt=0, le=100, description="Porcentaje de la línea (0-100)")
+    valor: Optional[float] = Field(None, gt=0, description="Valor en pesos de la línea (alternativa a porcentaje)")
+
+    @field_validator('c_costo', 'c_operacion', 'unidad_negocio', mode='before')
+    @classmethod
+    def n8n_empty_to_none_dist(cls, v):
+        if isinstance(v, str):
+            v = v.strip()
+            if v == "" or v.lower() in ("null", "undefined", "nan"):
+                return None
+        return v
+
+    @field_validator('porcentaje', 'valor', mode='before')
+    @classmethod
+    def n8n_num_empty_to_none(cls, v):
+        if isinstance(v, str):
+            v = v.strip().replace(",", ".")
+            if v == "" or v.lower() in ("null", "undefined", "nan"):
+                return None
+        return v
+
+
 class FacturaCreate(BaseModel):
     """Esquema para crear una factura."""
     proveedor: str = Field(..., description="Nombre del proveedor")
@@ -55,6 +87,49 @@ class FacturaCreate(BaseModel):
     cuenta_auxiliar_id: Optional[UUID] = Field(None, description="ID de la cuenta auxiliar")
     xml_content: Optional[str] = Field(None, description="XML AttachedDocument DIAN para asignación automática de área por IA")
     nit: Optional[str] = Field(None, description="NIT del proveedor (enviado por N8N, se guarda como nit_proveedor)")
+    tipo_doc: Optional[str] = Field(None, description="Tipo de documento (enviado por N8N)")
+    numero_oc: Optional[str] = Field(None, description="Número de orden de compra (enviado por N8N)")
+    estado_oc: Optional[str] = Field(None, description="Estado de la orden de compra (enviado por N8N)")
+    c_costo: Optional[str] = Field(None, description="Código o nombre del centro de costo (N8N); se resuelve a centro_costo_id")
+    c_operacion: Optional[str] = Field(None, description="Código o nombre del centro de operación (N8N); se resuelve a centro_operacion_id")
+    unidad_negocio: Optional[str] = Field(None, description="Código o descripción de la unidad de negocio (N8N); se resuelve a unidad_negocio_id")
+    distribucion: Optional[List[DistribucionOCItem]] = Field(
+        None, description="Distribución CC/CO de la orden de compra (N8N); crea las filas en facturas_distribucion_ccco"
+    )
+
+    @field_validator(
+        'nit', 'tipo_doc', 'numero_oc', 'estado_oc',
+        'c_costo', 'c_operacion', 'unidad_negocio',
+        mode='before'
+    )
+    @classmethod
+    def n8n_empty_to_none(cls, v):
+        """N8N envía '' , 'null' o 'undefined' cuando la expresión no tiene valor,
+        y códigos numéricos como número (5103) en vez de texto."""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return str(v)
+        if isinstance(v, str):
+            v = v.strip()
+            if v == "" or v.lower() in ("null", "undefined", "nan"):
+                return None
+        return v
+
+    @field_validator('distribucion', mode='before')
+    @classmethod
+    def parse_distribucion_json(cls, v):
+        """N8N puede enviar la distribución como string JSON; parsearla."""
+        if isinstance(v, str):
+            v = v.strip()
+            if v == "" or v.lower() in ("null", "undefined"):
+                return None
+            import json
+            try:
+                return json.loads(v)
+            except ValueError:
+                return None
+        return v
 
 
 class FacturaUpdate(BaseModel):
@@ -196,6 +271,11 @@ class FacturaListItem(BaseModel):
     pendiente_confirmacion: bool = False
     ai_area_confianza: Optional[str] = None
     ai_area_razonamiento: Optional[str] = None
+    # Orden de compra (ingesta N8N) y auto-ruteo a Contabilidad
+    tipo_doc: Optional[str] = None
+    numero_oc: Optional[str] = None
+    estado_oc: Optional[str] = None
+    enrutada_automaticamente: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -209,6 +289,12 @@ class FacturaResponse(FacturaBase):
     assigned_at: Optional[datetime]
     centro_costo: Optional[str] = None
     centro_operacion: Optional[str] = None
+    unidad_negocio_id: Optional[UUID] = None
+    unidad_negocio: Optional[str] = None
+    tipo_doc: Optional[str] = None
+    numero_oc: Optional[str] = None
+    estado_oc: Optional[str] = None
+    enrutada_automaticamente: bool = False
     created_at: datetime
     updated_at: datetime
     motivo_devolucion: Optional[str] = None

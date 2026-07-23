@@ -119,6 +119,7 @@ function apiToUI(estado: string): EstadoUI {
     aprobado: 'Aprobado',
     en_tesoreria: 'En tesoreria',
     pagado: 'Pagado',
+    cruzado: 'Pagado',
   };
   return map[estado] ?? 'Borrador';
 }
@@ -975,7 +976,9 @@ function DetallePaqueteCQ({
             <p className="text-sm text-blue-600" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
               {estadoUI === 'En revision' && `Esperando aprobación del gerente${paquete.aprobador ? ` (${paquete.aprobador.nombre})` : ''}. Se enviará un correo con el enlace de aprobación (válido 72 horas).`}
               {estadoUI === 'Aprobado' && 'Gastos aprobados por el gerente. El área de Radicación procesará el envío a Tesorería.'}
-              {estadoUI === 'Pagado' && 'Este paquete fue pagado y legalizado exitosamente.'}
+              {estadoUI === 'Pagado' && (paquete.estado === 'cruzado'
+                ? `Este paquete fue cerrado por cruce${paquete.fecha_cruce ? ` el ${fmtFecha(paquete.fecha_cruce.slice(0, 10))}` : ''}.`
+                : `Este paquete fue pagado y legalizado exitosamente${paquete.fecha_pago ? ` el ${fmtFecha(paquete.fecha_pago.slice(0, 10))}` : ''}.`)}
             </p>
             {estadoUI === 'En revision' && (
               <button onClick={handleReenviarCorreo} disabled={reenviandoCorreo}

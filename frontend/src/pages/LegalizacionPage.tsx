@@ -121,6 +121,7 @@ function apiToUI(estado: string): EstadoUI {
     aprobado: 'Aprobado',
     en_tesoreria: 'En tesoreria',
     pagado: 'Pagado',
+    cruzado: 'Pagado',
   };
   return map[estado] ?? 'Borrador';
 }
@@ -1463,7 +1464,9 @@ export function DetallePaquete({
             {estadoUI === 'Aprobado' &&
               'Tu legalizacion fue aprobada. El pago esta siendo procesado.'}
             {estadoUI === 'Pagado' &&
-              'Este paquete fue pagado y legalizado exitosamente.'}
+              (paquete.estado === 'cruzado'
+                ? `Este paquete fue cerrado por cruce${paquete.fecha_cruce ? ` el ${fmtFecha(paquete.fecha_cruce.slice(0, 10))}` : ''}.`
+                : `Este paquete fue pagado y legalizado exitosamente${paquete.fecha_pago ? ` el ${fmtFecha(paquete.fecha_pago.slice(0, 10))}` : ''}.`)}
           </p>
         </div>
       )}

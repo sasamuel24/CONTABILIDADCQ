@@ -268,6 +268,7 @@ class PaqueteOut(BaseModel):
     fecha_envio_gerencia: Optional[datetime] = None
     fecha_aprobacion: Optional[datetime]
     fecha_pago: Optional[datetime]
+    fecha_cruce: Optional[datetime] = None
     tecnico: UserBrief
     area: Optional[AreaBrief] = None
     revisado_por: Optional[UserBrief]
@@ -303,6 +304,7 @@ class PaqueteListItem(BaseModel):
     total_documentos: int
     fecha_envio: Optional[datetime]
     fecha_envio_tesoreria: Optional[datetime] = None
+    fecha_cruce: Optional[datetime] = None
     comentario_devolucion: Optional[str] = None
     tiene_gastos_devueltos: bool = False
     tecnico: Optional[UserBrief] = None

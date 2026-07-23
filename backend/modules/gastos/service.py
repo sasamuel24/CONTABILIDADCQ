@@ -752,6 +752,58 @@ class GastosService:
 
         return self._to_out(paquete_enviado)
 
+    async def marcar_cruzado(self, paquete_id: UUID, user_id: UUID) -> PaqueteOut:
+        """Facturación cierra un paquete aprobado por cruce, sin pasar por pago de Tesorería.
+
+        El paquete queda en estado final 'cruzado' y Tesorería lo ve en su
+        historial/trazabilidad como cierre por cruce.
+        """
+        paquete = await self._get_paquete_or_404(paquete_id)
+        if paquete.estado != "aprobado":
+            raise HTTPException(status_code=400, detail="Solo paquetes aprobados pueden marcarse como cruzados.")
+
+        # Igual que en el envío a Tesorería: el monto efectivo excluye gastos devueltos
+        monto_a_pagar = sum(
+            float(g.valor_pagado) for g in paquete.gastos
+            if getattr(g, "estado_gasto", None) != "devuelto"
+        )
+        devueltos = [g for g in paquete.gastos if getattr(g, "estado_gasto", None) == "devuelto"]
+
+        paquete.estado = "cruzado"
+        paquete.monto_a_pagar = monto_a_pagar
+        paquete.fecha_cruce = datetime.now(tz=timezone.utc)
+        await self.paquete_repo.save(paquete)
+
+        texto_comentario = "Paquete marcado como Cruzado por Facturación. Cerrado por cruce, sin pago de Tesorería."
+        if devueltos:
+            nombres = ", ".join(f"{g.pagado_a} (${float(g.valor_pagado):,.0f})" for g in devueltos)
+            texto_comentario += f" Se excluyeron gastos devueltos: {nombres}."
+        await self.comentario_repo.create(ComentarioPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            texto=texto_comentario, tipo="cruce",
+        ))
+        await self.historial_repo.create(HistorialEstadoPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            estado_anterior="aprobado", estado_nuevo="cruzado",
+        ))
+        await self.db.commit()
+        paquete_cruzado = await self.paquete_repo.get_by_id(paquete_id)
+
+        # Si pertenece a un anticipo desembolsado y todos sus paquetes quedaron
+        # cerrados (pagados o cruzados), cerrar el anticipo automáticamente.
+        if paquete_cruzado.anticipo_id:
+            anticipo = await self.db.get(Anticipo, paquete_cruzado.anticipo_id)
+            if anticipo and anticipo.estado == "desembolsado":
+                todos_cerrados = all(p.estado in ("pagado", "cruzado") for p in anticipo.paquetes)
+                if todos_cerrados:
+                    anticipo.estado = "cerrado"
+                    await self.db.commit()
+                    logger.info(
+                        f"Anticipo {anticipo.folio} cerrado automáticamente al quedar todos sus paquetes cerrados."
+                    )
+
+        return self._to_out(paquete_cruzado)
+
     async def pagar(self, paquete_id: UUID, user_id: UUID, fecha_pago: datetime | None = None) -> PaqueteOut:
         paquete = await self._get_paquete_or_404(paquete_id)
         if paquete.estado != "en_tesoreria":
@@ -776,7 +828,7 @@ class GastosService:
         if paquete_pagado.anticipo_id:
             anticipo = await self.db.get(Anticipo, paquete_pagado.anticipo_id)
             if anticipo and anticipo.estado == "desembolsado":
-                todos_pagados = all(p.estado == "pagado" for p in anticipo.paquetes)
+                todos_pagados = all(p.estado in ("pagado", "cruzado") for p in anticipo.paquetes)
                 if todos_pagados:
                     anticipo.estado = "cerrado"
                     await self.db.commit()

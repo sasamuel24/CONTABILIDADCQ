@@ -59,6 +59,7 @@ const ESTADOS_CONFIG: Record<string, { label: string; bg: string; color: string;
   aprobado:      { label: 'Aprobado',      bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
   en_tesoreria:  { label: 'En Tesorería',  bg: '#ecfeff', color: '#0e7490', border: '#a5f3fc' },
   pagado:        { label: 'Pagado',        bg: '#f0fdf4', color: '#065f46', border: '#6ee7b7' },
+  cruzado:       { label: 'Cruzado',       bg: '#f5f3ff', color: '#6d28d9', border: '#ddd6fe' },
 };
 
 const TIPO_FLUJO_CONFIG: Record<string, { label: string; bg: string; color: string; border: string }> = {
@@ -212,6 +213,7 @@ function DetallePaqueteDirector({ paqueteId, onCerrar }: { paqueteId: string; on
     { label: 'Enviado a gerencia', fecha: paquete.fecha_envio_gerencia },
     { label: 'Aprobado', fecha: paquete.fecha_aprobacion },
     { label: 'Pagado', fecha: paquete.fecha_pago },
+    { label: 'Cruzado', fecha: paquete.fecha_cruce },
   ];
 
   return (

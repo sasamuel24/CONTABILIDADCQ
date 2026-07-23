@@ -303,6 +303,23 @@ async def enviar_tesoreria(
 
 
 @router.post(
+    "/gastos/paquetes/{paquete_id}/cruzar",
+    response_model=PaqueteOut,
+    summary="Marcar paquete aprobado como Cruzado: cierre sin pago de Tesorería (radicación/admin)",
+)
+async def marcar_cruzado(
+    paquete_id: UUID,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    role = user.role.code.lower() if user.role else ""
+    area = user.area.code.lower() if user.area else ""
+    if role not in {"admin", "fact"} and area not in {"admin", "fact"}:
+        raise HTTPException(status_code=403, detail="Solo radicación puede marcar paquetes como cruzados.")
+    return await svc.marcar_cruzado(paquete_id, user.id)
+
+
+@router.post(
     "/gastos/paquetes/{paquete_id}/devolver",
     response_model=PaqueteOut,
     summary="Devolver paquete con observación (admin/contabilidad)",

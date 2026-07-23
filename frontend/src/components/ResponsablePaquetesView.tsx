@@ -15,6 +15,7 @@ import {
   devolverGasto,
   pagarPaquete,
   enviarATesoreria,
+  marcarCruzadoPaquete,
   editarGasto,
   getDownloadUrlArchivoGasto,
   proxyDownloadArchivoGasto,
@@ -70,6 +71,7 @@ import {
   Trash2,
   FileCheck,
   Sparkles,
+  GitMerge,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -154,6 +156,7 @@ const ESTADO_MAP: Record<EstadoPaquete, EstadoUI> = {
   aprobado:      { label: 'Pendiente',          bg: '#fff7ed', color: '#c2410c', dot: '#f97316' },
   en_tesoreria:  { label: 'En Tesorería',      bg: '#eff6ff', color: '#1d4ed8', dot: '#3b82f6' },
   pagado:        { label: 'Pagado',             bg: '#f0fdf4', color: '#0e7490', dot: '#06b6d4' },
+  cruzado:       { label: 'Cruzado',            bg: '#f5f3ff', color: '#6d28d9', dot: '#8b5cf6' },
 };
 
 function EstadoBadge({ estado }: { estado: EstadoPaquete }) {
@@ -276,6 +279,8 @@ function DetallePaqueteResponsable({
   const [uploadingAprobacion, setUploadingAprobacion] = useState(false);
   const [loadingPagar, setLoadingPagar] = useState(false);
   const [loadingEnviarTes, setLoadingEnviarTes] = useState(false);
+  const [loadingCruzar, setLoadingCruzar] = useState(false);
+  const [showCruzarModal, setShowCruzarModal] = useState(false);
   const [loadingReenviarCorreo, setLoadingReenviarCorreo] = useState(false);
   const [correoGerEnviado, setCorreoGerEnviado] = useState(false);
   const [loadingExportar, setLoadingExportar] = useState(false);
@@ -520,6 +525,23 @@ function DetallePaqueteResponsable({
       toast.error(msg);
     } finally {
       setLoadingEnviarTes(false);
+    }
+  };
+
+  const handleMarcarCruzado = async () => {
+    if (!paquete) return;
+    setLoadingCruzar(true);
+    try {
+      const updated = await marcarCruzadoPaquete(paquete.id);
+      setPaquete(updated);
+      setShowCruzarModal(false);
+      toast.success('Paquete marcado como Cruzado y cerrado');
+      onAccion();
+    } catch (e: unknown) {
+      const msg = (e as { detail?: string })?.detail ?? 'Error al marcar como cruzado';
+      toast.error(msg);
+    } finally {
+      setLoadingCruzar(false);
     }
   };
 
@@ -782,13 +804,13 @@ function DetallePaqueteResponsable({
   // Devolución individual de gastos (columna "Acción"): Radicación (aprobado) y el validador comercial (en_validacion).
   const puedeDevolverGasto = puedeDevolverComoFact || (modo === 'comercial' && puedeActuar);
   // Doc contable visible (para ver/descargar) desde aprobado en adelante
-  const verDocContable = ['aprobado', 'en_tesoreria', 'pagado'].includes(paquete.estado);
+  const verDocContable = ['aprobado', 'en_tesoreria', 'pagado', 'cruzado'].includes(paquete.estado);
   // Radicación puede gestionar doc contable en cualquier estado visible
   const puedeGestionarDocContable = verDocContable && esFact;
   // CF PDF: radicación puede subir cuando aprobado; todos ven si existe
   const puedeGestionarCmPdf = paquete.estado === 'aprobado' && esFact;
   // Valor sin impuestos: Facturación lo gestiona desde que el paquete llega aprobado
-  const puedeGestionarVSI = esFact && ['aprobado', 'en_tesoreria', 'pagado'].includes(paquete.estado);
+  const puedeGestionarVSI = esFact && ['aprobado', 'en_tesoreria', 'pagado', 'cruzado'].includes(paquete.estado);
 
   const gastosDevueltos = paquete.gastos.filter((g) => g.estado_gasto === 'devuelto');
   const gastosVisibles = filtroGastos === 'devueltos' ? gastosDevueltos : paquete.gastos;
@@ -1282,19 +1304,75 @@ function DetallePaqueteResponsable({
                   </div>
                 ) : (
                   <p className="text-xs text-gray-500" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                    El paquete fue aprobado. Envíalo a Tesorería o devuelve gastos con observaciones.
+                    El paquete fue aprobado. Envíalo a Tesorería, márcalo como Cruzado (cierre sin pago) o devuelve gastos con observaciones.
                   </p>
                 )}
               </div>
               <button
+                onClick={() => setShowCruzarModal(true)}
+                disabled={loadingEnviarTes || loadingDevolver || loadingCruzar}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#6d28d9', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+              >
+                {loadingCruzar ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitMerge className="w-4 h-4" />}
+                Marcar como Cruzado
+              </button>
+              <button
                 onClick={handleEnviarTesoreria}
-                disabled={loadingEnviarTes || loadingDevolver}
+                disabled={loadingEnviarTes || loadingDevolver || loadingCruzar}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                 style={{ backgroundColor: '#1d4ed8', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
               >
                 {loadingEnviarTes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 Enviar a Tesorería
               </button>
+            </div>
+          )}
+
+          {/* Modal confirmación de cruce */}
+          {showCruzarModal && (
+            <div
+              className="fixed inset-0 flex items-center justify-center z-50"
+              style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+              onClick={(e) => { if (e.target === e.currentTarget) setShowCruzarModal(false); }}
+            >
+              <div
+                className="bg-white rounded-2xl p-7 w-full"
+                style={{ maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: '#f5f3ff' }}>
+                    <GitMerge className="w-5 h-5" style={{ color: '#6d28d9' }} />
+                  </div>
+                  <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
+                    Marcar paquete como Cruzado
+                  </p>
+                </div>
+                <p className="text-sm text-gray-600 mb-6">
+                  El paquete quedará <strong>cerrado por cruce</strong>: no pasará por pago de Tesorería,
+                  pero Tesorería lo verá en su historial y trazabilidad como cierre con estado Cruzado.
+                  Esta acción no se puede deshacer desde la aplicación.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowCruzarModal(false)}
+                    disabled={loadingCruzar}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold border text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                    style={{ borderColor: '#d1d5db', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleMarcarCruzado}
+                    disabled={loadingCruzar}
+                    className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: '#6d28d9', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    {loadingCruzar ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitMerge className="w-4 h-4" />}
+                    Confirmar cruce
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1987,6 +2065,7 @@ export function ResponsablePaquetesView({
     { value: 'en_tesoreria', label: 'En Tesorería' },
     { value: 'devuelto',     label: 'Devueltos' },
     { value: 'pagado',       label: 'Pagados' },
+    { value: 'cruzado',      label: 'Cruzados' },
     { value: 'todos',        label: 'Todos' },
   ];
 

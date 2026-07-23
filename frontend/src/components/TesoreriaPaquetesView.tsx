@@ -41,6 +41,7 @@ import {
   ShieldCheck,
   RotateCcw,
   Check,
+  GitMerge,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -252,6 +253,7 @@ export function DetalleAuditoriaTes({
   const gastosDevueltos = paquete.gastos.filter((g) => g.estado_gasto === 'devuelto');
   const montoAPagar = paquete.monto_a_pagar ?? paquete.monto_total;
   const yaPagado = paquete.estado === 'pagado';
+  const esCruzado = paquete.estado === 'cruzado';
 
   return (
     <>
@@ -331,12 +333,12 @@ export function DetalleAuditoriaTes({
                 <span
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
                   style={{
-                    backgroundColor: yaPagado ? '#f0fdf4' : '#eff6ff',
-                    color: yaPagado ? '#0e7490' : '#1d4ed8',
+                    backgroundColor: esCruzado ? '#f5f3ff' : yaPagado ? '#f0fdf4' : '#eff6ff',
+                    color: esCruzado ? '#6d28d9' : yaPagado ? '#0e7490' : '#1d4ed8',
                   }}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: yaPagado ? '#06b6d4' : '#3b82f6' }} />
-                  {yaPagado ? 'Pagado' : 'En Tesorería'}
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: esCruzado ? '#8b5cf6' : yaPagado ? '#06b6d4' : '#3b82f6' }} />
+                  {esCruzado ? 'Cruzado' : yaPagado ? 'Pagado' : 'En Tesorería'}
                 </span>
               </div>
               <p style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="text-sm text-gray-400 mt-0.5">
@@ -459,7 +461,7 @@ export function DetalleAuditoriaTes({
           </div>
 
           {/* Botón Pagar */}
-          {!yaPagado && (
+          {!yaPagado && !esCruzado && (
             <div className="flex items-center justify-between mt-5 pt-5 border-t border-gray-100 flex-wrap gap-3">
               <div>
                 {gastosDevueltos.length > 0 ? (
@@ -562,6 +564,17 @@ export function DetalleAuditoriaTes({
               </div>
             </div>,
             document.body
+          )}
+
+          {esCruzado && (
+            <div className="flex items-center gap-2 mt-5 pt-5 border-t border-gray-100">
+              <GitMerge className="w-5 h-5" style={{ color: '#6d28d9' }} />
+              <span className="text-sm font-semibold" style={{ color: '#6d28d9', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                {paquete.fecha_cruce
+                  ? `Cerrado por cruce el ${fmtFecha(paquete.fecha_cruce.slice(0, 10))} — marcado como Cruzado por Facturación`
+                  : 'Cerrado por cruce — marcado como Cruzado por Facturación'}
+              </span>
+            </div>
           )}
 
           {yaPagado && (
@@ -924,12 +937,18 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const [resPendientes, resHistorial] = await Promise.all([
+      const [resPendientes, resPagados, resCruzados] = await Promise.all([
         listPaquetesGastos({ estado: 'en_tesoreria', limit: 200 }),
         listPaquetesGastos({ estado: 'pagado', limit: 200 }),
+        listPaquetesGastos({ estado: 'cruzado', limit: 200 }),
       ]);
       setPendientes(resPendientes.paquetes);
-      setHistorial(resHistorial.paquetes);
+      // Historial de cierres: pagados por Tesorería + cruzados por Facturación
+      setHistorial(
+        [...resPagados.paquetes, ...resCruzados.paquetes].sort(
+          (a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? '')
+        )
+      );
     } catch {
       toast.error('Error al cargar los paquetes de tesorería');
     } finally {
@@ -1083,6 +1102,7 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
     aprobado:     { label: 'Aprobado',       bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
     en_tesoreria: { label: 'En Tesorería',   bg: '#ecfeff', color: '#0e7490', border: '#a5f3fc' },
     pagado:       { label: 'Pagado',         bg: '#f0fdf4', color: '#065f46', border: '#6ee7b7' },
+    cruzado:      { label: 'Cruzado',        bg: '#f5f3ff', color: '#6d28d9', border: '#ddd6fe' },
   };
 
   const conteoEstados = trazabilidad.reduce<Record<string, number>>((acc, p) => {
@@ -1117,7 +1137,7 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
       <div className="flex gap-1 mb-6 bg-gray-100 rounded-xl p-1 w-fit">
         {[
           { value: 'pendientes',   label: 'Pendientes de pago', count: pendientes.length },
-          { value: 'historial',    label: 'Pagados',            count: historial.length },
+          { value: 'historial',    label: 'Cerrados',           count: historial.length },
           { value: 'trazabilidad', label: 'Trazabilidad',       count: 0 },
         ].map((t) => (
           <button
@@ -1380,7 +1400,7 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
         <div className="flex flex-col items-center justify-center h-48 text-gray-400">
           <PackageOpen className="w-12 h-12 mb-3 opacity-30" />
           <p className="text-sm" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-            {tab === 'pendientes' ? 'No hay pagos pendientes por el momento' : 'No hay paquetes pagados aún'}
+            {tab === 'pendientes' ? 'No hay pagos pendientes por el momento' : 'No hay paquetes cerrados aún'}
           </p>
         </div>
       ) : (
@@ -1539,13 +1559,20 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
                     )}
                   </td>
 
-                  {/* Fecha envío a Tesorería (por Radicación) */}
+                  {/* Fecha envío a Tesorería (por Radicación); cruzados: fecha del cruce */}
                   <td className="px-5 py-4">
                     {p.fecha_envio_tesoreria ? (
                       <div className="flex items-center gap-1.5 text-xs text-gray-500">
                         <CalendarDays className="w-3.5 h-3.5 text-gray-400" />
                         <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
                           {fmtFecha(p.fecha_envio_tesoreria.slice(0, 10))}
+                        </span>
+                      </div>
+                    ) : p.estado === 'cruzado' && p.fecha_cruce ? (
+                      <div className="flex items-center gap-1.5 text-xs" style={{ color: '#6d28d9' }}>
+                        <CalendarDays className="w-3.5 h-3.5" style={{ color: '#8b5cf6' }} />
+                        <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                          {fmtFecha(p.fecha_cruce.slice(0, 10))}
                         </span>
                       </div>
                     ) : (
@@ -1564,6 +1591,11 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
                         <Wallet className="w-4 h-4" />
                         Pagar
                       </button>
+                    ) : p.estado === 'cruzado' ? (
+                      <div className="flex items-center gap-1.5 text-xs">
+                        <GitMerge className="w-4 h-4" style={{ color: '#6d28d9' }} />
+                        <span className="font-semibold" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', color: '#6d28d9' }}>Cruzado</span>
+                      </div>
                     ) : (
                       <div className="flex items-center gap-1.5 text-xs">
                         <CheckCircle2 className="w-4 h-4 text-green-500" />

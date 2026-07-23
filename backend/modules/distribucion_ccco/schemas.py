@@ -24,9 +24,15 @@ class DistribucionCCCOUpdate(DistribucionCCCOBase):
 
 
 class DistribucionCCCOResponse(DistribucionCCCOBase):
-    """Schema de respuesta con todos los campos"""
+    """Schema de respuesta con todos los campos.
+
+    CC/CO son opcionales SOLO aquí: existen filas legadas (mayo 2026) con esas
+    columnas en NULL y exigir UUID tumbaba el GET completo con 500.
+    """
     id: UUID
     factura_id: UUID
+    centro_costo_id: Optional[UUID] = None
+    centro_operacion_id: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 

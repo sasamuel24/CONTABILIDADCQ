@@ -1237,8 +1237,8 @@ function DetallePaquete({
       await persistirCambios();
       toast.success('Borrador guardado correctamente');
       await cargar();
-    } catch {
-      toast.error('Error al guardar el borrador');
+    } catch (err: any) {
+      toast.error(err?.detail || err?.message || 'Error al guardar el borrador');
     } finally {
       setSaving(false);
     }
@@ -1262,8 +1262,8 @@ function DetallePaquete({
       await enviarPaquete(paqueteId);
       toast.success('Paquete enviado al responsable de area para revision');
       onCerrar();
-    } catch {
-      toast.error('Error al enviar el paquete');
+    } catch (err: any) {
+      toast.error(err?.detail || err?.message || 'Error al enviar el paquete');
       setSaving(false);
     }
   };

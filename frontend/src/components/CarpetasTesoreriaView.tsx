@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, FolderInput, Archive, Download, Hash } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, FileText, Calendar, DollarSign, Building2, Activity, FolderInput, Archive, Download, Hash, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { getFacturas, getCarpetasTesoreria, devolverFacturaATesoreria, type FacturaListItem, type CarpetaTesoreria } from '../lib/api';
 import { CarpetasPanelTesoreria } from './CarpetasPanelTesoreria';
@@ -154,7 +154,7 @@ export function CarpetasTesoreriaView() {
     const bValue = b[sortColumn];
     if (aValue === null || aValue === undefined) return 1;
     if (bValue === null || bValue === undefined) return -1;
-    if (sortColumn === 'fecha_emision') {
+    if (sortColumn === 'fecha_emision' || sortColumn === 'fecha_cierre') {
       return sortDirection === 'asc'
         ? new Date(aValue as string).getTime() - new Date(bValue as string).getTime()
         : new Date(bValue as string).getTime() - new Date(aValue as string).getTime();
@@ -509,6 +509,18 @@ export function CarpetasTesoreriaView() {
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Estado
                           </th>
+                          <th
+                            onClick={() => handleSort('fecha_cierre')}
+                            className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>Fecha de cierre</span>
+                              {sortColumn === 'fecha_cierre' && (
+                                <span className="text-blue-600">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                              )}
+                            </div>
+                          </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Acciones
                           </th>
@@ -557,6 +569,20 @@ export function CarpetasTesoreriaView() {
                               <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(factura.estado)}`}>
                                 {factura.estado}
                               </span>
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {factura.fecha_cierre ? (
+                                <span
+                                  className="text-sm font-medium text-green-600"
+                                  style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                                >
+                                  {new Date(factura.fecha_cierre).toLocaleDateString('es-ES', {
+                                    day: '2-digit', month: 'short', year: 'numeric'
+                                  })}
+                                </span>
+                              ) : (
+                                <span className="text-sm text-gray-400">—</span>
+                              )}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap">
                               {vistaActual === 'sin-archivar' && (

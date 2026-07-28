@@ -32,6 +32,7 @@ class FacturaRepository:
                 Factura.fecha_emision,
                 Factura.fecha_vencimiento,
                 Factura.carpeta_id,
+                Factura.fecha_cierre,
                 Estado.label.label("estado"),
                 Area.nombre.label("area"),
             )

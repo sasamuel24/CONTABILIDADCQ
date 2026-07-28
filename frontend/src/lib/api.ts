@@ -158,6 +158,9 @@ export interface FacturaListItem {
   aprobado_calidad_email: string | null;
   aprobacion_calidad_aprobador_id: string | null;
   fecha_envio_contabilidad: string | null;
+  fecha_envio_tesoreria: string | null;
+  /** Fecha en que Tesorería cerró/pagó la factura. */
+  fecha_cierre: string | null;
   // Orden de compra (ingesta N8N) y auto-ruteo a Contabilidad
   tipo_doc?: string | null;
   numero_oc?: string | null;
@@ -666,6 +669,7 @@ export interface FacturaBandeja {
   fecha_emision: string | null;
   fecha_vencimiento: string | null;
   carpeta_id: string | null;
+  fecha_cierre: string | null;
 }
 
 /**
@@ -728,6 +732,9 @@ function bandejaToListItem(b: FacturaBandeja): FacturaListItem {
     aprobado_calidad_email: null,
     aprobacion_calidad_aprobador_id: null,
     fecha_envio_contabilidad: null,
+    fecha_envio_tesoreria: null,
+    // Sí viene en el payload slim: Tesorería la muestra como columna en su bandeja.
+    fecha_cierre: b.fecha_cierre,
   };
 }
 

@@ -153,6 +153,8 @@ class FacturaService:
                 aprobado_calidad_nombre=f.aprobado_calidad_nombre,
                 aprobado_calidad_email=f.aprobado_calidad_email,
                 fecha_envio_contabilidad=f.fecha_envio_contabilidad,
+                fecha_envio_tesoreria=f.fecha_envio_tesoreria,
+                fecha_cierre=f.fecha_cierre,
                 nit_proveedor=f.nit_proveedor,
                 pendiente_confirmacion=f.pendiente_confirmacion,
                 ai_area_confianza=f.ai_area_confianza,
@@ -186,6 +188,7 @@ class FacturaService:
                 fecha_emision=r.fecha_emision,
                 fecha_vencimiento=r.fecha_vencimiento,
                 carpeta_id=r.carpeta_id,
+                fecha_cierre=r.fecha_cierre,
             )
             for r in rows
         ]

@@ -958,9 +958,22 @@ export function ExploradorArchivosTesoreria({ filtroPendientes = true }: Explora
                               </span>
                             </div>
                           )}
+                          {factura.fecha_cierre && (
+                            <div className="flex items-center gap-1.5 text-sm">
+                              <CheckCircle2 className="w-3.5 h-3.5" style={{ color: '#16a34a' }} />
+                              <span style={{
+                                fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                                color: '#15803d'
+                              }}>
+                                Cerrada: {new Date(factura.fecha_cierre).toLocaleDateString('es-ES', {
+                                  day: '2-digit', month: 'short', year: 'numeric'
+                                })}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-1.5">
                             <DollarSign className="w-3.5 h-3.5 text-gray-400" />
-                            <span 
+                            <span
                               style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
                               className="text-sm font-semibold text-gray-900"
                             >

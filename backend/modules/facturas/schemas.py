@@ -211,6 +211,8 @@ class FacturaBandejaItem(BaseModel):
     fecha_emision: Optional[date] = None
     fecha_vencimiento: Optional[date] = None
     carpeta_id: Optional[UUID] = None
+    # Fecha en que Tesorería cerró/pagó la factura: la bandeja la muestra como columna.
+    fecha_cierre: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 
@@ -266,6 +268,8 @@ class FacturaListItem(BaseModel):
     aprobado_calidad_email: Optional[str] = None
     aprobacion_calidad_aprobador_id: Optional[UUID] = None
     fecha_envio_contabilidad: Optional[datetime] = None
+    fecha_envio_tesoreria: Optional[datetime] = None
+    fecha_cierre: Optional[datetime] = None
     # Ingesta XML automática
     nit_proveedor: Optional[str] = None
     pendiente_confirmacion: bool = False

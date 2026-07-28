@@ -2810,29 +2810,78 @@ Responde ÚNICAMENTE con JSON válido:
         ya_registrada = any(
             a.area_id == factura.area_id for a in asignaciones_ordenadas
         )
-        if factura.area_id and not es_area_facturacion and not ya_registrada:
+        # `motivo_devolucion` solo se limpia al reenviar a Contabilidad (submit_responsable);
+        # si la factura avanzó a Tesorería o se cerró, el motivo queda como dato viejo.
+        # Solo tratamos la devolución como vigente cuando la factura no ha vuelto a avanzar:
+        # de lo contrario fecharíamos un regreso que ya no es cierto.
+        devolucion_vigente = bool(factura.motivo_devolucion) and not (
+            factura.fecha_envio_contabilidad
+            or factura.fecha_envio_tesoreria
+            or factura.fecha_cierre
+        )
+
+        # `assigned_at` es un único campo de la factura, no uno por área: cuando la
+        # última fila de factura_asignaciones apunta a OTRA área, esa marca pertenece
+        # a esa asignación y no a la llegada al área actual. Fecharla aquí hacía que
+        # el área actual apareciera con la hora de un movimiento ajeno.
+        ultima_asignacion = asignaciones_ordenadas[-1] if asignaciones_ordenadas else None
+        assigned_at_es_del_area_actual = (
+            factura.assigned_at is not None
+            and (ultima_asignacion is None or ultima_asignacion.area_id == factura.area_id)
+        )
+
+        # Si la factura volvió al área por una devolución, el evento de devolución ya
+        # registra ese regreso con su fecha: no inventamos además una "asignación".
+        evento_area_actual_emitido = False
+        if (
+            factura.area_id
+            and not es_area_facturacion
+            and not ya_registrada
+            and not devolucion_vigente
+        ):
             resp_nombre = factura.assigned_user.nombre if factura.assigned_user else None
             resp_email = factura.assigned_user.email if factura.assigned_user else None
+            if assigned_at_es_del_area_actual:
+                fecha_llegada = factura.assigned_at
+            elif factura.area_origen_id == factura.area_id:
+                # La factura nació en esta área: llegó al momento de crearse.
+                fecha_llegada = factura.created_at
+            else:
+                fecha_llegada = factura.fecha_envio_contabilidad or factura.updated_at
             eventos.append({
-                "fecha": factura.assigned_at or factura.fecha_envio_contabilidad or factura.updated_at,
+                "fecha": fecha_llegada,
                 "tipo": "asignacion",
                 "titulo": f"Asignada a {factura.area.nombre}" if factura.area else "Asignada",
                 "descripcion": (
-                    f"Responsable: {resp_nombre}" if resp_nombre else "Asignación automática por área."
+                    f"Responsable: {resp_nombre}"
+                    if resp_nombre
+                    else "A cargo del área; sin responsable nominal asignado."
                 ),
                 "area_nombre": factura.area.nombre if factura.area else None,
                 "area_id": factura.area_id,
                 "responsable_nombre": resp_nombre,
                 "responsable_email": resp_email,
             })
+            evento_area_actual_emitido = True
 
         # Si la factura pasó por un área de origen (regional) antes de Contabilidad/Tesorería
         # y NO existe fila en factura_asignaciones para esa área (caso típico de ingesta XML),
         # generamos un evento sintético para que se vea por dónde pasó la factura.
+        # También aplica cuando el área de origen y la actual coinciden y arriba no se
+        # emitió evento (factura devuelta a su área): así se ve cuándo llegó de verdad.
+        origen_es_facturacion = (
+            (factura.area_origen.nombre or "").upper() in FACTURACION_AREA_NAMES
+            if factura.area_origen else False
+        )
         if (
             factura.area_origen_id
             and factura.area_origen
-            and factura.area_origen_id != factura.area_id
+            and not (
+                factura.area_origen_id == factura.area_id
+                # Origen == actual solo se dibuja si arriba no se emitió ya el evento
+                # y el área no es Facturación (esa la cubre el evento "recibida").
+                and (evento_area_actual_emitido or origen_es_facturacion)
+            )
             and not any(a.area_id == factura.area_origen_id for a in asignaciones_ordenadas)
         ):
             responsables_origen = await self._buscar_responsables_area(factura.area_origen_id)
@@ -2978,16 +3027,41 @@ Responde ÚNICAMENTE con JSON válido:
             })
 
         if factura.motivo_devolucion:
-            eventos.append({
-                "fecha": None,
-                "tipo": "devolucion",
-                "titulo": "Devolución registrada",
-                "descripcion": factura.motivo_devolucion,
-                "area_nombre": None,
-                "area_id": None,
-                "responsable_nombre": factura.devuelta_por_nombre,
-                "responsable_email": None,
-            })
+            if devolucion_vigente:
+                # No existe columna fecha_devolucion en facturas, así que usamos
+                # updated_at como mejor aproximación: mientras la factura siga devuelta,
+                # la devolución es la última acción que la tocó. Si alguien la edita
+                # después la fecha se corre; el arreglo definitivo es una columna propia.
+                quien_recibe = factura.assigned_user.nombre if factura.assigned_user else None
+                descripcion = factura.motivo_devolucion
+                if quien_recibe:
+                    descripcion = f"{descripcion} (queda a cargo de {quien_recibe})"
+                eventos.append({
+                    "fecha": factura.updated_at,
+                    "tipo": "devolucion",
+                    "titulo": (
+                        f"Devuelta a {factura.area.nombre}"
+                        if factura.area else "Devolución registrada"
+                    ),
+                    "descripcion": descripcion,
+                    "area_nombre": factura.area.nombre if factura.area else None,
+                    "area_id": factura.area_id,
+                    "responsable_nombre": factura.devuelta_por_nombre,
+                    "responsable_email": None,
+                })
+            else:
+                # Devolución anterior: la factura ya volvió a avanzar. No sabemos cuándo
+                # ocurrió ni a qué área, así que la dejamos sin fecha en vez de inventarla.
+                eventos.append({
+                    "fecha": None,
+                    "tipo": "devolucion",
+                    "titulo": "Devolución registrada (anterior)",
+                    "descripcion": factura.motivo_devolucion,
+                    "area_nombre": None,
+                    "area_id": None,
+                    "responsable_nombre": factura.devuelta_por_nombre,
+                    "responsable_email": None,
+                })
 
         def _sort_key(ev: dict):
             fecha = ev.get("fecha")

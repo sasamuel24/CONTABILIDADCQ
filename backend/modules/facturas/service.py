@@ -20,7 +20,9 @@ from modules.facturas.schemas import (
     CentrosPatchIn,
     CentrosOut,
     AsignarCarpetaResponse,
-    AsignarCarpetaTesoreriaResponse
+    AsignarCarpetaTesoreriaResponse,
+    AsignarCarpetaTesoreriaMasivoResponse,
+    FacturaNoArchivadaOut,
 )
 from typing import List, Optional, Set, Dict
 from core.logging import logger
@@ -761,6 +763,74 @@ Responde ÚNICAMENTE con JSON válido:
             updated_at=factura_actualizada.updated_at
         )
     
+    async def asignar_carpeta_tesoreria_masivo(
+        self,
+        carpeta_id: UUID,
+        factura_ids: List[UUID],
+    ) -> AsignarCarpetaTesoreriaMasivoResponse:
+        """Archiva varias facturas en una carpeta de tesorería en UNA transacción.
+
+        Antes el frontend hacía una petición por factura, todas en paralelo. Con
+        lotes grandes parte de esas peticiones moría antes de llegar al servidor
+        y el usuario quedaba sin saber cuáles faltaban. Aquí entra una sola
+        petición, se resuelve con un UPDATE y se devuelve el detalle de lo que no
+        se pudo archivar.
+        """
+        from sqlalchemy import select, update as sa_update
+        from db.models import CarpetaTesoreria, Factura
+
+        logger.info(
+            f"Archivado masivo: {len(factura_ids)} facturas a carpeta de tesorería {carpeta_id}"
+        )
+
+        carpeta_result = await self.db.execute(
+            select(CarpetaTesoreria).where(CarpetaTesoreria.id == carpeta_id)
+        )
+        carpeta = carpeta_result.scalar_one_or_none()
+        if not carpeta:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Carpeta de tesorería con ID {carpeta_id} no encontrada",
+            )
+
+        # Preservar el orden de llegada pero sin repetidos.
+        ids_unicos = list(dict.fromkeys(factura_ids))
+
+        existentes_result = await self.db.execute(
+            select(Factura.id).where(Factura.id.in_(ids_unicos))
+        )
+        ids_existentes = {row[0] for row in existentes_result}
+
+        no_archivadas = [
+            FacturaNoArchivadaOut(factura_id=fid, motivo="La factura ya no existe en el sistema")
+            for fid in ids_unicos
+            if fid not in ids_existentes
+        ]
+
+        archivadas = 0
+        if ids_existentes:
+            await self.db.execute(
+                sa_update(Factura)
+                .where(Factura.id.in_(list(ids_existentes)))
+                .values(carpeta_tesoreria_id=carpeta_id)
+                .execution_options(synchronize_session=False)
+            )
+            await self.db.commit()
+            archivadas = len(ids_existentes)
+
+        if no_archivadas:
+            logger.warning(
+                f"Archivado masivo: {archivadas} archivadas, {len(no_archivadas)} sin archivar"
+            )
+
+        return AsignarCarpetaTesoreriaMasivoResponse(
+            carpeta_id=carpeta_id,
+            carpeta_nombre=carpeta.nombre,
+            solicitadas=len(ids_unicos),
+            archivadas=archivadas,
+            no_archivadas=no_archivadas,
+        )
+
     async def update_factura(
         self,
         factura_id: UUID,

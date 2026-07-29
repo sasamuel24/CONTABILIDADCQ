@@ -173,6 +173,37 @@ class AsignarCarpetaTesoreriaResponse(BaseModel):
     updated_at: datetime
 
 
+class AsignarCarpetaTesoreriaMasivoRequest(BaseModel):
+    """Request para archivar VARIAS facturas en una carpeta de tesorería.
+
+    Reemplaza el patrón de una petición por factura: el frontend disparaba N
+    requests en paralelo y con lotes grandes una parte se perdía antes de llegar
+    al servidor, dejando el archivado a medias sin decir cuáles habían fallado.
+    """
+    carpeta_id: UUID = Field(..., description="ID de la carpeta de tesorería destino")
+    factura_ids: List[UUID] = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="IDs de las facturas a archivar",
+    )
+
+
+class FacturaNoArchivadaOut(BaseModel):
+    """Factura que no se pudo archivar, con el motivo."""
+    factura_id: UUID
+    motivo: str
+
+
+class AsignarCarpetaTesoreriaMasivoResponse(BaseModel):
+    """Resultado del archivado masivo."""
+    carpeta_id: UUID
+    carpeta_nombre: str
+    solicitadas: int
+    archivadas: int
+    no_archivadas: List[FacturaNoArchivadaOut] = []
+
+
 class EstadoUpdateRequest(BaseModel):
     """Request para actualizar estado de factura."""
     estado_id: int = Field(..., description="ID del nuevo estado")

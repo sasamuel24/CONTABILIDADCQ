@@ -34,6 +34,8 @@ from modules.facturas.schemas import (
     AsignarCarpetaResponse,
     AsignarCarpetaTesoreriaRequest,
     AsignarCarpetaTesoreriaResponse,
+    AsignarCarpetaTesoreriaMasivoRequest,
+    AsignarCarpetaTesoreriaMasivoResponse,
     ExtraccionFacturaPdfOut,
     EnviarCorreoAprobacionIn,
     AprobacionEmailOut,
@@ -97,6 +99,30 @@ async def bandeja_tesoreria(
     GET /facturas/?factura_id=... al hacer click.
     """
     return await service.bandeja_tesoreria()
+
+
+@router.post(
+    "/carpeta-tesoreria/masivo",
+    response_model=AsignarCarpetaTesoreriaMasivoResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Archivar varias facturas en una carpeta de tesorería (una sola petición)",
+)
+async def asignar_carpeta_tesoreria_masivo(
+    request: AsignarCarpetaTesoreriaMasivoRequest,
+    service: FacturaService = Depends(get_factura_service),
+):
+    """
+    Archiva un lote de facturas en una carpeta de tesorería con UN solo request.
+
+    Sustituye al patrón anterior de una petición por factura disparadas en
+    paralelo, donde con lotes grandes parte se perdía en el camino y el usuario
+    no sabía cuáles habían quedado sin archivar.
+
+    **Retorna:** cuántas se archivaron y el detalle de las que no, con el motivo.
+    """
+    return await service.asignar_carpeta_tesoreria_masivo(
+        request.carpeta_id, request.factura_ids
+    )
 
 
 @router.get("/", response_model=FacturasPaginatedResponse)

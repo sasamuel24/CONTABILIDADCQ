@@ -21,6 +21,9 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, facturas, onSucc
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [noArchivadas, setNoArchivadas] = useState<{ numero: string; motivo: string }[]>([]);
+  const [archivadasOk, setArchivadasOk] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
@@ -28,6 +31,9 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, facturas, onSucc
       setSelectedCarpetaId('');
       setSelectedCarpetaNombre('');
       setExpandedFolders(new Set());
+      setErrorMsg(null);
+      setNoArchivadas([]);
+      setArchivadasOk(0);
     }
   }, [isOpen]);
 
@@ -49,15 +55,28 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, facturas, onSucc
 
     try {
       setIsSubmitting(true);
+      setErrorMsg(null);
       const ids = facturas.map(f => f.id);
-      const { errores } = await asignarFacturasACarpetaTesoreriaMasivo(ids, selectedCarpetaId);
-      if (errores > 0) {
-        alert(`Se archivaron ${ids.length - errores} factura(s). ${errores} no pudieron archivarse.`);
+      const resultado = await asignarFacturasACarpetaTesoreriaMasivo(ids, selectedCarpetaId);
+
+      if (resultado.no_archivadas.length > 0) {
+        // No cerramos el modal: la usuaria necesita ver CUÁLES quedaron por fuera.
+        // Antes solo se decía cuántas fallaron y se perdía la selección.
+        const numeroPorId = new Map(facturas.map(f => [f.id, f.numero_factura]));
+        setNoArchivadas(
+          resultado.no_archivadas.map(na => ({
+            numero: numeroPorId.get(na.factura_id) || na.factura_id,
+            motivo: na.motivo,
+          }))
+        );
+        setArchivadasOk(resultado.archivadas);
+        return;
       }
+
       onSuccess();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Error al asignar carpeta';
-      alert(message);
+      setErrorMsg(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -162,6 +181,47 @@ export function AsignarCarpetaTesoreriaModal({ isOpen, onClose, facturas, onSucc
 
             {/* Body */}
             <form onSubmit={handleSubmit} className="p-6">
+              {errorMsg && (
+                <div className="mb-4 p-4 rounded-lg border border-red-200 bg-red-50">
+                  <p style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }} className="text-sm font-medium text-red-800">
+                    No se pudo archivar
+                  </p>
+                  <p style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="text-sm text-red-700 mt-1">
+                    {errorMsg}
+                  </p>
+                  <p style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="text-xs text-red-600 mt-2">
+                    Ninguna factura cambió: la selección sigue intacta, puedes reintentar.
+                  </p>
+                </div>
+              )}
+
+              {noArchivadas.length > 0 && (
+                <div className="mb-4 p-4 rounded-lg border border-amber-200 bg-amber-50">
+                  <p style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }} className="text-sm font-medium text-amber-900">
+                    Se archivaron {archivadasOk} de {facturas.length}. Estas {noArchivadas.length} quedaron por fuera:
+                  </p>
+                  <ul className="mt-2 max-h-40 overflow-y-auto space-y-1">
+                    {noArchivadas.map(na => (
+                      <li
+                        key={na.numero}
+                        style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                        className="text-sm text-amber-800"
+                      >
+                        <span className="font-mono font-medium">{na.numero}</span> — {na.motivo}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={onSuccess}
+                    style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                    className="mt-3 px-4 py-2 text-sm rounded-lg border border-amber-300 text-amber-900 bg-white hover:bg-amber-100 transition-colors"
+                  >
+                    Entendido, actualizar lista
+                  </button>
+                </div>
+              )}
+
               {/* Info de la(s) factura(s) */}
               <div className="mb-4 p-4 bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg border border-teal-200">
                 {esMasivo ? (

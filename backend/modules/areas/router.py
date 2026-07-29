@@ -36,7 +36,11 @@ async def create_area(
     Crea una nueva área.
     
     - **nombre**: Nombre único del área (ej: "Mantenimiento", "Arquitectura")
-    
+    - **es_tienda**: Marca el área como tienda. Las facturas de las áreas con
+      `es_tienda=true` son las que ve el rol `responsable_tiendas` en su bandeja
+      multi-tienda. Si se crea una tienda sin este flag, sus facturas quedan
+      invisibles para ese perfil.
+
     Retorna el área creada con su ID generado.
     
     **Errores**:
@@ -76,6 +80,7 @@ async def update_area(
     - **area_id**: ID del área a actualizar
     - **code**: Nuevo código (opcional)
     - **nombre**: Nuevo nombre (opcional)
+    - **es_tienda**: Marca/desmarca el área como tienda (opcional)
 
     **Errores**:
     - 404: Área no encontrada

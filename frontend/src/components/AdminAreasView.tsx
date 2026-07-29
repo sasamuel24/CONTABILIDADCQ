@@ -48,6 +48,7 @@ function ModalArea({ area, onClose, onGuardado }: {
   const isEdit = !!area;
   const [code, setCode] = useState(area?.code ?? '');
   const [nombre, setNombre] = useState(area?.nombre ?? '');
+  const [esTienda, setEsTienda] = useState(area?.es_tienda ?? false);
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async () => {
@@ -57,10 +58,10 @@ function ModalArea({ area, onClose, onGuardado }: {
     setSaving(true);
     try {
       if (isEdit && area) {
-        await updateArea(area.id, { code: code.trim(), nombre: nombre.trim() });
+        await updateArea(area.id, { code: code.trim(), nombre: nombre.trim(), es_tienda: esTienda });
         toast.success('Área actualizada correctamente');
       } else {
-        await createArea({ code: code.trim(), nombre: nombre.trim() });
+        await createArea({ code: code.trim(), nombre: nombre.trim(), es_tienda: esTienda });
         toast.success('Área creada correctamente');
       }
       onGuardado();
@@ -80,6 +81,18 @@ function ModalArea({ area, onClose, onGuardado }: {
         <input className={inputCls} value={nombre} onChange={e => setNombre(e.target.value)}
           placeholder="Ej. Mantenimiento" />
       </Field>
+      {/* Sin este flag las facturas del área NO aparecen en la bandeja del
+          Responsable de Tiendas (filtra por areas.es_tienda). */}
+      <label className="flex items-start gap-3 mb-5 p-4 rounded-xl border border-gray-200 cursor-pointer hover:bg-gray-50 transition-colors">
+        <input type="checkbox" checked={esTienda} onChange={e => setEsTienda(e.target.checked)}
+          className="mt-0.5 w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-400" />
+        <span>
+          <span className="block text-sm font-bold text-gray-700">Es una tienda</span>
+          <span className="block text-xs text-gray-400 mt-0.5 leading-relaxed">
+            Marca esta casilla para que sus facturas aparezcan en la bandeja del Responsable de Tiendas.
+          </span>
+        </span>
+      </label>
       <button onClick={handleSubmit} disabled={saving}
         className="w-full py-3 rounded-xl text-sm font-bold text-white mt-1 disabled:opacity-60 transition-opacity"
         style={{ backgroundColor: '#00829a' }}>
@@ -242,6 +255,11 @@ export function AdminAreasView() {
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-sm font-semibold text-gray-800">{a.nombre}</span>
+                    {a.es_tienda && (
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-teal-50 text-teal-700 border border-teal-100">
+                        Tienda
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-xs text-gray-400 font-mono">{a.id.slice(0, 8)}…</span>

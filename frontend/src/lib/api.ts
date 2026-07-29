@@ -57,16 +57,21 @@ export interface AreaDetail {
   id: string;
   code: string;
   nombre: string;
+  // Marca el área como tienda: las facturas de estas áreas son las que ve el
+  // rol responsable_tiendas en su bandeja multi-tienda.
+  es_tienda?: boolean;
 }
 
 export interface AreaCreatePayload {
   code: string;
   nombre: string;
+  es_tienda?: boolean;
 }
 
 export interface AreaUpdatePayload {
   code?: string;
   nombre?: string;
+  es_tienda?: boolean;
 }
 
 export interface Estado {

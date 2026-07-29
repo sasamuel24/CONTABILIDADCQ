@@ -3114,10 +3114,10 @@ Responde ÚNICAMENTE con JSON válido:
                 partes.append(f"Desde {origen}.")
             if mov.motivo:
                 partes.append(mov.motivo)
-            partes.append(
-                f"Registrado por {mov.user_nombre}." if mov.user_nombre
-                else "Movimiento automático del sistema."
-            )
+            # Sin autor no se afirma nada: puede ser un proceso automático o un
+            # movimiento anterior a la bitácora, y el motivo ya lo aclara.
+            if mov.user_nombre:
+                partes.append(f"Registrado por {mov.user_nombre}.")
 
             eventos.append({
                 "fecha": mov.created_at,

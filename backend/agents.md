@@ -3990,6 +3990,31 @@ sudo systemctl restart contabilidadcq.service
 ```
 El frontend se despliega solo (Amplify) con el push; el backend NO.
 
+### ⚠️ `git pull` y sesiones SSH no interactivas
+
+El remoto del EC2 es **HTTPS**. Desde la shell interactiva del usuario, `git pull` funciona normal.
+Desde una sesión SSH **sin TTY** (agente, script, `ssh host 'comando'`) falla con:
+
+```
+fatal: could not read Username for 'https://github.com': No such device or address
+```
+
+No es que falten credenciales: es que no hay dónde pedirlas. Workaround para deploys automatizados:
+
+```bash
+# Local
+git bundle create /tmp/deploy.bundle <sha-actual-ec2>..main
+scp -i key-contabilidad.pem /tmp/deploy.bundle ubuntu@52.14.199.224:/tmp/
+# En la EC2
+cd /home/ubuntu/CONTABILIDADCQ && git pull /tmp/deploy.bundle main
+```
+
+> ⚠️ El bundle arrastra **TODOS** los commits entre el sha del EC2 y `main`, no solo el que se quiere
+> desplegar. Antes de aplicarlo: `git log --oneline <sha-ec2>..main` y
+> `git diff --name-only <sha-ec2>..main -- backend/alembic/versions` para saber si entran migraciones
+> ajenas. Si entran, correr `alembic upgrade head` o el deploy queda a medias
+> (caso 28-jul-2026: `w7x8y9z0a1b2_mark_missing_tiendas`).
+
 ---
 
 ## 🌐 Dominios, CORS y URLs de Producción

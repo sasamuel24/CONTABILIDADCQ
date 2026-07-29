@@ -416,6 +416,18 @@ function DetallePaqueteResponsable({
 
   const handleAprobar = async () => {
     if (!paquete) return;
+    // Este botón envía SIEMPRE al gerente comercial. Si el usuario eligió otro
+    // aprobador en el desplegable pero no llegó a agregar la solicitud, su
+    // elección se perdería en silencio: se avisa en vez de enviar.
+    if (modo === 'comercial' && aprobadorGrupoId && gruposSolicitud.length === 0) {
+      const elegido = aprobadoresActivos.find((a) => a.id === aprobadorGrupoId);
+      toast.error(
+        `Elegiste a ${elegido?.nombre ?? 'un aprobador'} pero no agregaste la solicitud: este botón envía al gerente comercial. ` +
+        'Marca los gastos en la columna "Sel." y pulsa "Agregar solicitud", o quita el aprobador del desplegable.',
+        { duration: 8000 },
+      );
+      return;
+    }
     // Guardar asignaciones pendientes antes de aprobar
     if (hayAsignacionesDirty) {
       await handleGuardarAsignaciones();

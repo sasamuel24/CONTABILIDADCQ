@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, FileText, Calendar, DollarSign, Building2, CheckCircle, Clock, AlertCircle, Download, Eye, Trash2, History, FolderInput, ArrowRight, Mail, Send, RotateCcw, User as UserIcon } from 'lucide-react';
+import { X, FileText, Calendar, DollarSign, Building2, CheckCircle, Clock, AlertCircle, Download, Eye, Trash2, History, FolderInput, ArrowRight, Mail, Send, RotateCcw, XCircle, User as UserIcon } from 'lucide-react';
 import type { FacturaListItem, FileMiniOut, HistorialFactura, HistorialEvento } from '../lib/api';
 import { getFacturaFilesByDocType, downloadFileById, deleteFactura, getHistorialFactura, getUserRoleCode } from '../lib/api';
 import { FilePreviewModal } from './FilePreviewModal';
@@ -210,6 +210,8 @@ export function CentroDocumentalFacturaDetail({ factura, onClose, onDelete, onRe
         return { icon: <CheckCircle className="w-4 h-4" />, color: '#047857', bg: '#d1fae5' };
       case 'devolucion':
         return { icon: <RotateCcw className="w-4 h-4" />, color: '#b91c1c', bg: '#fee2e2' };
+      case 'rechazo_email':
+        return { icon: <XCircle className="w-4 h-4" />, color: '#991b1b', bg: '#fee2e2' };
       default:
         return { icon: <ArrowRight className="w-4 h-4" />, color: '#374151', bg: '#f3f4f6' };
     }

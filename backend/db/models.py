@@ -644,6 +644,20 @@ class Factura(Base, TimestampMixin):
     aprobado_por_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     aprobado_por_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Rechazo desde el correo de aprobación. Campos propios y NO reutilización de
+    # motivo_devolucion: ese es el rechazo de Contabilidad hacia el responsable, y
+    # mezclarlos rompería la lógica de `devolucion_vigente` del historial.
+    # Se limpian al enviar una solicitud de aprobación nueva, para que un rechazo
+    # viejo no siga apareciendo como vigente tras corregir la factura.
+    fecha_rechazo_email: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    rechazado_por_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    rechazado_por_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    motivo_rechazo_email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # NULL = rechazo de Gerencia; 'OPS' / 'CALIDAD' = rechazo de la aprobación dual.
+    tipo_rechazo_email: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+
     # Historial de tránsito por etapas del flujo
     fecha_envio_contabilidad: Mapped[Optional[datetime]] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True
@@ -1742,6 +1756,10 @@ class TokenAprobacionFactura(Base, TimestampMixin):
         TIMESTAMP(timezone=True), nullable=True
     )
     usado_por_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
+    # Qué decidió el aprobador con este enlace: 'aprobado' | 'rechazado'.
+    # `usado` solo dice que el enlace se consumió, no en qué sentido.
+    resultado: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    motivo_rechazo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Relaciones
     factura: Mapped["Factura"] = relationship(

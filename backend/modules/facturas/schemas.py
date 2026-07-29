@@ -274,6 +274,12 @@ class FacturaListItem(BaseModel):
     es_gasto_adm: bool = False
     motivo_devolucion: Optional[str] = None
     devuelta_por_nombre: Optional[str] = None
+    # Rechazo vigente desde el correo de aprobación (distinto de la devolución
+    # de Contabilidad): el responsable debe verlo en la bandeja y en el detalle.
+    fecha_rechazo_email: Optional[datetime] = None
+    rechazado_por_nombre: Optional[str] = None
+    motivo_rechazo_email: Optional[str] = None
+    tipo_rechazo_email: Optional[str] = None
     files: List[FileMiniOut] = []
     carpeta_id: Optional[UUID] = None
     carpeta: Optional[CarpetaEnFactura] = None
@@ -651,12 +657,42 @@ class AprobacionEmailOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class RechazoEmailIn(BaseModel):
+    """Rechazo de una factura desde el correo de aprobación."""
+    token: str = Field(..., description="Token de aprobación recibido en el correo")
+    motivo: str = Field(
+        ...,
+        min_length=5,
+        description="Por qué se rechaza. Lo escribe el aprobador y queda visible en DocuFlow.",
+    )
+
+
+class RechazoEmailOut(BaseModel):
+    """Respuesta del endpoint de rechazo por token."""
+    factura_id: UUID
+    numero_factura: str
+    proveedor: str
+    total: float
+    rechazado_por_nombre: str
+    rechazado_por_email: str
+    fecha_rechazo_email: datetime
+    motivo_rechazo: str
+    # None = Gerencia; 'OPS' / 'CALIDAD' = aprobación dual.
+    tipo_aprobacion: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
 class FacturaAprobacionEstadoOut(BaseModel):
     """Estado de aprobación por email de una factura (para el frontend del Responsable)."""
     fecha_envio_gerencia: Optional[datetime] = None
     fecha_aprobacion_email: Optional[datetime] = None
     aprobado_por_nombre: Optional[str] = None
     aprobado_por_email: Optional[str] = None
+    fecha_rechazo_email: Optional[datetime] = None
+    rechazado_por_nombre: Optional[str] = None
+    motivo_rechazo_email: Optional[str] = None
+    tipo_rechazo_email: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

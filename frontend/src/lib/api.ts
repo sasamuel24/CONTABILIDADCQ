@@ -137,6 +137,12 @@ export interface FacturaListItem {
   es_gasto_adm: boolean;
   motivo_devolucion: string | null;
   devuelta_por_nombre: string | null;
+  // Rechazo vigente desde el correo de aprobación (distinto de la devolución
+  // de Contabilidad, que usa motivo_devolucion).
+  fecha_rechazo_email?: string | null;
+  rechazado_por_nombre?: string | null;
+  motivo_rechazo_email?: string | null;
+  tipo_rechazo_email?: string | null;
   area_origen_id: string | null;
   files: FileMiniOut[];
   carpeta_id: string | null;
@@ -204,6 +210,10 @@ export interface FacturaDetail {
   fecha_aprobacion_email: string | null;
   aprobado_por_nombre: string | null;
   aprobado_por_email: string | null;
+  fecha_rechazo_email?: string | null;
+  rechazado_por_nombre?: string | null;
+  motivo_rechazo_email?: string | null;
+  tipo_rechazo_email?: string | null;
   // Aprobación dual
   fecha_envio_aprobacion_ops: string | null;
   fecha_aprobacion_ops: string | null;
@@ -2832,6 +2842,43 @@ export async function aprobarFacturaPorToken(token: string): Promise<AprobacionE
     const err = await resp.json().catch(() => ({ detail: 'Error desconocido' }));
     const detalle = Array.isArray(err.detail)
       ? 'El enlace de aprobación es inválido o ha expirado (72 horas).'
+      : typeof err.detail === 'string'
+      ? err.detail
+      : `Error ${resp.status}`;
+    throw new Error(detalle);
+  }
+  return resp.json();
+}
+
+export interface RechazoEmailOut {
+  factura_id: string;
+  numero_factura: string;
+  proveedor: string;
+  total: number;
+  rechazado_por_nombre: string;
+  rechazado_por_email: string;
+  fecha_rechazo_email: string;
+  motivo_rechazo: string;
+  tipo_aprobacion: string | null;
+}
+
+/** Rechaza una factura con motivo usando el token del correo (público, sin auth) */
+export async function rechazarFacturaPorToken(
+  token: string,
+  motivo: string,
+): Promise<RechazoEmailOut> {
+  const API_BASE_URL_PUBLIC =
+    (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
+    'https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1/api/v1';
+  const resp = await fetch(`${API_BASE_URL_PUBLIC}/facturas/rechazar-por-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, motivo }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: 'Error desconocido' }));
+    const detalle = Array.isArray(err.detail)
+      ? 'El enlace es inválido o ha expirado (72 horas).'
       : typeof err.detail === 'string'
       ? err.detail
       : `Error ${resp.status}`;

@@ -42,6 +42,8 @@ from modules.facturas.schemas import (
     IngestaXMLIn,
     IngestaXMLResultOut,
     HistorialFacturaOut,
+    RechazoEmailIn,
+    RechazoEmailOut,
 )
 from fastapi import UploadFile, File
 from core.auth import require_api_key, get_current_user, get_current_user_optional, user_id_de
@@ -166,6 +168,30 @@ async def aprobar_por_token(
     # Fallback a aprobación estándar
     result = await service.aprobar_por_token(token, ip)
     return AprobacionEmailOut(**result)
+
+
+@router.post(
+    "/rechazar-por-token",
+    response_model=RechazoEmailOut,
+    summary="Rechazar factura con motivo desde el correo (público, sin autenticación)",
+)
+async def rechazar_por_token(
+    data: RechazoEmailIn,
+    request: Request = None,
+    service: FacturaService = Depends(get_factura_service),
+):
+    """
+    Endpoint público (sin JWT), pareja de `/aprobar-por-token`. El aprobador elige
+    "Rechazar" en el correo, escribe el motivo y esta ruta lo registra.
+
+    Sirve para los dos correos de aprobación de factura: el de Gerencia y el dual
+    (Gerencia Operaciones / Calidad Café). El motivo queda visible en DocuFlow, en
+    el detalle de la factura y en su historial, y se avisa por correo al área
+    responsable.
+    """
+    ip = request.client.host if request and request.client else "unknown"
+    result = await service.rechazar_por_token(data.token, data.motivo, ip)
+    return RechazoEmailOut(**result)
 
 
 @router.post(

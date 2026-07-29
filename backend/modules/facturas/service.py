@@ -47,6 +47,7 @@ MOV_ENVIO_CONTABILIDAD = "envio_contabilidad"
 MOV_ENVIO_TESORERIA = "envio_tesoreria"
 MOV_DEVOLUCION = "devolucion"
 MOV_CIERRE = "cierre"
+MOV_RECHAZO_EMAIL = "rechazo_email"        # el aprobador rechazó desde el correo
 
 
 class FacturaService:
@@ -201,6 +202,10 @@ class FacturaService:
                 es_gasto_adm=f.es_gasto_adm,
                 motivo_devolucion=f.motivo_devolucion,
                 devuelta_por_nombre=f.devuelta_por_nombre,
+                fecha_rechazo_email=f.fecha_rechazo_email,
+                rechazado_por_nombre=f.rechazado_por_nombre,
+                motivo_rechazo_email=f.motivo_rechazo_email,
+                tipo_rechazo_email=f.tipo_rechazo_email,
                 files=files_out,
                 carpeta_id=f.carpeta_id,
                 carpeta=carpeta_out,
@@ -2795,6 +2800,9 @@ Responde ÚNICAMENTE con JSON válido:
         )
         self.db.add(token_obj)
         factura.fecha_envio_gerencia = datetime.now(tz=timezone.utc)
+        # Una solicitud nueva deja sin efecto el rechazo anterior: si no se limpia,
+        # la factura seguiría mostrando el aviso de rechazo ya resuelto.
+        self._limpiar_rechazo_email(factura)
         await self.db.commit()
 
         # Nombre de quien está solicitando la aprobación
@@ -2887,6 +2895,15 @@ Responde ÚNICAMENTE con JSON válido:
         )
         return {"message": f"Correo de aprobación enviado a {aprobador.nombre} ({aprobador.email})."}
 
+    @staticmethod
+    def _limpiar_rechazo_email(factura) -> None:
+        """Borra el rechazo vigente de una factura (al pedir una aprobación nueva)."""
+        factura.fecha_rechazo_email = None
+        factura.rechazado_por_nombre = None
+        factura.rechazado_por_email = None
+        factura.motivo_rechazo_email = None
+        factura.tipo_rechazo_email = None
+
     async def aprobar_por_token(self, token_str: str, ip: str) -> dict:
         """Aprueba una factura usando el token recibido por email (endpoint público)."""
         from datetime import timezone
@@ -2911,6 +2928,7 @@ Responde ÚNICAMENTE con JSON válido:
         token_obj.usado = True
         token_obj.usado_at = now_utc
         token_obj.usado_por_ip = ip
+        token_obj.resultado = "aprobado"
 
         result_f = await self.db.execute(
             select(Factura).where(Factura.id == token_obj.factura_id)
@@ -2944,6 +2962,126 @@ Responde ÚNICAMENTE con JSON válido:
             "aprobado_por_nombre": factura.aprobado_por_nombre,
             "aprobado_por_email": factura.aprobado_por_email,
             "fecha_aprobacion_email": factura.fecha_aprobacion_email,
+        }
+
+    async def rechazar_por_token(self, token_str: str, motivo: str, ip: str) -> dict:
+        """Rechaza una factura desde el correo, con el motivo que escribió el aprobador.
+
+        Sirve para los dos correos de aprobación: el de Gerencia (token sin
+        `tipo_aprobacion`) y el dual (`OPS` / `CALIDAD`). En el dual basta que UNO
+        de los dos rechace para frenar la factura.
+
+        La factura NO cambia de área: mientras espera aprobación sigue en el área
+        del responsable que la envió (enviar_correo_aprobacion no la mueve), así
+        que ya está donde debe quedar. Lo que sí se limpia es la marca de envío a
+        aprobación, para que el responsable pueda corregir y volver a enviarla.
+        """
+        from datetime import timezone
+        from sqlalchemy import select
+        from db.models import Factura, TokenAprobacionFactura
+        from core.email_service import email_service
+
+        motivo = (motivo or "").strip()
+        if len(motivo) < 5:
+            raise HTTPException(
+                status_code=400,
+                detail="Indique el motivo del rechazo (mínimo 5 caracteres).",
+            )
+
+        result = await self.db.execute(
+            select(TokenAprobacionFactura).where(TokenAprobacionFactura.token == token_str)
+        )
+        token_obj = result.scalar_one_or_none()
+        if not token_obj:
+            raise HTTPException(status_code=404, detail="Token no válido.")
+        if token_obj.usado:
+            raise HTTPException(status_code=400, detail="Este enlace ya fue utilizado anteriormente.")
+
+        now_utc = datetime.now(tz=timezone.utc)
+        if now_utc > token_obj.expires_at:
+            raise HTTPException(status_code=400, detail="El enlace ha expirado (72 horas).")
+
+        result_f = await self.db.execute(
+            select(Factura).where(Factura.id == token_obj.factura_id)
+        )
+        factura = result_f.scalar_one_or_none()
+        if not factura:
+            raise HTTPException(status_code=404, detail="Factura no encontrada.")
+
+        token_obj.usado = True
+        token_obj.usado_at = now_utc
+        token_obj.usado_por_ip = ip
+        token_obj.resultado = "rechazado"
+        token_obj.motivo_rechazo = motivo
+
+        tipo = token_obj.tipo_aprobacion  # None | 'OPS' | 'CALIDAD'
+        factura.fecha_rechazo_email = now_utc
+        factura.rechazado_por_nombre = token_obj.aprobador_nombre
+        factura.rechazado_por_email = token_obj.aprobador_email
+        factura.motivo_rechazo_email = motivo
+        factura.tipo_rechazo_email = tipo
+
+        # Devolver la solicitud a cero para que se pueda corregir y reenviar.
+        if tipo == "OPS":
+            factura.fecha_envio_aprobacion_ops = None
+            factura.fecha_aprobacion_ops = None
+        elif tipo == "CALIDAD":
+            factura.fecha_envio_aprobacion_calidad = None
+            factura.fecha_aprobacion_calidad = None
+        else:
+            factura.fecha_envio_gerencia = None
+            factura.fecha_aprobacion_email = None
+
+        etiqueta = {
+            "OPS": "Gerencia Operaciones",
+            "CALIDAD": "Calidad Café",
+        }.get(tipo, "Gerencia")
+
+        await self.registrar_movimiento(
+            factura_id=factura.id,
+            tipo=MOV_RECHAZO_EMAIL,
+            area_desde_id=factura.area_id,
+            area_hasta_id=factura.area_id,
+            estado_desde_id=factura.estado_id,
+            estado_hasta_id=factura.estado_id,
+            motivo=f"Rechazada por {token_obj.aprobador_nombre} ({etiqueta}): {motivo}",
+        )
+
+        await self.db.commit()
+        await self.db.refresh(factura)
+
+        # Avisar a quien la envió: sin este correo el rechazo solo se vería si
+        # alguien entra a la factura.
+        try:
+            destinatarios = [
+                r["email"] for r in await self._buscar_responsables_area(factura.area_id)
+                if r.get("email")
+            ]
+            if destinatarios:
+                await email_service.enviar_notificacion_factura_rechazada(
+                    factura=factura,
+                    destinatarios=destinatarios,
+                    rechazado_por=token_obj.aprobador_nombre,
+                    etiqueta_aprobacion=etiqueta,
+                    motivo=motivo,
+                )
+        except Exception as e:  # el rechazo ya quedó guardado; el correo es secundario
+            logger.error(f"No se pudo notificar el rechazo de {factura.numero_factura}: {e}")
+
+        logger.info(
+            f"Factura {factura.numero_factura} RECHAZADA por {token_obj.aprobador_nombre} "
+            f"({etiqueta}). Motivo: {motivo}"
+        )
+        return {
+            "factura_id": str(factura.id),
+            "numero_factura": factura.numero_factura,
+            "proveedor": factura.proveedor,
+            "total": float(factura.total),
+            "rechazado_por_nombre": factura.rechazado_por_nombre,
+            "rechazado_por_email": factura.rechazado_por_email,
+            "fecha_rechazo_email": factura.fecha_rechazo_email,
+            "motivo_rechazo": motivo,
+            "tipo_aprobacion": tipo,
         }
 
     async def historial_area(self, user_id: UUID) -> list:
@@ -3106,6 +3244,8 @@ Responde ÚNICAMENTE con JSON válido:
                 titulo = f"Asignada a {destino}" if destino else "Asignada"
             elif mov.tipo == MOV_DEVOLUCION:
                 titulo = f"Devuelta a {destino}" if destino else "Devolución registrada"
+            elif mov.tipo == MOV_RECHAZO_EMAIL:
+                titulo = "Rechazada en la aprobación por correo"
             else:
                 titulo = TITULOS_MOV.get(mov.tipo, "Movimiento registrado")
 
@@ -3376,6 +3516,27 @@ Responde ÚNICAMENTE con JSON válido:
                 "responsable_email": None,
             })
 
+        # Rechazo desde el correo de aprobación. Normalmente ya vino como movimiento;
+        # este bloque cubre el caso de que la bitácora no haya podido escribirse.
+        if factura.fecha_rechazo_email and MOV_RECHAZO_EMAIL not in tipos_con_movimiento:
+            etiqueta_rechazo = {
+                "OPS": "Gerencia Operaciones",
+                "CALIDAD": "Calidad Café",
+            }.get(factura.tipo_rechazo_email, "Gerencia")
+            eventos.append({
+                "fecha": factura.fecha_rechazo_email,
+                "tipo": MOV_RECHAZO_EMAIL,
+                "titulo": "Rechazada en la aprobación por correo",
+                "descripcion": (
+                    f"Rechazada por {factura.rechazado_por_nombre} ({etiqueta_rechazo}): "
+                    f"{factura.motivo_rechazo_email}"
+                ),
+                "area_nombre": factura.area.nombre if factura.area else None,
+                "area_id": factura.area_id,
+                "responsable_nombre": factura.rechazado_por_nombre,
+                "responsable_email": factura.rechazado_por_email,
+            })
+
         # La devolución ya no se aproxima cuando quedó registrada como movimiento:
         # esa fila trae la fecha exacta y quién la devolvió.
         if factura.motivo_devolucion and MOV_DEVOLUCION not in tipos_con_movimiento:
@@ -3524,6 +3685,8 @@ Responde ÚNICAMENTE con JSON válido:
             self.db.add(token_obj)
             setattr(factura, campo_envio, datetime.now(tz=timezone.utc))
             setattr(factura, campo_id, aprobador.id)
+            # Solicitud nueva: el rechazo anterior deja de estar vigente.
+            self._limpiar_rechazo_email(factura)
 
             try:
                 await email_service.enviar_solicitud_aprobacion_factura(
@@ -3588,6 +3751,8 @@ Responde ÚNICAMENTE con JSON válido:
             )
             self.db.add(token_obj)
             setattr(factura, campo_envio, datetime.now(tz=timezone.utc))
+            # Reenvío: el rechazo anterior deja de estar vigente.
+            self._limpiar_rechazo_email(factura)
 
             try:
                 await email_service.enviar_solicitud_aprobacion_factura(
@@ -3627,6 +3792,7 @@ Responde ÚNICAMENTE con JSON válido:
         token_obj.usado = True
         token_obj.usado_at = now_utc
         token_obj.usado_por_ip = ip
+        token_obj.resultado = "aprobado"
 
         result_f = await self.db.execute(select(Factura).where(Factura.id == token_obj.factura_id))
         factura = result_f.scalar_one_or_none()

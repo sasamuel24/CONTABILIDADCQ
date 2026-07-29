@@ -746,7 +746,8 @@ class EmailService:
                 factura.fecha_vencimiento.strftime("%d/%m/%Y")
                 if getattr(factura, "fecha_vencimiento", None) else "—"
             )
-            aprobacion_url = f"{settings.frontend_url}/aprobar-factura?token={token_str}"
+            aprobacion_url = f"{settings.frontend_url}/aprobar-factura?token={token_str}&accion=aprobar"
+            rechazo_url = f"{settings.frontend_url}/aprobar-factura?token={token_str}&accion=rechazar"
 
             # Bloque del solicitante (quien envió la solicitud)
             solicitante_html = ""
@@ -813,17 +814,29 @@ class EmailService:
 
               {comentario_html}
 
-              <p>Para aprobar esta factura, haga clic en el siguiente botón (válido por <strong>72 horas</strong>):</p>
+              <p>Indique su decisión con uno de los botones (válidos por <strong>72 horas</strong>):</p>
               <p style="margin:24px 0">
                 <a href="{aprobacion_url}"
                    style="background:#1a6e3c;color:#fff;padding:12px 28px;border-radius:5px;
                           text-decoration:none;font-weight:bold;display:inline-block;font-size:1em">
                   &#10003;&nbsp; Aprobar Factura
                 </a>
+                &nbsp;&nbsp;
+                <a href="{rechazo_url}"
+                   style="background:#b91c1c;color:#fff;padding:12px 28px;border-radius:5px;
+                          text-decoration:none;font-weight:bold;display:inline-block;font-size:1em">
+                  &#10007;&nbsp; Rechazar Factura
+                </a>
+              </p>
+              <p style="color:#555;font-size:0.9em">
+                Si rechaza, se le pedirá escribir el <strong>motivo</strong>. Ese motivo queda
+                registrado en DocuFlow y se notifica al área responsable de la factura.
               </p>
               <p style="color:#888;font-size:0.85em">
-                Si no puede hacer clic en el botón, copie y pegue este enlace en su navegador:<br>
-                <span style="color:#1a3c6e">{aprobacion_url}</span>
+                Si no puede hacer clic en los botones, copie y pegue en su navegador el enlace
+                que corresponda:<br>
+                Aprobar: <span style="color:#1a3c6e">{aprobacion_url}</span><br>
+                Rechazar: <span style="color:#b91c1c">{rechazo_url}</span>
               </p>
               {adjunto_html}
               <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
@@ -899,6 +912,84 @@ class EmailService:
             logger.info(f"Notificación de factura aprobada enviada a {email_responsable} para factura {numero}")
         except Exception as e:
             logger.error(f"Error al enviar notificación de factura aprobada: {e}")
+
+    async def enviar_notificacion_factura_rechazada(
+        self,
+        factura,
+        destinatarios: list,
+        rechazado_por: str,
+        etiqueta_aprobacion: str,
+        motivo: str,
+    ) -> None:
+        """Avisa al área responsable que el aprobador rechazó la factura, con el motivo.
+
+        Sin este correo el rechazo solo se vería entrando a la factura, y la
+        solicitud quedaría en silencio hasta que alguien la revise.
+        """
+        try:
+            numero = factura.numero_factura
+            proveedor = factura.proveedor
+            total = float(factura.total)
+            frontend_url = settings.frontend_url
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto">
+            <div style="background:#b91c1c;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">&#10007; Factura Rechazada</h2>
+              <p style="color:#fee2e2;margin:4px 0 0">Sistema DOCUFLOW</p>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>La siguiente factura fue <strong>rechazada</strong> por
+                 <strong>{rechazado_por}</strong> ({etiqueta_aprobacion}).</p>
+              <table style="border-collapse:collapse;margin:16px 0;width:100%">
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold;width:180px">N° Factura:</td>
+                  <td style="padding:8px 14px">{numero}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Proveedor:</td>
+                  <td style="padding:8px 14px">{proveedor}</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Valor Total:</td>
+                  <td style="padding:8px 14px;font-size:1.1em;font-weight:bold;color:#b91c1c">
+                    ${total:,.2f} COP
+                  </td>
+                </tr>
+              </table>
+
+              <div style="margin:20px 0;padding:14px 18px;background:#fef2f2;border-left:4px solid #b91c1c;border-radius:4px">
+                <p style="margin:0 0 4px;font-size:0.85em;font-weight:bold;color:#991b1b;text-transform:uppercase;letter-spacing:0.5px">
+                  Motivo del rechazo
+                </p>
+                <p style="margin:0;color:#7f1d1d;font-size:0.95em;white-space:pre-wrap">{motivo}</p>
+              </div>
+
+              <p>La factura sigue a cargo del área. Corrija lo indicado y vuelva a
+                 enviarla a aprobación desde DocuFlow.</p>
+              <p style="margin:24px 0">
+                <a href="{frontend_url}"
+                   style="background:#00829a;color:#fff;padding:12px 28px;border-radius:5px;
+                          text-decoration:none;font-weight:bold;display:inline-block">
+                  Abrir DocuFlow
+                </a>
+              </p>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">
+                Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
+              </p>
+            </div>
+            </body></html>
+            """
+
+            subject = f"Factura Rechazada — {numero} | {proveedor}"
+            for destinatario in destinatarios:
+                await self._send_mail(subject, body_html, destinatario)
+            logger.info(
+                f"Notificación de rechazo enviada para factura {numero} a: {', '.join(destinatarios)}"
+            )
+        except Exception as e:
+            logger.error(f"Error al enviar notificación de factura rechazada: {e}")
 
     # ------------------------------------------------------------------
     # Anticipos

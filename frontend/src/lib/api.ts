@@ -1733,17 +1733,35 @@ export async function asignarFacturaACarpetaTesoreria(
   });
 }
 
+export interface FacturaNoArchivada {
+  factura_id: string;
+  motivo: string;
+}
+
+export interface ArchivadoMasivoResultado {
+  carpeta_id: string;
+  carpeta_nombre: string;
+  solicitadas: number;
+  archivadas: number;
+  no_archivadas: FacturaNoArchivada[];
+}
+
+/**
+ * Archiva un lote de facturas en una carpeta de tesorería con UNA sola petición.
+ *
+ * Antes se disparaba un request por factura en paralelo: con lotes grandes una
+ * parte moría antes de llegar al servidor y el archivado quedaba a medias sin
+ * decir cuáles habían fallado. Ahora el backend lo resuelve en una transacción y
+ * devuelve el detalle de lo que no se pudo archivar.
+ */
 export async function asignarFacturasACarpetaTesoreriaMasivo(
   facturaIds: string[],
   carpetaId: string
-): Promise<{ exitosos: number; errores: number }> {
-  const results = await Promise.allSettled(
-    facturaIds.map(id => asignarFacturaACarpetaTesoreria(id, { carpeta_id: carpetaId }))
-  );
-  return {
-    exitosos: results.filter(r => r.status === 'fulfilled').length,
-    errores: results.filter(r => r.status === 'rejected').length,
-  };
+): Promise<ArchivadoMasivoResultado> {
+  return fetchAPI<ArchivadoMasivoResultado>('/facturas/carpeta-tesoreria/masivo', {
+    method: 'POST',
+    body: JSON.stringify({ carpeta_id: carpetaId, factura_ids: facturaIds }),
+  });
 }
 
 /**

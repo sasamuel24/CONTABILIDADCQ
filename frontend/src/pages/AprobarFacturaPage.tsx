@@ -16,7 +16,98 @@ import {
  * correos enviados antes de esta pantalla no llevan `accion`; en ese caso se
  * mantiene el comportamiento anterior y se aprueba, para no romper enlaces
  * todavía vigentes (duran 72 horas).
+ *
+ * OJO — los estilos van EN LÍNEA a propósito: `index.css` es un snapshot parcial
+ * de Tailwind al que le faltan clases muy usadas (`bg-red-600`, `rounded-xl`,
+ * `font-bold`, `text-xs`…). El botón de confirmar quedaba invisible —sin fondo y
+ * con texto blanco— porque `bg-red-600` no existe. Esta página la abren
+ * aprobadores externos desde su correo, así que no puede depender de que una
+ * clase esté o no en ese snapshot.
  */
+
+const COLORES = {
+  marca: '#14aab8',
+  rojo: '#b91c1c',
+  rojoOscuro: '#991b1b',
+  rojoFondo: '#fef2f2',
+  rojoBorde: '#fecaca',
+  verde: '#15803d',
+  verdeFondo: '#f0fdf4',
+  verdeBorde: '#bbf7d0',
+  texto: '#1f2937',
+  textoSuave: '#6b7280',
+  borde: '#e5e7eb',
+};
+
+const estilos: Record<string, React.CSSProperties> = {
+  pagina: {
+    minHeight: '100vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f9fafb',
+    padding: '16px',
+    fontFamily: "'Neutra Text', 'Montserrat', Arial, sans-serif",
+  },
+  tarjeta: {
+    backgroundColor: '#fff',
+    borderRadius: '12px',
+    boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
+    padding: '32px',
+    maxWidth: '520px',
+    width: '100%',
+  },
+  marca: {
+    fontSize: '22px',
+    fontWeight: 700,
+    color: COLORES.marca,
+    textAlign: 'center',
+    margin: '0 0 24px',
+    letterSpacing: '0.5px',
+  },
+  titulo: { fontSize: '19px', fontWeight: 700, margin: '0 0 6px' },
+  parrafo: { fontSize: '14px', color: COLORES.textoSuave, margin: '0 0 16px', lineHeight: 1.5 },
+  textarea: {
+    width: '100%',
+    minHeight: '120px',
+    padding: '12px 14px',
+    fontSize: '14px',
+    fontFamily: 'inherit',
+    color: COLORES.texto,
+    border: `1px solid ${COLORES.borde}`,
+    borderRadius: '10px',
+    outline: 'none',
+    resize: 'vertical',
+    boxSizing: 'border-box',
+  },
+  boton: {
+    width: '100%',
+    marginTop: '16px',
+    padding: '13px 20px',
+    fontSize: '15px',
+    fontWeight: 700,
+    fontFamily: 'inherit',
+    color: '#fff',
+    backgroundColor: COLORES.rojo,
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    transition: 'opacity .15s ease',
+  },
+  botonDeshabilitado: { opacity: 0.5, cursor: 'not-allowed' },
+  nota: { fontSize: '12px', color: '#9ca3af', textAlign: 'center', marginTop: '14px' },
+  caja: { borderRadius: '10px', padding: '16px', textAlign: 'left', border: '1px solid' },
+  celdaEtiqueta: {
+    padding: '6px 0',
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#374151',
+    width: '130px',
+    verticalAlign: 'top',
+  },
+  celdaValor: { padding: '6px 0', fontSize: '13px', color: '#111827' },
+};
+
 export function AprobarFacturaPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
@@ -52,8 +143,10 @@ export function AprobarFacturaPage() {
       });
   }, [token, esRechazo]);
 
+  const motivoValido = motivo.trim().length >= 5;
+
   const confirmarRechazo = async () => {
-    if (!token || motivo.trim().length < 5) return;
+    if (!token || !motivoValido) return;
     setLoading(true);
     setError(null);
     try {
@@ -76,17 +169,28 @@ export function AprobarFacturaPage() {
 
   const mostrarFormularioRechazo = esRechazo && !rechazo && !error;
 
+  const filas = (datos: [string, string][]) => (
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <tbody>
+        {datos.map(([etiqueta, valor]) => (
+          <tr key={etiqueta}>
+            <td style={estilos.celdaEtiqueta}>{etiqueta}</td>
+            <td style={{ ...estilos.celdaValor, whiteSpace: 'pre-wrap' }}>{valor}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="bg-white rounded-xl shadow-lg p-8 max-w-lg w-full text-center">
-        <h1 className="text-2xl font-bold mb-6" style={{ color: '#14aab8' }}>
-          DOCUFLOW
-        </h1>
+    <div style={estilos.pagina}>
+      <div style={estilos.tarjeta}>
+        <h1 style={estilos.marca}>DOCUFLOW</h1>
 
         {loading && !mostrarFormularioRechazo && (
-          <div className="flex flex-col items-center gap-4 py-8">
-            <Loader2 className="w-12 h-12 animate-spin" style={{ color: '#14aab8' }} />
-            <p className="text-gray-600">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', padding: '32px 0' }}>
+            <Loader2 className="animate-spin" style={{ width: 44, height: 44, color: COLORES.marca }} />
+            <p style={{ ...estilos.parrafo, margin: 0 }}>
               {esRechazo ? 'Registrando el rechazo...' : 'Procesando aprobación...'}
             </p>
           </div>
@@ -94,127 +198,103 @@ export function AprobarFacturaPage() {
 
         {/* Rechazo: pedir el motivo antes de registrar nada */}
         {mostrarFormularioRechazo && (
-          <div className="text-left">
-            <div className="flex items-center gap-3 mb-4">
-              <AlertTriangle className="w-9 h-9 text-red-500 shrink-0" />
+          <div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '18px' }}>
+              <AlertTriangle style={{ width: 34, height: 34, color: COLORES.rojo, flexShrink: 0 }} />
               <div>
-                <h2 className="text-xl font-bold text-red-700">Rechazar factura</h2>
-                <p className="text-sm text-gray-500">
+                <h2 style={{ ...estilos.titulo, color: COLORES.rojo }}>Rechazar factura</h2>
+                <p style={{ ...estilos.parrafo, margin: 0 }}>
                   Indique por qué la rechaza. El motivo queda registrado en DocuFlow
                   y se notifica al área responsable.
                 </p>
               </div>
             </div>
+
             <textarea
-              className="w-full rounded-xl px-4 py-3 text-sm border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-300 min-h-[120px]"
+              style={estilos.textarea}
               placeholder="Escriba el motivo del rechazo (mínimo 5 caracteres)"
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
+              onFocus={(e) => { e.currentTarget.style.borderColor = COLORES.rojo; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = COLORES.borde; }}
               autoFocus
             />
+
             <button
               onClick={confirmarRechazo}
-              disabled={loading || motivo.trim().length < 5}
-              className="w-full mt-4 py-3 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition-colors"
+              disabled={loading || !motivoValido}
+              style={{
+                ...estilos.boton,
+                ...(loading || !motivoValido ? estilos.botonDeshabilitado : {}),
+              }}
             >
               {loading ? 'Registrando...' : 'Confirmar rechazo'}
             </button>
-            <p className="text-xs text-gray-400 mt-3 text-center">
+
+            {!motivoValido && motivo.length > 0 && (
+              <p style={{ ...estilos.nota, color: COLORES.rojo }}>
+                Escriba al menos 5 caracteres para poder confirmar.
+              </p>
+            )}
+            <p style={estilos.nota}>
               Si prefiere aprobarla, vuelva al correo y use el botón «Aprobar Factura».
             </p>
           </div>
         )}
 
         {!loading && aprobacion && (
-          <div>
-            <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-green-700 mb-2">¡Factura Aprobada!</h2>
-            <p className="text-gray-600 mb-6">
+          <div style={{ textAlign: 'center' }}>
+            <CheckCircle2 style={{ width: 60, height: 60, color: COLORES.verde, margin: '0 auto 14px' }} />
+            <h2 style={{ ...estilos.titulo, color: COLORES.verde }}>¡Factura aprobada!</h2>
+            <p style={estilos.parrafo}>
               La factura ha sido aprobada exitosamente. El equipo responsable será notificado.
             </p>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-left">
-              <table className="w-full text-sm">
-                <tbody>
-                  <tr>
-                    <td className="py-1.5 font-semibold text-gray-700 w-36">N° Factura:</td>
-                    <td className="py-1.5 text-gray-900 font-mono">{aprobacion.numero_factura}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 font-semibold text-gray-700">Proveedor:</td>
-                    <td className="py-1.5 text-gray-900">{aprobacion.proveedor}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 font-semibold text-gray-700">Valor Total:</td>
-                    <td className="py-1.5 text-gray-900 font-bold">{formatTotal(aprobacion.total)}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 font-semibold text-gray-700">Aprobado por:</td>
-                    <td className="py-1.5 text-gray-900">{aprobacion.aprobado_por_nombre}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 font-semibold text-gray-700">Fecha:</td>
-                    <td className="py-1.5 text-gray-900">{formatFecha(aprobacion.fecha_aprobacion_email)}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div style={{ ...estilos.caja, backgroundColor: COLORES.verdeFondo, borderColor: COLORES.verdeBorde }}>
+              {filas([
+                ['N° Factura:', aprobacion.numero_factura],
+                ['Proveedor:', aprobacion.proveedor],
+                ['Valor Total:', formatTotal(aprobacion.total)],
+                ['Aprobado por:', aprobacion.aprobado_por_nombre],
+                ['Fecha:', formatFecha(aprobacion.fecha_aprobacion_email)],
+              ])}
             </div>
-            <p className="text-gray-500 text-sm mt-4">
+            <p style={estilos.nota}>
               El equipo de contabilidad continuará con el proceso de la factura.
             </p>
           </div>
         )}
 
         {!loading && rechazo && (
-          <div>
-            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-red-700 mb-2">Factura rechazada</h2>
-            <p className="text-gray-600 mb-6">
+          <div style={{ textAlign: 'center' }}>
+            <XCircle style={{ width: 60, height: 60, color: COLORES.rojo, margin: '0 auto 14px' }} />
+            <h2 style={{ ...estilos.titulo, color: COLORES.rojo }}>Factura rechazada</h2>
+            <p style={estilos.parrafo}>
               El rechazo quedó registrado. El área responsable fue notificada y podrá
               corregir la factura para volver a enviarla.
             </p>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left">
-              <table className="w-full text-sm">
-                <tbody>
-                  <tr>
-                    <td className="py-1.5 font-semibold text-gray-700 w-36">N° Factura:</td>
-                    <td className="py-1.5 text-gray-900 font-mono">{rechazo.numero_factura}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 font-semibold text-gray-700">Proveedor:</td>
-                    <td className="py-1.5 text-gray-900">{rechazo.proveedor}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 font-semibold text-gray-700">Valor Total:</td>
-                    <td className="py-1.5 text-gray-900 font-bold">{formatTotal(rechazo.total)}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 font-semibold text-gray-700">Rechazado por:</td>
-                    <td className="py-1.5 text-gray-900">{rechazo.rechazado_por_nombre}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 font-semibold text-gray-700">Fecha:</td>
-                    <td className="py-1.5 text-gray-900">{formatFecha(rechazo.fecha_rechazo_email)}</td>
-                  </tr>
-                  <tr>
-                    <td className="py-1.5 font-semibold text-gray-700 align-top">Motivo:</td>
-                    <td className="py-1.5 text-gray-900 whitespace-pre-wrap">{rechazo.motivo_rechazo}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div style={{ ...estilos.caja, backgroundColor: COLORES.rojoFondo, borderColor: COLORES.rojoBorde }}>
+              {filas([
+                ['N° Factura:', rechazo.numero_factura],
+                ['Proveedor:', rechazo.proveedor],
+                ['Valor Total:', formatTotal(rechazo.total)],
+                ['Rechazado por:', rechazo.rechazado_por_nombre],
+                ['Fecha:', formatFecha(rechazo.fecha_rechazo_email)],
+                ['Motivo:', rechazo.motivo_rechazo],
+              ])}
             </div>
           </div>
         )}
 
         {!loading && error && (
-          <div>
-            <XCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-red-700 mb-2">
+          <div style={{ textAlign: 'center' }}>
+            <XCircle style={{ width: 60, height: 60, color: COLORES.rojo, margin: '0 auto 14px' }} />
+            <h2 style={{ ...estilos.titulo, color: COLORES.rojoOscuro }}>
               {esRechazo ? 'No se pudo rechazar' : 'No se pudo aprobar'}
             </h2>
-            <p className="text-gray-600 bg-red-50 border border-red-200 rounded-lg p-4 mt-2">
-              {error}
-            </p>
-            <p className="text-gray-400 text-sm mt-4">
+            <div style={{ ...estilos.caja, backgroundColor: COLORES.rojoFondo, borderColor: COLORES.rojoBorde, textAlign: 'center' }}>
+              <p style={{ ...estilos.parrafo, margin: 0, color: COLORES.rojoOscuro }}>{error}</p>
+            </div>
+            <p style={estilos.nota}>
               Si el problema persiste, contacte al administrador del sistema.
             </p>
           </div>

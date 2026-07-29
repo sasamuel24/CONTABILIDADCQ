@@ -1440,15 +1440,24 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 Es distinto de la devolución de Contabilidad: aquí quien rechazó
                 fue el aprobador (Gerencia u OPS/Calidad) y la factura no se movió
                 de área — hay que corregirla y volver a enviarla a aprobación. */}
+            {/* Estilos en línea: index.css es un snapshot parcial de Tailwind y le
+                faltan clases como bg-red-600, font-semibold o text-red-900, así que
+                un banner que dependa de ellas se ve descolorido o directamente
+                invisible (le pasó al botón de la pantalla de rechazo). */}
             {factura.motivo_rechazo_email && (
-              <div className="border border-red-300 bg-red-50 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <XCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <h4 className="font-semibold text-red-900 mb-1">
+              <div style={{
+                border: '1px solid #fecaca',
+                backgroundColor: '#fef2f2',
+                borderRadius: '10px',
+                padding: '16px',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                  <XCircle style={{ width: 20, height: 20, color: '#dc2626', flexShrink: 0, marginTop: 2 }} />
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ fontWeight: 700, color: '#7f1d1d', margin: '0 0 4px', fontSize: '15px' }}>
                       Rechazada en la aprobación por correo
                     </h4>
-                    <p className="text-sm text-red-800 mb-3">
+                    <p style={{ fontSize: '13px', color: '#991b1b', margin: '0 0 12px', lineHeight: 1.5 }}>
                       {factura.rechazado_por_nombre || 'El aprobador'}
                       {factura.tipo_rechazo_email === 'OPS'
                         ? ' (Gerencia Operaciones)'
@@ -1457,9 +1466,22 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                         : ' (Gerencia)'}{' '}
                       no aprobó esta factura. Corrija lo indicado y vuelva a enviarla a aprobación.
                     </p>
-                    <div className="bg-white border border-red-200 rounded p-3">
-                      <p className="text-xs font-semibold text-red-900 mb-2">MOTIVO DEL RECHAZO:</p>
-                      <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                    <div style={{
+                      backgroundColor: '#fff',
+                      border: '1px solid #fecaca',
+                      borderRadius: '8px',
+                      padding: '12px',
+                    }}>
+                      <p style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: '#7f1d1d',
+                        margin: '0 0 6px',
+                        letterSpacing: '0.5px',
+                      }}>
+                        MOTIVO DEL RECHAZO:
+                      </p>
+                      <p style={{ fontSize: '13px', color: '#1f2937', margin: 0, whiteSpace: 'pre-wrap' }}>
                         {factura.motivo_rechazo_email}
                       </p>
                     </div>

@@ -313,17 +313,19 @@ function MotivoBadge({
           style={{ top: pos.top, left: pos.left, zIndex: 9999, width: 260, fontFamily: FONT }}
           onClick={e => e.stopPropagation()}
         >
+          {/* Color por estilo en línea: index.css no trae text-red-800/900 ni
+              font-semibold, y con clases sueltas el encabezado salía sin énfasis. */}
           <div className={`flex items-center gap-2 px-3 py-2 border-b ${v.claseBordeSuave}`} style={{backgroundColor: v.fondo}}>
-            <Undo2 className={`w-3.5 h-3.5 ${v.claseIcono} shrink-0`} />
-            <span className={`text-xs font-semibold ${v.claseTitulo}`}>{v.titulo}</span>
-            <button onClick={() => setOpen(false)} className={`ml-auto ${v.claseCerrar}`}>
+            <Undo2 className="w-3.5 h-3.5 shrink-0" style={{ color: v.texto }} />
+            <span style={{ fontSize: '12px', fontWeight: 700, color: v.texto }}>{v.titulo}</span>
+            <button onClick={() => setOpen(false)} className="ml-auto" style={{ color: v.texto, opacity: 0.5 }}>
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
           {autor && (
             <div className="px-3 pt-2 pb-1 flex items-center gap-1.5">
-              <span className={`text-xs ${v.claseAutorLabel} font-semibold`}>{v.autorLabel}</span>
-              <span className={`text-xs ${v.claseAutor} font-bold`}>{autor}</span>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: v.texto }}>{v.autorLabel}</span>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#111827' }}>{autor}</span>
             </div>
           )}
           <div className="px-3 pt-1 pb-0.5">

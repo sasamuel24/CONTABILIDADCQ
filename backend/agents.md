@@ -449,6 +449,32 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 6. **facturas** - Registro principal de facturas
 7. **files** - Archivos adjuntos a facturas
 8. **factura_asignaciones** - Historial de asignaciones de facturas
+9. **factura_movimientos** - Bitácora de movimientos reales de la factura (ver abajo)
+
+### Trazabilidad: `factura_movimientos` vs. eventos inferidos
+
+`GET /facturas/{id}/historial` → `service.historial_factura`. Combina DOS fuentes:
+
+- **`factura_movimientos`** (migración `x8y9z0a1b2c3`): un hecho por fila — tipo,
+  área origen/destino, estado origen/destino, autor y fecha exacta. Lo escribe
+  `service.registrar_movimiento` en cada punto que mueve la factura (cambio de
+  área, auto-ruteo OC, clasificación por IA, envío a Contabilidad/Tesorería, las
+  tres devoluciones y el cierre), **dentro de la misma transacción** que el
+  cambio. Si la bitácora falla, el flujo de negocio continúa.
+- **Eventos sintéticos**: se infieren de las columnas de fecha de `facturas`
+  (`created_at`, `assigned_at`, `fecha_envio_*`). Solo se emiten cuando NO hay un
+  movimiento que cubra lo mismo (`areas_con_movimiento` / `tipos_con_movimiento`),
+  para no duplicar ni contradecir la fecha real.
+
+⚠️ Los eventos sintéticos existen únicamente para las facturas anteriores a la
+bitácora, y **aproximan**: antes hacían aparecer PAQE652890 llegando a Torre
+Control el 24-jul (su `created_at`) cuando Radicación la pasó allá el 25-jul a
+las 7:13 a. m. Al agregar un punto nuevo que mueva facturas, registrar el
+movimiento — no añadir otra columna de fecha ni otra inferencia.
+
+Las facturas históricas se reconstruyeron desde journald con
+`scripts/backfill_movimientos_desde_logs.py` (822 movimientos, del 16-jul-2026
+en adelante, que es lo que el journal conserva). Es idempotente.
 
 ### Relaciones
 - `users.area_id` → `areas.id` (ON DELETE SET NULL)

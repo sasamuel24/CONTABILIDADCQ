@@ -383,7 +383,7 @@ function CardGasto({
               : 'bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-200 text-purple-700 hover:from-purple-100 hover:to-indigo-100 hover:border-purple-300'
           }`} style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
             {escaneando ? <><Loader2 className="w-4 h-4 animate-spin" /> Analizando...</> : <><Sparkles className="w-4 h-4" /><Scan className="w-4 h-4" /> Escanear con IA</>}
-            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={escaneando}
+            <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" capture="environment" disabled={escaneando}
               style={{ position: 'absolute', width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) onEscanear(fila.localId, f); e.target.value = ''; }} />
           </label>
@@ -788,7 +788,7 @@ function DetallePaqueteCQ({
       const n = datos.campos_detectados.length;
       if (n === 0) toast.warning('No se detectaron datos. Intenta con una foto más nítida.');
       else toast.success(`${n} campo${n !== 1 ? 's' : ''} completado${n !== 1 ? 's' : ''} automáticamente`);
-    } catch { toast.error('No se pudo analizar la imagen.'); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'No se pudo analizar el documento.'); }
     finally { setEscaneandoId(null); }
   };
 
@@ -1137,7 +1137,7 @@ function NuevoPaqueteCQForm({
       const n = datos.campos_detectados.length;
       if (n === 0) toast.warning('No se detectaron datos.');
       else toast.success(`${n} campo${n !== 1 ? 's' : ''} completado${n !== 1 ? 's' : ''} automáticamente`);
-    } catch { toast.error('No se pudo analizar la imagen.'); }
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'No se pudo analizar el documento.'); }
     finally { setEscaneandoId(null); }
   };
 

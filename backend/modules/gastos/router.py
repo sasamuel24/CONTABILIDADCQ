@@ -717,14 +717,14 @@ async def eliminar_cm_pdf_gasto(
 @router.post(
     "/gastos/extraer-datos-imagen",
     response_model=ExtraccionDatosOut,
-    summary="Extraer datos de factura desde imagen usando IA (Claude Haiku)",
+    summary="Extraer datos de factura desde imagen o PDF usando IA (Claude Haiku)",
 )
 async def extraer_datos_imagen(
-    file: UploadFile = File(..., description="Foto de la factura (JPG, PNG)"),
+    file: UploadFile = File(..., description="Factura en imagen (JPG, PNG, WEBP) o PDF"),
     _user: User = Depends(_get_user_db),
 ):
     """
-    Recibe una imagen de factura y usa Claude Haiku para extraer:
+    Recibe una factura (foto o PDF) y usa Claude Haiku para extraer:
     NIT/identificación, nombre proveedor, concepto, número de factura,
     valor total y fecha. Devuelve los campos encontrados con nivel de
     confianza (alta / media / baja).
@@ -740,19 +740,40 @@ async def extraer_datos_imagen(
             detail="Servicio de IA no configurado. Contacte al administrador."
         )
 
-    content_type = file.content_type or ""
-    if content_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+    content_type = (file.content_type or "").lower()
+    nombre = (file.filename or "").lower()
+    # Algunos navegadores envían application/octet-stream: resolver por extensión
+    if content_type not in _MEDIA_TYPES_IMAGEN and content_type != "application/pdf":
+        if nombre.endswith(".pdf"):
+            content_type = "application/pdf"
+        elif nombre.endswith((".jpg", ".jpeg")):
+            content_type = "image/jpeg"
+        elif nombre.endswith(".png"):
+            content_type = "image/png"
+        elif nombre.endswith(".webp"):
+            content_type = "image/webp"
+
+    if content_type not in _MEDIA_TYPES_IMAGEN and content_type != "application/pdf":
         raise HTTPException(
             status_code=422,
-            detail="Solo se aceptan imágenes JPG, PNG o WEBP."
+            detail="Solo se aceptan imágenes JPG, PNG, WEBP o archivos PDF."
         )
 
-    imagen_bytes = await file.read()
-    imagen_b64 = base64.standard_b64encode(imagen_bytes).decode("utf-8")
+    contenido = await file.read()
+    contenido_b64 = base64.standard_b64encode(contenido).decode("utf-8")
 
-    media_type = content_type  # type: ignore[assignment]
+    if content_type == "application/pdf":
+        bloque = {
+            "type": "document",
+            "source": {"type": "base64", "media_type": "application/pdf", "data": contenido_b64},
+        }
+    else:
+        bloque = {
+            "type": "image",
+            "source": {"type": "base64", "media_type": content_type, "data": contenido_b64},
+        }
 
-    prompt = """Analiza esta imagen de una factura o recibo colombiano y extrae los siguientes datos en formato JSON.
+    prompt = """Analiza este documento (imagen o PDF) de una factura o recibo colombiano y extrae los siguientes datos en formato JSON.
 Si un campo no es visible o legible, usa null.
 Devuelve ÚNICAMENTE el objeto JSON, sin texto adicional, sin markdown.
 
@@ -804,17 +825,7 @@ Ejemplo 2 (factura electrónica de ferretería):
         messages=[
             {
                 "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": imagen_b64,
-                        },
-                    },
-                    {"type": "text", "text": prompt},
-                ],
+                "content": [bloque, {"type": "text", "text": prompt}],
             }
         ],
     )
@@ -832,7 +843,7 @@ Ejemplo 2 (factura electrónica de ferretería):
     except json.JSONDecodeError:
         raise HTTPException(
             status_code=502,
-            detail="La IA no pudo interpretar la imagen. Intenta con una foto más nítida."
+            detail="La IA no pudo interpretar el documento. Intenta con una foto más nítida o un PDF legible."
         )
 
     return ExtraccionDatosOut(

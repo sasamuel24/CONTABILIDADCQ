@@ -448,7 +448,7 @@ function CardGasto({
             )}
             <input
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
               capture="environment"
               disabled={escaneando}
               style={{ position: 'absolute', width: 0, height: 0, opacity: 0, overflow: 'hidden' }}
@@ -1173,8 +1173,8 @@ function DetallePaquete({
         const emoji = datos.confianza === 'alta' ? '✅' : datos.confianza === 'media' ? '⚠️' : '🔍';
         toast.success(`${emoji} ${n} campo${n !== 1 ? 's' : ''} completado${n !== 1 ? 's' : ''} automáticamente`);
       }
-    } catch {
-      toast.error('No se pudo analizar la imagen. Intenta de nuevo.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se pudo analizar el documento. Intenta de nuevo.');
     } finally {
       setEscaneandoId(null);
     }
@@ -1582,8 +1582,8 @@ function NuevoPaqueteForm({
         const emoji = datos.confianza === 'alta' ? '✅' : datos.confianza === 'media' ? '⚠️' : '🔍';
         toast.success(`${emoji} ${n} campo${n !== 1 ? 's' : ''} completado${n !== 1 ? 's' : ''} automáticamente`);
       }
-    } catch {
-      toast.error('No se pudo analizar la imagen. Intenta de nuevo.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'No se pudo analizar el documento. Intenta de nuevo.');
     } finally {
       setEscaneandoId(null);
     }

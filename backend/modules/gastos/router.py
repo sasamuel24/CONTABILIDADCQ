@@ -731,6 +731,7 @@ async def extraer_datos_imagen(
     """
     import base64
     import json
+    import anthropic
     from anthropic import AsyncAnthropic
     from core.config import settings
 
@@ -819,16 +820,28 @@ Ejemplo 2 (factura electrónica de ferretería):
 
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-    message = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=512,
-        messages=[
-            {
-                "role": "user",
-                "content": [bloque, {"type": "text", "text": prompt}],
-            }
-        ],
-    )
+    try:
+        message = await client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=512,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [bloque, {"type": "text", "text": prompt}],
+                }
+            ],
+        )
+    except anthropic.AuthenticationError:
+        raise HTTPException(
+            status_code=503,
+            detail="La clave del servicio de IA no es válida. Contacte al administrador."
+        )
+    except anthropic.APIStatusError as exc:
+        # Saldo agotado, límite de tasa, sobrecarga: mensaje claro en vez de 500
+        raise HTTPException(
+            status_code=503,
+            detail=f"El servicio de IA no está disponible ({exc.status_code}). Intenta más tarde."
+        )
 
     raw = message.content[0].text.strip()
     # Limpiar posibles bloques markdown que el modelo incluya

@@ -52,6 +52,41 @@ async def get_current_user(
     }
 
 
+async def get_current_user_optional(
+    authorization: str = Header(None, alias="Authorization")
+) -> dict | None:
+    """Igual que `get_current_user`, pero NUNCA rechaza la petición.
+
+    Existe para poder atribuir un autor en la bitácora de movimientos
+    (`factura_movimientos`) desde endpoints que hoy son públicos o los consumen
+    procesos sin sesión (ingesta n8n). Añadirles `get_current_user` los rompería
+    con 401; con esta dependencia, si hay token se sabe quién actuó y si no, el
+    movimiento se registra sin autor.
+    """
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+
+    payload = decode_token(authorization.split(" ", 1)[1].strip())
+    if not payload or payload.get("type") != "access":
+        return None
+
+    user_id = payload.get("sub")
+    if not user_id:
+        return None
+
+    return {"user_id": user_id, "email": payload.get("email")}
+
+
+def user_id_de(current_user: dict | None) -> UUID | None:
+    """Extrae el user_id como UUID de lo que devuelven las dependencias de auth."""
+    if not current_user:
+        return None
+    try:
+        return UUID(str(current_user.get("user_id")))
+    except (ValueError, TypeError):
+        return None
+
+
 async def require_api_key(x_api_key: str = Header(..., description="API Key para autenticación", alias="x-api-key")):
     """
     Dependencia que valida el header x-api-key.

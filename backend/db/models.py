@@ -907,6 +907,78 @@ class FacturaAsignacion(Base):
         return f"<FacturaAsignacion(id={self.id}, factura_id={self.factura_id}, responsable_user_id={self.responsable_user_id})>"
 
 
+class FacturaMovimiento(Base):
+    """Bitácora de movimientos reales de una factura (quién la movió y cuándo).
+
+    Antes de esta tabla el historial de trazabilidad se INFERÍA de las columnas de
+    fecha de `facturas` (created_at, assigned_at, fecha_envio_*), y los pases entre
+    áreas no dejaban rastro: solo aparecían en el log de la aplicación. Eso hacía
+    que la línea de tiempo mostrara fechas que no correspondían al hecho — p. ej.
+    la factura PAQE652890 figuraba llegando a Torre Control el 24-jul (su
+    `created_at`) cuando Radicación la pasó allá el 25-jul a las 7:13 a. m.
+
+    Cada fila es un hecho ocurrido, nunca una inferencia. Se escribe dentro de la
+    misma transacción que el cambio que la origina.
+    """
+    __tablename__ = "factura_movimientos"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4
+    )
+    factura_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facturas.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    # Ver TIPOS_MOVIMIENTO en modules/facturas/service.py para los valores usados.
+    tipo: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    area_desde_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("areas.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    area_hasta_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("areas.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    estado_desde_id: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    estado_hasta_id: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+    # Nombre desnormalizado: el historial debe seguir diciendo QUIÉN movió la
+    # factura aunque el usuario se elimine o cambie de área después.
+    user_nombre: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    motivo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+        index=True
+    )
+
+    # Relaciones (lazy="joined": el historial siempre necesita los nombres, y son
+    # pocas filas por factura; evita N+1 al construir la línea de tiempo).
+    area_desde: Mapped[Optional["Area"]] = relationship(
+        "Area", foreign_keys=[area_desde_id], lazy="joined"
+    )
+    area_hasta: Mapped[Optional["Area"]] = relationship(
+        "Area", foreign_keys=[area_hasta_id], lazy="joined"
+    )
+
+    def __repr__(self):
+        return (
+            f"<FacturaMovimiento(id={self.id}, factura_id={self.factura_id}, "
+            f"tipo={self.tipo}, created_at={self.created_at})>"
+        )
+
+
 class FacturaInventarioCodigo(Base):
     """Modelo para códigos de inventario asociados a facturas."""
     __tablename__ = "factura_inventario_codigos"

@@ -39,14 +39,82 @@ RADICACION_AREA_ID = UUID("498e9fdb-25f5-42f9-beb8-92564ab6bdf4")
 CONTABILIDAD_AREA_ID_RUTEO = UUID("725f5e5a-49d3-4e44-800f-f5ff21e187ac")
 ESTADO_PENDIENTE_CONTABILIDAD = 3
 
+# Tipos de movimiento de `factura_movimientos`. Coinciden con los `tipo` que ya
+# consume el historial en el frontend, para que los eventos reales se pinten con
+# el mismo icono que los sintéticos a los que reemplazan.
+MOV_ASIGNACION = "asignacion"                 # pase de un área a otra
+MOV_ENVIO_CONTABILIDAD = "envio_contabilidad"
+MOV_ENVIO_TESORERIA = "envio_tesoreria"
+MOV_DEVOLUCION = "devolucion"
+MOV_CIERRE = "cierre"
+
 
 class FacturaService:
     """Servicio que contiene la lógica de negocio de facturas."""
-    
+
     def __init__(self, repository: FacturaRepository, db: AsyncSession = None):
         self.repository = repository
         self.db = db
-    
+
+    async def registrar_movimiento(
+        self,
+        factura_id: UUID,
+        tipo: str,
+        area_desde_id: Optional[UUID] = None,
+        area_hasta_id: Optional[UUID] = None,
+        estado_desde_id: Optional[int] = None,
+        estado_hasta_id: Optional[int] = None,
+        user_id: Optional[UUID] = None,
+        motivo: Optional[str] = None,
+    ) -> None:
+        """Deja constancia de un movimiento real de la factura.
+
+        Se limita a encolar la fila en la sesión: el commit lo hace la operación
+        que la origina, así el movimiento y el cambio viajan en la MISMA
+        transacción (o no ocurre ninguno de los dos).
+
+        Nunca interrumpe la operación de negocio: si la bitácora falla, se
+        registra el error y el flujo continúa. Perder una fila de historial es
+        malo; perder el pase de la factura, peor.
+        """
+        if self.db is None:
+            return
+
+        try:
+            from db.models import FacturaMovimiento, User
+            from sqlalchemy import select
+
+            user_nombre = None
+            if user_id:
+                res = await self.db.execute(select(User).where(User.id == user_id))
+                usuario = res.scalar_one_or_none()
+                user_nombre = usuario.nombre if usuario else None
+
+            self.db.add(FacturaMovimiento(
+                factura_id=factura_id,
+                tipo=tipo,
+                area_desde_id=area_desde_id,
+                area_hasta_id=area_hasta_id,
+                estado_desde_id=estado_desde_id,
+                estado_hasta_id=estado_hasta_id,
+                user_id=user_id,
+                user_nombre=user_nombre,
+                motivo=motivo,
+            ))
+        except Exception as e:  # pragma: no cover - la bitácora nunca bloquea el flujo
+            logger.error(f"No se pudo registrar el movimiento de la factura {factura_id}: {e}")
+
+    @staticmethod
+    def _to_uuid(valor) -> Optional[UUID]:
+        """Normaliza a UUID los ids que llegan como str desde el token JWT."""
+        if valor is None or isinstance(valor, UUID):
+            return valor
+        try:
+            return UUID(str(valor))
+        except (ValueError, AttributeError, TypeError):
+            return None
+
+
     async def list_facturas(
         self,
         skip: int = 0,
@@ -381,11 +449,22 @@ class FacturaService:
         ):
             return False
 
+        area_previa = factura.area_id
+        estado_previo = factura.estado_id
         factura.area_id = CONTABILIDAD_AREA_ID_RUTEO
         factura.area_origen_id = RADICACION_AREA_ID
         factura.estado_id = ESTADO_PENDIENTE_CONTABILIDAD
         factura.fecha_envio_contabilidad = datetime.utcnow()
         factura.enrutada_automaticamente = True
+        await self.registrar_movimiento(
+            factura_id=factura.id,
+            tipo=MOV_ENVIO_CONTABILIDAD,
+            area_desde_id=area_previa,
+            area_hasta_id=CONTABILIDAD_AREA_ID_RUTEO,
+            estado_desde_id=estado_previo,
+            estado_hasta_id=ESTADO_PENDIENTE_CONTABILIDAD,
+            motivo="Auto-ruteo por OC: la factura llegó con OC y clasificación completa.",
+        )
         await self.db.commit()
         await self.db.refresh(factura)
 
@@ -629,7 +708,18 @@ Responde ÚNICAMENTE con JSON válido:
         factura.ai_area_razonamiento = razonamiento
         factura.pendiente_confirmacion = confianza not in ("alta",)
         if area_asignada:
+            area_previa = factura.area_id
             factura.area_id = area_asignada.id
+            if area_previa != area_asignada.id:
+                await self.registrar_movimiento(
+                    factura_id=factura.id,
+                    tipo=MOV_ASIGNACION,
+                    area_desde_id=area_previa,
+                    area_hasta_id=area_asignada.id,
+                    estado_desde_id=factura.estado_id,
+                    estado_hasta_id=factura.estado_id,
+                    motivo=f"Clasificación automática al radicar (confianza {confianza}).",
+                )
 
         await self.db.commit()
         await self.db.refresh(factura)
@@ -834,9 +924,15 @@ Responde ÚNICAMENTE con JSON válido:
     async def update_factura(
         self,
         factura_id: UUID,
-        factura_data: FacturaUpdate
+        factura_data: FacturaUpdate,
+        user_id: Optional[UUID] = None,
     ) -> FacturaResponse:
-        """Actualiza una factura."""
+        """Actualiza una factura.
+
+        `user_id` es opcional porque este endpoint también lo consumen procesos
+        sin sesión (ingesta): sin usuario el movimiento queda igualmente
+        registrado, solo que sin autor.
+        """
         logger.info(f"Actualizando factura ID: {factura_id}")
         
         factura = await self.repository.get_by_id(factura_id)
@@ -872,7 +968,20 @@ Responde ÚNICAMENTE con JSON válido:
             if factura.area_origen_id is None:
                 update_data['area_origen_id'] = RADICACION_AREA_ID if va_a_contabilidad else factura_data.area_id
                 logger.info(f"Estableciendo area_origen_id: {factura_data.area_id}")
-        
+
+            # Este es el pase que antes solo quedaba en el log del servidor: sin
+            # esta fila, el historial tenía que adivinar cuándo llegó la factura
+            # al área (y adivinaba mal, ver FacturaMovimiento en db/models.py).
+            await self.registrar_movimiento(
+                factura_id=factura_id,
+                tipo=MOV_ENVIO_CONTABILIDAD if va_a_contabilidad else MOV_ASIGNACION,
+                area_desde_id=factura.area_id,
+                area_hasta_id=factura_data.area_id,
+                estado_desde_id=factura.estado_id,
+                estado_hasta_id=update_data['estado_id'],
+                user_id=self._to_uuid(user_id),
+            )
+
         factura = await self.repository.update(factura_id, update_data)
         return await self.get_factura(factura.id)
     
@@ -1358,7 +1467,8 @@ Responde ÚNICAMENTE con JSON válido:
     
     async def submit_responsable(
         self,
-        factura_id: UUID
+        factura_id: UUID,
+        user_id: Optional[UUID] = None,
     ) -> SubmitResponsableOut:
         """
         Endpoint de transición: Envía la factura desde Responsable a Contabilidad.
@@ -1403,11 +1513,23 @@ Responde ÚNICAMENTE con JSON válido:
                 select(Estado).where(Estado.id == 3)
             )
             estado_contabilidad = estado_result.scalar_one_or_none()
+            area_previa = factura.area_id
+            estado_previo = factura.estado_id
             factura.area_id = area_contabilidad.id
             factura.estado_id = estado_contabilidad.id if estado_contabilidad else 3
             factura.assigned_to_user_id = None
             factura.assigned_at = datetime.utcnow()
             factura.fecha_envio_contabilidad = datetime.utcnow()
+            await self.registrar_movimiento(
+                factura_id=factura.id,
+                tipo=MOV_ENVIO_CONTABILIDAD,
+                area_desde_id=area_previa,
+                area_hasta_id=area_contabilidad.id,
+                estado_desde_id=estado_previo,
+                estado_hasta_id=factura.estado_id,
+                user_id=self._to_uuid(user_id),
+                motivo="Financiera/Compras envía a Contabilidad (sin validaciones).",
+            )
             await self.db.commit()
             await self.db.refresh(factura)
             logger.info(f"Factura {factura_id} (Financiera/Compras) enviada a Contabilidad sin restricciones.")
@@ -1626,6 +1748,8 @@ Responde ÚNICAMENTE con JSON válido:
         factura.area_origen_id = factura.area_id
 
         # Actualizar factura
+        area_previa = factura.area_id
+        estado_previo = factura.estado_id
         factura.area_id = area_contabilidad.id
         factura.estado_id = estado_contabilidad.id
         factura.assigned_to_user_id = None
@@ -1634,6 +1758,17 @@ Responde ÚNICAMENTE con JSON válido:
 
         # Limpiar motivo de devolución al reenviar
         factura.motivo_devolucion = None
+
+        await self.registrar_movimiento(
+            factura_id=factura.id,
+            tipo=MOV_ENVIO_CONTABILIDAD,
+            area_desde_id=area_previa,
+            area_hasta_id=area_contabilidad.id,
+            estado_desde_id=estado_previo,
+            estado_hasta_id=factura.estado_id,
+            user_id=self._to_uuid(user_id),
+            motivo="El responsable validó los datos y envió la factura a Contabilidad.",
+        )
 
         # Commit de cambios
         await self.db.commit()
@@ -1774,7 +1909,9 @@ Responde ÚNICAMENTE con JSON válido:
 
         return faltan
 
-    async def auto_enviar_listas_a_contabilidad(self, area_id: UUID) -> list[dict]:
+    async def auto_enviar_listas_a_contabilidad(
+        self, area_id: UUID, user_id: Optional[UUID] = None
+    ) -> list[dict]:
         """
         Barrido automático: envía a Contabilidad TODAS las facturas del área del
         Responsable que ya estén "Listas" (mismas reglas que el badge visible).
@@ -1812,7 +1949,7 @@ Responde ÚNICAMENTE con JSON válido:
         enviadas: list[dict] = []
         for fid, numero, proveedor in listas:
             try:
-                await self.submit_responsable(fid)
+                await self.submit_responsable(fid, user_id=user_id)
                 enviadas.append({
                     "id": str(fid),
                     "numero_factura": numero,
@@ -1828,7 +1965,9 @@ Responde ÚNICAMENTE con JSON válido:
             logger.info(f"Auto-envío a Contabilidad: {len(enviadas)} factura(s) enviada(s) del área {area_id}.")
         return enviadas
 
-    async def submit_tesoreria(self, factura_id: UUID) -> SubmitResponsableOut:
+    async def submit_tesoreria(
+        self, factura_id: UUID, user_id: Optional[UUID] = None
+    ) -> SubmitResponsableOut:
         """
         Envía una factura desde CONTABILIDAD a TESORERIA.
         
@@ -1906,11 +2045,24 @@ Responde ÚNICAMENTE con JSON válido:
             )
         
         # Actualizar factura
+        area_previa = factura.area_id
+        estado_previo = factura.estado_id
         factura.area_id = TESORERIA_AREA_ID
         factura.estado_id = TESORERIA_ESTADO_ID
         factura.assigned_to_user_id = None
         factura.assigned_at = datetime.utcnow()
         factura.fecha_envio_tesoreria = datetime.utcnow()
+
+        await self.registrar_movimiento(
+            factura_id=factura.id,
+            tipo=MOV_ENVIO_TESORERIA,
+            area_desde_id=area_previa,
+            area_hasta_id=TESORERIA_AREA_ID,
+            estado_desde_id=estado_previo,
+            estado_hasta_id=TESORERIA_ESTADO_ID,
+            user_id=self._to_uuid(user_id),
+            motivo="Contabilidad auditó la factura y la envió a Tesorería para pago.",
+        )
 
         # Commit de cambios
         await self.db.commit()
@@ -1974,7 +2126,9 @@ Responde ÚNICAMENTE con JSON válido:
             ]
         )
     
-    async def submit_gadmin_tesoreria(self, factura_id: UUID) -> SubmitResponsableOut:
+    async def submit_gadmin_tesoreria(
+        self, factura_id: UUID, user_id: Optional[UUID] = None
+    ) -> SubmitResponsableOut:
         """
         Envía una factura desde GADMIN directamente a TESORERIA (sin pasar por Contabilidad).
         """
@@ -2006,10 +2160,23 @@ Responde ÚNICAMENTE con JSON válido:
         if factura.area_origen_id is None:
             factura.area_origen_id = GADMIN_AREA_ID
 
+        area_previa = factura.area_id
+        estado_previo = factura.estado_id
         factura.area_id = TESORERIA_AREA_ID
         factura.estado_id = TESORERIA_ESTADO_ID
         factura.assigned_to_user_id = None
         factura.assigned_at = datetime.utcnow()
+
+        await self.registrar_movimiento(
+            factura_id=factura.id,
+            tipo=MOV_ENVIO_TESORERIA,
+            area_desde_id=area_previa,
+            area_hasta_id=TESORERIA_AREA_ID,
+            estado_desde_id=estado_previo,
+            estado_hasta_id=TESORERIA_ESTADO_ID,
+            user_id=self._to_uuid(user_id),
+            motivo="Gastos Fijos envía directo a Tesorería (sin pasar por Contabilidad).",
+        )
 
         await self.db.commit()
         await self.db.refresh(factura)
@@ -2051,7 +2218,9 @@ Responde ÚNICAMENTE con JSON válido:
             files=[],
         )
 
-    async def close_tesoreria(self, factura_id: UUID) -> SubmitResponsableOut:
+    async def close_tesoreria(
+        self, factura_id: UUID, user_id: Optional[UUID] = None
+    ) -> SubmitResponsableOut:
         """
         Cierra una factura en TESORERIA cambiando su estado a finalizado.
         
@@ -2135,8 +2304,20 @@ Responde ÚNICAMENTE con JSON válido:
             )
         
         # Actualizar factura
+        estado_previo = factura.estado_id
         factura.estado_id = ESTADO_FINALIZADO_ID
         factura.fecha_cierre = datetime.utcnow()
+
+        await self.registrar_movimiento(
+            factura_id=factura.id,
+            tipo=MOV_CIERRE,
+            area_desde_id=factura.area_id,
+            area_hasta_id=factura.area_id,
+            estado_desde_id=estado_previo,
+            estado_hasta_id=ESTADO_FINALIZADO_ID,
+            user_id=self._to_uuid(user_id),
+            motivo="Tesorería cerró el proceso de la factura.",
+        )
 
         # Commit de cambios
         await self.db.commit()
@@ -2340,13 +2521,29 @@ Responde ÚNICAMENTE con JSON válido:
         area_destino = factura.area_origen_id
         if area_destino == CONTABILIDAD_AREA_ID_RUTEO:
             area_destino = RADICACION_AREA_ID
+        area_previa = factura.area_id
+        estado_previo = factura.estado_id
         factura.area_id = area_destino
         factura.estado_id = 1 if area_destino == RADICACION_AREA_ID else 2
         factura.motivo_devolucion = motivo
         factura.devuelta_por_nombre = user_devuelve.nombre if user_devuelve else None
         factura.assigned_to_user_id = None  # Limpiar asignación específica
         factura.fecha_envio_contabilidad = None  # Limpiar: el paso no se completó
-        
+
+        # `facturas` no tiene columna fecha_devolucion: sin esta fila el historial
+        # tenía que aproximar la fecha con updated_at, que se corre con cualquier
+        # edición posterior. Aquí queda el momento exacto y quién devolvió.
+        await self.registrar_movimiento(
+            factura_id=factura.id,
+            tipo=MOV_DEVOLUCION,
+            area_desde_id=area_previa,
+            area_hasta_id=area_destino,
+            estado_desde_id=estado_previo,
+            estado_hasta_id=factura.estado_id,
+            user_id=self._to_uuid(user_id),
+            motivo=motivo,
+        )
+
         await self.db.commit()
         await self.db.refresh(factura)
         
@@ -2448,12 +2645,25 @@ Responde ÚNICAMENTE con JSON válido:
         user_devuelve = result_user_devuelve.scalar_one_or_none()
 
         # Devolver a Radicación
+        area_previa = factura.area_id
+        estado_previo = factura.estado_id
         factura.area_id = area_facturacion.id
         factura.estado_id = 1  # Estado "Recibida" (vuelve a Radicación)
         factura.motivo_devolucion = motivo
         factura.devuelta_por_nombre = user_devuelve.nombre if user_devuelve else None
         factura.assigned_to_user_id = FACTURACION_USER_ID  # Asignar específicamente a Marlin CQ
-        
+
+        await self.registrar_movimiento(
+            factura_id=factura.id,
+            tipo=MOV_DEVOLUCION,
+            area_desde_id=area_previa,
+            area_hasta_id=area_facturacion.id,
+            estado_desde_id=estado_previo,
+            estado_hasta_id=1,
+            user_id=self._to_uuid(user_id),
+            motivo=motivo,
+        )
+
         await self.db.commit()
         await self.db.refresh(factura)
         
@@ -2477,7 +2687,9 @@ Responde ÚNICAMENTE con JSON válido:
             "usuario_facturacion": user_facturacion.nombre,
         }
 
-    async def devolver_a_tesoreria_sin_pagar(self, factura_id: UUID) -> dict:
+    async def devolver_a_tesoreria_sin_pagar(
+        self, factura_id: UUID, user_id: Optional[UUID] = None
+    ) -> dict:
         """
         Revierte una factura de estado 'Pagada' a 'En Tesorería' (estado_id=7).
         Limpia la carpeta de tesorería asignada para que aparezca en la raíz
@@ -2511,6 +2723,17 @@ Responde ÚNICAMENTE con JSON válido:
 
         factura.estado_id = TESORERIA_ESTADO_ID
         factura.carpeta_tesoreria_id = None
+
+        await self.registrar_movimiento(
+            factura_id=factura.id,
+            tipo=MOV_DEVOLUCION,
+            area_desde_id=factura.area_id,
+            area_hasta_id=factura.area_id,
+            estado_desde_id=PAGADA_ESTADO_ID,
+            estado_hasta_id=TESORERIA_ESTADO_ID,
+            user_id=self._to_uuid(user_id),
+            motivo="Reversión de pago: la factura vuelve a Pendiente en Tesorería.",
+        )
 
         await self.db.commit()
         await self.db.refresh(factura)
@@ -2821,7 +3044,7 @@ Responde ÚNICAMENTE con JSON válido:
         """
         from sqlalchemy import select
         from sqlalchemy.orm import selectinload
-        from db.models import Factura, FacturaAsignacion, Area
+        from db.models import Factura, FacturaAsignacion, Area, FacturaMovimiento
 
         factura_q = await self.db.execute(
             select(Factura)
@@ -2859,6 +3082,58 @@ Responde ÚNICAMENTE con JSON válido:
             factura.asignaciones or [],
             key=lambda a: a.created_at,
         )
+
+        # Movimientos REALES (factura_movimientos): cada fila es un hecho con su
+        # fecha exacta y su autor. Todo lo que ya esté aquí manda sobre los eventos
+        # sintéticos de más abajo, que solo existen para las facturas anteriores a
+        # la bitácora (y que aproximan la fecha a partir de otras columnas).
+        movimientos = (await self.db.execute(
+            select(FacturaMovimiento)
+            .where(FacturaMovimiento.factura_id == factura_id)
+            .order_by(FacturaMovimiento.created_at.asc())
+        )).unique().scalars().all()
+
+        TITULOS_MOV = {
+            MOV_ENVIO_CONTABILIDAD: "Enviada a Contabilidad",
+            MOV_ENVIO_TESORERIA: "Enviada a Tesorería",
+            MOV_CIERRE: "Factura pagada / cerrada",
+        }
+        for mov in movimientos:
+            destino = mov.area_hasta.nombre if mov.area_hasta else None
+            origen = mov.area_desde.nombre if mov.area_desde else None
+
+            if mov.tipo == MOV_ASIGNACION:
+                titulo = f"Asignada a {destino}" if destino else "Asignada"
+            elif mov.tipo == MOV_DEVOLUCION:
+                titulo = f"Devuelta a {destino}" if destino else "Devolución registrada"
+            else:
+                titulo = TITULOS_MOV.get(mov.tipo, "Movimiento registrado")
+
+            partes = []
+            if origen and destino and origen != destino:
+                partes.append(f"Desde {origen}.")
+            if mov.motivo:
+                partes.append(mov.motivo)
+            partes.append(
+                f"Registrado por {mov.user_nombre}." if mov.user_nombre
+                else "Movimiento automático del sistema."
+            )
+
+            eventos.append({
+                "fecha": mov.created_at,
+                "tipo": mov.tipo,
+                "titulo": titulo,
+                "descripcion": " ".join(partes),
+                "area_nombre": destino,
+                "area_id": mov.area_hasta_id,
+                "responsable_nombre": mov.user_nombre,
+                "responsable_email": None,
+            })
+
+        # Qué quedó ya cubierto por un hecho registrado: los bloques sintéticos de
+        # más abajo se saltan para no duplicar el evento ni contradecir su fecha.
+        areas_con_movimiento = {m.area_hasta_id for m in movimientos if m.area_hasta_id}
+        tipos_con_movimiento = {m.tipo for m in movimientos}
 
         for asig in asignaciones_ordenadas:
             eventos.append({
@@ -2911,6 +3186,7 @@ Responde ÚNICAMENTE con JSON válido:
             and not es_area_facturacion
             and not ya_registrada
             and not devolucion_vigente
+            and factura.area_id not in areas_con_movimiento
         ):
             resp_nombre = factura.assigned_user.nombre if factura.assigned_user else None
             resp_email = factura.assigned_user.email if factura.assigned_user else None
@@ -2956,6 +3232,7 @@ Responde ÚNICAMENTE con JSON válido:
                 and (evento_area_actual_emitido or origen_es_facturacion)
             )
             and not any(a.area_id == factura.area_origen_id for a in asignaciones_ordenadas)
+            and factura.area_origen_id not in areas_con_movimiento
         ):
             responsables_origen = await self._buscar_responsables_area(factura.area_origen_id)
             if responsables_origen:
@@ -3063,7 +3340,7 @@ Responde ÚNICAMENTE con JSON válido:
                 "responsable_email": factura.aprobado_calidad_email,
             })
 
-        if factura.fecha_envio_contabilidad:
+        if factura.fecha_envio_contabilidad and MOV_ENVIO_CONTABILIDAD not in tipos_con_movimiento:
             eventos.append({
                 "fecha": factura.fecha_envio_contabilidad,
                 "tipo": "envio_contabilidad",
@@ -3075,7 +3352,7 @@ Responde ÚNICAMENTE con JSON válido:
                 "responsable_email": None,
             })
 
-        if factura.fecha_envio_tesoreria:
+        if factura.fecha_envio_tesoreria and MOV_ENVIO_TESORERIA not in tipos_con_movimiento:
             eventos.append({
                 "fecha": factura.fecha_envio_tesoreria,
                 "tipo": "envio_tesoreria",
@@ -3087,7 +3364,7 @@ Responde ÚNICAMENTE con JSON válido:
                 "responsable_email": None,
             })
 
-        if factura.fecha_cierre:
+        if factura.fecha_cierre and MOV_CIERRE not in tipos_con_movimiento:
             eventos.append({
                 "fecha": factura.fecha_cierre,
                 "tipo": "cierre",
@@ -3099,7 +3376,9 @@ Responde ÚNICAMENTE con JSON válido:
                 "responsable_email": None,
             })
 
-        if factura.motivo_devolucion:
+        # La devolución ya no se aproxima cuando quedó registrada como movimiento:
+        # esa fila trae la fecha exacta y quién la devolvió.
+        if factura.motivo_devolucion and MOV_DEVOLUCION not in tipos_con_movimiento:
             if devolucion_vigente:
                 # No existe columna fecha_devolucion en facturas, así que usamos
                 # updated_at como mejor aproximación: mientras la factura siga devuelta,

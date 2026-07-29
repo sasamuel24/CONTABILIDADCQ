@@ -44,7 +44,7 @@ from modules.facturas.schemas import (
     HistorialFacturaOut,
 )
 from fastapi import UploadFile, File
-from core.auth import require_api_key, get_current_user
+from core.auth import require_api_key, get_current_user, get_current_user_optional, user_id_de
 
 
 router = APIRouter(prefix="/facturas", tags=["Facturas"])
@@ -432,6 +432,7 @@ async def delete_factura(
 async def update_factura(
     factura_id: UUID,
     factura: FacturaUpdate,
+    current_user: dict = Depends(get_current_user_optional),
     service: FacturaService = Depends(get_factura_service)
 ):
     """
@@ -442,7 +443,7 @@ async def update_factura(
     - Datos básicos (proveedor, monto, etc.)
     - Estado
     """
-    return await service.update_factura(factura_id, factura)
+    return await service.update_factura(factura_id, factura, user_id=user_id_de(current_user))
 
 
 @router.patch("/{factura_id}/estado", response_model=EstadoUpdateResponse)
@@ -662,6 +663,7 @@ async def update_factura_anticipo(
 @router.post("/{factura_id}/submit-responsable", response_model=SubmitResponsableOut)
 async def submit_responsable(
     factura_id: UUID,
+    current_user: dict = Depends(get_current_user_optional),
     service: FacturaService = Depends(get_factura_service)
 ):
     """
@@ -744,7 +746,7 @@ async def submit_responsable(
     }
     ```
     """
-    return await service.submit_responsable(factura_id)
+    return await service.submit_responsable(factura_id, user_id=user_id_de(current_user))
 
 
 @router.post(
@@ -785,7 +787,9 @@ async def auto_enviar_contabilidad(
     if user.area_id == GADMIN_AREA_ID:
         return {"enviadas": [], "total": 0}
 
-    enviadas = await service.auto_enviar_listas_a_contabilidad(user.area_id)
+    enviadas = await service.auto_enviar_listas_a_contabilidad(
+        user.area_id, user_id=user_id_de(current_user)
+    )
     return {"enviadas": enviadas, "total": len(enviadas)}
 
 
@@ -846,6 +850,7 @@ async def update_centros(
 )
 async def submit_tesoreria(
     factura_id: UUID,
+    current_user: dict = Depends(get_current_user_optional),
     service: FacturaService = Depends(get_factura_service)
 ):
     """
@@ -916,7 +921,7 @@ async def submit_tesoreria(
     2. Contabilidad audita y envía → POST /facturas/{id}/submit-tesoreria (área pasa a TESORERIA)
     3. Tesorería procesa pago
     """
-    return await service.submit_tesoreria(factura_id)
+    return await service.submit_tesoreria(factura_id, user_id=user_id_de(current_user))
 
 
 @router.post(
@@ -926,10 +931,11 @@ async def submit_tesoreria(
 )
 async def submit_gadmin_tesoreria(
     factura_id: UUID,
+    current_user: dict = Depends(get_current_user_optional),
     service: FacturaService = Depends(get_factura_service)
 ):
     """Envía una factura del área Gastos Fijos Café Quindío directamente a Tesorería, sin pasar por Contabilidad."""
-    return await service.submit_gadmin_tesoreria(factura_id)
+    return await service.submit_gadmin_tesoreria(factura_id, user_id=user_id_de(current_user))
 
 
 @router.post(
@@ -940,6 +946,7 @@ async def submit_gadmin_tesoreria(
 )
 async def close_tesoreria(
     factura_id: UUID,
+    current_user: dict = Depends(get_current_user_optional),
     service: FacturaService = Depends(get_factura_service)
 ):
     """
@@ -1036,7 +1043,7 @@ async def close_tesoreria(
     - Extensión permitida: .pdf
     - Content-Type: application/pdf
     """
-    return await service.close_tesoreria(factura_id)
+    return await service.close_tesoreria(factura_id, user_id=user_id_de(current_user))
 
 
 @router.post(
@@ -1106,13 +1113,15 @@ async def devolver_a_facturacion(
 async def devolver_a_tesoreria_sin_pagar(
     factura_id: UUID,
     service: FacturaService = Depends(get_factura_service),
-    _: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Revierte una factura Pagada al estado En Tesorería y limpia su carpeta asignada.
     Permite que vuelva a aparecer en Carpetas Pendientes por Pagar.
     """
-    return await service.devolver_a_tesoreria_sin_pagar(factura_id)
+    return await service.devolver_a_tesoreria_sin_pagar(
+        factura_id, user_id=user_id_de(current_user)
+    )
 
 
 @router.post(

@@ -4184,8 +4184,38 @@ Orden obligatorio: **backend primero** (pull + restart en EC2) y luego el fronte
 ### ⚠️ Gotchas
 
 - **400 "credit balance is too low"** de Anthropic = la cuenta de la `ANTHROPIC_API_KEY` (`.env`) sin créditos. Afecta este análisis Y `extraer-datos-imagen` de los técnicos. Verificar saldo ANTES de diagnosticar código: el error llega como resultado `error` por gasto con el mensaje en `detalle`.
+- **401 "API key is invalid"**: el `.env` local y el de la EC2 tienen claves **distintas** (29-Jul-2026: la local estaba revocada y la de producción seguía válida). Comprobar cada entorno antes de tocar código — ver el gotcha de claves en la sección de escaneo con IA más abajo.
 - **La migración hay que correrla en la EC2** (`venv/bin/alembic upgrade head`) al hacer pull: el 9-Jul-2026 se hizo pull+restart sin migrar y todos los endpoints de gastos devolvieron 500 `UndefinedColumnError`. "La BD es compartida" NO exime: el que aplica la migración es alembic desde donde se corra, y si el código nuevo llega antes que las columnas, el ORM revienta.
 - Los `Decimal` de Pydantic v2 se serializan como **string** en JSON (`"15945.00"`): el frontend suma con `toNum()` (ver `frontend/AGENTS.md`).
+
+---
+
+## 🔍 Escaneo de facturas con IA (`extraer-datos-imagen`)
+
+> Añadido 29-Jul-2026. Es el botón morado "Escanear con IA" de las páginas de legalización (Técnico, Legalización, Tarjeta CQ, Comercial).
+
+`POST /gastos/extraer-datos-imagen` (en `modules/gastos/router.py`, sección "IA — EXTRACCIÓN DE DATOS DESDE IMAGEN DE FACTURA") recibe un `UploadFile`, lo manda a Claude Haiku (`claude-haiku-4-5-20251001`) con el prompt de extracción y devuelve `ExtraccionDatosOut` (`no_identificacion`, `pagado_a`, `concepto`, `no_recibo`, `valor_pagado`, `fecha`, `confianza`, `campos_detectados`) para pre-llenar el formulario del gasto. No persiste nada: el frontend rellena los campos y el usuario confirma.
+
+### Formatos aceptados (fix 29-Jul-2026)
+
+Antes solo aceptaba imágenes y **rechazaba los PDF con 422 antes de llegar a la IA** — el usuario veía "Error !" al subir una factura electrónica desde el PC. Ahora:
+
+- **Imágenes** (`_MEDIA_TYPES_IMAGEN`: JPG/PNG/WEBP/GIF) → bloque `{"type": "image", "source": {"type": "base64", ...}}`.
+- **PDF** (`application/pdf`) → bloque `{"type": "document", ...}`, el mismo patrón que ya usaba `_extraer_impuestos_soporte`.
+- Si el navegador manda `application/octet-stream` (pasa al subir desde el PC), el tipo se resuelve por la **extensión del nombre** antes de rechazar. Cualquier otro tipo sigue siendo 422 con mensaje claro.
+
+Frontend: los 4 inputs de escaneo llevan `accept="image/jpeg,image/png,image/webp,application/pdf"` y conservan `capture="environment"` (en celular sigue abriendo la cámara directo; en escritorio el `capture` se ignora y deja elegir el PDF). `comprimirImagen` en `frontend/src/lib/api.ts` **no toca** los PDF (solo comprime `file.type.startsWith('image/')`), así que un PDF > 9 MB lo frena `validarTamanoSubida` con mensaje propio antes de morir en el API Gateway.
+
+### ⚠️ Gotchas
+
+- **Claves Anthropic distintas por entorno.** El `backend/.env` local y el de la EC2 NO tienen la misma `ANTHROPIC_API_KEY`. El 29-jul-2026 la local estaba revocada (401) mientras producción funcionaba. Verificar cada entorno antes de culpar al código:
+  ```bash
+  curl -s -o /dev/null -w "%{http_code}\n" https://api.anthropic.com/v1/models \
+    -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01"
+  # 200 = válida | 401 = revocada/inválida
+  ```
+- **Errores de la API de IA = 503, no 500.** Desde el 29-jul el endpoint captura `anthropic.AuthenticationError` (clave inválida) y `anthropic.APIStatusError` (saldo agotado, rate limit, sobrecarga) y responde 503 con `detail` legible. Antes cualquiera de esos casos salía como 500 con stacktrace. **El orden importa:** `AuthenticationError` es subclase de `APIStatusError`, va primero.
+- Los `catch` de `handleEscanear` en las 4 páginas muestran el `detail` real del backend en el toast — si vuelve a fallar, el motivo se lee en pantalla sin abrir el log.
 
 ---
 

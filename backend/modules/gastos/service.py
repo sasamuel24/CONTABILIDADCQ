@@ -1459,6 +1459,163 @@ class GastosService:
             logger.error(f"Error al aprobar solicitud parcial: {e}")
             raise HTTPException(status_code=500, detail="Error interno al procesar la aprobación.")
 
+    async def rechazar_por_token(self, token_str: str, motivo: str, ip: str) -> dict:
+        """Rechaza un paquete desde el correo de aprobación, con el motivo que
+        escribió el aprobador.
+
+        Es la pareja de `aprobar_por_token` y sirve para los dos tipos de enlace:
+        el token del paquete completo y el de una solicitud parcial (flujo
+        comercial multi-gerente). En el parcial basta que UNO rechace para frenar
+        el paquete completo.
+
+        El paquete queda en 'devuelto' —el mismo estado que usa la devolución del
+        Responsable— para que quien lo legalizó pueda corregirlo y reenviarlo. El
+        motivo se guarda como comentario de devolución, así que no hace falta
+        migración ni columnas nuevas.
+        """
+        motivo = (motivo or "").strip()
+        if len(motivo) < 5:
+            raise HTTPException(
+                status_code=400,
+                detail="Indique el motivo del rechazo (mínimo 5 caracteres).",
+            )
+
+        try:
+            now_utc = datetime.now(tz=timezone.utc)
+            token_obj = await self.token_repo.get_by_token(token_str)
+            solicitud = None
+
+            if not token_obj:
+                result = await self.db.execute(
+                    select(SolicitudAprobacion).where(SolicitudAprobacion.token == token_str)
+                )
+                solicitud = result.scalar_one_or_none()
+                if not solicitud:
+                    raise HTTPException(status_code=404, detail="Token de aprobación no válido.")
+                if solicitud.estado == "aprobada":
+                    raise HTTPException(status_code=400, detail="Esta solicitud ya fue aprobada.")
+                if solicitud.estado == "anulada":
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Esta solicitud fue anulada. Solicite un nuevo enlace al responsable.",
+                    )
+                expires_at = solicitud.expires_at
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if now_utc > expires_at:
+                    raise HTTPException(status_code=400, detail="El enlace de aprobación ha expirado.")
+                paquete_id = solicitud.paquete_id
+            else:
+                if token_obj.usado:
+                    raise HTTPException(status_code=400, detail="Este token ya fue utilizado.")
+                expires_at = token_obj.expires_at
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if now_utc > expires_at:
+                    raise HTTPException(status_code=400, detail="El token de aprobación ha expirado.")
+                paquete_id = token_obj.paquete_id
+
+            paquete = await self._get_paquete_or_404(paquete_id)
+            if paquete.estado != "en_revision":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"El paquete está en estado '{paquete.estado}' y no puede rechazarse por este medio.",
+                )
+
+            # Quién rechaza: en el parcial, el aprobador de la solicitud; en el
+            # token del paquete, el aprobador asignado (si lo hay).
+            if solicitud is not None:
+                aprobador = await self.db.get(AprobadorGerencia, solicitud.aprobador_id)
+            else:
+                aprobador = paquete.aprobador
+            nombre_aprobador = aprobador.nombre if aprobador else "Aprobador"
+
+            if token_obj:
+                token_obj.usado = True
+                token_obj.usado_at = now_utc
+                token_obj.usado_por_ip = ip
+            if solicitud is not None:
+                solicitud.fecha_respuesta = now_utc
+                solicitud.usado_por_ip = ip
+
+            # Los demás enlaces vigentes dejan de servir: el paquete se va a corregir.
+            result = await self.db.execute(
+                select(SolicitudAprobacion)
+                .where(SolicitudAprobacion.paquete_id == paquete.id)
+                .where(SolicitudAprobacion.estado == "pendiente")
+            )
+            for s in result.scalars().all():
+                s.estado = "anulada"
+            result_tokens = await self.db.execute(
+                select(TokenAprobacionPaquete)
+                .where(TokenAprobacionPaquete.paquete_id == paquete.id)
+                .where(TokenAprobacionPaquete.usado == False)  # noqa: E712
+            )
+            for t in result_tokens.scalars().all():
+                t.usado = True
+                t.usado_at = now_utc
+            await self.db.flush()
+
+            paquete.estado = "devuelto"
+            await self.paquete_repo.save(paquete)
+            await self.comentario_repo.create(ComentarioPaquete(
+                paquete_id=paquete.id,
+                user_id=None,
+                texto=f"Rechazado por {nombre_aprobador} desde el correo de aprobación: {motivo}",
+                tipo="devolucion",
+            ))
+            await self.historial_repo.create(HistorialEstadoPaquete(
+                paquete_id=paquete.id,
+                user_id=None,
+                estado_anterior="en_revision",
+                estado_nuevo="devuelto",
+            ))
+            await self.db.commit()
+
+            paquete_final = await self.paquete_repo.get_by_id(paquete.id)
+            await self._notificar_paquete_rechazado(paquete_final, nombre_aprobador, motivo)
+
+            logger.info(
+                f"Paquete {paquete_final.folio or paquete_final.id} RECHAZADO por "
+                f"{nombre_aprobador} vía email. Motivo: {motivo}"
+            )
+            return {
+                "paquete_id": paquete_final.id,
+                "folio": paquete_final.folio,
+                "tecnico_nombre": paquete_final.tecnico.nombre if paquete_final.tecnico else "—",
+                "semana": paquete_final.semana,
+                "monto_total": paquete_final.monto_total,
+                "rechazado_por_nombre": nombre_aprobador,
+                "fecha_rechazo": now_utc,
+                "motivo_rechazo": motivo,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error al rechazar paquete por token: {e}")
+            raise HTTPException(status_code=500, detail="Error interno al procesar el rechazo.")
+
+    async def _notificar_paquete_rechazado(
+        self, paquete_final: PaqueteGasto, nombre_aprobador: str, motivo: str
+    ) -> None:
+        """Avisa a quien legalizó el paquete y al responsable que lo tramitó."""
+        try:
+            destinatarios = []
+            if paquete_final.tecnico and paquete_final.tecnico.email:
+                destinatarios.append(paquete_final.tecnico.email)
+            if settings.email_responsable and settings.email_responsable not in destinatarios:
+                destinatarios.append(settings.email_responsable)
+            if destinatarios:
+                await email_service.enviar_notificacion_paquete_rechazado(
+                    paquete=paquete_final,
+                    destinatarios=destinatarios,
+                    rechazado_por=nombre_aprobador,
+                    motivo=motivo,
+                )
+        except Exception as e:  # el rechazo ya quedó guardado; el correo es secundario
+            logger.error(f"No se pudo notificar el rechazo del paquete {paquete_final.id}: {e}")
+
     # ------------------------------------------------------------------
     # Devolución individual de gasto (Fase 3)
     # ------------------------------------------------------------------

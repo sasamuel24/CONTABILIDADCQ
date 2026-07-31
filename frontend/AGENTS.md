@@ -90,7 +90,7 @@ Authorization: Bearer <access_token>
 |---|---|---|
 | Página del Comercial | `src/pages/ComercialPage.tsx` | Todo en un archivo: lista, historial, nuevo paquete, detalle con pipeline visual. SIN campo Cuenta Contable. Campo "Observaciones (opcional)" por gasto. Si el padre tiene hijos (`GET /gastos/comercial/mis-hijos`), muestra select "Legalizar a nombre de" al crear paquete |
 | Validación Comercial | `src/pages/ResponsablePage.tsx` (sección `comercial`) + `src/components/ResponsablePaquetesView.tsx` con `modo="comercial"` | Filtros: "Por validar" (en_validacion), "Esperando gerentes" (en_revision, solo modo comercial). Columna "Sel." con checkboxes para armar N solicitudes por aprobador; panel de grupos; lista de estado "Solicitudes de aprobación (X/N aprobadas)" con el visto bueno del gerente comercial visible como Pendiente |
-| Aprobación del gerente | `src/pages/AprobarPaquetePage.tsx` (ruta pública `/aprobar-paquete?token=`) | Aprueba al cargar. Si el token es de una solicitud parcial y quedan pendientes, muestra "¡Aprobación registrada!" con el conteo de solicitudes que faltan |
+| Aprobación del gerente | `src/pages/AprobarPaquetePage.tsx` (ruta pública `/aprobar-paquete?token=&accion=`) | `accion=aprobar` (o **sin `accion`**, por los correos viejos de 72 h) aprueba al cargar; `accion=rechazar` pide el motivo (≥5 caracteres) y solo entonces llama a `rechazarPaquetePorToken`. Si el token es de una solicitud parcial y quedan pendientes, muestra "¡Aprobación registrada!" con el conteo de solicitudes que faltan. **Estilos 100% en línea** (ver gotcha de CSS abajo): la abren aprobadores externos desde el correo. Gemela de `AprobarFacturaPage.tsx` — cambiar una implica revisar la otra |
 | Admin de gerentes | `src/components/AprobadoresGerenciaAdmin.tsx` | Aprobadores con categoría general/comercial |
 
 ## Convenciones importantes
@@ -154,6 +154,7 @@ Authorization: Bearer <access_token>
 - Input de subir PDF visible en el panel de carpetas de Tesorería (`hidden` no existía).
 - Barra móvil de ResponsablePage visible en escritorio (`md:hidden` no existía).
 - Spinners que no giraban (`animate-spin`), chevrons que no rotaban (`rotate-180`), textos que no se truncaban (`truncate`), panel de carpetas sin ancho (`w-80`), modales a pantalla completa (`max-w-2xl`).
+- **Botón "Confirmar rechazo" invisible** en `AprobarFacturaPage` (fondo `bg-red-600` inexistente + texto blanco → botón blanco sobre blanco; fix `c8170c0`, 28-Jul-2026). Por eso las páginas públicas de aprobación/rechazo (`AprobarFacturaPage`, `AprobarPaquetePage`, `AprobarAnticipoPagina`) usan **estilos en línea, no clases**: las abre gente externa desde su correo y no pueden depender del snapshot.
 
 ## Regla al escribir/editar componentes
 

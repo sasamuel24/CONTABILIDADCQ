@@ -253,6 +253,23 @@ class PaqueteDevolver(BaseModel):
     motivo: str = Field(..., min_length=5, max_length=2000)
 
 
+class RechazoPaqueteIn(BaseModel):
+    """Rechazo del paquete desde el correo de aprobación (público, sin JWT)."""
+    token: str
+    motivo: str = Field(..., min_length=5, max_length=2000)
+
+
+class RechazoPaqueteOut(BaseModel):
+    paquete_id: UUID
+    folio: Optional[str] = None
+    tecnico_nombre: str
+    semana: str
+    monto_total: Decimal
+    rechazado_por_nombre: str
+    fecha_rechazo: datetime
+    motivo_rechazo: str
+
+
 class PaqueteOut(BaseModel):
     id: UUID
     folio: Optional[str] = None

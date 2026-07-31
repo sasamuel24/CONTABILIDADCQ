@@ -18,6 +18,7 @@ from modules.gastos.schemas import (
     PagarPaqueteIn, PagarMasivoIn, PagarMasivoOut,
     ExtraccionDatosOut, ComercialHijoBrief, ValidarMultipleRequest,
     ValorSinImpuestosUpdate, CruceUpdate, AnalisisImpuestoGastoOut, AnalisisImpuestosResponse,
+    RechazoPaqueteIn, RechazoPaqueteOut,
 )
 
 router = APIRouter(tags=["Gastos"])
@@ -140,6 +141,27 @@ async def aprobar_por_token_endpoint(
     svc = GastosService(db)
     ip = request.client.host if request.client else "unknown"
     return await svc.aprobar_por_token(token, ip)
+
+
+@router.post(
+    "/gastos/paquetes/rechazar-por-token",
+    response_model=RechazoPaqueteOut,
+    summary="Rechazar paquete con motivo desde el email (público, sin JWT)",
+)
+async def rechazar_por_token_endpoint(
+    data: RechazoPaqueteIn,
+    request: Request = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Endpoint público (no requiere JWT), pareja de `/aprobar-por-token`. El aprobador
+    elige "Rechazar" en el correo, escribe el motivo y esta ruta lo registra: el
+    paquete vuelve a 'devuelto' con el motivo visible en DocuFlow y se avisa por
+    correo a quien lo legalizó.
+    """
+    svc = GastosService(db)
+    ip = request.client.host if request and request.client else "unknown"
+    return await svc.rechazar_por_token(data.token, data.motivo, ip)
 
 
 @router.get(

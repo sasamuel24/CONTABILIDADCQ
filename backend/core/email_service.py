@@ -153,7 +153,10 @@ class EmailService:
                     f"</tr>"
                 )
 
-            aprobacion_url = f"{settings.frontend_url}/aprobar-paquete?token={token_str}"
+            # accion=aprobar/rechazar: los enlaces viejos (sin accion) siguen
+            # aprobando al abrirse, para no romper correos todavía vigentes.
+            aprobacion_url = f"{settings.frontend_url}/aprobar-paquete?token={token_str}&accion=aprobar"
+            rechazo_url = f"{settings.frontend_url}/aprobar-paquete?token={token_str}&accion=rechazar"
 
             body_html = f"""
             <html><body style="font-family:Arial,sans-serif;color:#333">
@@ -187,17 +190,29 @@ class EmailService:
               Los enlaces de la columna "Soporte" abren la imagen o PDF adjuntado y son válidos por 72 horas.
             </p>
 
-            <p>Para aprobar este paquete, haga clic en el siguiente enlace (válido por 72 horas):</p>
-            <p>
+            <p>Indique su decisión con uno de los botones (válidos por <strong>72 horas</strong>):</p>
+            <p style="margin:24px 0">
               <a href="{aprobacion_url}"
                  style="background:#1a6e3c;color:#fff;padding:10px 22px;border-radius:4px;
                         text-decoration:none;font-weight:bold;display:inline-block">
-                Aprobar Paquete {folio}
+                &#10003;&nbsp; Aprobar Paquete {folio}
+              </a>
+              &nbsp;&nbsp;
+              <a href="{rechazo_url}"
+                 style="background:#b91c1c;color:#fff;padding:10px 22px;border-radius:4px;
+                        text-decoration:none;font-weight:bold;display:inline-block">
+                &#10007;&nbsp; Rechazar Paquete
               </a>
             </p>
+            <p style="color:#555;font-size:0.9em">
+              Si rechaza, se le pedirá escribir el <strong>motivo</strong>. El paquete vuelve
+              a quien lo legalizó para que corrija y lo envíe de nuevo.
+            </p>
             <p style="color:#888;font-size:0.85em">
-              Si no puede hacer clic en el botón, copie y pegue este enlace en su navegador:<br>
-              {aprobacion_url}
+              Si no puede hacer clic en los botones, copie y pegue en su navegador el enlace
+              que corresponda:<br>
+              Aprobar: <span style="color:#1a6e3c">{aprobacion_url}</span><br>
+              Rechazar: <span style="color:#b91c1c">{rechazo_url}</span>
             </p>
             <hr style="margin-top:30px">
             <p style="color:#aaa;font-size:0.8em">
@@ -513,6 +528,88 @@ class EmailService:
             logger.info(f"Email de aprobación enviado al técnico para paquete {folio}")
         except Exception as e:
             logger.error(f"Error al enviar email de aprobación al técnico: {e}")
+
+    async def enviar_notificacion_paquete_rechazado(
+        self,
+        paquete,
+        destinatarios: list,
+        rechazado_por: str,
+        motivo: str,
+    ) -> None:
+        """Avisa que el aprobador rechazó el paquete desde el correo, con el motivo.
+
+        Sin este correo el rechazo solo se vería entrando a DocuFlow, y el paquete
+        quedaría devuelto en silencio hasta que alguien lo revise.
+        """
+        try:
+            folio = getattr(paquete, "folio", None) or str(paquete.id)[:8]
+            nombre_tecnico = paquete.tecnico.nombre if paquete.tecnico else "Técnico"
+            semana = paquete.semana
+            monto_total = float(paquete.monto_total)
+            frontend_url = settings.frontend_url
+
+            body_html = f"""
+            <html><body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto">
+            <div style="background:#b91c1c;padding:18px 24px;border-radius:6px 6px 0 0">
+              <h2 style="color:#fff;margin:0">&#10007; Paquete de Gastos Rechazado</h2>
+              <p style="color:#fee2e2;margin:4px 0 0">Sistema de Legalización de Gastos</p>
+            </div>
+            <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+              <p>El siguiente paquete fue <strong>rechazado</strong> por
+                 <strong>{rechazado_por}</strong> desde el correo de aprobación.</p>
+              <table style="border-collapse:collapse;margin:16px 0;width:100%">
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold;width:160px">Folio:</td>
+                  <td style="padding:8px 14px">{folio}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Legalizado por:</td>
+                  <td style="padding:8px 14px">{nombre_tecnico}</td>
+                </tr>
+                <tr style="background:#f5f7fa">
+                  <td style="padding:8px 14px;font-weight:bold">Semana:</td>
+                  <td style="padding:8px 14px">{semana}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 14px;font-weight:bold">Monto Total:</td>
+                  <td style="padding:8px 14px;font-size:1.1em;font-weight:bold;color:#b91c1c">
+                    ${monto_total:,.2f} COP
+                  </td>
+                </tr>
+              </table>
+
+              <div style="margin:20px 0;padding:14px 18px;background:#fef2f2;border-left:4px solid #b91c1c;border-radius:4px">
+                <p style="margin:0 0 4px;font-size:0.85em;font-weight:bold;color:#991b1b;text-transform:uppercase;letter-spacing:0.5px">
+                  Motivo del rechazo
+                </p>
+                <p style="margin:0;color:#7f1d1d;font-size:0.95em;white-space:pre-wrap">{motivo}</p>
+              </div>
+
+              <p>El paquete quedó en estado <strong>Devuelto</strong>. Corrija lo indicado
+                 y vuelva a enviarlo desde DocuFlow.</p>
+              <p style="margin:24px 0">
+                <a href="{frontend_url}"
+                   style="background:#00829a;color:#fff;padding:12px 28px;border-radius:5px;
+                          text-decoration:none;font-weight:bold;display:inline-block">
+                  Abrir DocuFlow
+                </a>
+              </p>
+              <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+              <p style="color:#aaa;font-size:0.8em">
+                Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
+              </p>
+            </div>
+            </body></html>
+            """
+
+            subject = f"Paquete Rechazado - {folio} - {nombre_tecnico}"
+            for destinatario in destinatarios:
+                await self._send_mail(subject, body_html, destinatario)
+            logger.info(
+                f"Notificación de rechazo enviada para paquete {folio} a: {', '.join(destinatarios)}"
+            )
+        except Exception as e:
+            logger.error(f"Error al enviar notificación de paquete rechazado: {e}")
 
     async def enviar_notificacion_pago_tecnico(self, paquete, email_tecnico: str) -> None:
         """

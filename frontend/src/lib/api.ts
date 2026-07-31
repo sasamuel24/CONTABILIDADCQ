@@ -2583,6 +2583,36 @@ export async function aprobarPaquetePorToken(token: string): Promise<PaqueteOut>
   return resp.json();
 }
 
+export interface RechazoPaqueteOut {
+  paquete_id: string;
+  folio: string | null;
+  tecnico_nombre: string;
+  semana: string;
+  monto_total: string | number;
+  rechazado_por_nombre: string;
+  fecha_rechazo: string;
+  motivo_rechazo: string;
+}
+
+/** Rechazar paquete con motivo usando el token del correo (público, sin auth) */
+export async function rechazarPaquetePorToken(
+  token: string,
+  motivo: string,
+): Promise<RechazoPaqueteOut> {
+  const API_BASE_URL_PUBLIC = (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
+    'https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1/api/v1';
+  const resp = await fetch(`${API_BASE_URL_PUBLIC}/gastos/paquetes/rechazar-por-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, motivo }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: 'Error desconocido' }));
+    throw new Error(err.detail || `Error ${resp.status}`);
+  }
+  return resp.json();
+}
+
 // ─── Extracción IA desde PDF de factura pública ──────────────────────────────
 
 export interface ExtraccionFacturaPdfOut {

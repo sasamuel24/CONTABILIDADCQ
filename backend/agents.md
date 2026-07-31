@@ -4304,4 +4304,72 @@ Vanessa Galindo (`ventasejecafetero@cafequindio.com.co`, rol `comercial`, sin á
 
 ---
 
-**Última actualización:** 10 de julio de 2026
+## ✅❌ Aprobar / Rechazar por token desde el correo (facturas y paquetes de gastos)
+
+> Añadido 29-Jul-2026, al habilitar el rechazo en el correo de aprobación de **paquetes de gastos** (el de **facturas** ya lo tenía desde el 28-Jul).
+
+Los aprobadores de gerencia **no entran a DocuFlow**: deciden desde el correo. Por eso cada correo de aprobación lleva dos enlaces públicos (sin JWT) y ambos flujos siguen exactamente el mismo patrón; si toca uno, replique el otro.
+
+### Los cuatro endpoints públicos
+
+| Acción | Endpoint | Método | Body / Query |
+|---|---|---|---|
+| Aprobar factura | `/api/v1/facturas/aprobar-por-token` | GET | `?token=` |
+| Rechazar factura | `/api/v1/facturas/rechazar-por-token` | POST | `{token, motivo}` |
+| Aprobar paquete | `/api/v1/gastos/paquetes/aprobar-por-token` | GET | `?token=` |
+| Rechazar paquete | `/api/v1/gastos/paquetes/rechazar-por-token` | POST | `{token, motivo}` |
+
+**Aprobar es GET** porque el enlace se abre directo desde el correo. **Rechazar es POST** porque primero hay que capturar el motivo en pantalla: el enlace del correo NO rechaza al abrirse, solo muestra el formulario.
+
+### Convención `?accion=` (y compatibilidad hacia atrás)
+
+El correo manda los dos enlaces a la MISMA página del frontend, diferenciados por query param:
+
+```
+{FRONTEND_URL}/aprobar-paquete?token=<t>&accion=aprobar
+{FRONTEND_URL}/aprobar-paquete?token=<t>&accion=rechazar
+{FRONTEND_URL}/aprobar-factura?token=<t>&accion=aprobar|rechazar
+```
+
+⚠️ **Los correos viejos no llevan `accion` y sus tokens duran 72 h.** La página debe tratar "sin `accion`" como **aprobar**, o los enlaces todavía vigentes dejarían de funcionar el día del deploy.
+
+### Qué hace el rechazo de un paquete (`GastosService.rechazar_por_token`)
+
+1. Valida motivo ≥ 5 caracteres (Pydantic **y** el service, porque el service también se puede llamar desde otro lado).
+2. Resuelve el token en dos tablas: primero `tokens_aprobacion_paquetes` (paquete completo) y, si no aparece, `solicitudes_aprobacion` (**solicitud parcial** del flujo comercial multi-gerente). Mismo fallback que `aprobar_por_token`.
+3. Exige que el paquete siga en `en_revision`; si no, 400 con el estado actual.
+4. Marca el token como usado, **anula todas las solicitudes `pendiente`** y marca usados los tokens restantes: el paquete se va a corregir, así que ningún otro enlace vigente debe poder aprobarlo. En el flujo comercial basta que **UNO** rechace para frenar el paquete completo.
+5. Paquete → `devuelto` (mismo estado que la devolución del Responsable), motivo guardado como `ComentarioPaquete` de tipo **`devolucion`** + fila en `historial_estados_paquete` con `user_id=None` (no hay usuario autenticado).
+6. Notifica por correo a quien legalizó + `EMAIL_RESPONSABLE`, dentro de `try/except`: si el correo falla, el rechazo ya está guardado.
+
+### 🔑 Decisión de diseño: rechazar NO requirió migración
+
+Se reusan estados y tablas existentes:
+
+- `paquetes_gastos.estado` ya admite `devuelto` (CHECK constraint) → el paquete vuelve editable (`ESTADOS_EDITABLE = {borrador, devuelto}`) y aparece en la bandeja con `comentario_devolucion` (el último comentario tipo `devolucion`, ver `_to_list_item`).
+- `solicitudes_aprobacion.estado` solo admite `pendiente|aprobada|anulada` → el rechazo usa **`anulada`**, NO existe `rechazada`. Si algún día se quiere distinguir "anulada por reenvío" de "rechazada por el gerente", eso SÍ es migración (CHECK constraint).
+- `tokens_aprobacion_paquetes` no guarda nombre/email del aprobador (a diferencia de `tokens_aprobacion_facturas`): el nombre de quien rechaza sale de `paquetes_gastos.aprobador_id` → `aprobadores_gerencia.nombre`, o de la solicitud parcial. Sin aprobador asignado queda "Aprobador".
+
+En **facturas** sí hay columnas dedicadas (`fecha_rechazo_email`, `rechazado_por_nombre`, `motivo_rechazo_email`, `tipo_rechazo_email`) y el rechazo limpia las marcas de envío (`fecha_envio_gerencia` / `_ops` / `_calidad`) para poder corregir y reenviar. La factura **no cambia de área**.
+
+### ⚠️ Gotchas
+
+- **Estilos en línea obligatorios en las páginas `AprobarFacturaPage` / `AprobarPaquetePage`.** `index.css` es un snapshot parcial de Tailwind (ver sección "NO hay Tailwind real"): `bg-red-600` no existe y el botón "Confirmar rechazo" salió **invisible** en producción (fix `c8170c0`). Estas páginas las abren aprobadores externos: no pueden depender de que una clase esté en el snapshot.
+- **No cargar relaciones lazy dentro del service para marcar tokens.** Se usa un `select(TokenAprobacionPaquete)` explícito en vez de iterar `paquete.tokens_aprobacion`, para no depender de la estrategia de carga del repositorio (riesgo de `MissingGreenlet` en async).
+- La ruta `rechazar-por-token` debe declararse **antes** de las rutas `/gastos/paquetes/{paquete_id}/...` por el orden de match de FastAPI.
+- Prueba de humo sin tocar datos: `POST` con motivo corto → **422**; token inexistente → **404 "Token de aprobación no válido."** (ambas son solo lecturas).
+
+### Archivos que se tocan al cambiar este flujo
+
+| Capa | Archivo |
+|---|---|
+| Correo (botones + aviso de rechazo) | `core/email_service.py` (`enviar_solicitud_aprobacion`, `enviar_notificacion_paquete_rechazado`, y sus gemelos de factura) |
+| Schemas | `modules/gastos/schemas.py` (`RechazoPaqueteIn/Out`), `modules/facturas/schemas.py` (`RechazoEmailIn/Out`) |
+| Lógica | `modules/gastos/service.py` (`rechazar_por_token`, `_notificar_paquete_rechazado`), `modules/facturas/service.py` |
+| Rutas | `modules/gastos/router.py`, `modules/facturas/router.py` |
+| Frontend | `src/pages/AprobarPaquetePage.tsx`, `src/pages/AprobarFacturaPage.tsx`, `src/lib/api.ts` |
+| Preview local | `backend/preview_emails.py` — ⚠️ tiene una **copia propia** de la plantilla; se desincroniza con facilidad |
+
+---
+
+**Última actualización:** 29 de julio de 2026

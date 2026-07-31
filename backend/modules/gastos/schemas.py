@@ -153,8 +153,9 @@ class ValorSinImpuestosUpdate(BaseModel):
 
 
 class CruceUpdate(BaseModel):
-    """Facturación marca/desmarca el check de cruce de un gasto."""
+    """Facturación o Tesorería marca/desmarca el check de cruce de un gasto."""
     cruce: bool
+    motivo: Optional[str] = Field(None, max_length=500)
 
 
 class AnalisisImpuestoGastoOut(BaseModel):

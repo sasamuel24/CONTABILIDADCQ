@@ -327,7 +327,7 @@ async def enviar_tesoreria(
 @router.post(
     "/gastos/paquetes/{paquete_id}/cruzar",
     response_model=PaqueteOut,
-    summary="Marcar paquete aprobado como Cruzado: cierre sin pago de Tesorería (radicación/admin)",
+    summary="Marcar paquete como Cruzado: cierre sin pago (radicación/tesorería/admin)",
 )
 async def marcar_cruzado(
     paquete_id: UUID,
@@ -336,8 +336,9 @@ async def marcar_cruzado(
 ):
     role = user.role.code.lower() if user.role else ""
     area = user.area.code.lower() if user.area else ""
-    if role not in {"admin", "fact"} and area not in {"admin", "fact"}:
-        raise HTTPException(status_code=403, detail="Solo radicación puede marcar paquetes como cruzados.")
+    permitidos = {"admin", "fact", "tesoreria", "tes"}
+    if role not in permitidos and area not in permitidos:
+        raise HTTPException(status_code=403, detail="Solo Radicación o Tesorería pueden marcar paquetes como cruzados.")
     return await svc.marcar_cruzado(paquete_id, user.id)
 
 
@@ -900,6 +901,9 @@ Ejemplo 2 (factura electrónica de ferretería):
 # Roles que validan los gastos para el archivo plano (Radicación/Facturación)
 _ROLES_VSI = {"admin", "fact", "contabilidad"}
 
+# Roles que pueden marcar el check de cruce de un gasto (incluye Tesorería)
+_ROLES_CRUCE = _ROLES_VSI | {"tesoreria", "tes"}
+
 _PROMPT_IMPUESTOS = """Analiza este documento (factura, tiquete o recibo colombiano) y extrae el desglose de impuestos.
 Devuelve ÚNICAMENTE un objeto JSON, sin texto adicional, sin markdown.
 
@@ -1163,7 +1167,13 @@ async def actualizar_cruce_gasto(
 ):
     from db.models import GastoLegalizacion
 
-    _check_rol_vsi(user)
+    role = (user.role.code if user.role else "").lower()
+    area = (user.area.code if user.area else "").lower()
+    if role not in _ROLES_CRUCE and area not in _ROLES_CRUCE:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo Radicación/Facturación o Tesorería pueden marcar el cruce de un gasto.",
+        )
 
     result = await db.execute(
         select(GastoLegalizacion).where(
@@ -1176,6 +1186,23 @@ async def actualizar_cruce_gasto(
         raise HTTPException(status_code=404, detail="Gasto no encontrado en este paquete.")
 
     gasto.cruce = data.cruce
+
+    # Trazabilidad del cruce: queda en el historial de observaciones del paquete
+    from db.models import ComentarioPaquete
+
+    detalle = f"{gasto.pagado_a} — {gasto.concepto} (${float(gasto.valor_pagado):,.0f})"
+    if data.cruce:
+        texto = f"Cruce marcado en el gasto: {detalle}."
+        if data.motivo and data.motivo.strip():
+            texto += f" Motivo: {data.motivo.strip()}"
+    else:
+        texto = f"Cruce desmarcado en el gasto: {detalle}."
+        if data.motivo and data.motivo.strip():
+            texto += f" Motivo: {data.motivo.strip()}"
+    db.add(ComentarioPaquete(
+        paquete_id=paquete_id, user_id=user.id,
+        texto=texto, tipo="cruce",
+    ))
     await db.commit()
 
     result = await db.execute(

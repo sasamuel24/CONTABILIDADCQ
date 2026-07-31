@@ -11,6 +11,8 @@ import {
   getPaqueteGasto,
   pagarPaquete,
   pagarPaquetesMasivo,
+  actualizarCruceGasto,
+  marcarCruzadoPaquete,
   devolverPaqueteAFacturacion,
   revertirPagoPaquete,
   getAprobacionGerenciaDownloadUrl,
@@ -98,6 +100,11 @@ export function DetalleAuditoriaTes({
   const [modalRevertirOpen, setModalRevertirOpen] = useState(false);
   const [motivoRevertir, setMotivoRevertir] = useState('');
   const [loadingRevertir, setLoadingRevertir] = useState(false);
+  const [savingCruce, setSavingCruce] = useState<Record<string, boolean>>({});
+  const [modalCruzarOpen, setModalCruzarOpen] = useState(false);
+  const [loadingCruzar, setLoadingCruzar] = useState(false);
+  const [gastoCruceModal, setGastoCruceModal] = useState<GastoOut | null>(null);
+  const [motivoCruce, setMotivoCruce] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -134,6 +141,50 @@ export function DetalleAuditoriaTes({
       toast.error(msg);
     } finally {
       setLoadingPagar(false);
+    }
+  };
+
+  const handleToggleCruce = (g: GastoOut) => {
+    if (!paquete || savingCruce[g.id]) return;
+    // Marcar y desmarcar piden motivo: la trazabilidad queda en el historial de observaciones
+    setMotivoCruce('');
+    setGastoCruceModal(g);
+  };
+
+  const handleConfirmarCruceGasto = async () => {
+    if (!paquete || !gastoCruceModal || motivoCruce.trim().length < 5) return;
+    const g = gastoCruceModal;
+    setSavingCruce((p) => ({ ...p, [g.id]: true }));
+    try {
+      await actualizarCruceGasto(paquete.id, g.id, !g.cruce, motivoCruce.trim());
+      setGastoCruceModal(null);
+      setMotivoCruce('');
+      // Recargar el paquete completo para refrescar el historial de observaciones
+      const data = await getPaqueteGasto(paquete.id);
+      setPaquete(data);
+      toast.success(!g.cruce ? 'Cruce marcado y registrado en el historial' : 'Cruce desmarcado y registrado en el historial');
+    } catch (e: unknown) {
+      const msg = (e as { detail?: string })?.detail ?? 'Error al actualizar el cruce';
+      toast.error(msg);
+    } finally {
+      setSavingCruce((p) => ({ ...p, [g.id]: false }));
+    }
+  };
+
+  const handleConfirmarCruzar = async () => {
+    if (!paquete) return;
+    setLoadingCruzar(true);
+    try {
+      const updated = await marcarCruzadoPaquete(paquete.id);
+      setPaquete(updated);
+      setModalCruzarOpen(false);
+      toast.success('Paquete cerrado por cruce');
+      onPagado(); // recarga la lista
+    } catch (e: unknown) {
+      const msg = (e as { detail?: string })?.detail ?? 'Error al marcar como cruzado';
+      toast.error(msg);
+    } finally {
+      setLoadingCruzar(false);
     }
   };
 
@@ -254,6 +305,24 @@ export function DetalleAuditoriaTes({
   const montoAPagar = paquete.monto_a_pagar ?? paquete.monto_total;
   const yaPagado = paquete.estado === 'pagado';
   const esCruzado = paquete.estado === 'cruzado';
+  const puedeCruzar = paquete.estado === 'en_tesoreria';
+  const gastosConCruce = paquete.gastos.filter((g) => g.cruce && g.estado_gasto !== 'devuelto');
+  const montoCruce = gastosConCruce.reduce((s, g) => s + Number(g.valor_pagado || 0), 0);
+
+  const ESTADO_LABEL: Record<string, string> = {
+    borrador: 'Borrador',
+    en_validacion: 'En validación',
+    en_revision: 'En revisión',
+    devuelto: 'Devuelto',
+    aprobado: 'Aprobado',
+    en_tesoreria: 'En Tesorería',
+    pagado: 'Pagado',
+    cruzado: 'Cruzado',
+  };
+  const fmtFechaHora = (iso: string) => {
+    const d = new Date(iso);
+    return `${fmtFecha(iso.slice(0, 10))} ${d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}`;
+  };
 
   return (
     <>
@@ -485,6 +554,17 @@ export function DetalleAuditoriaTes({
                 >
                   ↩ Devolver a Radicación
                 </button>
+                {puedeCruzar && (
+                  <button
+                    onClick={() => setModalCruzarOpen(true)}
+                    disabled={loadingPagar || loadingCruzar}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: '#6d28d9', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    {loadingCruzar ? <Loader2 className="w-4 h-4 animate-spin" /> : <GitMerge className="w-4 h-4" />}
+                    Cerrar por Cruce
+                  </button>
+                )}
                 <button
                   onClick={handleAbrirModalPagar}
                   disabled={loadingPagar}
@@ -566,13 +646,161 @@ export function DetalleAuditoriaTes({
             document.body
           )}
 
+          {/* Modal: motivo del cruce de un gasto (queda en el historial de observaciones) */}
+          {gastoCruceModal && createPortal(
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={(e) => { if (e.target === e.currentTarget) setGastoCruceModal(null); }}
+            >
+              <div
+                style={{ background: '#fff', borderRadius: 14, padding: '28px 28px 24px', width: '100%', maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#e0f5f7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Check style={{ width: 20, height: 20, color: '#00829a' }} />
+                  </div>
+                  <p style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', fontSize: 16, fontWeight: 700, color: '#111827', margin: 0 }}>
+                    {gastoCruceModal.cruce ? 'Desmarcar cruce del gasto' : 'Marcar cruce del gasto'}
+                  </p>
+                </div>
+                <div style={{ borderRadius: 10, border: '1px solid #b9e6ec', backgroundColor: '#f0fbfc', padding: '8px 12px', marginBottom: 14, fontSize: 13, color: '#374151' }}>
+                  <span style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>{gastoCruceModal.pagado_a}</span>
+                  {' — '}{gastoCruceModal.concepto}{' · '}
+                  <span style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', color: '#00829a' }}>{fmtMonto(gastoCruceModal.valor_pagado)}</span>
+                </div>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                  Motivo del {gastoCruceModal.cruce ? 'descruce' : 'cruce'} <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <textarea
+                  value={motivoCruce}
+                  onChange={(e) => setMotivoCruce(e.target.value)}
+                  placeholder="Ej: Se cruza con el anticipo entregado el 15 de julio..."
+                  rows={4}
+                  autoFocus
+                  style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', fontFamily: 'Neutra Text Book, Montserrat, sans-serif', resize: 'vertical', boxSizing: 'border-box' }}
+                />
+                <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                  Mínimo 5 caracteres. Quedará registrado en el historial de observaciones del paquete.
+                </p>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+                  <button
+                    onClick={() => setGastoCruceModal(null)}
+                    disabled={!!savingCruce[gastoCruceModal.id]}
+                    style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#374151', border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmarCruceGasto}
+                    disabled={!!savingCruce[gastoCruceModal.id] || motivoCruce.trim().length < 5}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#fff', background: savingCruce[gastoCruceModal.id] || motivoCruce.trim().length < 5 ? '#9ca3af' : '#00829a', border: 'none', cursor: savingCruce[gastoCruceModal.id] || motivoCruce.trim().length < 5 ? 'not-allowed' : 'pointer', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    {savingCruce[gastoCruceModal.id] ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin" /> : <Check style={{ width: 15, height: 15 }} />}
+                    {gastoCruceModal.cruce ? 'Confirmar descruce' : 'Confirmar cruce'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+
+          {/* Modal: cerrar por cruce con trazabilidad del paquete */}
+          {modalCruzarOpen && createPortal(
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onClick={(e) => { if (e.target === e.currentTarget) setModalCruzarOpen(false); }}
+            >
+              <div
+                style={{ background: '#fff', borderRadius: 14, padding: '28px 28px 24px', width: '100%', maxWidth: 520, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.18)', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#f5f3ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <GitMerge style={{ width: 20, height: 20, color: '#6d28d9' }} />
+                  </div>
+                  <p style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif', fontSize: 16, fontWeight: 700, color: '#111827', margin: 0 }}>
+                    Cerrar paquete por Cruce
+                  </p>
+                </div>
+                <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 14 }}>
+                  El paquete quedará <strong>cerrado por cruce</strong>, sin registrar pago.
+                  Esta acción no se puede deshacer desde la aplicación.
+                </p>
+
+                {/* Resumen de gastos cruzados */}
+                <div style={{ borderRadius: 10, border: '1px solid #ddd6fe', backgroundColor: '#f5f3ff', padding: '10px 14px', marginBottom: 14, fontSize: 13 }}>
+                  <p style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', color: '#6d28d9', margin: 0 }}>
+                    Gastos marcados con cruce: {gastosConCruce.length} de {paquete.gastos.filter((g) => g.estado_gasto !== 'devuelto').length}
+                    {gastosConCruce.length > 0 && <> — {fmtMonto(montoCruce)}</>}
+                  </p>
+                  {gastosConCruce.length === 0 && (
+                    <p style={{ color: '#b45309', margin: '4px 0 0', fontSize: 12 }}>
+                      Ningún gasto tiene el check de cruce. Puede cerrarlo igual, o cancelar y marcar los cruces en la tabla de gastos.
+                    </p>
+                  )}
+                </div>
+
+                {/* Trazabilidad del paquete */}
+                <p style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, color: '#9ca3af', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', marginBottom: 8 }}>
+                  Trazabilidad del paquete
+                </p>
+                <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 14px', marginBottom: 18 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '5px 0' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: 99, backgroundColor: '#9ca3af', marginTop: 5, flexShrink: 0 }} />
+                    <div style={{ fontSize: 12.5 }}>
+                      <span style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', color: '#374151' }}>Paquete creado</span>
+                      <span style={{ color: '#9ca3af' }}> — {paquete.tecnico?.nombre ?? '—'} · {fmtFechaHora(paquete.created_at)}</span>
+                    </div>
+                  </div>
+                  {[...paquete.historial_estados]
+                    .sort((a, b) => a.created_at.localeCompare(b.created_at))
+                    .map((h) => (
+                      <div key={h.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '5px 0', borderTop: '1px solid #f3f4f6' }}>
+                        <span style={{ width: 8, height: 8, borderRadius: 99, backgroundColor: h.estado_nuevo === 'devuelto' ? '#ef4444' : '#00829a', marginTop: 5, flexShrink: 0 }} />
+                        <div style={{ fontSize: 12.5 }}>
+                          <span style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', color: '#374151' }}>
+                            {h.estado_anterior ? `${ESTADO_LABEL[h.estado_anterior] ?? h.estado_anterior} → ` : ''}
+                            {ESTADO_LABEL[h.estado_nuevo] ?? h.estado_nuevo}
+                          </span>
+                          <span style={{ color: '#9ca3af' }}> — {h.user?.nombre ?? 'Sistema'} · {fmtFechaHora(h.created_at)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  {paquete.historial_estados.length === 0 && (
+                    <p style={{ fontSize: 12, color: '#9ca3af', margin: '4px 0' }}>Sin movimientos registrados.</p>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setModalCruzarOpen(false)}
+                    disabled={loadingCruzar}
+                    style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#374151', border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmarCruzar}
+                    disabled={loadingCruzar}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#fff', background: loadingCruzar ? '#9ca3af' : '#6d28d9', border: 'none', cursor: loadingCruzar ? 'not-allowed' : 'pointer', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                  >
+                    {loadingCruzar ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin" /> : <GitMerge style={{ width: 15, height: 15 }} />}
+                    Cerrar y cruzar
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+
           {esCruzado && (
             <div className="flex items-center gap-2 mt-5 pt-5 border-t border-gray-100">
               <GitMerge className="w-5 h-5" style={{ color: '#6d28d9' }} />
               <span className="text-sm font-semibold" style={{ color: '#6d28d9', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
                 {paquete.fecha_cruce
-                  ? `Cerrado por cruce el ${fmtFecha(paquete.fecha_cruce.slice(0, 10))} — marcado como Cruzado por Facturación`
-                  : 'Cerrado por cruce — marcado como Cruzado por Facturación'}
+                  ? `Cerrado por cruce el ${fmtFecha(paquete.fecha_cruce.slice(0, 10))} — marcado como Cruzado`
+                  : 'Cerrado por cruce — marcado como Cruzado'}
               </span>
             </div>
           )}
@@ -759,13 +987,26 @@ export function DetalleAuditoriaTes({
                         {fmtMonto(g.valor_pagado)}
                       </td>
 
-                      {/* Cruce (marcado por Facturación) */}
+                      {/* Cruce (editable por Tesorería mientras el paquete esté en Tesorería) */}
                       <td className="px-2 py-2 text-center">
-                        {g.cruce ? (
+                        {puedeCruzar && g.estado_gasto !== 'devuelto' ? (
+                          savingCruce[g.id] ? (
+                            <Loader2 className="w-4 h-4 animate-spin inline-block" style={{ color: '#00829a' }} />
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={!!g.cruce}
+                              onChange={() => handleToggleCruce(g)}
+                              className="w-4 h-4 cursor-pointer align-middle"
+                              style={{ accentColor: '#00829a' }}
+                              title="Marcar cruce de este gasto"
+                            />
+                          )
+                        ) : g.cruce ? (
                           <span
                             className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold"
                             style={{ backgroundColor: '#e0f5f7', color: '#00829a', border: '1px solid #b9e6ec' }}
-                            title="Gasto marcado como cruce por Facturación"
+                            title="Gasto marcado como cruce"
                           >
                             <Check className="w-3 h-3" /> Cruce
                           </span>
@@ -875,8 +1116,8 @@ export function DetalleAuditoriaTes({
                   key={c.id}
                   className="flex items-start gap-3 p-3 rounded-lg"
                   style={{
-                    backgroundColor: c.tipo === 'devolucion' ? '#fef2f2' : c.tipo === 'aprobacion' ? '#f0fdf4' : '#f9fafb',
-                    border: `1px solid ${c.tipo === 'devolucion' ? '#fecaca' : c.tipo === 'aprobacion' ? '#bbf7d0' : '#e5e7eb'}`,
+                    backgroundColor: c.tipo === 'devolucion' ? '#fef2f2' : c.tipo === 'aprobacion' ? '#f0fdf4' : c.tipo === 'cruce' ? '#f0fbfc' : '#f9fafb',
+                    border: `1px solid ${c.tipo === 'devolucion' ? '#fecaca' : c.tipo === 'aprobacion' ? '#bbf7d0' : c.tipo === 'cruce' ? '#b9e6ec' : '#e5e7eb'}`,
                   }}
                 >
                   <div className="flex-1">

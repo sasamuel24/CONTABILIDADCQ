@@ -759,8 +759,12 @@ class GastosService:
         historial/trazabilidad como cierre por cruce.
         """
         paquete = await self._get_paquete_or_404(paquete_id)
-        if paquete.estado != "aprobado":
-            raise HTTPException(status_code=400, detail="Solo paquetes aprobados pueden marcarse como cruzados.")
+        if paquete.estado not in ("aprobado", "en_tesoreria"):
+            raise HTTPException(
+                status_code=400,
+                detail="Solo paquetes aprobados o en Tesorería pueden marcarse como cruzados.",
+            )
+        estado_anterior = paquete.estado
 
         # Igual que en el envío a Tesorería: el monto efectivo excluye gastos devueltos
         monto_a_pagar = sum(
@@ -774,7 +778,8 @@ class GastosService:
         paquete.fecha_cruce = datetime.now(tz=timezone.utc)
         await self.paquete_repo.save(paquete)
 
-        texto_comentario = "Paquete marcado como Cruzado por Facturación. Cerrado por cruce, sin pago de Tesorería."
+        quien = "Tesorería" if estado_anterior == "en_tesoreria" else "Facturación"
+        texto_comentario = f"Paquete marcado como Cruzado por {quien}. Cerrado por cruce, sin pago de Tesorería."
         if devueltos:
             nombres = ", ".join(f"{g.pagado_a} (${float(g.valor_pagado):,.0f})" for g in devueltos)
             texto_comentario += f" Se excluyeron gastos devueltos: {nombres}."
@@ -784,7 +789,7 @@ class GastosService:
         ))
         await self.historial_repo.create(HistorialEstadoPaquete(
             paquete_id=paquete.id, user_id=user_id,
-            estado_anterior="aprobado", estado_nuevo="cruzado",
+            estado_anterior=estado_anterior, estado_nuevo="cruzado",
         ))
         await self.db.commit()
         paquete_cruzado = await self.paquete_repo.get_by_id(paquete_id)

@@ -1948,7 +1948,7 @@ export interface ComentarioPaqueteOut {
   paquete_id: string;
   user: { id: string; nombre: string; email: string } | null;
   texto: string;
-  tipo: 'observacion' | 'devolucion' | 'aprobacion' | 'pago';
+  tipo: 'observacion' | 'devolucion' | 'aprobacion' | 'pago' | 'cruce';
   created_at: string;
 }
 
@@ -2175,7 +2175,7 @@ export async function enviarATesoreria(paqueteId: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/enviar-tesoreria`, { method: 'POST' });
 }
 
-/** Radicación marca el paquete aprobado como Cruzado (cierre sin pago de Tesorería) */
+/** Radicación (aprobado) o Tesorería (en_tesoreria) marca el paquete como Cruzado (cierre sin pago) */
 export async function marcarCruzadoPaquete(paqueteId: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/cruzar`, { method: 'POST' });
 }
@@ -2545,17 +2545,19 @@ export async function actualizarValorSinImpuestos(
   );
 }
 
-/** Facturación marca/desmarca el check de cruce de un gasto (visible en Tesorería) */
+/** Facturación o Tesorería marca/desmarca el check de cruce de un gasto.
+ *  El motivo queda como comentario en el historial de observaciones del paquete. */
 export async function actualizarCruceGasto(
   paqueteId: string,
   gastoId: string,
-  cruce: boolean
+  cruce: boolean,
+  motivo?: string
 ): Promise<GastoOut> {
   return fetchAPI<GastoOut>(
     `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/cruce`,
     {
       method: 'PATCH',
-      body: JSON.stringify({ cruce }),
+      body: JSON.stringify({ cruce, motivo: motivo ?? null }),
     }
   );
 }

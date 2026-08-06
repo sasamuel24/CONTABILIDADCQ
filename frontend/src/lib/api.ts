@@ -618,6 +618,35 @@ export async function exportarPlanoPaquete(paqueteId: string): Promise<void> {
   URL.revokeObjectURL(link.href);
 }
 
+/**
+ * Exportar el informe Excel de gastos de técnicos de mantenimiento por zona
+ * (responsable/dirección/admin). fechaHasta = corte (default hoy en backend);
+ * fechaDesde opcional acota por inicio de semana del paquete.
+ */
+export async function exportarInformeZonas(fechaHasta?: string, fechaDesde?: string): Promise<void> {
+  const token = getAccessToken();
+  const q = new URLSearchParams();
+  if (fechaHasta) q.set('fecha_hasta', fechaHasta);
+  if (fechaDesde) q.set('fecha_desde', fechaDesde);
+  const url = `${API_BASE_URL}/gastos/informes/tecnicos-zonas${q.toString() ? `?${q.toString()}` : ''}`;
+  const resp = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al exportar el informe');
+  }
+  const blob = await resp.blob();
+  const cd = resp.headers.get('Content-Disposition') || '';
+  const match = cd.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : 'Informe_Docuflow_Tecnicos_Zonas.xlsx';
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 export interface AreaCount {
   area_id: string;
   nombre: string;

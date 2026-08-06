@@ -31,6 +31,7 @@ import {
   getCmPdfGastoDownloadUrl,
   eliminarCmPdfGasto,
   exportarPlanoPaquete,
+  exportarInformeZonas,
   analizarImpuestosPaquete,
   actualizarValorSinImpuestos,
   actualizarCruceGasto,
@@ -2001,12 +2002,34 @@ export function ResponsablePaquetesView({
   const areaLista = user?.area?.code?.toLowerCase() ?? '';
   const esFact = ['admin', 'fact'].includes(rolLista) || ['admin', 'fact'].includes(areaLista);
 
+  const esResponsableLista = ['admin', 'responsable', 'direccion'].includes(rolLista)
+    || ['admin', 'responsable', 'direccion', 'mant'].includes(areaLista);
+
   const [vista, setVista] = useState<Vista>('lista');
   const [paqueteActivo, setPaqueteActivo] = useState<string | null>(null);
   const [abrioDesdeDevueltos, setAbrioDesdeDevueltos] = useState(false);
   const [paquetes, setPaquetes] = useState<PaqueteListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState<Filtro>('en_revision');
+  const [modalInformeOpen, setModalInformeOpen] = useState(false);
+  const [informeDesde, setInformeDesde] = useState('');
+  const [informeHasta, setInformeHasta] = useState(() => new Date().toISOString().slice(0, 10));
+  const [loadingInforme, setLoadingInforme] = useState(false);
+
+  const handleDescargarInforme = async () => {
+    if (!informeHasta) return;
+    setLoadingInforme(true);
+    try {
+      await exportarInformeZonas(informeHasta, informeDesde || undefined);
+      setModalInformeOpen(false);
+      toast.success('Informe descargado');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error al exportar el informe';
+      toast.error(msg);
+    } finally {
+      setLoadingInforme(false);
+    }
+  };
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -2129,7 +2152,88 @@ export function ResponsablePaquetesView({
             )}
           </button>
         ))}
+        {modo !== 'comercial' && esResponsableLista && (
+          <button
+            onClick={() => setModalInformeOpen(true)}
+            className="ml-auto flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors hover:bg-gray-50"
+            style={{ color: '#00829a', borderColor: '#b9e6ec', backgroundColor: 'white', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+            title="Exportar el informe Excel de gastos de técnicos por zona"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Exportar informe por zonas
+          </button>
+        )}
       </div>
+
+      {/* Modal: exportar informe de técnicos por zona */}
+      {modalInformeOpen && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) setModalInformeOpen(false); }}
+        >
+          <div
+            className="bg-white rounded-2xl p-7 w-full"
+            style={{ maxWidth: 420, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: '#e0f5f7' }}>
+                <Download className="w-5 h-5" style={{ color: '#00829a' }} />
+              </div>
+              <p className="text-base font-bold text-gray-900" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
+                Informe de técnicos por zona
+              </p>
+            </div>
+            <p className="text-xs text-gray-500 mb-5">
+              Excel con 4 hojas: resumen por zona, por técnico, paquetes y detalle de gastos.
+              El corte incluye los paquetes cuya semana inicia en o antes de la fecha "Hasta"
+              (la semana del corte entra completa).
+            </p>
+            <div className="flex gap-3 mb-1">
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Desde (opcional)</label>
+                <input
+                  type="date"
+                  value={informeDesde}
+                  onChange={(e) => setInformeDesde(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm outline-none"
+                  style={{ borderColor: '#d1d5db' }}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5">Hasta <span style={{ color: '#ef4444' }}>*</span></label>
+                <input
+                  type="date"
+                  value={informeHasta}
+                  onChange={(e) => setInformeHasta(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm outline-none"
+                  style={{ borderColor: '#d1d5db' }}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mb-5">Sin "Desde" el informe sale desde el inicio de la operación.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setModalInformeOpen(false)}
+                disabled={loadingInforme}
+                className="px-4 py-2 rounded-lg text-sm font-semibold border text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                style={{ borderColor: '#d1d5db', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDescargarInforme}
+                disabled={loadingInforme || !informeHasta || (!!informeDesde && informeDesde > informeHasta)}
+                className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                style={{ backgroundColor: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+              >
+                {loadingInforme ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Descargar Excel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lista */}
       {loading && (

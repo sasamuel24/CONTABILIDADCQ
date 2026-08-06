@@ -30,6 +30,8 @@ export function ResponsablePage() {
   const esMant   = user?.area?.code === 'mant';
   const esGadmin = user?.area?.code === 'GADMIN';
   const esTiendas = getUserRoleCode(user) === 'responsable_tiendas';
+  // Solo el responsable del área Comercial (b2b) valida paquetes comerciales
+  const esComercial = user?.area?.code?.toLowerCase() === 'b2b';
   // El Responsable de Tiendas no tiene un área única: opera sobre todas las tiendas.
   const areaLabel = esTiendas ? 'Todas las Tiendas' : (user?.area?.nombre || 'CONTABILIDAD CQ');
   const rolLabel  = esTiendas ? 'Responsable de Tiendas' : 'Responsable de Área';
@@ -38,10 +40,11 @@ export function ResponsablePage() {
     { id: 'bandeja',   label: 'Bandeja de Entrada',       icon: <Inbox        className="w-5 h-5" /> },
     { id: 'historial', label: 'Historial de Facturas',    icon: <History      className="w-5 h-5" /> },
     ...(esMant   ? [{ id: 'paquetes' as Seccion, label: 'Paquetes de Gastos',        icon: <PackageOpen className="w-5 h-5" /> }] : []),
-    ...(!esTiendas ? [{ id: 'comercial' as Seccion, label: 'Validación Comercial',     icon: <CreditCard  className="w-5 h-5" /> }] : []),
+    // Validación Comercial: exclusiva del responsable del área Comercial (b2b)
+    ...(esComercial ? [{ id: 'comercial' as Seccion, label: 'Validación Comercial',     icon: <CreditCard  className="w-5 h-5" /> }] : []),
     ...(esGadmin ? [{ id: 'subida'   as Seccion, label: 'Subida Manual de Facturas', icon: <UploadCloud className="w-5 h-5" /> }] : []),
-    // El Responsable de Tiendas no legaliza anticipos: solo gestiona facturas de tiendas.
-    ...(!esTiendas ? [{ id: 'anticipo' as Seccion, label: 'Legalizar Anticipo', icon: <Banknote className="w-5 h-5" /> }] : []),
+    // Legalizar Anticipo se retiró del menú del responsable (6-ago-2026):
+    // los anticipos se legalizan por los usuarios de legalización, no desde aquí.
   ];
 
   const openDrawer = () => {

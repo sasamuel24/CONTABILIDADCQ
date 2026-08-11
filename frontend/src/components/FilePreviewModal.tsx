@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, ZoomIn, ZoomOut } from 'lucide-react';
 import { API_BASE_URL } from '../lib/api';
 
@@ -26,6 +26,36 @@ export function FilePreviewModal({
   const [zoom, setZoom] = useState(1);
   // Tamaño renderizado de la imagen cuando zoom=1 (offsetWidth/offsetHeight, no naturalWidth)
   const [baseSize, setBaseSize] = useState<BaseSize | null>(null);
+  // Paneo con arrastre del mouse sobre la imagen con zoom
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const el = scrollRef.current;
+    if (!el || e.button !== 0) return;
+    dragRef.current = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
+    setDragging(true);
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => {
+      const el = scrollRef.current;
+      const d = dragRef.current;
+      if (!el || !d) return;
+      el.scrollLeft = d.sl - (e.clientX - d.x);
+      el.scrollTop = d.st - (e.clientY - d.y);
+    };
+    const onUp = () => setDragging(false);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [dragging]);
 
   const isTemporaryId = fileId === '00000000-0000-0000-0000-000000000000';
   const baseUrl = isTemporaryId && storagePath && facturaId
@@ -143,19 +173,30 @@ export function FilePreviewModal({
           {isImage && (
             /*
              * Outer: fixed por position:absolute+inset, overflow:auto → genera scroll
-             * Inner: minWidth/minHeight:100% → llena el outer cuando imagen es pequeña
-             *        crece más allá del outer cuando zoom > 1 → dispara el scroll
+             * Inner: width:fit-content + margin:auto en la img → centra cuando cabe
+             *        y deja TODO el contenido alcanzable con scroll cuando desborda
+             *        (justify-content:center dejaría el desborde izquierdo/superior
+             *        fuera del alcance del scroll)
              * Img:   flexShrink:0 → nunca comprimida por flex
              *        offsetWidth/Height en onLoad (no naturalWidth, falla cross-origin)
              *        dimensiones explícitas en px una vez conocida baseSize
              */
-            <div style={{ position: 'absolute', inset: 0, overflow: 'auto', background: '#f9fafb' }}>
+            <div
+              ref={scrollRef}
+              onMouseDown={handleMouseDown}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                overflow: 'auto',
+                background: '#f9fafb',
+                cursor: dragging ? 'grabbing' : 'grab',
+              }}
+            >
               <div style={{
+                width: 'fit-content',
                 minWidth: '100%',
                 minHeight: '100%',
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
                 padding: '16px',
                 boxSizing: 'border-box',
               }}>
@@ -163,9 +204,12 @@ export function FilePreviewModal({
                   src={baseUrl}
                   alt={filename}
                   onLoad={handleImgLoad}
+                  draggable={false}
                   style={{
                     display: 'block',
                     flexShrink: 0,
+                    margin: 'auto',
+                    userSelect: 'none',
                     ...(baseSize
                       ? {
                           width: `${baseSize.w * zoom}px`,

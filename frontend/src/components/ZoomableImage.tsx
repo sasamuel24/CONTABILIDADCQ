@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 interface ZoomableImageProps {
@@ -7,13 +7,16 @@ interface ZoomableImageProps {
 }
 
 /**
- * Imagen con zoom (slider + botones) y scroll independiente del viewport.
- * Úsalo dentro de un contenedor con height definida (flex-1, h-full, etc.)
- * y overflow-hidden.
+ * Imagen con zoom (slider + botones), scroll independiente del viewport y
+ * paneo con arrastre del mouse. Úsalo dentro de un contenedor con height
+ * definida (flex-1, h-full, etc.) y overflow-hidden.
  */
 export function ZoomableImage({ src, alt }: ZoomableImageProps) {
   const [zoom, setZoom] = useState(1);
   const [baseSize, setBaseSize] = useState<{ w: number; h: number } | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const dragRef = useRef<{ x: number; y: number; sl: number; st: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   const zoomPct = Math.round(zoom * 100);
 
@@ -25,6 +28,32 @@ export function ZoomableImage({ src, alt }: ZoomableImageProps) {
       });
     }
   };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const el = scrollRef.current;
+    if (!el || e.button !== 0) return;
+    dragRef.current = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
+    setDragging(true);
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => {
+      const el = scrollRef.current;
+      const d = dragRef.current;
+      if (!el || !d) return;
+      el.scrollLeft = d.sl - (e.clientX - d.x);
+      el.scrollTop = d.st - (e.clientY - d.y);
+    };
+    const onUp = () => setDragging(false);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [dragging]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -105,28 +134,36 @@ export function ZoomableImage({ src, alt }: ZoomableImageProps) {
           <RotateCcw style={{ width: 11, height: 11 }} />
           {zoomPct}%
         </button>
+
+        <span style={{ fontSize: 11, color: '#9ca3af', marginLeft: 4 }}>
+          Arrastra la imagen para moverte
+        </span>
       </div>
 
       {/*
-       * Contenedor scrollable independiente del viewport.
-       * overflow:auto genera las barras de scroll dentro del modal.
-       * El inner div crece con el zoom forzando el scroll.
+       * Contenedor scrollable independiente del viewport, con paneo por arrastre.
+       * El inner div usa width:fit-content + margin:auto en la imagen: centra
+       * cuando la imagen cabe y, cuando desborda por el zoom, TODO el contenido
+       * queda alcanzable con scroll (justify-content:center dejaría el desborde
+       * izquierdo/superior fuera del alcance del scroll).
        */}
       <div
+        ref={scrollRef}
+        onMouseDown={handleMouseDown}
         style={{
           flex: 1,
           overflow: 'auto',
           background: '#f1f5f9',
           position: 'relative',
+          cursor: dragging ? 'grabbing' : 'grab',
         }}
       >
         <div
           style={{
+            display: 'flex',
+            width: 'fit-content',
             minWidth: '100%',
             minHeight: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
             padding: 20,
             boxSizing: 'border-box',
           }}
@@ -135,9 +172,12 @@ export function ZoomableImage({ src, alt }: ZoomableImageProps) {
             src={src}
             alt={alt}
             onLoad={handleImgLoad}
+            draggable={false}
             style={{
               display: 'block',
               flexShrink: 0,
+              margin: 'auto',
+              userSelect: 'none',
               boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
               borderRadius: 4,
               ...(baseSize

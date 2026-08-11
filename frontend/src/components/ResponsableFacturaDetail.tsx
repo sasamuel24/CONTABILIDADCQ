@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Upload, AlertCircle, Eye, Download, FileText, CheckCircle, Loader2, Trash2, Send, RefreshCw, XCircle } from 'lucide-react';
+import { X, Upload, AlertCircle, Eye, Download, FileText, CheckCircle, Loader2, Trash2, Send, RefreshCw, XCircle, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, InventariosData, UnidadNegocio, CuentaAuxiliar, DistribucionCCCO, AprobadorGerencia } from '../lib/api';
 import {
@@ -182,6 +182,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
   // Estado para Gasto Administrativo
   const [esGastoAdm, setEsGastoAdm] = useState(factura.es_gasto_adm || false);
+  const [esActivoFijo, setEsActivoFijo] = useState(factura.es_activo_fijo || false);
+  const [savingActivoFijo, setSavingActivoFijo] = useState(false);
 
   // Estados para Distribución CC/CO
   const [distribuciones, setDistribuciones] = useState<DistribucionCCCO[]>([]);
@@ -925,7 +927,27 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     }
   };
 
+  // La aprobación de gerencia es el ÚLTIMO paso: primero todos los datos.
+  // Pre-chequeo con el estado local (el backend valida además lo guardado).
+  // El CC/CO se cumple con los selects simples O con una Distribución CC/CO
+  // guardada (al guardarla, el backend sincroniza el CC/CO de la factura con
+  // la primera línea).
+  const tieneCCCO = (!!centroCosto && !!centroOperacion) || distribuciones.length > 0;
+  const faltantesAprobacion: string[] = [
+    ...(!tieneCCCO ? ['Centro de Costo y Centro de Operación (o guardar la Distribución CC/CO)'] : []),
+    ...(!esGastoAdm && archivosOCExistentes.length === 0 && !archivoOC ? ['Archivo OC u OS'] : []),
+    ...(tieneAnticipo && !porcentajeAnticipo ? ['Porcentaje de anticipo'] : []),
+  ];
+  const aprobacionBloqueada = !loadingDistribucion && !loadingArchivos && faltantesAprobacion.length > 0;
+
   const handleEnviarCorreoAprobacion = () => {
+    if (aprobacionBloqueada) {
+      toast.error(
+        `La solicitud de aprobación es el último paso. Antes completa y guarda: ${faltantesAprobacion.join(', ')}.`,
+        { duration: 8000 }
+      );
+      return;
+    }
     if (!selectedAprobadorId) {
       toast.error('Selecciona un aprobador antes de enviar el correo.');
       return;
@@ -1825,11 +1847,37 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
 
             {/* Aprobación por correo electrónico */}
             {!requiereInventario && <div>
-              <h4 className="text-gray-900 font-semibold mb-3">
+              <h4 className="text-gray-900 font-semibold mb-1">
                 Aprobación de Gerencia
                 {!esGastoAdm && <span className="text-red-600 ml-1">*</span>}
                 {esGastoAdm && <span className="text-xs text-gray-500 ml-2">(Opcional)</span>}
               </h4>
+              {!facturaAprobadaEmail && !aprobacionBloqueada && (
+                <p className="text-xs text-gray-500 mb-3">
+                  Este es el último paso: completa y guarda todos los demás datos de la factura
+                  (CC/CO, intervalo, archivo OC/OS) antes de solicitar la aprobación, para que al
+                  aprobarse se envíe automáticamente a Contabilidad.
+                </p>
+              )}
+              {!facturaAprobadaEmail && aprobacionBloqueada && (
+                <div
+                  className="flex items-start gap-2.5 px-3 py-3 rounded-lg border mb-3"
+                  style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a' }}
+                >
+                  <Lock className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#b45309' }} />
+                  <div className="text-xs" style={{ color: '#92400e' }}>
+                    <p className="font-semibold mb-1">
+                      Paso bloqueado: la aprobación de gerencia es el último paso.
+                    </p>
+                    <p className="mb-1">Antes completa y guarda:</p>
+                    <ul className="list-disc ml-4 space-y-0.5">
+                      {faltantesAprobacion.map((f) => (
+                        <li key={f}>{f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
 
               {/* Ya aprobada por email */}
               {facturaAprobadaEmail ? (
@@ -1869,7 +1917,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                     <select
                       value={selectedAprobadorId}
                       onChange={e => setSelectedAprobadorId(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white"
+                      disabled={aprobacionBloqueada}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"
                       style={{ fontFamily: "'Neutra Text', 'Montserrat', sans-serif" }}
                     >
                       <option value="">— Seleccionar aprobador —</option>
@@ -1884,18 +1933,20 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   {/* Botón enviar/reenviar */}
                   <button
                     onClick={handleEnviarCorreoAprobacion}
-                    disabled={enviandoCorreoAprobacion || !selectedAprobadorId}
+                    disabled={enviandoCorreoAprobacion || !selectedAprobadorId || aprobacionBloqueada}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-all border-2 text-sm font-semibold"
                     style={{
-                      backgroundColor: correoAprobacionEnviado ? '#e0f5f7' : '#1a3c6e',
-                      borderColor: correoAprobacionEnviado ? '#b2e0e8' : '#1a3c6e',
-                      color: correoAprobacionEnviado ? '#00829a' : '#fff',
-                      cursor: (enviandoCorreoAprobacion || !selectedAprobadorId) ? 'not-allowed' : 'pointer',
-                      opacity: !selectedAprobadorId ? 0.6 : 1,
+                      backgroundColor: aprobacionBloqueada ? '#f3f4f6' : correoAprobacionEnviado ? '#e0f5f7' : '#1a3c6e',
+                      borderColor: aprobacionBloqueada ? '#d1d5db' : correoAprobacionEnviado ? '#b2e0e8' : '#1a3c6e',
+                      color: aprobacionBloqueada ? '#9ca3af' : correoAprobacionEnviado ? '#00829a' : '#fff',
+                      cursor: (enviandoCorreoAprobacion || !selectedAprobadorId || aprobacionBloqueada) ? 'not-allowed' : 'pointer',
+                      opacity: !selectedAprobadorId && !aprobacionBloqueada ? 0.6 : 1,
                     }}
                   >
                     {enviandoCorreoAprobacion ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : aprobacionBloqueada ? (
+                      <Lock className="w-4 h-4" />
                     ) : correoAprobacionEnviado ? (
                       <RefreshCw className="w-4 h-4" />
                     ) : (
@@ -1903,6 +1954,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                     )}
                     {enviandoCorreoAprobacion
                       ? 'Enviando...'
+                      : aprobacionBloqueada
+                      ? 'Bloqueado: faltan datos'
                       : correoAprobacionEnviado
                       ? 'Reenviar correo'
                       : 'Enviar correo de aprobación'}
@@ -2627,11 +2680,55 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               )}
             </div>
 
+            {/* ¿Es activo fijo? */}
+            <div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  ¿Es activo fijo?
+                </label>
+                <div className="flex gap-4">
+                  {[true, false].map((valor) => (
+                    <button
+                      key={valor ? 'si' : 'no'}
+                      disabled={savingActivoFijo}
+                      onClick={async () => {
+                        const anterior = esActivoFijo;
+                        setEsActivoFijo(valor);
+                        setSavingActivoFijo(true);
+                        try {
+                          await updateFactura(factura.id, { es_activo_fijo: valor });
+                        } catch (error: any) {
+                          setEsActivoFijo(anterior);
+                          toast.error(`Error al guardar activo fijo: ${error.message || 'Error desconocido'}`);
+                        } finally {
+                          setSavingActivoFijo(false);
+                        }
+                      }}
+                      className={`px-8 py-2 rounded-lg font-medium transition-colors`}
+                      style={{
+                        backgroundColor: esActivoFijo === valor ? '#00829a' : '#e5e7eb',
+                        color: esActivoFijo === valor ? 'white' : '#374151',
+                        fontFamily: "'Neutra Text', 'Montserrat', sans-serif"
+                      }}
+                      onMouseEnter={(e) => {
+                        if (esActivoFijo !== valor) e.currentTarget.style.backgroundColor = '#d1d5db';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (esActivoFijo !== valor) e.currentTarget.style.backgroundColor = '#e5e7eb';
+                      }}
+                    >
+                      {valor ? 'Sí' : 'No'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             {/* Sección de Comentarios */}
             <div className="p-6 border-t border-gray-200 bg-white">
               {user && (
-                <ComentariosFactura 
-                  facturaId={factura.id} 
+                <ComentariosFactura
+                  facturaId={factura.id}
                   currentUserId={user.id}
                 />
               )}

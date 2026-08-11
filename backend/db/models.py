@@ -599,6 +599,11 @@ class Factura(Base, TimestampMixin):
         nullable=False,
         server_default="false"
     )
+    es_activo_fijo: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false"
+    )
     motivo_devolucion: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True

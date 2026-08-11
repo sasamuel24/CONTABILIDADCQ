@@ -200,6 +200,7 @@ class FacturaService:
                 porcentaje_anticipo=float(f.porcentaje_anticipo) if f.porcentaje_anticipo is not None else None,
                 intervalo_entrega_contabilidad=f.intervalo_entrega_contabilidad,
                 es_gasto_adm=f.es_gasto_adm,
+                es_activo_fijo=f.es_activo_fijo,
                 motivo_devolucion=f.motivo_devolucion,
                 devuelta_por_nombre=f.devuelta_por_nombre,
                 fecha_rechazo_email=f.fecha_rechazo_email,
@@ -1816,6 +1817,7 @@ Responde ÚNICAMENTE con JSON válido:
             requiere_entrada_inventarios=factura.requiere_entrada_inventarios,
             destino_inventarios=factura.destino_inventarios,
             presenta_novedad=factura.presenta_novedad,
+            es_activo_fijo=factura.es_activo_fijo,
             inventario_codigos=[
                 InventarioCodigoOut(
                     codigo=c.codigo,
@@ -1913,6 +1915,55 @@ Responde ÚNICAMENTE con JSON válido:
                 faltan.append("aprobacion_gerencia")
 
         return faltan
+
+    _LABELS_FALTANTES = {
+        "porcentaje_anticipo": "Porcentaje de anticipo",
+        "centro_costo_id": "Centro de Costo (CC)",
+        "centro_operacion_id": "Centro de Operación (CO)",
+        "intervalo_entrega_contabilidad": "Intervalo de entrega a Contabilidad",
+        "archivo_OC_OS": "Archivo OC u OS",
+        "destino_inventarios": "Destino de inventarios (Tienda / Almacén)",
+    }
+
+    async def _validar_datos_antes_de_aprobacion(self, factura, excluir: set) -> None:
+        """
+        La solicitud de aprobación a gerencia debe ser el ÚLTIMO paso del
+        Responsable: exige que el resto del checklist de Contabilidad ya esté
+        guardado, para que al llegar la aprobación el auto-envío pase completo.
+        `excluir` son los requisitos de aprobación que este mismo envío resolverá.
+        """
+        from sqlalchemy import select
+        from db.models import File, FacturaInventarioCodigo
+
+        files = (await self.db.execute(
+            select(File).where(File.factura_id == factura.id)
+        )).scalars().all()
+        codigos = (await self.db.execute(
+            select(FacturaInventarioCodigo).where(FacturaInventarioCodigo.factura_id == factura.id)
+        )).scalars().all()
+
+        faltan = [
+            f for f in self._faltantes_para_contabilidad(factura, codigos, files)
+            if f not in excluir
+        ]
+        if not faltan:
+            return
+
+        legibles = []
+        for f in faltan:
+            if f.startswith("codigos_faltantes="):
+                legibles.append(f"Códigos de inventario ({f.split('=', 1)[1]})")
+            elif f.startswith("longitud_incorrecta="):
+                legibles.append(f"Longitud de códigos ({f.split('=', 1)[1]})")
+            else:
+                legibles.append(self._LABELS_FALTANTES.get(f, f))
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "La solicitud de aprobación a gerencia es el último paso. "
+                "Antes completa y guarda: " + "; ".join(legibles) + "."
+            ),
+        )
 
     async def auto_enviar_listas_a_contabilidad(
         self, area_id: UUID, user_id: Optional[UUID] = None
@@ -2109,6 +2160,7 @@ Responde ÚNICAMENTE con JSON válido:
             requiere_entrada_inventarios=factura.requiere_entrada_inventarios,
             destino_inventarios=factura.destino_inventarios,
             presenta_novedad=factura.presenta_novedad,
+            es_activo_fijo=factura.es_activo_fijo,
             inventario_codigos=[
                 InventarioCodigoOut(
                     codigo=c.codigo,
@@ -2220,6 +2272,7 @@ Responde ÚNICAMENTE con JSON válido:
             porcentaje_anticipo=factura.porcentaje_anticipo,
             intervalo_entrega_contabilidad=factura.intervalo_entrega_contabilidad or '1_SEMANA',
             es_gasto_adm=factura.es_gasto_adm,
+            es_activo_fijo=factura.es_activo_fijo,
             files=[],
         )
 
@@ -2364,6 +2417,7 @@ Responde ÚNICAMENTE con JSON válido:
             requiere_entrada_inventarios=factura.requiere_entrada_inventarios,
             destino_inventarios=factura.destino_inventarios,
             presenta_novedad=factura.presenta_novedad,
+            es_activo_fijo=factura.es_activo_fijo,
             inventario_codigos=[
                 InventarioCodigoOut(
                     codigo=c.codigo,
@@ -2776,6 +2830,9 @@ Responde ÚNICAMENTE con JSON válido:
         factura = result.scalar_one_or_none()
         if not factura:
             raise HTTPException(status_code=404, detail="Factura no encontrada.")
+
+        # La aprobación es el último paso: el resto de datos debe estar guardado.
+        await self._validar_datos_antes_de_aprobacion(factura, excluir={"aprobacion_gerencia"})
 
         result_apr = await self.db.execute(
             select(AprobadorGerencia).where(
@@ -3655,6 +3712,11 @@ Responde ÚNICAMENTE con JSON válido:
         factura = (await self.db.execute(select(Factura).where(Factura.id == factura_id))).scalar_one_or_none()
         if not factura:
             raise HTTPException(status_code=404, detail="Factura no encontrada")
+
+        # La aprobación dual es el último paso: los datos de inventarios deben estar guardados.
+        await self._validar_datos_antes_de_aprobacion(
+            factura, excluir={"aprobacion_ops", "aprobacion_calidad", "aprobacion_gerencia"}
+        )
 
         aprobador_ops = (await self.db.execute(select(AprobadorGerencia).where(AprobadorGerencia.id == aprobador_ops_id))).scalar_one_or_none()
         aprobador_calidad = (await self.db.execute(select(AprobadorGerencia).where(AprobadorGerencia.id == aprobador_calidad_id))).scalar_one_or_none()

@@ -140,6 +140,7 @@ class FacturaUpdate(BaseModel):
     centro_costo_id: Optional[UUID] = None
     centro_operacion_id: Optional[UUID] = None
     es_gasto_adm: Optional[bool] = None
+    es_activo_fijo: Optional[bool] = None
     unidad_negocio_id: Optional[UUID] = None
     cuenta_auxiliar_id: Optional[UUID] = None
     fecha_envio_contabilidad: Optional[datetime] = None
@@ -272,6 +273,7 @@ class FacturaListItem(BaseModel):
     porcentaje_anticipo: Optional[float] = None
     intervalo_entrega_contabilidad: Optional[str] = None
     es_gasto_adm: bool = False
+    es_activo_fijo: bool = False
     motivo_devolucion: Optional[str] = None
     devuelta_por_nombre: Optional[str] = None
     # Rechazo vigente desde el correo de aprobación (distinto de la devolución
@@ -544,6 +546,7 @@ class SubmitResponsableOut(BaseModel):
 
     # Gasto Administrativo
     es_gasto_adm: bool = False
+    es_activo_fijo: bool = False
     
     # Archivos (opcional)
     files: Optional[list[dict]] = []

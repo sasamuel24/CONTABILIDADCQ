@@ -544,6 +544,16 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                       ${factura.total.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                     </span>
                   </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">¿Es activo fijo?</span>
+                    <span className={`px-3 py-1 rounded-lg font-medium text-sm ${
+                      factura.es_activo_fijo
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-200 text-gray-700'
+                    }`}>
+                      {factura.es_activo_fijo ? 'Sí' : 'No'}
+                    </span>
+                  </div>
                 </div>
               </div>
 

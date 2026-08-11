@@ -1046,6 +1046,23 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                 </div>
               </div>
 
+              {/* Activo Fijo */}
+              <div>
+                <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Activo Fijo</h4>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-700">¿Es activo fijo?</span>
+                    <span className={`px-4 py-1 rounded-lg font-medium text-sm ${
+                      factura.es_activo_fijo
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-300 text-gray-700'
+                    }`}>
+                      {factura.es_activo_fijo ? 'Sí' : 'No'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
             </div>
 
             {/* Sección de Comentarios */}

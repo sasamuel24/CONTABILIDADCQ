@@ -17,6 +17,7 @@ import {
   type PaqueteOut,
   type EstadoPaquete,
 } from '../lib/api';
+import { InformeCajasMenoresExport } from './InformeCajasMenoresExport';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -551,15 +552,18 @@ export function DirectorTrazabilidadView() {
             Cajas menores y paquetes de legalización de gastos de todos los flujos — solo consulta
           </p>
         </div>
-        <button
-          onClick={cargar}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg border transition-colors"
-          style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Actualizar
-        </button>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <InformeCajasMenoresExport />
+          <button
+            onClick={cargar}
+            disabled={loading}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg border transition-colors"
+            style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Actualizar
+          </button>
+        </div>
       </div>
 
       {loading ? (

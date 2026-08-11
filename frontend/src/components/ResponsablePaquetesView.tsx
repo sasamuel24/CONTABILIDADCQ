@@ -45,6 +45,7 @@ import {
   AprobadorGerencia,
 } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
+import { InformeCajasMenoresExport } from './InformeCajasMenoresExport';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -68,6 +69,7 @@ import {
   Mail,
   RefreshCw,
   Eye,
+  Search,
   X as XIcon,
   Trash2,
   FileCheck,
@@ -2011,6 +2013,11 @@ export function ResponsablePaquetesView({
   const [paquetes, setPaquetes] = useState<PaqueteListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState<Filtro>('en_revision');
+  // Filtros de Radicación: fechas del reembolso, nombre y área (caja menor)
+  const [busquedaNombre, setBusquedaNombre] = useState('');
+  const [filtroDesde, setFiltroDesde] = useState('');
+  const [filtroHasta, setFiltroHasta] = useState('');
+  const [filtroArea, setFiltroArea] = useState('');
   const [modalInformeOpen, setModalInformeOpen] = useState(false);
   const [informeDesde, setInformeDesde] = useState('');
   const [informeHasta, setInformeHasta] = useState(() => new Date().toISOString().slice(0, 10));
@@ -2085,6 +2092,35 @@ export function ResponsablePaquetesView({
             ? paquetesEnviados.filter((p) => p.estado === estadoRevision && !p.tiene_gastos_devueltos)
             : paquetesEnviados.filter((p) => p.estado === filtro);
 
+  // Áreas (cajas menores) presentes en los paquetes cargados, para el select
+  const areasDisponibles = Array.from(
+    new Set(paquetesEnviados.map((p) => p.area?.nombre).filter((n): n is string => !!n))
+  ).sort((a, b) => a.localeCompare(b, 'es'));
+
+  const hayFiltrosAvanzados = !!(busquedaNombre.trim() || filtroDesde || filtroHasta || filtroArea);
+
+  const limpiarFiltrosAvanzados = () => {
+    setBusquedaNombre('');
+    setFiltroDesde('');
+    setFiltroHasta('');
+    setFiltroArea('');
+  };
+
+  const paquetesVisibles = paquetesFiltrados.filter((p) => {
+    const q = busquedaNombre.trim().toLowerCase();
+    if (q) {
+      const nombre = p.tecnico?.nombre?.toLowerCase() ?? '';
+      const email = p.tecnico?.email?.toLowerCase() ?? '';
+      const folio = p.folio?.toLowerCase() ?? '';
+      if (!nombre.includes(q) && !email.includes(q) && !folio.includes(q)) return false;
+    }
+    if (filtroArea && p.area?.nombre !== filtroArea) return false;
+    // El paquete entra si la semana del reembolso se cruza con el rango elegido
+    if (filtroDesde && p.fecha_fin < filtroDesde) return false;
+    if (filtroHasta && p.fecha_inicio > filtroHasta) return false;
+    return true;
+  });
+
   // Contar sobre paquetesEnviados (ya filtrados por modo) para que los badges
   // coincidan con lo que la vista realmente muestra.
   const pendientes = paquetesEnviados.filter(
@@ -2152,18 +2188,90 @@ export function ResponsablePaquetesView({
             )}
           </button>
         ))}
-        {modo !== 'comercial' && esResponsableLista && (
-          <button
-            onClick={() => setModalInformeOpen(true)}
-            className="ml-auto flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors hover:bg-gray-50"
-            style={{ color: '#00829a', borderColor: '#b9e6ec', backgroundColor: 'white', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-            title="Exportar el informe Excel de gastos de técnicos por zona"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Exportar informe por zonas
-          </button>
+        {modo !== 'comercial' && (esResponsableLista || esFact) && (
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
+            {esFact && <InformeCajasMenoresExport />}
+            {esResponsableLista && (
+              <button
+                onClick={() => setModalInformeOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-colors hover:bg-gray-50"
+                style={{ color: '#00829a', borderColor: '#b9e6ec', backgroundColor: 'white', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+                title="Exportar el informe Excel de gastos de técnicos por zona"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Exportar informe por zonas
+              </button>
+            )}
+          </div>
         )}
       </div>
+
+      {/* Filtros de Radicación: fechas del reembolso, nombre y área (caja menor) */}
+      {esFact && (
+        <div
+          className="flex items-end gap-3 mb-6 flex-wrap bg-white rounded-xl border p-4"
+          style={{ borderColor: '#e5e7eb', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+        >
+          <div className="flex-1" style={{ minWidth: 200 }}>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Nombre</label>
+            <div className="relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={busquedaNombre}
+                onChange={(e) => setBusquedaNombre(e.target.value)}
+                placeholder="Buscar por nombre, correo o folio…"
+                className="w-full border rounded-lg pl-10 pr-3 py-2 text-sm outline-none"
+                style={{ borderColor: '#d1d5db' }}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Reembolsos desde</label>
+            <input
+              type="date"
+              value={filtroDesde}
+              onChange={(e) => setFiltroDesde(e.target.value)}
+              className="border rounded-lg px-3 py-2 text-sm outline-none"
+              style={{ borderColor: '#d1d5db' }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Hasta</label>
+            <input
+              type="date"
+              value={filtroHasta}
+              onChange={(e) => setFiltroHasta(e.target.value)}
+              className="border rounded-lg px-3 py-2 text-sm outline-none"
+              style={{ borderColor: '#d1d5db' }}
+            />
+          </div>
+          <div style={{ minWidth: 180 }}>
+            <label className="block text-xs font-semibold text-gray-600 mb-1.5">Área (caja menor)</label>
+            <select
+              value={filtroArea}
+              onChange={(e) => setFiltroArea(e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm outline-none bg-white"
+              style={{ borderColor: '#d1d5db' }}
+            >
+              <option value="">Todas</option>
+              {areasDisponibles.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </div>
+          {hayFiltrosAvanzados && (
+            <button
+              onClick={limpiarFiltrosAvanzados}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border text-gray-600 hover:bg-gray-50"
+              style={{ borderColor: '#d1d5db', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+            >
+              <XIcon className="w-3.5 h-3.5" />
+              Limpiar
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Modal: exportar informe de técnicos por zona */}
       {modalInformeOpen && (
@@ -2242,18 +2350,20 @@ export function ResponsablePaquetesView({
         </div>
       )}
 
-      {!loading && paquetesFiltrados.length === 0 && (
+      {!loading && paquetesVisibles.length === 0 && (
         <div className="flex flex-col items-center justify-center h-48 text-gray-400">
           <PackageOpen className="w-12 h-12 mb-3 opacity-30" />
           <p style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }} className="text-sm">
-            No hay paquetes {filtro !== 'todos' ? `con estado "${ESTADO_MAP[filtro as EstadoPaquete]?.label ?? filtro}"` : ''}
+            {hayFiltrosAvanzados
+              ? 'No hay paquetes que coincidan con los filtros'
+              : `No hay paquetes ${filtro !== 'todos' ? `con estado "${ESTADO_MAP[filtro as EstadoPaquete]?.label ?? filtro}"` : ''}`}
           </p>
         </div>
       )}
 
-      {!loading && paquetesFiltrados.length > 0 && (
+      {!loading && paquetesVisibles.length > 0 && (
         <div className="flex flex-col gap-3">
-          {paquetesFiltrados.map((p) => (
+          {paquetesVisibles.map((p) => (
             <button
               key={p.id}
               onClick={() => {

@@ -1380,3 +1380,46 @@ async def exportar_informe_tecnicos_zonas(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers=headers,
     )
+
+
+# =============================================================================
+# INFORME DE CAJAS MENORES POR ÁREA
+# =============================================================================
+
+@router.get(
+    "/gastos/informes/cajas-menores",
+    summary="Exportar informe Excel de legalizaciones de cajas menores por área (radicación/dirección/admin)",
+)
+async def exportar_informe_cajas_menores(
+    fecha_hasta: date_type | None = Query(None, description="Corte: incluye paquetes cuya semana inicia en o antes de esta fecha (default hoy)"),
+    fecha_desde: date_type | None = Query(None, description="Opcional: solo paquetes cuya semana inicia en o después de esta fecha"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(_get_user_db),
+):
+    import asyncio
+    import io
+
+    from modules.gastos.informe_cajas_menores import consultar_datos, construir_excel
+
+    role = (user.role.code if user.role else "").lower()
+    area = (user.area.code if user.area else "").lower()
+    permitidos = {"admin", "fact", "direccion"}
+    if role not in permitidos and area not in permitidos:
+        raise HTTPException(status_code=403, detail="Solo Radicación, Dirección o admin pueden exportar este informe.")
+
+    hasta = fecha_hasta or date_type.today()
+    if fecha_desde and fecha_desde > hasta:
+        raise HTTPException(status_code=400, detail="fecha_desde no puede ser posterior a fecha_hasta.")
+
+    paq, det = await consultar_datos(db, fecha_desde, hasta)
+    contenido = await asyncio.to_thread(construir_excel, paq, det, fecha_desde, hasta)
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="Informe_Docuflow_Cajas_Menores_{hasta.isoformat()}.xlsx"',
+        "Access-Control-Expose-Headers": "Content-Disposition",
+    }
+    return StreamingResponse(
+        io.BytesIO(contenido),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )

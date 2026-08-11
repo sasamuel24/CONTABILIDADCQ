@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, MoreVertical, LayoutDashboard, Inbox, LogOut, PackageOpen, Users, FileCode2, Banknote, Menu, X, Trash2 } from 'lucide-react';
+import { Search, MoreVertical, LayoutDashboard, Inbox, LogOut, PackageOpen, Users, FileCode2, Menu, X, Trash2 } from 'lucide-react';
 import { InboxView } from './InboxView';
 import { ResponsablePaquetesView } from './ResponsablePaquetesView';
 import { AdminUsuariosView } from './AdminUsuariosView';
@@ -139,7 +139,7 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
 
   const goTo = (id: string) => {
     setActiveSection(id);
-    if (id === 'paquetes' || id === 'anticipos') setEnDetallePaquetes(false);
+    if (id === 'paquetes') setEnDetallePaquetes(false);
     closeDrawer();
   };
 
@@ -159,7 +159,6 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
     { id: 'dashboard', label: 'Dashboard',   Icon: LayoutDashboard },
     { id: 'inbox',     label: 'Inbox',       Icon: Inbox           },
     { id: 'paquetes',  label: 'Paquetes',    Icon: PackageOpen     },
-    { id: 'anticipos', label: 'Anticipos',   Icon: Banknote        },
   ];
 
   // Sidebar interior — compartido entre desktop y drawer
@@ -184,7 +183,6 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
           { id: 'dashboard', label: 'Dashboard',      Icon: LayoutDashboard },
           { id: 'inbox',     label: 'Inbox',          Icon: Inbox           },
           { id: 'paquetes',  label: 'Paquetes de Gastos', Icon: PackageOpen },
-          { id: 'anticipos', label: 'Anticipos',      Icon: Banknote        },
           { id: 'usuarios',  label: 'Usuarios',       Icon: Users           },
           { id: 'buzon-xml', label: 'Buzón XML',      Icon: FileCode2       },
         ].map(({ id, label, Icon }) => {
@@ -272,16 +270,6 @@ export function Dashboard({ userName, onLogout }: DashboardProps) {
             <BuzonXMLView />
           ) : activeSection === 'usuarios' ? (
             <AdminUsuariosView />
-          ) : activeSection === 'anticipos' ? (
-            <div className={enDetallePaquetes ? 'p-4' : 'p-4 md:p-8'}>
-              {!enDetallePaquetes && (
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>Anticipos</h2>
-                  <p className="text-sm text-gray-400 mt-0.5" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>Audita y envía a Tesorería los paquetes de anticipo aprobados</p>
-                </div>
-              )}
-              <ResponsablePaquetesView soloAnticipos onVistaChange={(v) => setEnDetallePaquetes(v === 'detalle')} />
-            </div>
           ) : activeSection === 'paquetes' ? (
             <div className={enDetallePaquetes ? 'p-4' : 'p-4 md:p-8'}>
               {!enDetallePaquetes && (

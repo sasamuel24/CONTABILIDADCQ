@@ -135,6 +135,7 @@ export interface FacturaListItem {
   porcentaje_anticipo: number | null;
   intervalo_entrega_contabilidad: string | null;
   es_gasto_adm: boolean;
+  es_activo_fijo: boolean;
   motivo_devolucion: string | null;
   devuelta_por_nombre: string | null;
   // Rechazo vigente desde el correo de aprobación (distinto de la devolución
@@ -234,6 +235,7 @@ export interface FacturaUpdate {
   centro_costo_id?: string;
   centro_operacion_id?: string;
   es_gasto_adm?: boolean;
+  es_activo_fijo?: boolean;
   fecha_envio_contabilidad?: string | null;
 }
 
@@ -647,6 +649,31 @@ export async function exportarInformeZonas(fechaHasta?: string, fechaDesde?: str
   URL.revokeObjectURL(link.href);
 }
 
+/** Descarga el informe Excel de legalizaciones de cajas menores por área (radicación/dirección/admin). */
+export async function exportarInformeCajasMenores(fechaHasta?: string, fechaDesde?: string): Promise<void> {
+  const token = getAccessToken();
+  const q = new URLSearchParams();
+  if (fechaHasta) q.set('fecha_hasta', fechaHasta);
+  if (fechaDesde) q.set('fecha_desde', fechaDesde);
+  const url = `${API_BASE_URL}/gastos/informes/cajas-menores${q.toString() ? `?${q.toString()}` : ''}`;
+  const resp = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.detail || 'Error al exportar el informe');
+  }
+  const blob = await resp.blob();
+  const cd = resp.headers.get('Content-Disposition') || '';
+  const match = cd.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : 'Informe_Docuflow_Cajas_Menores.xlsx';
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
 export interface AreaCount {
   area_id: string;
   nombre: string;
@@ -749,6 +776,7 @@ function bandejaToListItem(b: FacturaBandeja): FacturaListItem {
     porcentaje_anticipo: null,
     intervalo_entrega_contabilidad: null,
     es_gasto_adm: false,
+    es_activo_fijo: false,
     motivo_devolucion: null,
     devuelta_por_nombre: null,
     area_origen_id: null,
@@ -2065,6 +2093,7 @@ export interface PaqueteListItem {
   tiene_gastos_devueltos: boolean;
   folio?: string | null;
   tecnico: { id: string; nombre: string; email: string } | null;
+  area?: { id: string; nombre: string } | null;
   aprobador: AprobadorBrief | null;
   anticipo: AnticipoBrief | null;
   comercial_hijo?: { id: string; nombre: string } | null;

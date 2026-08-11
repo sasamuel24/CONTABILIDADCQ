@@ -326,6 +326,7 @@ class PaqueteListItem(BaseModel):
     comentario_devolucion: Optional[str] = None
     tiene_gastos_devueltos: bool = False
     tecnico: Optional[UserBrief] = None
+    area: Optional[AreaBrief] = None
     aprobador: Optional[AprobadorBrief] = None
     anticipo: Optional[AnticipoBrief] = None
     comercial_hijo: Optional[ComercialHijoBrief] = None

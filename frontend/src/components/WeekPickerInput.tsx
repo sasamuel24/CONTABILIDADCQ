@@ -46,6 +46,17 @@ function displayLabel(val: string): string {
   return `Semana ${week}, ${year}  ·  ${fmt(mon)} – ${fmt(sun)}`;
 }
 
+// Una semana "vence" el jueves de la semana siguiente (domingo de cierre + 4
+// días de plazo de entrega). Pasado ese jueves ya no se puede legalizar.
+export function semanaVencida(val: string, hoy: Date = new Date()): boolean {
+  const mon = mondayOfWeek(val);
+  if (!mon) return false;
+  const limite = new Date(mon);
+  limite.setDate(mon.getDate() + 10); // jueves de la semana siguiente
+  limite.setHours(23, 59, 59, 999);
+  return hoy.getTime() > limite.getTime();
+}
+
 const DIAS = ['DO', 'LU', 'MA', 'MI', 'JU', 'VI', 'SA'];
 const MESES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -81,9 +92,11 @@ interface WeekPickerInputProps {
   onChange: (v: string) => void;
   className?: string;
   style?: React.CSSProperties;
+  /** Bloquea semanas cuyo plazo de entrega (jueves siguiente) ya pasó */
+  bloquearVencidas?: boolean;
 }
 
-export function WeekPickerInput({ value, onChange, className, style }: WeekPickerInputProps) {
+export function WeekPickerInput({ value, onChange, className, style, bloquearVencidas }: WeekPickerInputProps) {
   const today = new Date();
   const [open, setOpen] = useState(false);
   const [viewYear, setViewYear] = useState(() => {
@@ -149,7 +162,9 @@ export function WeekPickerInput({ value, onChange, className, style }: WeekPicke
   const selectWeek = (row: Date[]) => {
     // Monday is index 1 (LU column)
     const monday = row[1];
-    onChange(weekValue(monday));
+    const val = weekValue(monday);
+    if (bloquearVencidas && semanaVencida(val, today)) return;
+    onChange(val);
     setOpen(false);
   };
 
@@ -254,25 +269,28 @@ export function WeekPickerInput({ value, onChange, className, style }: WeekPicke
               const { week } = isoWeek(mon);
               const selected = isSelectedRow(row);
               const isCurrentWeek = weekValue(mon) === todayWeekVal;
+              const vencida = !!bloquearVencidas && semanaVencida(weekValue(mon), today);
 
               return (
                 <div
                   key={ri}
                   onClick={() => selectWeek(row)}
+                  title={vencida ? 'Plazo de entrega vencido' : undefined}
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '36px repeat(7, 1fr)',
                     borderRadius: 8,
-                    cursor: 'pointer',
+                    cursor: vencida ? 'not-allowed' : 'pointer',
+                    opacity: vencida ? 0.45 : 1,
                     backgroundColor: selected ? '#00829a' : isCurrentWeek ? 'rgba(0,130,154,0.06)' : 'transparent',
                     marginBottom: 2,
                     transition: 'background-color 0.12s',
                   }}
                   onMouseEnter={e => {
-                    if (!selected) (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(0,130,154,0.08)';
+                    if (!selected && !vencida) (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(0,130,154,0.08)';
                   }}
                   onMouseLeave={e => {
-                    if (!selected) (e.currentTarget as HTMLElement).style.backgroundColor = isCurrentWeek ? 'rgba(0,130,154,0.06)' : 'transparent';
+                    if (!selected && !vencida) (e.currentTarget as HTMLElement).style.backgroundColor = isCurrentWeek ? 'rgba(0,130,154,0.06)' : 'transparent';
                   }}
                 >
                   {/* Week number */}

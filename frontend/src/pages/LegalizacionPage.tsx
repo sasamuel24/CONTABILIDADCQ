@@ -27,7 +27,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { WeekPickerInput } from '../components/WeekPickerInput';
+import { WeekPickerInput, semanaVencida } from '../components/WeekPickerInput';
 import { SearchableSelect } from '../components/SearchableSelect';
 import {
   CategoriaGasto,
@@ -1697,6 +1697,11 @@ function NuevoPaqueteForm({
       return;
     }
 
+    if (semanaVencida(semana)) {
+      toast.error('El plazo de entrega de esa semana ya venció (jueves de la semana siguiente). Selecciona una semana vigente.');
+      return;
+    }
+
     const filasValidas = filas.filter(
       (f) => f.fecha || f.noIdentificacion || f.pagadoA || f.concepto || f.valorPagado
     );
@@ -1802,6 +1807,7 @@ function NuevoPaqueteForm({
             <WeekPickerInput
               value={semana}
               onChange={setSemana}
+              bloquearVencidas
               className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 transition-colors"
               style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
             />
@@ -1810,7 +1816,7 @@ function NuevoPaqueteForm({
             <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
             <p className="text-xs text-amber-700"
               style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-              El envio formal debe realizarse antes del <strong>jueves</strong> de cada semana.
+              El envio formal debe realizarse antes del <strong>jueves</strong> de cada semana. Las semanas con plazo vencido aparecen bloqueadas.
             </p>
           </div>
         </div>

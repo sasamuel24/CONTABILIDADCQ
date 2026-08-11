@@ -28,7 +28,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { WeekPickerInput } from '../components/WeekPickerInput';
+import { WeekPickerInput, semanaVencida } from '../components/WeekPickerInput';
 import { SearchableSelect } from '../components/SearchableSelect';
 import {
   CategoriaGasto,
@@ -1143,6 +1143,10 @@ function NuevoPaqueteCQForm({
 
   const handleGuardar = async () => {
     if (!semana) { toast.error('Selecciona la semana de gastos'); return; }
+    if (semanaVencida(semana)) {
+      toast.error('El plazo de entrega de esa semana ya venció (jueves de la semana siguiente). Selecciona una semana vigente.');
+      return;
+    }
     const filasValidas = filas.filter(f => f.fecha || f.noIdentificacion || f.pagadoA || f.concepto || f.valorPagado);
     if (filasValidas.length === 0) { toast.error('Agrega al menos un gasto con datos'); return; }
 
@@ -1211,6 +1215,7 @@ function NuevoPaqueteCQForm({
         <div className="flex items-start gap-4 flex-wrap">
           <div className="flex-1 min-w-[200px]">
             <WeekPickerInput
+              bloquearVencidas
               value={semana}
               onChange={setSemana}
               className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-800 transition-colors"

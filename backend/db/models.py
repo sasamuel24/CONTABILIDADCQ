@@ -114,6 +114,9 @@ class User(Base, TimestampMixin):
         default=uuid.uuid4
     )
     nombre: Mapped[str] = mapped_column(Text, nullable=False)
+    # Cédula del usuario (hoy se pide para responsables de Tarjeta CQ; visible
+    # en la bandeja de paquetes de legalización)
+    cedula: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     email: Mapped[str] = mapped_column(
         Text,
         unique=True,

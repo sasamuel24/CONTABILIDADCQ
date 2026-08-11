@@ -50,6 +50,7 @@ class UserService:
                 email=u.email,
                 role=u.role.code,
                 area=u.area.nombre if u.area else None,
+                cedula=u.cedula,
                 is_active=u.is_active,
                 created_at=u.created_at
             )
@@ -85,6 +86,7 @@ class UserService:
             area=user.area.nombre if user.area else None,
             unidad_negocio_id=user.unidad_negocio_id,
             unidad_negocio_codigo=user.unidad_negocio.codigo if user.unidad_negocio else None,
+            cedula=user.cedula,
             is_active=user.is_active,
             created_at=user.created_at,
             updated_at=user.updated_at,
@@ -105,6 +107,14 @@ class UserService:
                 detail=f"Rol '{user_data.role}' no encontrado o inactivo"
             )
         
+        # La cédula es obligatoria para responsables de Tarjeta CQ: se muestra
+        # en la bandeja de paquetes de legalización.
+        if user_data.role == "tarjeta_cq" and not (user_data.cedula or "").strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="La cédula es obligatoria para el rol Responsable Tarjeta CQ"
+            )
+
         # Verificar si el email ya existe
         existing_user = await self.repository.get_by_email(user_data.email)
         if existing_user:

@@ -953,6 +953,7 @@ function DetallePaqueteResponsable({
               <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
                 <span className="text-gray-400">Técnico: </span>
                 <span className="font-semibold text-gray-700">{paquete.tecnico?.nombre ?? '—'}</span>
+                {paquete.tecnico?.cedula && <span className="text-gray-400"> · CC {paquete.tecnico.cedula}</span>}
                 {paquete.comercial_hijo && (
                   <span className="text-gray-400"> · A nombre de: <span className="font-semibold text-gray-700">{paquete.comercial_hijo.nombre}</span></span>
                 )}
@@ -2112,7 +2113,8 @@ export function ResponsablePaquetesView({
       const nombre = p.tecnico?.nombre?.toLowerCase() ?? '';
       const email = p.tecnico?.email?.toLowerCase() ?? '';
       const folio = p.folio?.toLowerCase() ?? '';
-      if (!nombre.includes(q) && !email.includes(q) && !folio.includes(q)) return false;
+      const cedula = p.tecnico?.cedula ?? '';
+      if (!nombre.includes(q) && !email.includes(q) && !folio.includes(q) && !cedula.includes(q)) return false;
     }
     if (filtroArea && p.area?.nombre !== filtroArea) return false;
     // El paquete entra si la semana del reembolso se cruza con el rango elegido
@@ -2220,7 +2222,7 @@ export function ResponsablePaquetesView({
                 type="text"
                 value={busquedaNombre}
                 onChange={(e) => setBusquedaNombre(e.target.value)}
-                placeholder="Buscar por nombre, correo o folio…"
+                placeholder="Buscar por nombre, cédula, correo o folio…"
                 className="w-full border rounded-lg pl-10 pr-3 py-2 text-sm outline-none"
                 style={{ borderColor: '#d1d5db' }}
               />
@@ -2417,6 +2419,7 @@ export function ResponsablePaquetesView({
                   <User className="w-3 h-3" />
                   <span style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
                     {p.tecnico?.nombre ?? '—'}
+                    {p.tecnico?.cedula && <span className="text-gray-400"> · CC {p.tecnico.cedula}</span>}
                     {p.comercial_hijo && <span className="text-gray-400"> → {p.comercial_hijo.nombre}</span>}
                   </span>
                 </span>

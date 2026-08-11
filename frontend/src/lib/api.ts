@@ -1,5 +1,5 @@
-/**
- * API Client para comunicación con el backend FastAPI
+﻿/**
+ * API Client para comunicaciÃ³n con el backend FastAPI
  */
 
 // Variables de entorno de Vite - definidas en vite-env.d.ts
@@ -57,7 +57,7 @@ export interface AreaDetail {
   id: string;
   code: string;
   nombre: string;
-  // Marca el área como tienda: las facturas de estas áreas son las que ve el
+  // Marca el Ã¡rea como tienda: las facturas de estas Ã¡reas son las que ve el
   // rol responsable_tiendas en su bandeja multi-tienda.
   es_tienda?: boolean;
 }
@@ -138,7 +138,7 @@ export interface FacturaListItem {
   es_activo_fijo: boolean;
   motivo_devolucion: string | null;
   devuelta_por_nombre: string | null;
-  // Rechazo vigente desde el correo de aprobación (distinto de la devolución
+  // Rechazo vigente desde el correo de aprobaciÃ³n (distinto de la devoluciÃ³n
   // de Contabilidad, que usa motivo_devolucion).
   fecha_rechazo_email?: string | null;
   rechazado_por_nombre?: string | null;
@@ -158,7 +158,7 @@ export interface FacturaListItem {
   fecha_aprobacion_email: string | null;
   aprobado_por_nombre: string | null;
   aprobado_por_email: string | null;
-  // Aprobación dual
+  // AprobaciÃ³n dual
   fecha_envio_aprobacion_ops: string | null;
   fecha_aprobacion_ops: string | null;
   aprobado_ops_nombre: string | null;
@@ -171,7 +171,7 @@ export interface FacturaListItem {
   aprobacion_calidad_aprobador_id: string | null;
   fecha_envio_contabilidad: string | null;
   fecha_envio_tesoreria: string | null;
-  /** Fecha en que Tesorería cerró/pagó la factura. */
+  /** Fecha en que TesorerÃ­a cerrÃ³/pagÃ³ la factura. */
   fecha_cierre: string | null;
   // Orden de compra (ingesta N8N) y auto-ruteo a Contabilidad
   tipo_doc?: string | null;
@@ -215,7 +215,7 @@ export interface FacturaDetail {
   rechazado_por_nombre?: string | null;
   motivo_rechazo_email?: string | null;
   tipo_rechazo_email?: string | null;
-  // Aprobación dual
+  // AprobaciÃ³n dual
   fecha_envio_aprobacion_ops: string | null;
   fecha_aprobacion_ops: string | null;
   aprobado_ops_nombre: string | null;
@@ -251,6 +251,7 @@ export interface UserListItem {
   email: string;
   role: string;
   area: string | null;
+  cedula?: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -282,6 +283,7 @@ export interface UserCreatePayload {
   role: string;
   area_id?: string;
   unidad_negocio_id?: string;
+  cedula?: string;
   password: string;
 }
 
@@ -291,6 +293,7 @@ export interface UserUpdatePayload {
   role?: string;
   area_id?: string | null;
   unidad_negocio_id?: string | null;
+  cedula?: string | null;
   is_active?: boolean;
 }
 
@@ -320,7 +323,7 @@ export const clearTokens = (): void => {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 };
 
-// Evita múltiples llamadas simultáneas al endpoint de refresh
+// Evita mÃºltiples llamadas simultÃ¡neas al endpoint de refresh
 let refreshPromise: Promise<boolean> | null = null;
 
 async function tryRefreshToken(): Promise<boolean> {
@@ -370,7 +373,7 @@ export async function fetchAPI<T>(
       headers,
     });
 
-    // Si es 401 intentar renovar el token antes de cerrar sesión
+    // Si es 401 intentar renovar el token antes de cerrar sesiÃ³n
     if (response.status === 401) {
       if (!skipAuthRedirect) {
         // Reutilizar el mismo refresh si ya hay uno en curso
@@ -379,7 +382,7 @@ export async function fetchAPI<T>(
         }
         const refreshed = await refreshPromise;
         if (refreshed) {
-          // Reintentar la petición original con el nuevo token
+          // Reintentar la peticiÃ³n original con el nuevo token
           const newToken = getAccessToken();
           const retryHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
           const retry = await fetch(url, { ...options, headers: retryHeaders });
@@ -409,13 +412,13 @@ export async function fetchAPI<T>(
         throw err;
       }
 
-      // Para errores de validación (422), mostrar detalles completos
+      // Para errores de validaciÃ³n (422), mostrar detalles completos
       if (response.status === 422) {
-        console.error('Error de validación:', error);
+        console.error('Error de validaciÃ³n:', error);
         const message = typeof error.detail === 'string'
           ? error.detail
           : JSON.stringify(error.detail);
-        const err = new Error(`Error de validación: ${message}`);
+        const err = new Error(`Error de validaciÃ³n: ${message}`);
         (err as Error & { status?: number }).status = response.status;
         throw err;
       }
@@ -436,17 +439,17 @@ export async function fetchAPI<T>(
     return response.json();
   } catch (error) {
     if (error instanceof TypeError) {
-      // fetch() falló a nivel de red (API Gateway rechaza >10 MB sin CORS,
-      // caída de conexión, etc.) — el mensaje nativo "Failed to fetch" no le
+      // fetch() fallÃ³ a nivel de red (API Gateway rechaza >10 MB sin CORS,
+      // caÃ­da de conexiÃ³n, etc.) â€” el mensaje nativo "Failed to fetch" no le
       // dice nada al usuario.
       throw new Error(
-        'No se pudo conectar con el servidor. Verifica tu conexión a internet; si estabas subiendo un archivo, es posible que sea demasiado pesado.'
+        'No se pudo conectar con el servidor. Verifica tu conexiÃ³n a internet; si estabas subiendo un archivo, es posible que sea demasiado pesado.'
       );
     }
     if (error instanceof Error) {
       throw error;
     }
-    throw new Error('Error de conexión con el servidor');
+    throw new Error('Error de conexiÃ³n con el servidor');
   }
 }
 
@@ -470,14 +473,14 @@ export async function login(email: string, password: string): Promise<LoginRespo
 }
 
 /**
- * Obtener información del usuario autenticado
+ * Obtener informaciÃ³n del usuario autenticado
  */
 export async function getMe(): Promise<UserMe> {
   return fetchAPI<UserMe>('/auth/me');
 }
 
 /**
- * Obtener información del usuario autenticado (alias para compatibilidad)
+ * Obtener informaciÃ³n del usuario autenticado (alias para compatibilidad)
  */
 export async function getCurrentUser(): Promise<UserMe> {
   return getMe();
@@ -488,12 +491,12 @@ export async function getCurrentUser(): Promise<UserMe> {
  */
 export async function logout(): Promise<void> {
   clearTokens();
-  // Si el backend tiene endpoint de logout, llamarlo aquí
+  // Si el backend tiene endpoint de logout, llamarlo aquÃ­
   // await fetchAPI('/auth/logout', { method: 'POST' });
 }
 
 /**
- * Cambiar contraseña del usuario
+ * Cambiar contraseÃ±a del usuario
  */
 export async function changePassword(
   currentPassword: string,
@@ -509,28 +512,28 @@ export async function changePassword(
 }
 
 /**
- * Verificar si hay una sesión activa
+ * Verificar si hay una sesiÃ³n activa
  */
 export function hasValidSession(): boolean {
   return !!getAccessToken();
 }
 
 /**
- * Obtener métricas del dashboard
+ * Obtener mÃ©tricas del dashboard
  */
 export async function getDashboardMetrics(): Promise<DashboardMetrics> {
   return fetchAPI<DashboardMetrics>('/dashboard/facturas/metrics');
 }
 
 /**
- * Obtener lista de áreas
+ * Obtener lista de Ã¡reas
  */
 export async function getAreas(): Promise<AreaDetail[]> {
   return fetchAPI<AreaDetail[]>('/areas/');
 }
 
 /**
- * Crear una nueva área
+ * Crear una nueva Ã¡rea
  */
 export async function createArea(data: AreaCreatePayload): Promise<AreaDetail> {
   return fetchAPI<AreaDetail>('/areas/', {
@@ -540,7 +543,7 @@ export async function createArea(data: AreaCreatePayload): Promise<AreaDetail> {
 }
 
 /**
- * Actualizar un área existente
+ * Actualizar un Ã¡rea existente
  */
 export async function updateArea(areaId: string, data: AreaUpdatePayload): Promise<AreaDetail> {
   return fetchAPI<AreaDetail>(`/areas/${areaId}`, {
@@ -550,7 +553,7 @@ export async function updateArea(areaId: string, data: AreaUpdatePayload): Promi
 }
 
 /**
- * Eliminar un área
+ * Eliminar un Ã¡rea
  */
 export async function deleteArea(areaId: string): Promise<void> {
   return fetchAPI<void>(`/areas/${areaId}`, {
@@ -573,7 +576,7 @@ export async function getFacturasAsignadas(): Promise<FacturaAsignada[]> {
 }
 
 /**
- * Descargar archivo plano XLSX para importación contable
+ * Descargar archivo plano XLSX para importaciÃ³n contable
  */
 export async function exportarPlanoXLSX(params: { area_id?: string; estado?: string } = {}): Promise<void> {
   const token = getAccessToken();
@@ -597,7 +600,7 @@ export async function exportarPlanoXLSX(params: { area_id?: string; estado?: str
 }
 
 /**
- * Exportar archivo plano XLSX de los gastos de un paquete específico
+ * Exportar archivo plano XLSX de los gastos de un paquete especÃ­fico
  */
 export async function exportarPlanoPaquete(paqueteId: string): Promise<void> {
   const token = getAccessToken();
@@ -621,8 +624,8 @@ export async function exportarPlanoPaquete(paqueteId: string): Promise<void> {
 }
 
 /**
- * Exportar el informe Excel de gastos de técnicos de mantenimiento por zona
- * (responsable/dirección/admin). fechaHasta = corte (default hoy en backend);
+ * Exportar el informe Excel de gastos de tÃ©cnicos de mantenimiento por zona
+ * (responsable/direcciÃ³n/admin). fechaHasta = corte (default hoy en backend);
  * fechaDesde opcional acota por inicio de semana del paquete.
  */
 export async function exportarInformeZonas(fechaHasta?: string, fechaDesde?: string): Promise<void> {
@@ -649,7 +652,7 @@ export async function exportarInformeZonas(fechaHasta?: string, fechaDesde?: str
   URL.revokeObjectURL(link.href);
 }
 
-/** Descarga el informe Excel de legalizaciones de cajas menores por área (radicación/dirección/admin). */
+/** Descarga el informe Excel de legalizaciones de cajas menores por Ã¡rea (radicaciÃ³n/direcciÃ³n/admin). */
 export async function exportarInformeCajasMenores(fechaHasta?: string, fechaDesde?: string): Promise<void> {
   const token = getAccessToken();
   const q = new URLSearchParams();
@@ -681,7 +684,7 @@ export interface AreaCount {
 }
 
 /**
- * Conteo de facturas por área (query única, sin traer registros)
+ * Conteo de facturas por Ã¡rea (query Ãºnica, sin traer registros)
  */
 export async function getFacturasAreaCounts(): Promise<AreaCount[]> {
   return fetchAPI<AreaCount[]>('/facturas/counts-by-area');
@@ -727,7 +730,7 @@ export async function getFacturas(skip: number = 0, limit: number = 100, area_id
 }
 
 /**
- * Item mínimo de la bandeja de Tesorería (explorador de carpetas).
+ * Item mÃ­nimo de la bandeja de TesorerÃ­a (explorador de carpetas).
  * Solo las columnas que la lista muestra/filtra; el detalle se trae aparte por id.
  */
 export interface FacturaBandeja {
@@ -805,13 +808,13 @@ function bandejaToListItem(b: FacturaBandeja): FacturaListItem {
     aprobacion_calidad_aprobador_id: null,
     fecha_envio_contabilidad: null,
     fecha_envio_tesoreria: null,
-    // Sí viene en el payload slim: Tesorería la muestra como columna en su bandeja.
+    // SÃ­ viene en el payload slim: TesorerÃ­a la muestra como columna en su bandeja.
     fecha_cierre: b.fecha_cierre,
   };
 }
 
 /**
- * Bandeja de Tesorería: lista mínima de facturas en carpeta (endpoint slim y rápido).
+ * Bandeja de TesorerÃ­a: lista mÃ­nima de facturas en carpeta (endpoint slim y rÃ¡pido).
  * Devuelve FacturaListItem[] (con defaults) para mantener el tipado del explorador.
  */
 export async function getFacturasBandejaTesoreria(): Promise<FacturaListItem[]> {
@@ -830,7 +833,7 @@ export async function getFacturaListItem(facturaId: string): Promise<FacturaList
 }
 
 /**
- * Confirmar área de ingesta para una factura
+ * Confirmar Ã¡rea de ingesta para una factura
  */
 export async function confirmarIngestaFactura(facturaId: string, areaId: string): Promise<void> {
   const params = new URLSearchParams({ area_id: areaId });
@@ -845,8 +848,8 @@ export interface AutoEnvioContabilidadResult {
 }
 
 /**
- * Auto-envío a Contabilidad de las facturas "Listas" del Responsable autenticado.
- * El backend valida el checklist completo (badge "Listo") y solo envía las que cumplen.
+ * Auto-envÃ­o a Contabilidad de las facturas "Listas" del Responsable autenticado.
+ * El backend valida el checklist completo (badge "Listo") y solo envÃ­a las que cumplen.
  */
 export async function autoEnviarContabilidad(): Promise<AutoEnvioContabilidadResult> {
   return fetchAPI<AutoEnvioContabilidadResult>('/facturas/auto-enviar-contabilidad', {
@@ -887,12 +890,12 @@ export async function updateFactura(facturaId: string, data: FacturaUpdate): Pro
   });
 }
 
-/** Listar usuarios con paginación */
+/** Listar usuarios con paginaciÃ³n */
 export async function getUsers(skip = 0, limit = 200): Promise<UsersPaginatedResponse> {
   return fetchAPI<UsersPaginatedResponse>(`/users/?skip=${skip}&limit=${limit}`);
 }
 
-/** Listar usuarios filtrados por área (responsables del área). */
+/** Listar usuarios filtrados por Ã¡rea (responsables del Ã¡rea). */
 export async function getUsersByArea(areaId: string, opts?: { onlyActive?: boolean }): Promise<UserListItem[]> {
   const params = new URLSearchParams({ skip: '0', limit: '1000', area_id: areaId });
   if (opts?.onlyActive) params.set('is_active', 'true');
@@ -918,7 +921,7 @@ export async function updateUser(userId: string, data: UserUpdatePayload): Promi
   });
 }
 
-/** Admin resetea contraseña sin requerir la actual */
+/** Admin resetea contraseÃ±a sin requerir la actual */
 export async function adminResetPassword(userId: string, newPassword: string): Promise<{ message: string }> {
   return fetchAPI(`/users/${userId}/admin-reset-password`, {
     method: 'POST',
@@ -954,10 +957,10 @@ export interface FileUploadResponse {
 /**
  * Sube un archivo a una factura.
  *
- * Estrategia: primero intenta el camino RÁPIDO (presigned URL → PUT directo a S3),
+ * Estrategia: primero intenta el camino RÃPIDO (presigned URL â†’ PUT directo a S3),
  * que NO pasa el archivo por el backend (no ocupa el worker ni su RAM). Si cualquier
- * paso falla (p.ej. CORS de S3 mal configurado), cae automáticamente al método por
- * backend, que es el que ya venía funcionando. Así las subidas nunca se rompen.
+ * paso falla (p.ej. CORS de S3 mal configurado), cae automÃ¡ticamente al mÃ©todo por
+ * backend, que es el que ya venÃ­a funcionando. AsÃ­ las subidas nunca se rompen.
  */
 export async function uploadFacturaFile(
   facturaId: string,
@@ -1015,7 +1018,7 @@ export async function uploadFacturaFile(
     return confirmRes.json();
   } catch (err) {
     // Fallback: subir por el backend (camino previo, siempre funcional).
-    console.warn('Subida presigned falló; usando fallback por backend:', err);
+    console.warn('Subida presigned fallÃ³; usando fallback por backend:', err);
     return uploadFacturaFileViaBackend(facturaId, docType, file);
   }
 }
@@ -1060,7 +1063,7 @@ export async function downloadFacturaFile(
 ): Promise<Blob> {
   const token = getAccessToken();
   if (!token) {
-    throw new Error('No hay token de autenticación');
+    throw new Error('No hay token de autenticaciÃ³n');
   }
 
   const encodedKey = encodeURIComponent(key);
@@ -1088,7 +1091,7 @@ export async function downloadFacturaFile(
 export async function downloadFileById(fileId: string): Promise<Blob> {
   const token = getAccessToken();
   if (!token) {
-    throw new Error('No hay token de autenticación');
+    throw new Error('No hay token de autenticaciÃ³n');
   }
 
   const response = await fetch(
@@ -1135,7 +1138,7 @@ export function getFilePreviewUrl(fileId: string): string {
 }
 
 // ============================================
-// CENTROS DE COSTO Y OPERACIÓN
+// CENTROS DE COSTO Y OPERACIÃ“N
 // ============================================
 
 export interface CentroCosto {
@@ -1198,7 +1201,7 @@ export async function getCentrosCosto(activosOnly: boolean = true): Promise<Cent
 }
 
 /**
- * Obtener todos los centros de operación
+ * Obtener todos los centros de operaciÃ³n
  */
 export async function getCentrosOperacion(
   activosOnly: boolean = true
@@ -1209,7 +1212,7 @@ export async function getCentrosOperacion(
 }
 
 /**
- * Actualizar centros de costo y operación de una factura
+ * Actualizar centros de costo y operaciÃ³n de una factura
  */
 export interface UpdateCentrosRequest {
   centro_costo_id: string;
@@ -1284,7 +1287,7 @@ export async function updateFacturaCuentaAuxiliar(
 }
 
 // ============================================
-// CRUD CATÁLOGOS CONTABLES (Admin)
+// CRUD CATÃLOGOS CONTABLES (Admin)
 // ============================================
 
 export async function createCentroCosto(data: { codigo: string; nombre: string; activo?: boolean }): Promise<CentroCosto> {
@@ -1433,7 +1436,7 @@ export interface AsignacionResponse {
 }
 
 /**
- * Asignar factura a un área y responsable
+ * Asignar factura a un Ã¡rea y responsable
  */
 export async function asignarFactura(
   facturaId: string,
@@ -1477,13 +1480,13 @@ export async function updateFacturaEstado(
   });
 }
 
-// ==================== DEVOLUCIÓN A TESORERÍA (REVERTIR PAGO) ====================
+// ==================== DEVOLUCIÃ“N A TESORERÃA (REVERTIR PAGO) ====================
 
 export async function devolverFacturaATesoreria(facturaId: string): Promise<{ factura_id: string; estado_actual: string; carpeta_tesoreria_id: null }> {
   return fetchAPI(`/facturas/${facturaId}/devolver-a-tesoreria`, { method: 'POST' });
 }
 
-// ==================== DEVOLUCIÓN A RESPONSABLE ====================
+// ==================== DEVOLUCIÃ“N A RESPONSABLE ====================
 
 export interface DevolverAResponsableRequest {
   motivo: string;
@@ -1513,7 +1516,7 @@ export async function devolverAResponsable(
   });
 }
 
-// ==================== DEVOLUCIÓN A FACTURACIÓN ====================
+// ==================== DEVOLUCIÃ“N A FACTURACIÃ“N ====================
 
 export interface DevolverAFacturacionRequest {
   motivo: string;
@@ -1527,7 +1530,7 @@ export interface DevolverAFacturacionResponse {
 }
 
 /**
- * Devolver una factura de Responsable a Radicación
+ * Devolver una factura de Responsable a RadicaciÃ³n
  */
 export async function devolverAFacturacion(
   facturaId: string,
@@ -1589,21 +1592,21 @@ export interface AsignarFacturaCarpetaResponse {
 }
 
 /**
- * Obtener todas las carpetas raíz con su jerarquía completa
+ * Obtener todas las carpetas raÃ­z con su jerarquÃ­a completa
  */
 export async function getCarpetas(): Promise<Carpeta[]> {
   return fetchAPI<Carpeta[]>('/carpetas/');
 }
 
 /**
- * Obtener una carpeta específica por ID con sus subcarpetas
+ * Obtener una carpeta especÃ­fica por ID con sus subcarpetas
  */
 export async function getCarpetaById(carpetaId: string): Promise<Carpeta> {
   return fetchAPI<Carpeta>(`/carpetas/${carpetaId}`);
 }
 
 /**
- * Obtener subcarpetas de una carpeta específica
+ * Obtener subcarpetas de una carpeta especÃ­fica
  */
 export async function getCarpetasByParent(parentId: string): Promise<Carpeta[]> {
   return fetchAPI<Carpeta[]>(`/carpetas/parent/${parentId}`);
@@ -1654,7 +1657,7 @@ export async function asignarFacturaACarpeta(
   });
 }
 
-// ==================== CARPETAS TESORERÍA ====================
+// ==================== CARPETAS TESORERÃA ====================
 
 export interface CarpetaTesoreria {
   id: string;
@@ -1692,28 +1695,28 @@ export interface AsignarFacturaCarpetaTesoreriaResponse {
 }
 
 /**
- * Obtener todas las carpetas de tesorería raíz con su jerarquía completa
+ * Obtener todas las carpetas de tesorerÃ­a raÃ­z con su jerarquÃ­a completa
  */
 export async function getCarpetasTesoreria(): Promise<CarpetaTesoreria[]> {
   return fetchAPI<CarpetaTesoreria[]>('/carpetas-tesoreria/');
 }
 
 /**
- * Obtener una carpeta de tesorería específica por ID con sus subcarpetas
+ * Obtener una carpeta de tesorerÃ­a especÃ­fica por ID con sus subcarpetas
  */
 export async function getCarpetaTesoreriaById(carpetaId: string): Promise<CarpetaTesoreria> {
   return fetchAPI<CarpetaTesoreria>(`/carpetas-tesoreria/${carpetaId}`);
 }
 
 /**
- * Obtener subcarpetas de una carpeta de tesorería específica
+ * Obtener subcarpetas de una carpeta de tesorerÃ­a especÃ­fica
  */
 export async function getCarpetasTesoreriaByParent(parentId: string): Promise<CarpetaTesoreria[]> {
   return fetchAPI<CarpetaTesoreria[]>(`/carpetas-tesoreria/parent/${parentId}`);
 }
 
 /**
- * Crear una nueva carpeta de tesorería
+ * Crear una nueva carpeta de tesorerÃ­a
  */
 export async function createCarpetaTesoreria(data: CarpetaTesoreriaCreate): Promise<CarpetaTesoreria> {
   return fetchAPI<CarpetaTesoreria>('/carpetas-tesoreria/', {
@@ -1723,7 +1726,7 @@ export async function createCarpetaTesoreria(data: CarpetaTesoreriaCreate): Prom
 }
 
 /**
- * Actualizar una carpeta de tesorería existente
+ * Actualizar una carpeta de tesorerÃ­a existente
  */
 export async function updateCarpetaTesoreria(
   carpetaId: string,
@@ -1736,7 +1739,7 @@ export async function updateCarpetaTesoreria(
 }
 
 /**
- * Eliminar una carpeta de tesorería
+ * Eliminar una carpeta de tesorerÃ­a
  */
 export async function deleteCarpetaTesoreria(carpetaId: string): Promise<void> {
   return fetchAPI<void>(`/carpetas-tesoreria/${carpetaId}`, {
@@ -1745,7 +1748,7 @@ export async function deleteCarpetaTesoreria(carpetaId: string): Promise<void> {
 }
 
 /**
- * Subir archivo PDF de control de egresos a una carpeta de tesorería
+ * Subir archivo PDF de control de egresos a una carpeta de tesorerÃ­a
  */
 export async function uploadArchivoEgresoCarpeta(
   carpetaId: string,
@@ -1772,7 +1775,7 @@ export async function uploadArchivoEgresoCarpeta(
 }
 
 /**
- * Eliminar archivo PDF de control de egresos de una carpeta de tesorería
+ * Eliminar archivo PDF de control de egresos de una carpeta de tesorerÃ­a
  */
 export async function deleteArchivoEgresoCarpeta(carpetaId: string): Promise<CarpetaTesoreria> {
   return fetchAPI<CarpetaTesoreria>(`/carpetas-tesoreria/${carpetaId}/archivo-egreso`, {
@@ -1788,7 +1791,7 @@ export async function getArchivoEgresoUrl(carpetaId: string): Promise<{ download
 }
 
 /**
- * Asignar una factura a una carpeta de tesorería
+ * Asignar una factura a una carpeta de tesorerÃ­a
  */
 export async function asignarFacturaACarpetaTesoreria(
   facturaId: string,
@@ -1814,11 +1817,11 @@ export interface ArchivadoMasivoResultado {
 }
 
 /**
- * Archiva un lote de facturas en una carpeta de tesorería con UNA sola petición.
+ * Archiva un lote de facturas en una carpeta de tesorerÃ­a con UNA sola peticiÃ³n.
  *
  * Antes se disparaba un request por factura en paralelo: con lotes grandes una
- * parte moría antes de llegar al servidor y el archivado quedaba a medias sin
- * decir cuáles habían fallado. Ahora el backend lo resuelve en una transacción y
+ * parte morÃ­a antes de llegar al servidor y el archivado quedaba a medias sin
+ * decir cuÃ¡les habÃ­an fallado. Ahora el backend lo resuelve en una transacciÃ³n y
  * devuelve el detalle de lo que no se pudo archivar.
  */
 export async function asignarFacturasACarpetaTesoreriaMasivo(
@@ -1832,14 +1835,14 @@ export async function asignarFacturasACarpetaTesoreriaMasivo(
 }
 
 /**
- * Obtener distribución CC/CO de una factura
+ * Obtener distribuciÃ³n CC/CO de una factura
  */
 export async function getDistribucionCCCO(facturaId: string): Promise<DistribucionCCCO[]> {
   return fetchAPI<DistribucionCCCO[]>(`/facturas/${facturaId}/distribucion-ccco`);
 }
 
 /**
- * Actualizar distribución CC/CO de una factura
+ * Actualizar distribuciÃ³n CC/CO de una factura
  */
 export async function updateDistribucionCCCO(
   facturaId: string,
@@ -1943,7 +1946,7 @@ export async function deleteComentario(comentarioId: string): Promise<void> {
 }
 
 // ============================================================================
-// MÓDULO GASTOS / LEGALIZACIÓN DE TÉCNICOS DE MANTENIMIENTO
+// MÃ“DULO GASTOS / LEGALIZACIÃ“N DE TÃ‰CNICOS DE MANTENIMIENTO
 // ============================================================================
 
 export type EstadoPaquete = 'borrador' | 'en_validacion' | 'en_revision' | 'devuelto' | 'aprobado' | 'en_tesoreria' | 'pagado' | 'cruzado';
@@ -2056,7 +2059,7 @@ export interface PaqueteOut {
   fecha_pago: string | null;
   fecha_cruce: string | null;
   folio?: string | null;
-  tecnico: { id: string; nombre: string; email: string };
+  tecnico: { id: string; nombre: string; email: string; cedula?: string | null };
   area: { id: string; nombre: string };
   revisado_por: { id: string; nombre: string; email: string } | null;
   aprobador: AprobadorBrief | null;
@@ -2092,7 +2095,7 @@ export interface PaqueteListItem {
   comentario_devolucion: string | null;
   tiene_gastos_devueltos: boolean;
   folio?: string | null;
-  tecnico: { id: string; nombre: string; email: string } | null;
+  tecnico: { id: string; nombre: string; email: string; cedula?: string | null } | null;
   area?: { id: string; nombre: string } | null;
   aprobador: AprobadorBrief | null;
   anticipo: AnticipoBrief | null;
@@ -2136,7 +2139,7 @@ export interface GastoUpdate {
 
 // --- Paquetes ---------------------------------------------------------------
 
-/** Listar paquetes (técnico ve los suyos; admin ve todos) */
+/** Listar paquetes (tÃ©cnico ve los suyos; admin ve todos) */
 export async function listPaquetesGastos(
   params: { skip?: number; limit?: number; estado?: EstadoPaquete; solo_mis_anticipos?: boolean } = {}
 ): Promise<PaqueteListResponse> {
@@ -2176,7 +2179,7 @@ export async function getMisHijosComerciales(): Promise<ComercialHijo[]> {
 
 // --- Workflow ---------------------------------------------------------------
 
-/** Envía el paquete para revisión/aprobación. Para flujo general incluye aprobador_id. */
+/** EnvÃ­a el paquete para revisiÃ³n/aprobaciÃ³n. Para flujo general incluye aprobador_id. */
 export async function enviarPaquete(
   paqueteId: string,
   aprobadorId?: string
@@ -2193,12 +2196,12 @@ export async function aprobarPaquete(paqueteId: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/aprobar`, { method: 'POST' });
 }
 
-/** Responsable (validador) valida un paquete comercial: en_validacion → en_revision (envía al gerente) */
+/** Responsable (validador) valida un paquete comercial: en_validacion â†’ en_revision (envÃ­a al gerente) */
 export async function validarPaquete(paqueteId: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/validar`, { method: 'POST' });
 }
 
-/** Responsable valida un paquete comercial dividiéndolo en N solicitudes de aprobación,
+/** Responsable valida un paquete comercial dividiÃ©ndolo en N solicitudes de aprobaciÃ³n,
  *  cada una con su aprobador. Todos los gastos deben quedar asignados. */
 export async function validarPaqueteMultiple(
   paqueteId: string,
@@ -2212,7 +2215,7 @@ export async function validarPaqueteMultiple(
 }
 
 /** Admin devuelve el paquete con un motivo */
-/** Tesorería devuelve paquete en_tesoreria a Radicación (estado aprobado) */
+/** TesorerÃ­a devuelve paquete en_tesoreria a RadicaciÃ³n (estado aprobado) */
 export async function devolverPaqueteAFacturacion(paqueteId: string, motivo: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/devolver-a-facturacion`, {
     method: 'POST',
@@ -2228,17 +2231,17 @@ export async function devolverPaquete(paqueteId: string, motivo: string): Promis
   });
 }
 
-/** Radicación envía el paquete aprobado a Tesorería */
+/** RadicaciÃ³n envÃ­a el paquete aprobado a TesorerÃ­a */
 export async function enviarATesoreria(paqueteId: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/enviar-tesoreria`, { method: 'POST' });
 }
 
-/** Radicación (aprobado) o Tesorería (en_tesoreria) marca el paquete como Cruzado (cierre sin pago) */
+/** RadicaciÃ³n (aprobado) o TesorerÃ­a (en_tesoreria) marca el paquete como Cruzado (cierre sin pago) */
 export async function marcarCruzadoPaquete(paqueteId: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/cruzar`, { method: 'POST' });
 }
 
-/** Tesorería marca el paquete como pagado */
+/** TesorerÃ­a marca el paquete como pagado */
 export async function pagarPaquete(paqueteId: string, fechaPago?: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/pagar`, {
     method: 'POST',
@@ -2247,7 +2250,7 @@ export async function pagarPaquete(paqueteId: string, fechaPago?: string): Promi
   });
 }
 
-/** Tesorería revierte un paquete pagado a en_tesoreria */
+/** TesorerÃ­a revierte un paquete pagado a en_tesoreria */
 export async function revertirPagoPaquete(paqueteId: string, motivo: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/revertir-pago`, {
     method: 'POST',
@@ -2256,7 +2259,7 @@ export async function revertirPagoPaquete(paqueteId: string, motivo: string): Pr
   });
 }
 
-/** Tesorería marca múltiples paquetes como pagados en una sola operación */
+/** TesorerÃ­a marca mÃºltiples paquetes como pagados en una sola operaciÃ³n */
 export async function pagarPaquetesMasivo(
   paqueteIds: string[],
   fechaPago?: string,
@@ -2268,14 +2271,14 @@ export async function pagarPaquetesMasivo(
   });
 }
 
-// --- Gastos (líneas de detalle) ---------------------------------------------
+// --- Gastos (lÃ­neas de detalle) ---------------------------------------------
 
-/** Verifica si un número de recibo existe en el buzón de facturas */
+/** Verifica si un nÃºmero de recibo existe en el buzÃ³n de facturas */
 export async function checkBuzon(noRecibo: string): Promise<{ existe: boolean; proveedor: string | null }> {
   return fetchAPI(`/gastos/check-buzon?no_recibo=${encodeURIComponent(noRecibo)}`);
 }
 
-/** Agregar línea de gasto */
+/** Agregar lÃ­nea de gasto */
 export async function agregarGasto(paqueteId: string, data: GastoCreate): Promise<GastoOut> {
   return fetchAPI<GastoOut>(`/gastos/paquetes/${paqueteId}/gastos`, {
     method: 'POST',
@@ -2284,7 +2287,7 @@ export async function agregarGasto(paqueteId: string, data: GastoCreate): Promis
   });
 }
 
-/** Editar línea de gasto */
+/** Editar lÃ­nea de gasto */
 export async function editarGasto(
   paqueteId: string,
   gastoId: string,
@@ -2297,16 +2300,16 @@ export async function editarGasto(
   });
 }
 
-/** Eliminar línea de gasto */
+/** Eliminar lÃ­nea de gasto */
 export async function eliminarGasto(paqueteId: string, gastoId: string): Promise<void> {
   try {
     return await fetchAPI<void>(`/gastos/paquetes/${paqueteId}/gastos/${gastoId}`, {
       method: 'DELETE',
     });
   } catch (err) {
-    // 404 = el gasto ya no existe en el backend (borrado en otra sesión o fila
-    // obsoleta). El objetivo -que el gasto no exista- ya se cumplió, así que lo
-    // tratamos como éxito idempotente y dejamos que la UI elimine la fila.
+    // 404 = el gasto ya no existe en el backend (borrado en otra sesiÃ³n o fila
+    // obsoleta). El objetivo -que el gasto no exista- ya se cumpliÃ³, asÃ­ que lo
+    // tratamos como Ã©xito idempotente y dejamos que la UI elimine la fila.
     if ((err as { status?: number })?.status === 404) return;
     throw err;
   }
@@ -2314,9 +2317,9 @@ export async function eliminarGasto(paqueteId: string, gastoId: string): Promise
 
 // --- Archivos soporte -------------------------------------------------------
 
-// API Gateway rechaza peticiones de más de 10 MB sin cabeceras CORS y el
+// API Gateway rechaza peticiones de mÃ¡s de 10 MB sin cabeceras CORS y el
 // navegador solo reporta "Failed to fetch"; las fotos de celular superan ese
-// límite con facilidad, así que se comprimen antes de subir.
+// lÃ­mite con facilidad, asÃ­ que se comprimen antes de subir.
 const LIMITE_SUBIDA_MB = 9;
 const UMBRAL_COMPRESION_BYTES = 1.5 * 1024 * 1024;
 
@@ -2345,7 +2348,7 @@ export async function comprimirImagen(file: File): Promise<File> {
 function validarTamanoSubida(file: File): void {
   if (file.size > LIMITE_SUBIDA_MB * 1024 * 1024) {
     throw new Error(
-      `El archivo "${file.name}" pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y supera el límite de ${LIMITE_SUBIDA_MB} MB. Adjunta una versión más liviana.`
+      `El archivo "${file.name}" pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y supera el lÃ­mite de ${LIMITE_SUBIDA_MB} MB. Adjunta una versiÃ³n mÃ¡s liviana.`
     );
   }
 }
@@ -2380,7 +2383,7 @@ export async function eliminarArchivoGasto(
   );
 }
 
-// --- IA: Extracción de datos desde imagen de factura -------------------
+// --- IA: ExtracciÃ³n de datos desde imagen de factura -------------------
 
 export interface ExtraccionDatosOut {
   no_identificacion: string | null;
@@ -2416,7 +2419,7 @@ export async function getDownloadUrlArchivoGasto(
   );
 }
 
-/** Descargar soporte de un gasto vía proxy del backend (evita CORS con S3) */
+/** Descargar soporte de un gasto vÃ­a proxy del backend (evita CORS con S3) */
 export async function proxyDownloadArchivoGasto(
   paqueteId: string,
   gastoId: string,
@@ -2440,9 +2443,9 @@ export async function proxyDownloadArchivoGasto(
   URL.revokeObjectURL(blobUrl);
 }
 
-// --- Aprobación de gerencia (nivel paquete) ----------------------------------
+// --- AprobaciÃ³n de gerencia (nivel paquete) ----------------------------------
 
-/** Subir aprobación de gerencia para un paquete */
+/** Subir aprobaciÃ³n de gerencia para un paquete */
 export async function subirAprobacionGerencia(
   paqueteId: string,
   file: File
@@ -2455,7 +2458,7 @@ export async function subirAprobacionGerencia(
   );
 }
 
-/** Obtener URL de descarga de la aprobación de gerencia */
+/** Obtener URL de descarga de la aprobaciÃ³n de gerencia */
 export async function getAprobacionGerenciaDownloadUrl(
   paqueteId: string
 ): Promise<{ download_url: string }> {
@@ -2466,7 +2469,7 @@ export async function getAprobacionGerenciaDownloadUrl(
 
 // --- Documento Contable General (nivel paquete) ------------------------------
 
-/** Subir documento contable general para un paquete (solo Radicación, estado aprobado) */
+/** Subir documento contable general para un paquete (solo RadicaciÃ³n, estado aprobado) */
 export async function subirDocContable(
   paqueteId: string,
   file: File
@@ -2500,7 +2503,7 @@ export async function eliminarDocContable(
 
 // --- CM PDF por gasto individual ---------------------------------------------
 
-/** Subir CM PDF para un gasto individual (solo Radicación, estado aprobado) */
+/** Subir CM PDF para un gasto individual (solo RadicaciÃ³n, estado aprobado) */
 export async function subirCmPdfGasto(
   paqueteId: string,
   gastoId: string,
@@ -2535,7 +2538,7 @@ export async function eliminarCmPdfGasto(
   );
 }
 
-/** Reenviar correo de solicitud de aprobación al aprobador */
+/** Reenviar correo de solicitud de aprobaciÃ³n al aprobador */
 export async function reenviarCorreoAprobacion(
   paqueteId: string
 ): Promise<{ message: string }> {
@@ -2545,9 +2548,9 @@ export async function reenviarCorreoAprobacion(
   );
 }
 
-// --- Devolución individual de gasto (Fase 3) ---------------------------------
+// --- DevoluciÃ³n individual de gasto (Fase 3) ---------------------------------
 
-/** Radicación devuelve un gasto individual con motivo */
+/** RadicaciÃ³n devuelve un gasto individual con motivo */
 export async function devolverGasto(
   paqueteId: string,
   gastoId: string,
@@ -2580,7 +2583,7 @@ export interface AnalisisImpuestosResponse {
   resultados: AnalisisImpuestoGastoOut[];
 }
 
-/** Facturación: calcular con IA el valor sin impuestos de los gastos del paquete */
+/** FacturaciÃ³n: calcular con IA el valor sin impuestos de los gastos del paquete */
 export async function analizarImpuestosPaquete(paqueteId: string): Promise<AnalisisImpuestosResponse> {
   return fetchAPI<AnalisisImpuestosResponse>(
     `/gastos/paquetes/${paqueteId}/analizar-impuestos`,
@@ -2588,7 +2591,7 @@ export async function analizarImpuestosPaquete(paqueteId: string): Promise<Anali
   );
 }
 
-/** Facturación: digitar/corregir manualmente el valor sin impuestos de un gasto */
+/** FacturaciÃ³n: digitar/corregir manualmente el valor sin impuestos de un gasto */
 export async function actualizarValorSinImpuestos(
   paqueteId: string,
   gastoId: string,
@@ -2603,7 +2606,7 @@ export async function actualizarValorSinImpuestos(
   );
 }
 
-/** Facturación o Tesorería marca/desmarca el check de cruce de un gasto.
+/** FacturaciÃ³n o TesorerÃ­a marca/desmarca el check de cruce de un gasto.
  *  El motivo queda como comentario en el historial de observaciones del paquete. */
 export async function actualizarCruceGasto(
   paqueteId: string,
@@ -2620,7 +2623,7 @@ export async function actualizarCruceGasto(
   );
 }
 
-/** Técnico reenvía un gasto devuelto después de corregirlo */
+/** TÃ©cnico reenvÃ­a un gasto devuelto despuÃ©s de corregirlo */
 export async function reenviarGasto(
   paqueteId: string,
   gastoId: string
@@ -2631,7 +2634,7 @@ export async function reenviarGasto(
   );
 }
 
-/** Aprobar paquete por token (endpoint público, no requiere auth) */
+/** Aprobar paquete por token (endpoint pÃºblico, no requiere auth) */
 export async function aprobarPaquetePorToken(token: string): Promise<PaqueteOut> {
   const API_BASE_URL_PUBLIC = (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
     'https://r5k8qt1z4e.execute-api.us-east-2.amazonaws.com/v1/api/v1';
@@ -2654,7 +2657,7 @@ export interface RechazoPaqueteOut {
   motivo_rechazo: string;
 }
 
-/** Rechazar paquete con motivo usando el token del correo (público, sin auth) */
+/** Rechazar paquete con motivo usando el token del correo (pÃºblico, sin auth) */
 export async function rechazarPaquetePorToken(
   token: string,
   motivo: string,
@@ -2673,7 +2676,7 @@ export async function rechazarPaquetePorToken(
   return resp.json();
 }
 
-// ─── Extracción IA desde PDF de factura pública ──────────────────────────────
+// â”€â”€â”€ ExtracciÃ³n IA desde PDF de factura pÃºblica â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface ExtraccionFacturaPdfOut {
   proveedor: string | null;
@@ -2685,7 +2688,7 @@ export interface ExtraccionFacturaPdfOut {
   campos_detectados: string[];
 }
 
-/** Extrae datos de una factura electrónica colombiana (PDF) usando Claude Sonnet */
+/** Extrae datos de una factura electrÃ³nica colombiana (PDF) usando Claude Sonnet */
 export async function extraerDatosFacturaPdf(file: File): Promise<ExtraccionFacturaPdfOut> {
   const formData = new FormData();
   formData.append('file', file);
@@ -2695,7 +2698,7 @@ export async function extraerDatosFacturaPdf(file: File): Promise<ExtraccionFact
   });
 }
 
-// ─── Aprobadores de Gerencia ──────────────────────────────────────────────────
+// â”€â”€â”€ Aprobadores de Gerencia â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface AprobadorGerencia {
   id: string;
@@ -2721,12 +2724,12 @@ export interface AprobadorGerenciaUpdate {
   categoria?: string;
 }
 
-/** Lista todos los aprobadores (activos e inactivos) — para el panel admin */
+/** Lista todos los aprobadores (activos e inactivos) â€” para el panel admin */
 export async function getAprobadoresGerencia(): Promise<AprobadorGerencia[]> {
   return fetchAPI<AprobadorGerencia[]>('/aprobadores-gerencia/');
 }
 
-/** Lista solo los aprobadores activos — para el selector al enviar correo.
+/** Lista solo los aprobadores activos â€” para el selector al enviar correo.
  *  categoria opcional: 'general' | 'comercial' para filtrar por flujo. */
 export async function getAprobadoresActivos(categoria?: string): Promise<AprobadorGerencia[]> {
   const qs = categoria ? `?categoria=${encodeURIComponent(categoria)}` : '';
@@ -2764,7 +2767,7 @@ export async function eliminarAprobadorGerencia(id: string): Promise<void> {
   return fetchAPI<void>(`/aprobadores-gerencia/${id}`, { method: 'DELETE' });
 }
 
-// ─── Aprobación de Facturas por Correo ───────────────────────────────────────
+// â”€â”€â”€ AprobaciÃ³n de Facturas por Correo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface AprobacionEmailOut {
   factura_id: string;
@@ -2776,7 +2779,7 @@ export interface AprobacionEmailOut {
   fecha_aprobacion_email: string;
 }
 
-/** Envía correo de aprobación al gerente seleccionado */
+/** EnvÃ­a correo de aprobaciÃ³n al gerente seleccionado */
 export async function enviarCorreoAprobacionFactura(
   facturaId: string,
   aprobadorId: string,
@@ -2862,7 +2865,7 @@ export interface AnticipoDesembolsar {
   semana: string;
 }
 
-/** Listar anticipos (Tesorería ve aprobados/desembolsados/cerrados) */
+/** Listar anticipos (TesorerÃ­a ve aprobados/desembolsados/cerrados) */
 export async function listAnticipos(
   params: { skip?: number; limit?: number; estado?: string } = {}
 ): Promise<AnticipoListResponse> {
@@ -2897,7 +2900,7 @@ export async function getAnticipo(anticipoId: string): Promise<AnticipoOut> {
   return fetchAPI<AnticipoOut>(`/anticipos/${anticipoId}`);
 }
 
-/** Tesorería desembolsa el anticipo y crea el paquete */
+/** TesorerÃ­a desembolsa el anticipo y crea el paquete */
 export async function desembolsarAnticipo(anticipoId: string, data: AnticipoDesembolsar): Promise<AnticipoOut> {
   return fetchAPI<AnticipoOut>(`/anticipos/${anticipoId}/desembolsar`, {
     method: 'POST',
@@ -2906,12 +2909,12 @@ export async function desembolsarAnticipo(anticipoId: string, data: AnticipoDese
   });
 }
 
-/** Cerrar un anticipo manualmente (Tesorería) */
+/** Cerrar un anticipo manualmente (TesorerÃ­a) */
 export async function cerrarAnticipo(anticipoId: string): Promise<AnticipoOut> {
   return fetchAPI<AnticipoOut>(`/anticipos/${anticipoId}/cerrar`, { method: 'PATCH' });
 }
 
-/** Tesorería devuelve paquete de anticipo al empleado */
+/** TesorerÃ­a devuelve paquete de anticipo al empleado */
 export async function devolverAnticipoPaquete(paqueteId: string, motivo: string): Promise<PaqueteOut> {
   return fetchAPI<PaqueteOut>(`/gastos/paquetes/${paqueteId}/devolver-anticipo`, {
     method: 'POST',
@@ -2920,7 +2923,7 @@ export async function devolverAnticipoPaquete(paqueteId: string, motivo: string)
   });
 }
 
-/** Aprueba una factura usando el token del correo (endpoint público, sin auth) */
+/** Aprueba una factura usando el token del correo (endpoint pÃºblico, sin auth) */
 export async function aprobarFacturaPorToken(token: string): Promise<AprobacionEmailOut> {
   const API_BASE_URL_PUBLIC =
     (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
@@ -2931,7 +2934,7 @@ export async function aprobarFacturaPorToken(token: string): Promise<AprobacionE
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: 'Error desconocido' }));
     const detalle = Array.isArray(err.detail)
-      ? 'El enlace de aprobación es inválido o ha expirado (72 horas).'
+      ? 'El enlace de aprobaciÃ³n es invÃ¡lido o ha expirado (72 horas).'
       : typeof err.detail === 'string'
       ? err.detail
       : `Error ${resp.status}`;
@@ -2952,7 +2955,7 @@ export interface RechazoEmailOut {
   tipo_aprobacion: string | null;
 }
 
-/** Rechaza una factura con motivo usando el token del correo (público, sin auth) */
+/** Rechaza una factura con motivo usando el token del correo (pÃºblico, sin auth) */
 export async function rechazarFacturaPorToken(
   token: string,
   motivo: string,
@@ -2968,7 +2971,7 @@ export async function rechazarFacturaPorToken(
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: 'Error desconocido' }));
     const detalle = Array.isArray(err.detail)
-      ? 'El enlace es inválido o ha expirado (72 horas).'
+      ? 'El enlace es invÃ¡lido o ha expirado (72 horas).'
       : typeof err.detail === 'string'
       ? err.detail
       : `Error ${resp.status}`;
@@ -2977,7 +2980,7 @@ export async function rechazarFacturaPorToken(
   return resp.json();
 }
 
-// ─── Historial de Facturas por Área (Responsable) ────────────────────────────
+// â”€â”€â”€ Historial de Facturas por Ãrea (Responsable) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface HistorialFacturaItem {
   id: string;
@@ -3000,7 +3003,7 @@ export async function getHistorialArea(): Promise<HistorialFacturaItem[]> {
   return fetchAPI<HistorialFacturaItem[]>('/facturas/historial-area');
 }
 
-// ─── Historial completo de una factura (vista Director) ─────────────────────
+// â”€â”€â”€ Historial completo de una factura (vista Director) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type HistorialEventoTipo =
   | 'recibida'
@@ -3040,7 +3043,7 @@ export async function getHistorialFactura(facturaId: string): Promise<HistorialF
   return fetchAPI<HistorialFactura>(`/facturas/${facturaId}/historial`);
 }
 
-// ─── Aprobación Dual (Gerencia Operaciones + Calidad Café) ───────────────────
+// â”€â”€â”€ AprobaciÃ³n Dual (Gerencia Operaciones + Calidad CafÃ©) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export async function enviarAprobacionDual(
   facturaId: string,

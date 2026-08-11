@@ -94,6 +94,9 @@ function ModalCrear({ areas, unidades, onClose, onCreado }: { areas: Area[]; uni
     if (form.role === 'tarjeta_cq' && !form.unidad_negocio_id) {
       toast.error('Debes seleccionar la Unidad de Negocio para este rol'); return;
     }
+    if (form.role === 'tarjeta_cq' && !(form.cedula ?? '').trim()) {
+      toast.error('Debes ingresar la cédula para este rol'); return;
+    }
     setSaving(true);
     try {
       await createUser(form);
@@ -132,6 +135,12 @@ function ModalCrear({ areas, unidades, onClose, onCreado }: { areas: Area[]; uni
           </select>
         </Field>
       )}
+      {form.role === 'tarjeta_cq' && (
+        <Field label="Cédula *" hint="Se mostrará junto al nombre en los paquetes de legalización.">
+          <input className={inputCls} inputMode="numeric" value={form.cedula ?? ''}
+            onChange={e => set('cedula', e.target.value.replace(/[^0-9]/g, ''))} placeholder="Ej. 1094123456" maxLength={20} />
+        </Field>
+      )}
       <Field label="Contraseña inicial" hint="El usuario deberá cambiarla al ingresar por primera vez.">
         <div className="relative">
           <input className={inputCls + ' pr-12'} type={showPwd ? 'text' : 'password'}
@@ -153,7 +162,7 @@ function ModalCrear({ areas, unidades, onClose, onCreado }: { areas: Area[]; uni
 
 // ─── Modal Editar ─────────────────────────────────────────────────────────────
 function ModalEditar({ user, areas, unidades, onClose, onGuardado }: { user: UserListItem; areas: Area[]; unidades: UnidadNegocio[]; onClose: () => void; onGuardado: () => void }) {
-  const [form, setForm] = useState<UserUpdatePayload>({ nombre: user.nombre, email: user.email, role: user.role, area_id: null, unidad_negocio_id: (user as any).unidad_negocio_id ?? null });
+  const [form, setForm] = useState<UserUpdatePayload>({ nombre: user.nombre, email: user.email, role: user.role, area_id: null, unidad_negocio_id: (user as any).unidad_negocio_id ?? null, cedula: user.cedula ?? null });
   const [saving, setSaving] = useState(false);
   const set = (k: keyof UserUpdatePayload, v: string | null) => setForm(f => ({ ...f, [k]: v }));
 
@@ -194,6 +203,12 @@ function ModalEditar({ user, areas, unidades, onClose, onGuardado }: { user: Use
             <option value="">-- Seleccionar UN --</option>
             {unidades.map(u => <option key={u.id} value={u.id}>{u.codigo} – {u.descripcion}</option>)}
           </select>
+        </Field>
+      )}
+      {form.role === 'tarjeta_cq' && (
+        <Field label="Cédula" hint="Se mostrará junto al nombre en los paquetes de legalización.">
+          <input className={inputCls} inputMode="numeric" value={form.cedula ?? ''}
+            onChange={e => set('cedula', e.target.value.replace(/[^0-9]/g, '') || null)} placeholder="Ej. 1094123456" maxLength={20} />
         </Field>
       )}
       <button onClick={handleSubmit} disabled={saving}

@@ -14,6 +14,7 @@ class UserBrief(BaseModel):
     id: UUID
     nombre: str
     email: str
+    cedula: Optional[str] = None
     model_config = {"from_attributes": True}
 
 

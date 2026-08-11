@@ -14,6 +14,7 @@ class UserBase(BaseModel):
     role: str = Field(..., description="Rol del usuario: admin, responsable, contabilidad, tesoreria")
     area_id: Optional[UUID] = Field(None, description="ID del área asignada")
     unidad_negocio_id: Optional[UUID] = Field(None, description="ID de la unidad de negocio (requerido para tarjeta_cq)")
+    cedula: Optional[str] = Field(None, max_length=20, description="Cédula del usuario (requerida para tarjeta_cq)")
 
 
 class UserCreate(UserBase):
@@ -28,6 +29,7 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     area_id: Optional[UUID] = None
     unidad_negocio_id: Optional[UUID] = None
+    cedula: Optional[str] = Field(None, max_length=20)
     is_active: Optional[bool] = None
 
 
@@ -44,9 +46,10 @@ class UserListItem(BaseModel):
     email: str
     role: str
     area: Optional[str] = None
+    cedula: Optional[str] = None
     is_active: bool
     created_at: datetime
-    
+
     model_config = {"from_attributes": True}
 
 
@@ -60,6 +63,7 @@ class UserDetail(BaseModel):
     area: Optional[str] = None
     unidad_negocio_id: Optional[UUID] = None
     unidad_negocio_codigo: Optional[str] = None
+    cedula: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None

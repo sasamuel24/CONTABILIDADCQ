@@ -1760,6 +1760,10 @@ class TokenAprobacionFactura(Base, TimestampMixin):
     # `usado` solo dice que el enlace se consumió, no en qué sentido.
     resultado: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     motivo_rechazo: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Última vez que el ciclo diario le recordó al aprobador este enlace pendiente
+    recordatorio_enviado_at: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
 
     # Relaciones
     factura: Mapped["Factura"] = relationship(

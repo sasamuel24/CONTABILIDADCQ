@@ -188,9 +188,18 @@ async def health_check(db: AsyncSession = Depends(get_db)):
 async def startup_event():
     """Evento ejecutado al iniciar la aplicación."""
     logger.info(f"Iniciando {settings.app_name} v{settings.app_version}")
+    # Recordatorios diarios (7:00 a.m. Colombia) a aprobadores con facturas
+    # pendientes antes de que venza el token de 72h. Corre en el event loop del
+    # único worker de uvicorn; con más workers se duplicaría (mover a cron externo).
+    import asyncio
+    from modules.facturas.recordatorios import ciclo_recordatorios_aprobacion
+    app.state.tarea_recordatorios = asyncio.create_task(ciclo_recordatorios_aprobacion())
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Evento ejecutado al detener la aplicación."""
+    tarea = getattr(app.state, "tarea_recordatorios", None)
+    if tarea:
+        tarea.cancel()
     logger.info(f"Deteniendo {settings.app_name}")

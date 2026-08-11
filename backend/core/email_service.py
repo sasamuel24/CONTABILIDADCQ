@@ -954,6 +954,99 @@ class EmailService:
         except Exception as e:
             logger.error(f"Error al enviar solicitud de aprobación de factura: {e}")
 
+    async def enviar_recordatorio_aprobaciones_pendientes(
+        self,
+        aprobador_nombre: str,
+        aprobador_email: str,
+        items: list,
+    ) -> None:
+        """
+        Recordatorio CONSOLIDADO al aprobador: un solo correo con TODAS sus facturas
+        pendientes de aprobar, cada una con sus botones (mismos enlaces vigentes del
+        correo original, que vencen a las 72 horas de emitidos).
+
+        items: lista de dicts con claves:
+          numero, proveedor, total, tipo_label, vence_str, horas_restantes,
+          aprobar_url, rechazar_url
+        """
+        filas = ""
+        for i, it in enumerate(items):
+            bg = "#f5f7fa" if i % 2 == 0 else "#ffffff"
+            urgente = it["horas_restantes"] <= 12
+            color_vence = "#b91c1c" if urgente else "#92400e"
+            filas += f"""
+                <tr style="background:{bg}">
+                  <td style="padding:10px 12px;border-bottom:1px solid #e5e9f0">
+                    <strong>{it['numero']}</strong><br>
+                    <span style="color:#555;font-size:0.9em">{it['proveedor']}</span>
+                    {f'<br><span style="color:#777;font-size:0.8em">{it["tipo_label"]}</span>' if it['tipo_label'] else ''}
+                  </td>
+                  <td style="padding:10px 12px;border-bottom:1px solid #e5e9f0;white-space:nowrap;
+                             font-weight:bold;color:#1a3c6e">${it['total']:,.0f}</td>
+                  <td style="padding:10px 12px;border-bottom:1px solid #e5e9f0;white-space:nowrap;
+                             color:{color_vence};font-size:0.9em">
+                    {it['vence_str']}<br><strong>({it['horas_restantes']}h restantes)</strong>
+                  </td>
+                  <td style="padding:10px 12px;border-bottom:1px solid #e5e9f0;white-space:nowrap">
+                    <a href="{it['aprobar_url']}"
+                       style="background:#1a6e3c;color:#fff;padding:7px 14px;border-radius:4px;
+                              text-decoration:none;font-weight:bold;font-size:0.85em;display:inline-block">
+                      &#10003; Aprobar
+                    </a>
+                    <a href="{it['rechazar_url']}"
+                       style="background:#b91c1c;color:#fff;padding:7px 14px;border-radius:4px;
+                              text-decoration:none;font-weight:bold;font-size:0.85em;display:inline-block;
+                              margin-left:6px">
+                      &#10007; Rechazar
+                    </a>
+                  </td>
+                </tr>"""
+
+        n = len(items)
+        plural = "s" if n != 1 else ""
+        body_html = f"""
+        <html><body style="font-family:Arial,sans-serif;color:#333;max-width:720px;margin:0 auto">
+        <div style="background:#b45309;padding:18px 24px;border-radius:6px 6px 0 0">
+          <h2 style="color:#fff;margin:0">&#9200; Recordatorio: {n} factura{plural} pendiente{plural} de su aprobación</h2>
+          <p style="color:#fde8c8;margin:4px 0 0">Sistema DOCUFLOW</p>
+        </div>
+        <div style="border:1px solid #dde;border-top:none;padding:24px;border-radius:0 0 6px 6px">
+          <p>Estimado(a) <strong>{aprobador_nombre}</strong>,</p>
+          <p>
+            Tiene <strong>{n} factura{plural}</strong> esperando su decisión en DocuFlow.
+            Los enlaces de aprobación <strong>vencen a las 72 horas</strong> de emitidos:
+            si el plazo se cumple sin respuesta, la solicitud deberá reenviarse y el
+            pago de la factura se retrasa.
+          </p>
+          <table style="border-collapse:collapse;margin:16px 0;width:100%;font-size:0.95em">
+            <tr style="background:#1a3c6e;color:#fff">
+              <th style="padding:8px 12px;text-align:left">Factura / Proveedor</th>
+              <th style="padding:8px 12px;text-align:left">Valor</th>
+              <th style="padding:8px 12px;text-align:left">Enlace vence</th>
+              <th style="padding:8px 12px;text-align:left">Acción</th>
+            </tr>
+            {filas}
+          </table>
+          <p style="color:#555;font-size:0.9em">
+            Si rechaza una factura, se le pedirá escribir el <strong>motivo</strong>, que queda
+            registrado en DocuFlow y se notifica al área responsable.
+          </p>
+          <p style="color:#888;font-size:0.85em">
+            Si ya respondió alguna de estas solicitudes en los últimos minutos, ignore esa fila.
+          </p>
+          <hr style="margin-top:30px;border:none;border-top:1px solid #eee">
+          <p style="color:#aaa;font-size:0.8em">
+            Sistema DOCUFLOW — Este es un correo automático, no responda a este mensaje.
+          </p>
+        </div>
+        </body></html>
+        """
+        subject = f"Recordatorio DOCUFLOW — {n} factura{plural} pendiente{plural} de su aprobación"
+        await self._send_mail(subject, body_html, aprobador_email)
+        logger.info(
+            f"Recordatorio de {n} aprobación(es) pendiente(s) enviado a {aprobador_email}"
+        )
+
     async def enviar_notificacion_factura_aprobada(
         self,
         factura,

@@ -229,6 +229,25 @@ async def reenviar_aprobacion_dual(
     return await service.reenviar_aprobacion_dual(factura_id=factura_id)
 
 
+@router.post(
+    "/recordatorios-aprobacion",
+    summary="Enviar AHORA los recordatorios consolidados de aprobaciones pendientes",
+)
+async def enviar_recordatorios_aprobacion_endpoint(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Dispara manualmente el mismo ciclo que corre a diario a las 7:00 a.m. (hora
+    Colombia): a cada aprobador con enlaces de aprobación vigentes y facturas aún
+    pendientes se le envía UN correo consolidado con todas sus facturas y sus
+    botones de aprobar/rechazar. Respeta el anti-repetición (~20h entre
+    recordatorios por enlace), así que ejecutarlo dos veces seguidas no duplica correos.
+    """
+    from modules.facturas.recordatorios import enviar_recordatorios_aprobacion
+    return await enviar_recordatorios_aprobacion(db)
+
+
 @router.get(
     "/exportar-plano",
     summary="Exportar facturas como archivo plano XLSX (formato contable)",

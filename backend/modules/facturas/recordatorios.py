@@ -21,7 +21,7 @@ recordatorios por enlace dentro de sus 72 horas de vida.
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import logger
@@ -96,6 +96,29 @@ async def enviar_recordatorios_aprobacion(db: AsyncSession) -> dict:
         logger.info("Recordatorios de aprobación: no hay facturas pendientes que recordar.")
         return {"aprobadores": 0, "facturas": 0, "detalle": []}
 
+    # RESERVA ATÓMICA: uvicorn corre con 2 workers y ambos disparan el ciclo a la
+    # misma hora. Se estampa recordatorio_enviado_at ANTES de enviar, con un UPDATE
+    # condicionado: el worker que pierda la carrera no recibe filas y no envía nada.
+    limite_repeticion = ahora - timedelta(hours=INTERVALO_MINIMO_HORAS)
+    res = await db.execute(
+        update(TokenAprobacionFactura)
+        .where(
+            TokenAprobacionFactura.id.in_([t.id for t, _ in a_recordar]),
+            or_(
+                TokenAprobacionFactura.recordatorio_enviado_at.is_(None),
+                TokenAprobacionFactura.recordatorio_enviado_at <= limite_repeticion,
+            ),
+        )
+        .values(recordatorio_enviado_at=ahora)
+        .returning(TokenAprobacionFactura.id)
+    )
+    reclamados = set(res.scalars().all())
+    await db.commit()
+    a_recordar = [(t, f) for t, f in a_recordar if t.id in reclamados]
+    if not a_recordar:
+        logger.info("Recordatorios de aprobación: otro worker ya reclamó los envíos de este ciclo.")
+        return {"aprobadores": 0, "facturas": 0, "detalle": []}
+
     # Agrupar por aprobador → un solo correo con todas sus facturas
     por_aprobador: dict[str, dict] = {}
     for token, factura in a_recordar:
@@ -135,11 +158,11 @@ async def enviar_recordatorios_aprobacion(db: AsyncSession) -> dict:
             )
         except Exception as e:
             logger.error(f"Error enviando recordatorio de aprobaciones a {email}: {e}")
+            # El correo no salió: se libera la reserva para que el próximo ciclo reintente
+            for token, _ in grupo["tokens"]:
+                token.recordatorio_enviado_at = None
             continue
 
-        # Solo se marca si el correo salió: si falló, el próximo ciclo reintenta
-        for token, _ in grupo["tokens"]:
-            token.recordatorio_enviado_at = ahora
         total_facturas += len(items)
         detalle.append({"aprobador": email, "facturas": len(items)})
 
@@ -163,8 +186,9 @@ def _segundos_hasta_proximo_envio() -> float:
 async def ciclo_recordatorios_aprobacion() -> None:
     """Tarea de fondo: corre los recordatorios todos los días a las 7:00 a.m. Colombia.
 
-    Nota: el backend corre con 1 worker de uvicorn (EC2). Si algún día se suben
-    los workers, este ciclo debe moverse a un cron externo para no duplicar correos.
+    Nota: uvicorn corre con 2 workers y AMBOS ejecutan este ciclo. No se duplican
+    correos porque enviar_recordatorios_aprobacion reserva los tokens con un
+    UPDATE atómico antes de enviar: solo un worker gana cada envío.
     """
     from db.session import AsyncSessionLocal
 

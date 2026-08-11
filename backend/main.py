@@ -189,8 +189,8 @@ async def startup_event():
     """Evento ejecutado al iniciar la aplicación."""
     logger.info(f"Iniciando {settings.app_name} v{settings.app_version}")
     # Recordatorios diarios (7:00 a.m. Colombia) a aprobadores con facturas
-    # pendientes antes de que venza el token de 72h. Corre en el event loop del
-    # único worker de uvicorn; con más workers se duplicaría (mover a cron externo).
+    # pendientes antes de que venza el token de 72h. Cada worker de uvicorn corre
+    # el ciclo, pero la reserva atómica en BD evita correos duplicados.
     import asyncio
     from modules.facturas.recordatorios import ciclo_recordatorios_aprobacion
     app.state.tarea_recordatorios = asyncio.create_task(ciclo_recordatorios_aprobacion())

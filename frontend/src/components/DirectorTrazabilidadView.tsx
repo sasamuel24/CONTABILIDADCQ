@@ -509,8 +509,12 @@ export function DirectorTrazabilidadView() {
     setPagina(1);
   };
 
+  // Misma semántica que la bandeja del responsable: un paquete cuenta como
+  // devuelto si su estado es 'devuelto' O si contiene gastos individuales devueltos
+  const esDevuelto = (p: PaqueteListItem) => p.estado === 'devuelto' || p.tiene_gastos_devueltos;
+
   const lista = paquetes
-    .filter(p => !filtroEstado || p.estado === filtroEstado)
+    .filter(p => !filtroEstado || (filtroEstado === 'devuelto' ? esDevuelto(p) : p.estado === filtroEstado))
     .filter(p => !filtroTipoFlujo || p.tipo_flujo === filtroTipoFlujo)
     // El periodo del paquete se solapa con el rango de fechas escogido
     .filter(p => !fechaDesde || p.fecha_fin >= fechaDesde)
@@ -534,6 +538,7 @@ export function DirectorTrazabilidadView() {
     acc[p.estado] = (acc[p.estado] ?? 0) + 1;
     return acc;
   }, {});
+  conteoEstados['devuelto'] = paquetes.filter(esDevuelto).length;
 
   // Vista detalle solo lectura
   if (paqueteDetalleId) {
@@ -718,6 +723,12 @@ export function DirectorTrazabilidadView() {
                               style={{ backgroundColor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
                               {cfg.label}
                             </span>
+                            {p.tiene_gastos_devueltos && p.estado !== 'devuelto' && (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold mt-1"
+                                style={{ display: 'block', width: 'fit-content', backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                                Gastos devueltos
+                              </span>
+                            )}
                           </td>
                           <td className="px-5 py-3 text-xs text-gray-400 whitespace-nowrap" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
                             {fmtFecha(p.updated_at.slice(0, 10))}

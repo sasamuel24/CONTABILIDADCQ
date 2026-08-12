@@ -2042,8 +2042,20 @@ export function ResponsablePaquetesView({
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await listPaquetesGastos({ limit: 200 });
-      setPaquetes(res.paquetes);
+      // El backend acepta máximo 200 por llamada; paginamos hasta obtener todos
+      // para que los conteos (p. ej. Devueltos) no dependan de la ventana reciente
+      const PAGE = 200;
+      let skip = 0;
+      let acumulados: PaqueteListItem[] = [];
+      let total = Infinity;
+      while (acumulados.length < total) {
+        const res = await listPaquetesGastos({ skip, limit: PAGE });
+        total = res.total;
+        acumulados = [...acumulados, ...res.paquetes];
+        if (res.paquetes.length < PAGE) break;
+        skip += PAGE;
+      }
+      setPaquetes(acumulados);
     } catch {
       toast.error('Error al cargar los paquetes');
     } finally {

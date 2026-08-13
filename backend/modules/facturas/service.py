@@ -418,9 +418,9 @@ class FacturaService:
         ):
             distribucion_creada = await self._crear_distribucion_unica(factura)
 
-        # Auto-ruteo OC: si la factura trae orden de compra y los datos que el
-        # responsable llenaría a mano (CC + CO en cabecera, o distribución
-        # completa), salta directo a Contabilidad. Las que no cumplen siguen
+        # Auto-ruteo OC: si la factura trae orden de compra, salta directo a
+        # Contabilidad (la distribución CC/CO viaja si la OC la trae; si no,
+        # Contabilidad la completa en su pantalla). Las que no cumplen siguen
         # el flujo normal (Radicación → responsable).
         auto_ruteada = await self._auto_rutear_a_contabilidad(factura, distribucion_creada)
 
@@ -435,22 +435,18 @@ class FacturaService:
         """Evalúa la regla de auto-ruteo OC y, si aplica, envía la factura
         directo a Contabilidad al momento de crearla.
 
-        Regla: numero_oc presente + clasificación contable completa (CC + CO
-        en cabecera, o distribución CC/CO creada) + sin entrada de inventarios.
-        area_origen_id queda en Radicación para que una devolución desde
-        Contabilidad caiga allá. Controlado por el flag AUTO_RUTEO_OC.
+        Regla: numero_oc presente + sin entrada de inventarios. El CC/CO ya
+        NO es requisito: hay OCs (p. ej. de SERVICIOS) que en Siesa no tienen
+        centro de costo, y Contabilidad puede completar la distribución en su
+        pantalla. area_origen_id queda en Radicación para que una devolución
+        desde Contabilidad caiga allá. Controlado por el flag AUTO_RUTEO_OC.
         """
         from core.config import settings
 
         if not (settings.auto_ruteo_oc and self.db):
             return False
-        clasificacion_completa = (
-            (factura.centro_costo_id and factura.centro_operacion_id)
-            or distribucion_creada
-        )
         if not (
             factura.numero_oc
-            and clasificacion_completa
             and not factura.requiere_entrada_inventarios
         ):
             return False

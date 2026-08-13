@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   LogOut,
   PackagePlus,
@@ -79,6 +79,9 @@ type GastoLocal = {
   archivos: ArchivoGastoOut[];
   pendingFiles: { localKey: string; file: File; categoria: CategoriaGasto }[];
   isDirty: boolean;
+  // Contador de cambios: el autoguardado limpia isDirty solo si la fila no
+  // volvió a cambiar mientras la petición estaba en vuelo.
+  dirtySeq: number;
   estado_gasto?: string;
   motivo_devolucion_gasto?: string | null;
 };
@@ -151,6 +154,7 @@ function gastoOutToLocal(g: GastoOut): GastoLocal {
     archivos: g.archivos,
     pendingFiles: [],
     isDirty: false,
+    dirtySeq: 0,
     estado_gasto: g.estado_gasto,
     motivo_devolucion_gasto: g.motivo_devolucion_gasto,
   };
@@ -172,7 +176,12 @@ function filaVaciaLocal(): GastoLocal {
     archivos: [],
     pendingFiles: [],
     isDirty: false,
+    dirtySeq: 0,
   };
+}
+
+function tieneContenidoFila(f: GastoLocal): boolean {
+  return Boolean(f.fecha || f.noIdentificacion || f.pagadoA || f.concepto || f.valorPagado);
 }
 
 // ============================================================
@@ -680,6 +689,121 @@ function DetallePaqueteCQ({
 
   useEffect(() => { cargar(); }, [cargar]);
 
+  // ── Autoguardado ─────────────────────────────────────────────────────────
+  // Persiste solo (con debounce) los gastos y sus soportes mientras el
+  // responsable digita, para que nada se pierda si cierra la página o se le
+  // cae la sesión. El botón "Guardar borrador" queda como respaldo manual.
+  const [autosaveEstado, setAutosaveEstado] = useState<'idle' | 'guardando' | 'guardado' | 'error'>('idle');
+  const gastosRef = useRef<GastoLocal[]>([]);
+  useEffect(() => { gastosRef.current = gastos; }, [gastos]);
+  const savingRef = useRef(saving);
+  useEffect(() => { savingRef.current = saving; }, [saving]);
+  const autosaveTimer = useRef<number | null>(null);
+  const autosaveEnCurso = useRef(false);
+  const autosavePendiente = useRef(false);
+  // Ids reales de filas creadas por el autoguardado: el guardado manual puede
+  // correr con un estado de React aún sin actualizar y NO debe re-crearlas.
+  const idsCreados = useRef(new Map<string, string>());
+  // Soportes ya subidos (por localKey), para no subir el mismo archivo dos veces.
+  const archivosSubidos = useRef(new Set<string>());
+  const autoguardarRef = useRef<() => Promise<void>>(async () => {});
+
+  const programarAutosave = useCallback(() => {
+    if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = window.setTimeout(() => {
+      autosaveTimer.current = null;
+      void autoguardarRef.current();
+    }, 2500);
+  }, []);
+
+  const autoguardar = async () => {
+    if (!paquete || !['borrador', 'devuelto'].includes(paquete.estado)) return;
+    if (savingRef.current || autosaveEnCurso.current) {
+      autosavePendiente.current = true;
+      return;
+    }
+    const snapshot = gastosRef.current;
+    const hayTrabajo = snapshot.some(f => {
+      const gastoId = f.id ?? idsCreados.current.get(f.localId);
+      const pendientes = f.pendingFiles.some(pf => !archivosSubidos.current.has(pf.localKey));
+      if (!gastoId) return tieneContenidoFila(f) && (f.isDirty || pendientes);
+      return f.isDirty || pendientes;
+    });
+    if (!hayTrabajo) return;
+    autosaveEnCurso.current = true;
+    setAutosaveEstado('guardando');
+    try {
+      for (const fila of snapshot) {
+        let gastoId = fila.id ?? idsCreados.current.get(fila.localId);
+        const seq = fila.dirtySeq;
+        if (!gastoId && !tieneContenidoFila(fila)) continue;
+        if (!gastoId && fila.isDirty) {
+          const creado = await agregarGasto(paqueteId, {
+            fecha: fila.fecha || new Date().toISOString().slice(0, 10),
+            no_identificacion: fila.noIdentificacion, pagado_a: fila.pagadoA,
+            concepto: fila.concepto, no_recibo: fila.noRecibo || undefined,
+            valor_pagado: parseFloat(fila.valorPagado) || 0,
+            centro_costo_id: fila.centroCostoId || undefined,
+            centro_operacion_id: fila.centroOperacionId || undefined,
+            cuenta_auxiliar_id: fila.cuentaAuxiliarId || undefined,
+          });
+          gastoId = creado.id;
+          idsCreados.current.set(fila.localId, creado.id);
+          if (creado.aviso_buzon) toast.info(creado.aviso_buzon, { duration: 8000 });
+          setGastos(prev => prev.map(f => f.localId === fila.localId
+            ? { ...f, id: creado.id, isDirty: f.dirtySeq !== seq, estado_gasto: creado.estado_gasto }
+            : f));
+        } else if (gastoId && fila.isDirty) {
+          await editarGasto(paqueteId, gastoId, {
+            fecha: fila.fecha || undefined, no_identificacion: fila.noIdentificacion || undefined,
+            pagado_a: fila.pagadoA || undefined, concepto: fila.concepto || undefined,
+            no_recibo: fila.noRecibo || undefined, valor_pagado: parseFloat(fila.valorPagado) || undefined,
+            centro_costo_id: fila.centroCostoId || undefined, centro_operacion_id: fila.centroOperacionId || undefined,
+            cuenta_auxiliar_id: fila.cuentaAuxiliarId || undefined,
+          });
+          setGastos(prev => prev.map(f => f.localId === fila.localId && f.dirtySeq === seq
+            ? { ...f, id: gastoId, isDirty: false } : f));
+        }
+        for (const pf of fila.pendingFiles) {
+          if (!gastoId || archivosSubidos.current.has(pf.localKey)) continue;
+          const subido = await subirArchivoGasto(paqueteId, gastoId, pf.categoria, pf.file);
+          archivosSubidos.current.add(pf.localKey);
+          setGastos(prev => prev.map(f => f.localId === fila.localId
+            ? { ...f, archivos: [...f.archivos, subido], pendingFiles: f.pendingFiles.filter(x => x.localKey !== pf.localKey) }
+            : f));
+        }
+      }
+      // Refresca el encabezado (monto total del paquete) sin tocar lo editado.
+      try { setPaquete(await getPaqueteGasto(paqueteId)); } catch { /* no crítico */ }
+      setAutosaveEstado('guardado');
+    } catch {
+      setAutosaveEstado('error');
+    } finally {
+      autosaveEnCurso.current = false;
+      if (autosavePendiente.current) {
+        autosavePendiente.current = false;
+        programarAutosave();
+      }
+    }
+  };
+  autoguardarRef.current = autoguardar;
+
+  // Antes de un guardado/envío/borrado manual: cancela el debounce y espera el
+  // autoguardado en vuelo, para que no corran dos escrituras a la vez.
+  const cancelarYEsperarAutosave = useCallback(async () => {
+    if (autosaveTimer.current) { window.clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
+    autosavePendiente.current = false;
+    while (autosaveEnCurso.current) { await new Promise(r => setTimeout(r, 150)); }
+  }, []);
+
+  // Al salir del detalle con un autoguardado programado, dispararlo de una vez.
+  useEffect(() => () => {
+    if (autosaveTimer.current) {
+      window.clearTimeout(autosaveTimer.current);
+      void autoguardarRef.current();
+    }
+  }, []);
+
   if (loading || !paquete) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -698,7 +822,8 @@ function DetallePaqueteCQ({
 
   const handleCampo = (localId: string, campo: keyof GastoLocal, valor: string) => {
     if (bloqueado) return;
-    setGastos(prev => prev.map(f => f.localId === localId ? { ...f, [campo]: valor, isDirty: true } : f));
+    setGastos(prev => prev.map(f => f.localId === localId ? { ...f, [campo]: valor, isDirty: true, dirtySeq: f.dirtySeq + 1 } : f));
+    programarAutosave();
   };
 
   const handleAgregarFila = () => { if (!bloqueado) setGastos(prev => [...prev, filaVaciaLocal()]); };
@@ -707,11 +832,14 @@ function DetallePaqueteCQ({
     if (bloqueado) return;
     const fila = gastos.find(f => f.localId === localId);
     if (!fila) return;
-    if (fila.id) {
+    const gastoId = fila.id ?? idsCreados.current.get(localId);
+    if (gastoId) {
       if (!window.confirm('¿Eliminar este gasto?')) return;
       try {
         setSaving(true);
-        await eliminarGasto(paqueteId, fila.id);
+        await cancelarYEsperarAutosave();
+        await eliminarGasto(paqueteId, gastoId);
+        idsCreados.current.delete(localId);
         toast.success('Gasto eliminado');
       } catch { toast.error('Error al eliminar el gasto'); return; }
       finally { setSaving(false); }
@@ -723,8 +851,9 @@ function DetallePaqueteCQ({
     setGastos(prev => prev.map(f => {
       if (f.localId !== localId) return f;
       if (f.archivos.length + f.pendingFiles.length >= 2) return f;
-      return { ...f, pendingFiles: [...f.pendingFiles, { localKey: `${Date.now()}-${Math.random()}`, file, categoria }], isDirty: true };
+      return { ...f, pendingFiles: [...f.pendingFiles, { localKey: `${Date.now()}-${Math.random()}`, file, categoria }], isDirty: true, dirtySeq: f.dirtySeq + 1 };
     }));
+    programarAutosave();
   };
 
   const handleQuitarArchivoGuardado = async (localId: string, archivoId: string) => {
@@ -784,7 +913,8 @@ function DetallePaqueteCQ({
       if (datos.no_recibo)         campos.noRecibo         = datos.no_recibo;
       if (datos.valor_pagado)      campos.valorPagado      = datos.valor_pagado;
       if (datos.fecha)             campos.fecha            = datos.fecha;
-      setGastos(prev => prev.map(f => f.localId === localId ? { ...f, ...campos, isDirty: true } : f));
+      setGastos(prev => prev.map(f => f.localId === localId ? { ...f, ...campos, isDirty: true, dirtySeq: f.dirtySeq + 1 } : f));
+      programarAutosave();
       const n = datos.campos_detectados.length;
       if (n === 0) toast.warning('No se detectaron datos. Intenta con una foto más nítida.');
       else toast.success(`${n} campo${n !== 1 ? 's' : ''} completado${n !== 1 ? 's' : ''} automáticamente`);
@@ -792,13 +922,14 @@ function DetallePaqueteCQ({
     finally { setEscaneandoId(null); }
   };
 
+  // Lee gastosRef (no el estado capturado en el render) y consulta idsCreados /
+  // archivosSubidos para no repetir lo que el autoguardado ya persistió.
   const persistirCambios = async () => {
-    for (const fila of gastos) {
-      const esNueva = !fila.id;
-      const tieneContenido = fila.fecha || fila.noIdentificacion || fila.pagadoA || fila.concepto || fila.valorPagado;
-      if (esNueva && !tieneContenido) continue;
-      let gastoId = fila.id;
-      if (esNueva && tieneContenido) {
+    for (const fila of gastosRef.current) {
+      let gastoId = fila.id ?? idsCreados.current.get(fila.localId);
+      const esNueva = !gastoId;
+      if (esNueva && !tieneContenidoFila(fila)) continue;
+      if (esNueva) {
         const creado = await agregarGasto(paqueteId, {
           fecha: fila.fecha || new Date().toISOString().slice(0, 10),
           no_identificacion: fila.noIdentificacion, pagado_a: fila.pagadoA,
@@ -809,8 +940,9 @@ function DetallePaqueteCQ({
           cuenta_auxiliar_id: fila.cuentaAuxiliarId || undefined,
         });
         gastoId = creado.id;
+        idsCreados.current.set(fila.localId, creado.id);
         if (creado.aviso_buzon) toast.info(creado.aviso_buzon, { duration: 8000 });
-      } else if (!esNueva && fila.isDirty && gastoId) {
+      } else if (fila.isDirty && gastoId) {
         await editarGasto(paqueteId, gastoId, {
           fecha: fila.fecha || undefined, no_identificacion: fila.noIdentificacion || undefined,
           pagado_a: fila.pagadoA || undefined, concepto: fila.concepto || undefined,
@@ -820,7 +952,9 @@ function DetallePaqueteCQ({
         });
       }
       for (const pf of fila.pendingFiles) {
-        if (gastoId) await subirArchivoGasto(paqueteId, gastoId, pf.categoria, pf.file);
+        if (!gastoId || archivosSubidos.current.has(pf.localKey)) continue;
+        await subirArchivoGasto(paqueteId, gastoId, pf.categoria, pf.file);
+        archivosSubidos.current.add(pf.localKey);
       }
     }
   };
@@ -828,7 +962,9 @@ function DetallePaqueteCQ({
   const handleGuardarBorrador = async () => {
     setSaving(true);
     try {
+      await cancelarYEsperarAutosave();
       await persistirCambios();
+      setAutosaveEstado('idle');
       toast.success('Borrador guardado correctamente');
       await cargar();
     } catch (err: any) {
@@ -855,6 +991,7 @@ function DetallePaqueteCQ({
   const handleEnviarConfirmado = async (aprobadorId: string) => {
     setSaving(true);
     try {
+      await cancelarYEsperarAutosave();
       await persistirCambios();
       await enviarPaquete(paqueteId, aprobadorId);
       toast.success('Paquete enviado. El gerente recibirá el correo de aprobación.');
@@ -889,6 +1026,14 @@ function DetallePaqueteCQ({
             <ChevronRight className="w-4 h-4 rotate-180" /> Volver a mis paquetes
           </button>
           <div className="flex items-center gap-2">
+            {(esBorrador || esDevuelto) && autosaveEstado !== 'idle' && (
+              <span className="flex items-center gap-1.5 text-xs font-semibold px-2"
+                style={{ color: autosaveEstado === 'error' ? '#b45309' : '#6b7280', fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                {autosaveEstado === 'guardando' && (<><Loader2 className="w-3 h-3 animate-spin" /> Guardando…</>)}
+                {autosaveEstado === 'guardado' && (<><CheckCircle2 className="w-3 h-3 text-emerald-500" /> Guardado automáticamente</>)}
+                {autosaveEstado === 'error' && (<><AlertCircle className="w-3 h-3" /> Sin guardar — usa Guardar borrador</>)}
+              </span>
+            )}
             {(esBorrador || esDevuelto) ? (
               <>
                 {esBorrador && (

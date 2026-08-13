@@ -7,6 +7,7 @@ import { FilePreviewModal } from './FilePreviewModal';
 import { ConfirmModal } from './ConfirmModal';
 import { ComentariosFactura } from './ComentariosFactura';
 import { AsignarCarpetaModal } from './AsignarCarpetaModal';
+import { CausarSiesaModal } from './CausarSiesaModal';
 import { useAuth } from '../contexts/AuthContext';
 
 interface ContabilidadFacturaDetailProps {
@@ -40,6 +41,7 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   const { user } = useAuth();
   const [procesando, setProcesando] = useState(false);
   const [enviandoGastosFijos, setEnviandoGastosFijos] = useState(false);
+  const [mostrarModalSiesa, setMostrarModalSiesa] = useState(false);
 
   const GADMIN_AREA_ID = 'c1589d0c-736b-4af4-89f2-81900d2dac16';
 
@@ -1142,6 +1144,32 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                 {enviandoGastosFijos ? 'Enviando...' : 'Enviar a Gastos Fijos'}
               </button>
               <button
+                onClick={() => setMostrarModalSiesa(true)}
+                disabled={procesando}
+                style={{
+                  fontFamily: 'Neutra Text Book, Montserrat, sans-serif',
+                  backgroundColor: 'transparent',
+                  borderColor: procesando ? '#d1d5db' : '#00829a',
+                  color: procesando ? '#9ca3af' : '#00829a',
+                  borderWidth: '2px',
+                  transition: 'all 0.2s',
+                  cursor: procesando ? 'not-allowed' : 'pointer',
+                }}
+                onMouseEnter={(e) => {
+                  if (!procesando) {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 130, 154, 0.05)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!procesando) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }
+                }}
+                className="px-6 py-2 rounded-lg"
+              >
+                Causar en Siesa
+              </button>
+              <button
                 onClick={handleIniciarAprobacion}
                 disabled={procesando}
                 style={{
@@ -1175,6 +1203,13 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
           </div>
         </div>
       </div>
+
+      {/* Modal de Causación en Siesa (FSP) */}
+      <CausarSiesaModal
+        isOpen={mostrarModalSiesa}
+        onClose={() => setMostrarModalSiesa(false)}
+        facturaId={factura.id}
+      />
 
       {/* Modal de Devolución a Responsable */}
       {mostrarModalDevolucion && (

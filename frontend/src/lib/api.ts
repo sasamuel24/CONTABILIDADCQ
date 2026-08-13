@@ -3060,3 +3060,148 @@ export async function reenviarAprobacionDual(
 ): Promise<{ factura_id: string; aprobaciones_enviadas: { tipo: string; email: string; enviado: boolean }[] }> {
   return fetchAPI(`/facturas/${facturaId}/reenviar-aprobacion-dual`, { method: 'POST' });
 }
+
+// ─── Causación Siesa (FSP) ────────────────────────────────────────────────────
+// Nota: el backend (Pydantic v2) serializa los Decimal como string — los
+// campos numéricos llegan como string y deben pasarse por toNum() antes de
+// sumar (concatenar da NaN).
+
+export interface SiesaRenglonIn {
+  codigo_servicio: string;
+  valor_bruto: string;
+  centro_costo: string;
+  motivo: string;
+  llave_impuesto?: string | null;
+  tasa_iva?: string | null;
+  valor_iva: string;
+  notas?: string;
+  detalle?: string;
+}
+
+export interface SiesaRetencionIn {
+  llave: string;
+  tasa: string;
+  clase_imp_base: string;
+  base_minima: string;
+}
+
+export interface SiesaCausarIn {
+  sucursal_proveedor: string;
+  tipo_proveedor: string;
+  cond_pago: string;
+  prefijo_docto_proveedor: string;
+  numero_docto_proveedor: string;
+  fecha_emision?: string | null;
+  notas?: string;
+  renglones: SiesaRenglonIn[];
+  retenciones: SiesaRetencionIn[];
+  guardar_como_default?: boolean;
+}
+
+export interface SiesaCausacion {
+  id: string;
+  factura_id: string;
+  amarre: string;
+  estado: 'borrador' | 'enviando' | 'enviado' | 'exitoso' | 'error' | 'verificado' | string;
+  numero_fsp: string | null;
+  fecha_causacion: string | null;
+  ambiente: string;
+  created_at: string;
+}
+
+export interface SiesaCuadre {
+  cuadra: boolean;
+  base_total: string;
+  iva_total: string;
+  retenciones_total: string;
+  bruto: string;
+  neto: string;
+  total_factura: string;
+  diferencia_bruto: string;
+  diferencia_neto: string;
+}
+
+export interface SiesaRetencionXML {
+  esquema_id: string | null;
+  esquema_nombre: string | null;
+  porcentaje: number | null;
+  base: number | null;
+  valor: number | null;
+}
+
+export interface SiesaConfigProveedor {
+  id: string;
+  nit: string;
+  sucursal: string;
+  tipo_proveedor: string | null;
+  id_motivo: string | null;
+  centro_costo_siesa: string | null;
+  codigo_servicio: string | null;
+  cond_pago: string | null;
+  llave_impuesto: string | null;
+  tasa_impuesto: string | null;
+  notas: string | null;
+  retenciones: {
+    id: string;
+    llave_retencion: string;
+    tasa: string;
+    clase_imp_base: string;
+    base_minima: string;
+    descripcion: string | null;
+  }[];
+}
+
+export interface SiesaPreparar {
+  factura_id: string;
+  proveedor: string;
+  nit_proveedor: string | null;
+  nit_normalizado: string | null;
+  numero_factura: string;
+  fecha_emision: string | null;
+  total: string;
+  base_gravable: string | null;
+  valor_iva: string | null;
+  retenciones_xml: SiesaRetencionXML[];
+  prefill: SiesaCausarIn | null;
+  config_proveedor: SiesaConfigProveedor | null;
+  problemas: string[];
+  cuadre: SiesaCuadre | null;
+  causaciones: SiesaCausacion[];
+  puede_causar: boolean;
+  habilitado: boolean;
+}
+
+export interface SiesaMaestros {
+  motivos: Record<string, string>;
+  centros_costo: Record<string, string>;
+  tipos_proveedor: Record<string, string>;
+  condiciones_pago: Record<string, number>;
+}
+
+export async function getMaestrosSiesa(): Promise<SiesaMaestros> {
+  return fetchAPI<SiesaMaestros>('/siesa/maestros');
+}
+
+export async function prepararCausacionSiesa(facturaId: string): Promise<SiesaPreparar> {
+  return fetchAPI<SiesaPreparar>(`/siesa/facturas/${facturaId}/preparar`);
+}
+
+export async function causarEnSiesa(
+  facturaId: string,
+  data: SiesaCausarIn,
+): Promise<{ causacion: SiesaCausacion; mensaje: string }> {
+  return fetchAPI(`/siesa/facturas/${facturaId}/causar`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function verificarCausacionSiesa(
+  causacionId: string,
+): Promise<{ causacion: SiesaCausacion; mensaje: string }> {
+  return fetchAPI(`/siesa/causaciones/${causacionId}/verificar`, { method: 'POST' });
+}
+
+export async function getCausacionesSiesa(facturaId: string): Promise<SiesaCausacion[]> {
+  return fetchAPI<SiesaCausacion[]>(`/siesa/facturas/${facturaId}/causaciones`);
+}

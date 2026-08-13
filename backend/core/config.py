@@ -59,6 +59,31 @@ class Settings(BaseSettings):
     # Anthropic — IA extracción datos facturas
     anthropic_api_key: str = ""
 
+    # ─── Siesa Connekta — causación FSP ─────────────────────────────────
+    # Fase 1: config inerte (no hay cliente todavía). Credenciales SIEMPRE
+    # por .env/secret manager, jamás en código ni en logs; los tokens de QA
+    # circularon por chats y DEBEN rotarse antes de producción.
+    siesa_habilitado: bool = False
+    # QA: https://serviciosqa.siesacloud.com — prod: servicios.siesacloud.com
+    # (URL de producción pendiente de confirmar antes de activar)
+    siesa_base_url: str = "https://serviciosqa.siesacloud.com"
+    siesa_conni_key: str = ""
+    siesa_conni_token: str = ""
+    siesa_id_compania: int = 2211
+    siesa_id_sistema: int = 2
+    siesa_id_documento: int = 249608
+    siesa_nombre_documento: str = "FACTURA DE SERVICIOS DIRECTA"
+    # Nombre de la consulta de Connekta (ejecutarconsulta) que devuelve el
+    # último FSP por tercero + fecha + valor — la MISMA que usa el flujo n8n.
+    # Sin ella no se puede recuperar el consecutivo real tras el éxito.
+    siesa_consulta_fsp: str = ""
+    # ⚠️ BUG ABIERTO del conector (regla #10 del builder): el tercero del
+    # Movto rechaza tanto el proveedor real como el vacío; el éxito en QA se
+    # logró con un tercero DISTINTO. NO es patrón de producción — cuando el
+    # consultor Siesa corrija el conector, dejar ambos en "".
+    siesa_workaround_tercero_movto: str = ""
+    siesa_workaround_sucursal_movto: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

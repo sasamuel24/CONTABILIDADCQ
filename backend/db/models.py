@@ -7,8 +7,8 @@ from sqlalchemy import (
     ForeignKey, Index, UniqueConstraint, CheckConstraint, Enum
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
-from datetime import datetime, date
+from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP, JSONB
+from datetime import datetime, date, timezone
 from typing import Optional, List
 import uuid
 
@@ -624,6 +624,17 @@ class Factura(Base, TimestampMixin):
 
     # NIT del proveedor (extraído del XML DIAN)
     nit_proveedor: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Causación Siesa (FSP) — enriquecimiento extraído del XML DIAN.
+    # Nullable por contrato: la extracción es defensiva y las facturas
+    # existentes/PDF no los tienen; la legalización nunca depende de ellos.
+    base_gravable: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    valor_iva: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    # INFORMATIVO, NO fuente de causación: las retenciones que aplica Café
+    # Quindío las define SU parametrización tributaria (siesa_proveedor_config),
+    # no lo que el emisor declare en el XML. Codificar "retener lo que diga el
+    # XML" sería un error tributario, no técnico.
+    retenciones_xml: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
 
     # Datos de documento / orden de compra (ingesta N8N)
     tipo_doc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -1780,3 +1791,132 @@ class TokenAprobacionFactura(Base, TimestampMixin):
 
     def __repr__(self):
         return f"<TokenAprobacionFactura(factura={self.factura_id}, usado={self.usado})>"
+
+
+# =============================================================================
+# CAUSACIÓN SIESA (FSP) — Fase 1
+# =============================================================================
+
+class SiesaProveedorConfig(Base, TimestampMixin):
+    """
+    Mapeo por proveedor de los datos de decisión para causar FSP en Siesa.
+
+    Es la FUENTE DE VERDAD tributaria del agente retenedor (Café Quindío):
+    las retenciones se toman de aquí (siesa_proveedor_retenciones), NUNCA de
+    lo que el emisor declare en el XML DIAN (eso es solo informativo).
+    El modal de causación precarga estos valores y permite ajustarlos.
+    """
+    __tablename__ = "siesa_proveedor_config"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    # NIT SIN dígito de verificación (regla dura #3 del conector)
+    nit: Mapped[str] = mapped_column(Text, nullable=False, unique=True, index=True)
+    sucursal: Mapped[str] = mapped_column(String(10), nullable=False, default="001")
+    # Maestros Siesa (ver modules/siesa/constants.py — seeds QA cia 1)
+    tipo_proveedor: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
+    id_motivo: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)   # máx 2 chars (regla #8)
+    centro_costo_siesa: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    codigo_servicio: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    cond_pago: Mapped[Optional[str]] = mapped_column(String(3), nullable=True)
+    llave_impuesto: Mapped[Optional[str]] = mapped_column(String(4), nullable=True)
+    tasa_impuesto: Mapped[Optional[float]] = mapped_column(Numeric(7, 4), nullable=True)
+    notas: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    retenciones: Mapped[List["SiesaProveedorRetencion"]] = relationship(
+        "SiesaProveedorRetencion",
+        back_populates="config",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self):
+        return f"<SiesaProveedorConfig(nit={self.nit})>"
+
+
+class SiesaProveedorRetencion(Base, TimestampMixin):
+    """
+    Retención parametrizada para un proveedor (ReteFuente/ReteIVA/ReteICA).
+    Un proveedor puede tener N retenciones; cada una genera una fila en la
+    sección Retenciones del payload FSP.
+    """
+    __tablename__ = "siesa_proveedor_retenciones"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    config_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("siesa_proveedor_config.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    llave_retencion: Mapped[str] = mapped_column(String(4), nullable=False)  # 4 chars (regla #8)
+    tasa: Mapped[float] = mapped_column(Numeric(7, 4), nullable=False)
+    clase_imp_base: Mapped[str] = mapped_column(String(3), nullable=False, default="2")
+    base_minima: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    descripcion: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    config: Mapped["SiesaProveedorConfig"] = relationship(
+        "SiesaProveedorConfig", back_populates="retenciones"
+    )
+
+    def __repr__(self):
+        return f"<SiesaProveedorRetencion(llave={self.llave_retencion}, tasa={self.tasa})>"
+
+
+class SiesaCausacion(Base, TimestampMixin):
+    """
+    Registro de cada intento de causación FSP: única fuente de verdad de
+    "esta factura ya se causó" y defensa contra la doble causación (el POST
+    a Connekta no es idempotente y el éxito no devuelve el consecutivo).
+
+    Estados: borrador → enviando → enviado → exitoso → verificado | error.
+    'enviado' sin respuesta confirmada exige verificar por consulta
+    (ejecutarconsulta) ANTES de permitir un reintento.
+    """
+    __tablename__ = "siesa_causaciones"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    factura_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("facturas.id", ondelete="RESTRICT"),
+        nullable=False, index=True
+    )
+    # CONSEC_DOCTO de amarre enviado (el ERP asigna el número real aparte)
+    amarre: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    estado: Mapped[str] = mapped_column(String(20), nullable=False, default="borrador", index=True)
+    payload_enviado: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    respuesta: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    # Número FSP real recuperado vía ejecutarconsulta tras el éxito
+    numero_fsp: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    fecha_causacion: Mapped[Optional[datetime]] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
+    ambiente: Mapped[str] = mapped_column(String(10), nullable=False, default="qa")
+    creado_por_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    # Override del TimestampMixin con datetimes timezone-AWARE: el mixin usa
+    # datetime.utcnow() naive, que asyncpg interpreta como hora local del
+    # servidor — en un equipo en hora Colombia queda corrido +5h (visto el
+    # 12-Ago-2026 en el historial del modal). Aware = correcto en cualquier tz.
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    def __repr__(self):
+        return f"<SiesaCausacion(factura={self.factura_id}, estado={self.estado}, fsp={self.numero_fsp})>"

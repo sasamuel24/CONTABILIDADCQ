@@ -1356,8 +1356,20 @@ async def ingesta_xml(
     existing = dup.scalar_one_or_none()
     if existing:
         # Si N8N envía el NIT explícitamente y la factura existente no lo tiene, actualizarlo
+        hubo_backfill = False
         if payload.nit and not existing.nit_proveedor:
             existing.nit_proveedor = payload.nit
+            hubo_backfill = True
+        # Backfill Siesa FSP: si el XML trae base/IVA y la factura no los tiene
+        if existing.base_gravable is None and datos.base_gravable is not None:
+            existing.base_gravable = datos.base_gravable
+            hubo_backfill = True
+        if existing.valor_iva is None and datos.valor_iva is not None:
+            existing.valor_iva = datos.valor_iva
+            hubo_backfill = True
+        if existing.retenciones_xml is None and datos.retenciones_xml:
+            existing.retenciones_xml = datos.retenciones_xml
+            hubo_backfill = True
         # Si es duplicado de un NIT conocido pero sin área asignada aún,
         # intentar asignar usando la tabla NIT
         if existing.ai_area_confianza is None:
@@ -1376,6 +1388,9 @@ async def ingesta_xml(
                 existing.ai_area_confianza = "nula"
                 existing.pendiente_confirmacion = True
                 existing.ai_area_razonamiento = "NIT no está en tabla de proveedores conocidos."
+            await db.commit()
+            await db.refresh(existing)
+        elif hubo_backfill:
             await db.commit()
             await db.refresh(existing)
 
@@ -1447,6 +1462,11 @@ async def ingesta_xml(
         pendiente_confirmacion=pendiente,
         ai_area_confianza=confianza,
         ai_area_razonamiento=razonamiento,
+        # Enriquecimiento Siesa FSP (extracción defensiva: pueden venir None
+        # y la factura se crea igual). retenciones_xml es solo informativo.
+        base_gravable=datos.base_gravable,
+        valor_iva=datos.valor_iva,
+        retenciones_xml=datos.retenciones_xml or None,
     )
     db.add(nueva)
     await db.commit()

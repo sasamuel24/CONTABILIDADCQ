@@ -38,6 +38,15 @@ class FacturaDIAN:
     notas: list[str] = field(default_factory=list)
     tipo_documento: Optional[str] = None   # e.g. "35" = tiquete transporte
     info_adicional: dict = field(default_factory=dict)
+    # Enriquecimiento para causación Siesa (FSP). Extracción DEFENSIVA:
+    # si el XML viene raro estos campos quedan en None/[] y la factura se
+    # carga igual — la legalización nunca falla por culpa de estos campos.
+    base_gravable: Optional[float] = None      # TaxExclusiveAmount
+    valor_iva: Optional[float] = None          # TaxTotal (IVA)
+    # INFORMATIVAS, NO son la fuente para causar: en Colombia el agente
+    # retenedor (Café Quindío) decide qué retiene según SU parametrización;
+    # lo que el emisor declare en el XML es apenas una sugerencia.
+    retenciones_xml: list[dict] = field(default_factory=list)
 
 
 def _text(element, xpath: str, ns: dict) -> Optional[str]:
@@ -75,6 +84,75 @@ def _find_text_any_ns(root: ET.Element, local_tag: str) -> list[str]:
         if tag == local_tag and el.text and el.text.strip():
             results.append(el.text.strip())
     return results
+
+
+def _extraer_impuestos(root: ET.Element, ns_map: dict) -> dict:
+    """
+    Extrae base gravable, IVA y retenciones declaradas del Invoice DIAN.
+
+    DEFENSIVO por diseño: cualquier estructura inesperada devuelve los campos
+    en None/[] sin lanzar — este enriquecimiento jamás debe tumbar la carga
+    de una factura del flujo vivo.
+    """
+    result: dict = {
+        "base_gravable": None,
+        "valor_iva": None,
+        "retenciones_xml": [],
+    }
+    try:
+        # Base gravable: TaxExclusiveAmount; fallback LineExtensionAmount
+        result["base_gravable"] = _parse_total(
+            _text(root, ".//cac:LegalMonetaryTotal/cbc:TaxExclusiveAmount", ns_map)
+        )
+        if result["base_gravable"] is None:
+            result["base_gravable"] = _parse_total(
+                _text(root, ".//cac:LegalMonetaryTotal/cbc:LineExtensionAmount", ns_map)
+            )
+
+        # IVA: cac:TaxTotal hijos DIRECTOS del Invoice (los de las líneas van
+        # anidados en cac:InvoiceLine y sumarlos duplicaría el valor).
+        iva_total = 0.0
+        hay_iva = False
+        for tax_total in root.findall("cac:TaxTotal", ns_map):
+            subtotales = tax_total.findall(".//cac:TaxSubtotal", ns_map)
+            if subtotales:
+                for st in subtotales:
+                    scheme_id = _text(st, ".//cac:TaxScheme/cbc:ID", ns_map) or ""
+                    scheme_name = (_text(st, ".//cac:TaxScheme/cbc:Name", ns_map) or "").upper()
+                    monto = _parse_total(_text(st, "cbc:TaxAmount", ns_map))
+                    # Esquema DIAN "01" = IVA
+                    if monto is not None and (scheme_id == "01" or "IVA" in scheme_name):
+                        iva_total += monto
+                        hay_iva = True
+            else:
+                monto = _parse_total(_text(tax_total, "cbc:TaxAmount", ns_map))
+                if monto is not None:
+                    iva_total += monto
+                    hay_iva = True
+        if hay_iva:
+            result["valor_iva"] = iva_total
+
+        # Retenciones declaradas por el emisor (WithholdingTaxTotal).
+        # INFORMATIVAS: la fuente real para causar es la parametrización del
+        # agente retenedor (mapeo por proveedor), no el XML.
+        retenciones = []
+        for wht in root.findall("cac:WithholdingTaxTotal", ns_map):
+            subtotales = wht.findall(".//cac:TaxSubtotal", ns_map) or [wht]
+            for st in subtotales:
+                ret = {
+                    "esquema_id": _text(st, ".//cac:TaxScheme/cbc:ID", ns_map),
+                    "esquema_nombre": _text(st, ".//cac:TaxScheme/cbc:Name", ns_map),
+                    "porcentaje": _parse_total(_text(st, ".//cbc:Percent", ns_map)),
+                    "base": _parse_total(_text(st, "cbc:TaxableAmount", ns_map)),
+                    "valor": _parse_total(_text(st, "cbc:TaxAmount", ns_map)),
+                }
+                if any(v is not None for v in ret.values()):
+                    retenciones.append(ret)
+        result["retenciones_xml"] = retenciones
+    except Exception:
+        # Nunca propagar: el enriquecimiento es opcional por contrato.
+        pass
+    return result
 
 
 def _parse_invoice_inner(xml_str: str) -> dict:
@@ -155,6 +233,9 @@ def _parse_invoice_inner(xml_str: str) -> dict:
 
     # Tipo de documento
     result["tipo_documento"] = _text(root, "cbc:InvoiceTypeCode", ns_map)
+
+    # Base gravable, IVA y retenciones (defensivo, para causación Siesa)
+    result.update(_extraer_impuestos(root, ns_map))
 
     # InformacionAdicional (campo libre que algunos proveedores incluyen)
     info_adicional = {}
@@ -237,4 +318,7 @@ def parse_xml_dian(xml_content: str) -> FacturaDIAN:
         descripciones_items=descripciones,
         tipo_documento=tipo_documento,
         info_adicional=info_adicional,
+        base_gravable=inner_data.get("base_gravable"),
+        valor_iva=inner_data.get("valor_iva"),
+        retenciones_xml=inner_data.get("retenciones_xml", []),
     )

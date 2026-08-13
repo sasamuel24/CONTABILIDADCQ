@@ -406,14 +406,14 @@ class FacturaService:
         if factura_data.distribucion and self.db:
             distribucion_creada = await self._crear_distribucion_oc(factura, factura_data.distribucion)
 
-        # Distribución implícita: si no vino tabla pero la OC trae CC + CO de
-        # cabecera, crear una sola línea al 100% para que Contabilidad vea la
-        # tabla de distribución llena sin trabajo extra en N8N.
+        # Distribución implícita: si no vino tabla pero la OC trae al menos el
+        # CO de cabecera, crear una sola línea al 100% para que Contabilidad
+        # vea la tabla de distribución llena sin trabajo extra en N8N (el CC
+        # puede quedar NULL: las OC de SERVICIOS no lo traen).
         if (
             not distribucion_creada
             and self.db
             and factura.numero_oc
-            and factura.centro_costo_id
             and factura.centro_operacion_id
         ):
             distribucion_creada = await self._crear_distribucion_unica(factura)
@@ -489,12 +489,21 @@ class FacturaService:
 
         filas = []
         for item in items:
-            cc_id = await self._resolver_catalogo_id(CentroCosto, item.c_costo, "nombre")
+            # CC opcional: las OC de SERVICIOS no traen ccosto en Siesa; la
+            # línea se crea con CC en NULL y Contabilidad lo completa.
+            cc_id = None
+            if item.c_costo:
+                cc_id = await self._resolver_catalogo_id(CentroCosto, item.c_costo, "nombre")
+                if not cc_id:
+                    logger.warning(
+                        f"Distribución OC de factura {factura.numero_factura}: "
+                        f"cc='{item.c_costo}' no resuelve; la línea queda sin CC."
+                    )
             co_id = await self._resolver_catalogo_id(CentroOperacion, item.c_operacion, "nombre")
-            if not (cc_id and co_id):
+            if not co_id:
                 logger.warning(
                     f"Distribución OC de factura {factura.numero_factura}: línea "
-                    f"cc='{item.c_costo}' co='{item.c_operacion}' no resuelve; "
+                    f"co='{item.c_operacion}' no resuelve; "
                     "se omite TODA la distribución."
                 )
                 return False
@@ -550,7 +559,8 @@ class FacturaService:
 
     async def _crear_distribucion_unica(self, factura) -> bool:
         """Crea una distribución de una sola línea (100%) con el CC/CO/UN de
-        cabecera de la factura. Usado cuando la OC no trae tabla de distribución."""
+        cabecera de la factura (CC puede ser NULL). Usado cuando la OC no trae
+        tabla de distribución."""
         from db.models import FacturaDistribucionCCCO
 
         self.db.add(FacturaDistribucionCCCO(

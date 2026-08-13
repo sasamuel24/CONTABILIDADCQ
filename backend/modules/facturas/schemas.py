@@ -30,7 +30,13 @@ class DistribucionOCItem(BaseModel):
     Se acepta `porcentaje` directo o `valor` en pesos (se convierte a % del total
     de la distribución).
     """
-    c_costo: str = Field(..., description="Código o nombre del centro de costo")
+    c_costo: Optional[str] = Field(
+        None,
+        description=(
+            "Código o nombre del centro de costo. Opcional: las OC de "
+            "SERVICIOS llegan de Siesa sin ccosto y Contabilidad lo completa."
+        ),
+    )
     c_operacion: str = Field(..., description="Código o nombre del centro de operación")
     unidad_negocio: Optional[str] = Field(None, description="Código o descripción de la unidad de negocio")
     porcentaje: Optional[float] = Field(None, gt=0, le=100, description="Porcentaje de la línea (0-100)")

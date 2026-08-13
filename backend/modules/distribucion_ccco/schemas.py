@@ -5,8 +5,12 @@ from uuid import UUID
 
 
 class DistribucionCCCOBase(BaseModel):
-    """Base schema para distribución CC/CO"""
-    centro_costo_id: UUID
+    """Base schema para distribución CC/CO.
+
+    centro_costo_id opcional: las líneas creadas desde OCs de SERVICIOS de
+    Siesa llegan sin centro de costo y Contabilidad lo completa después.
+    """
+    centro_costo_id: Optional[UUID] = None
     centro_operacion_id: UUID
     unidad_negocio_id: Optional[UUID] = None
     cuenta_auxiliar_id: Optional[UUID] = None

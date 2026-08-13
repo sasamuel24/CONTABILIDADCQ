@@ -628,6 +628,68 @@ class GastosService:
         logger.info(f"Correo de aprobación reenviado para paquete {paquete_id} por usuario {user_id}")
         return {"message": "Correo de aprobación reenviado correctamente."}
 
+    async def cambiar_aprobador(
+        self, paquete_id: UUID, user_id: UUID, aprobador_id: UUID, solo_propietario: bool = False
+    ) -> dict:
+        """Reasigna el aprobador de gerencia de un paquete en revisión: anula los
+        enlaces enviados al aprobador anterior y envía el correo al nuevo."""
+        paquete = await self._get_paquete_or_404(paquete_id)
+        if solo_propietario and paquete.user_id != user_id:
+            raise HTTPException(status_code=403, detail="No tienes permisos para cambiar el aprobador.")
+        if paquete.estado != "en_revision":
+            raise HTTPException(status_code=400, detail="Solo se puede cambiar el aprobador cuando el paquete está en revisión.")
+        if paquete.tipo_flujo not in ("general", "tarjeta_cq"):
+            raise HTTPException(status_code=400, detail="Este tipo de flujo no permite cambiar el aprobador del paquete.")
+
+        nuevo = await self.db.get(AprobadorGerencia, aprobador_id)
+        if not nuevo or not nuevo.is_active:
+            raise HTTPException(status_code=400, detail="El aprobador seleccionado no es válido o está inactivo.")
+        if paquete.aprobador_id == nuevo.id:
+            raise HTTPException(status_code=400, detail="El paquete ya está asignado a ese aprobador.")
+        nombre_anterior = paquete.aprobador.nombre if paquete.aprobador else "sin asignar"
+
+        now_utc = datetime.now(tz=timezone.utc)
+        # Los enlaces enviados al aprobador anterior dejan de servir
+        result = await self.db.execute(
+            select(SolicitudAprobacion)
+            .where(SolicitudAprobacion.paquete_id == paquete.id)
+            .where(SolicitudAprobacion.estado == "pendiente")
+        )
+        for s in result.scalars().all():
+            s.estado = "anulada"
+        result_tokens = await self.db.execute(
+            select(TokenAprobacionPaquete)
+            .where(TokenAprobacionPaquete.paquete_id == paquete.id)
+            .where(TokenAprobacionPaquete.usado == False)  # noqa: E712
+        )
+        for t in result_tokens.scalars().all():
+            t.usado = True
+            t.usado_at = now_utc
+
+        paquete.aprobador_id = nuevo.id
+        await self.paquete_repo.save(paquete)
+        await self.comentario_repo.create(ComentarioPaquete(
+            paquete_id=paquete.id, user_id=user_id,
+            texto=f"Aprobador cambiado de {nombre_anterior} a {nuevo.nombre}. Correo de aprobación enviado al nuevo aprobador.",
+            tipo="observacion",
+        ))
+
+        token_str = secrets.token_urlsafe(48)
+        token_obj = TokenAprobacionPaquete(
+            paquete_id=paquete.id,
+            token=token_str,
+            usado=False,
+            expires_at=now_utc + timedelta(hours=72),
+        )
+        await self.token_repo.create(token_obj)
+        paquete.fecha_envio_gerencia = now_utc
+        await self.db.commit()
+
+        paquete_actualizado = await self.paquete_repo.get_by_id(paquete_id)
+        await email_service.enviar_solicitud_aprobacion(paquete_actualizado, token_str, email_override=nuevo.email)
+        logger.info(f"Aprobador de paquete {paquete_id} cambiado a {aprobador_id} por usuario {user_id}")
+        return {"message": f"Aprobador actualizado. Se envió el correo de aprobación a {nuevo.nombre}."}
+
     async def aprobar(self, paquete_id: UUID, user_id: UUID) -> PaqueteOut:
         paquete = await self._get_paquete_or_404(paquete_id)
         if paquete.estado != "en_revision":

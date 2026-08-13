@@ -2548,6 +2548,21 @@ export async function reenviarCorreoAprobacion(
   );
 }
 
+/** Cambiar el gerente aprobador de un paquete en revision y reenviar el correo */
+export async function cambiarAprobadorPaquete(
+  paqueteId: string,
+  aprobadorId: string
+): Promise<{ message: string }> {
+  return fetchAPI<{ message: string }>(
+    `/gastos/paquetes/${paqueteId}/cambiar-aprobador`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aprobador_id: aprobadorId }),
+    }
+  );
+}
+
 // --- DevoluciÃ³n individual de gasto (Fase 3) ---------------------------------
 
 /** RadicaciÃ³n devuelve un gasto individual con motivo */

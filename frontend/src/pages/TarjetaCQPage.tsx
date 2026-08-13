@@ -53,6 +53,7 @@ import {
   getAprobadoresActivos,
   reenviarGasto,
   reenviarCorreoAprobacion,
+  cambiarAprobadorPaquete,
   checkBuzon,
   extraerDatosImagen,
   CentroCosto,
@@ -667,6 +668,7 @@ function DetallePaqueteCQ({
   const [cuentasAuxiliares, setCuentasAuxiliares] = useState<CuentaAuxiliar[]>([]);
   const [showAprobadorModal, setShowAprobadorModal] = useState(false);
   const [aprobadorSeleccionado, setAprobadorSeleccionado] = useState<string>('');
+  const [modoModalAprobador, setModoModalAprobador] = useState<'enviar' | 'cambiar'>('enviar');
 
   useEffect(() => {
     Promise.all([getCentrosCosto(), getCentrosOperacion(), getCuentasAuxiliares()])
@@ -984,8 +986,26 @@ function DetallePaqueteCQ({
       return;
     }
     // Tarjeta CQ siempre requiere selección de aprobador de gerencia
+    setModoModalAprobador('enviar');
     setAprobadorSeleccionado(paquete?.aprobador?.id ?? '');
     setShowAprobadorModal(true);
+  };
+
+  const handleCambiarAprobador = () => {
+    setModoModalAprobador('cambiar');
+    setAprobadorSeleccionado(paquete?.aprobador?.id ?? '');
+    setShowAprobadorModal(true);
+  };
+
+  const handleCambiarAprobadorConfirmado = async (aprobadorId: string) => {
+    setSaving(true);
+    try {
+      const res = await cambiarAprobadorPaquete(paqueteId, aprobadorId);
+      toast.success(res.message || 'Aprobador actualizado. El nuevo gerente recibirá el correo de aprobación.');
+      await cargar();
+    } catch (err: any) {
+      toast.error(err?.detail || err?.message || 'Error al cambiar el aprobador');
+    } finally { setSaving(false); }
   };
 
   const handleEnviarConfirmado = async (aprobadorId: string) => {
@@ -1126,12 +1146,20 @@ function DetallePaqueteCQ({
                 : `Este paquete fue pagado y legalizado exitosamente${paquete.fecha_pago ? ` el ${fmtFecha(paquete.fecha_pago.slice(0, 10))}` : ''}.`)}
             </p>
             {estadoUI === 'En revision' && (
-              <button onClick={handleReenviarCorreo} disabled={reenviandoCorreo}
-                className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-                style={{ background: 'linear-gradient(to right, #00829a, #14aab8)', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
-                {reenviandoCorreo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Reenviar correo al gerente
-              </button>
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <button onClick={handleReenviarCorreo} disabled={reenviandoCorreo || saving}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                  style={{ background: 'linear-gradient(to right, #00829a, #14aab8)', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                  {reenviandoCorreo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Reenviar correo al gerente
+                </button>
+                <button onClick={handleCambiarAprobador} disabled={reenviandoCorreo || saving}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 bg-white hover:bg-gray-50"
+                  style={{ border: '1px solid #00829a', color: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                  <BadgeCheck className="w-4 h-4" />
+                  Cambiar gerente aprobador
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -1168,10 +1196,12 @@ function DetallePaqueteCQ({
               </div>
               <div>
                 <h3 className="text-base font-bold text-gray-900" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
-                  Seleccionar Aprobador de Gerencia
+                  {modoModalAprobador === 'cambiar' ? 'Cambiar Gerente Aprobador' : 'Seleccionar Aprobador de Gerencia'}
                 </h3>
                 <p className="text-xs text-gray-500" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
-                  Recibirá el enlace de aprobación por correo (válido 72 horas)
+                  {modoModalAprobador === 'cambiar'
+                    ? 'El enlace anterior quedará anulado y el nuevo gerente recibirá el correo (válido 72 horas)'
+                    : 'Recibirá el enlace de aprobación por correo (válido 72 horas)'}
                 </p>
               </div>
             </div>
@@ -1196,12 +1226,16 @@ function DetallePaqueteCQ({
                 style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
                 Cancelar
               </button>
-              <button disabled={!aprobadorSeleccionado || saving}
-                onClick={() => { setShowAprobadorModal(false); handleEnviarConfirmado(aprobadorSeleccionado); }}
+              <button disabled={!aprobadorSeleccionado || saving || (modoModalAprobador === 'cambiar' && aprobadorSeleccionado === paquete?.aprobador?.id)}
+                onClick={() => {
+                  setShowAprobadorModal(false);
+                  if (modoModalAprobador === 'cambiar') handleCambiarAprobadorConfirmado(aprobadorSeleccionado);
+                  else handleEnviarConfirmado(aprobadorSeleccionado);
+                }}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                 style={{ background: 'linear-gradient(to right, #00829a, #14aab8)', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', boxShadow: '0 4px 12px rgba(0,130,154,0.30)' }}>
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                Enviar y notificar gerente
+                {modoModalAprobador === 'cambiar' ? 'Cambiar y notificar gerente' : 'Enviar y notificar gerente'}
               </button>
             </div>
           </div>

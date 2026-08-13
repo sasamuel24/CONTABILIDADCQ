@@ -14,6 +14,7 @@ from db.models import User, ComercialHijo
 from modules.gastos.service import GastosService
 from modules.gastos.schemas import (
     PaqueteCreate, PaqueteOut, PaqueteListResponse, PaqueteEnviarRequest,
+    PaqueteCambiarAprobadorRequest,
     GastoCreate, GastoUpdate, GastoOut, GastoCreateResponse,
     ArchivoGastoOut, PaqueteDevolver, GastoDevolverRequest,
     PagarPaqueteIn, PagarMasivoIn, PagarMasivoOut,
@@ -213,6 +214,24 @@ async def reenviar_correo_aprobacion(
     area = user.area.code.lower() if user.area else ""
     es_gestor = role in {"admin", "responsable", "fact"} or area in {"admin", "responsable", "mant", "fact"}
     return await svc.reenviar_correo_aprobacion(paquete_id, user.id, solo_propietario=not es_gestor)
+
+
+@router.post(
+    "/gastos/paquetes/{paquete_id}/cambiar-aprobador",
+    summary="Cambiar el aprobador de gerencia de un paquete en revisión y reenviar el correo",
+)
+async def cambiar_aprobador_paquete(
+    paquete_id: UUID,
+    body: PaqueteCambiarAprobadorRequest,
+    svc: GastosService = Depends(_svc),
+    user: User = Depends(_get_user_db),
+):
+    """Reasigna el aprobador de un paquete en 'en_revision', anula los enlaces
+    anteriores y envía el correo de aprobación al nuevo aprobador."""
+    role = user.role.code.lower() if user.role else ""
+    area = user.area.code.lower() if user.area else ""
+    es_gestor = role in {"admin", "responsable", "fact"} or area in {"admin", "responsable", "mant", "fact"}
+    return await svc.cambiar_aprobador(paquete_id, user.id, body.aprobador_id, solo_propietario=not es_gestor)
 
 
 @router.post(

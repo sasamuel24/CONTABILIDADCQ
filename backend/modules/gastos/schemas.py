@@ -251,6 +251,10 @@ class PaqueteEnviarRequest(BaseModel):
     aprobador_id: Optional[UUID] = None
 
 
+class PaqueteCambiarAprobadorRequest(BaseModel):
+    aprobador_id: UUID
+
+
 class PaqueteDevolver(BaseModel):
     motivo: str = Field(..., min_length=5, max_length=2000)
 

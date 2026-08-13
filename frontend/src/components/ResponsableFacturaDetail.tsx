@@ -972,6 +972,23 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   };
 
   const handleEnviarAprobacionDual = async () => {
+    // Pre-chequeo con el estado local: la aprobación dual pertenece al flujo de
+    // INVENTARIOS (Almacén), así que los faltantes se listan con SUS campos
+    // (OCC/EDO/FPC, NP), no con los del camino normal (CC/CO, archivo OC/OS).
+    const faltantesDual: string[] = [
+      ...(!occList.some(v => v.trim()) ? ['OCC'] : []),
+      ...(!edoList.some(v => v.trim()) ? ['EDO'] : []),
+      ...(!fpcAlmacenList.some(v => v.trim()) ? ['FPC'] : []),
+      ...(tieneNovedad && !numeroNotaCredito ? ['Nota de Crédito (NP)'] : []),
+      ...(tieneAnticipo && !porcentajeAnticipo ? ['Porcentaje de anticipo'] : []),
+    ];
+    if (faltantesDual.length > 0) {
+      toast.error(
+        `La aprobación dual es el último paso. Antes completa y guarda con "Guardar Cambios": ${faltantesDual.join(', ')}.`,
+        { duration: 8000 }
+      );
+      return;
+    }
     if (!aprobadorOpsId || !aprobadorCalidadId) {
       toast.warning('Selecciona ambos aprobadores para continuar');
       return;

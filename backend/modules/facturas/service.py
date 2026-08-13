@@ -3714,6 +3714,17 @@ Responde ÚNICAMENTE con JSON válido:
             raise HTTPException(status_code=404, detail="Factura no encontrada")
 
         # La aprobación dual es el último paso: los datos de inventarios deben estar guardados.
+        # Si la factura aún no está marcada como inventarios/ALMACEN en BD, el checklist
+        # genérico caería al camino normal y pediría CC/CO/OC — campos que no aplican aquí.
+        if not factura.requiere_entrada_inventarios or factura.destino_inventarios != "ALMACEN":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La aprobación dual es el último paso. Antes guarda los datos de "
+                    "Inventarios con 'Guardar Cambios': entrada a inventarios con "
+                    "destino Almacén y los códigos OCC, EDO y FPC."
+                ),
+            )
         await self._validar_datos_antes_de_aprobacion(
             factura, excluir={"aprobacion_ops", "aprobacion_calidad", "aprobacion_gerencia"}
         )

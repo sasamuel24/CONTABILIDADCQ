@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, CheckCircle, AlertCircle, Download, FileText, Eye, Zap } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Download, FileText, Eye, Zap, RefreshCw } from 'lucide-react';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, DistribucionCCCO, UnidadNegocio, CuentaAuxiliar } from '../lib/api';
 import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, asignarFactura, devolverAResponsable, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares, downloadFileById, updateFactura } from '../lib/api';
 import { MOTIVOS_DEVOLUCION } from '../lib/opciones';
@@ -92,6 +92,8 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
   // Estados para distribución CC/CO
   const [distribuciones, setDistribuciones] = useState<DistribucionCCCO[]>([]);
   const [loadingDistribucion, setLoadingDistribucion] = useState(true);
+  const [errorDistribucion, setErrorDistribucion] = useState(false);
+  const [retryDistribucion, setRetryDistribucion] = useState(0);
   const [unidadesNegocio, setUnidadesNegocio] = useState<UnidadNegocio[]>([]);
   const [cuentasAuxiliares, setCuentasAuxiliares] = useState<CuentaAuxiliar[]>([]);
   const [centrosCostoCompletos, setCentrosCostoCompletos] = useState<CentroCosto[]>([]);
@@ -241,30 +243,32 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
     const cargarDistribucionYCatalogos = async () => {
       try {
         setLoadingDistribucion(true);
-        
+        setErrorDistribucion(false);
+
         const [dist, cc, un, ca] = await Promise.all([
           getDistribucionCCCO(factura.id),
           getCentrosCosto(true),
           getUnidadesNegocio(true),
           getCuentasAuxiliares(true)
         ]);
-        
+
         setDistribuciones(dist);
         setCentrosCostoCompletos(cc);
         setUnidadesNegocio(un);
         setCuentasAuxiliares(ca);
-        
+
         const allCOs = await getCentrosOperacion(true);
         setCentrosOperacionCompletos(allCOs);
       } catch (error) {
         console.error('Error cargando distribución:', error);
+        setErrorDistribucion(true);
       } finally {
         setLoadingDistribucion(false);
       }
     };
 
     cargarDistribucionYCatalogos();
-  }, [factura.id]);
+  }, [factura.id, retryDistribucion]);
   
   // Calcular checklist de auditoría
   const calcularChecklist = (): ChecklistItem[] => {
@@ -791,6 +795,23 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                 <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Distribución de Centros de Costo / Operación</h4>
                 {loadingDistribucion ? (
                   <div className="text-sm text-gray-500">Cargando distribución...</div>
+                ) : errorDistribucion ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                    <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                    <p className="text-red-700 font-medium mb-1">
+                      No se pudo cargar la distribución CC/CO
+                    </p>
+                    <p className="text-sm text-red-600 mb-3">
+                      Los datos existen pero hubo un error al consultarlos. Verifica tu sesión (cierra sesión y vuelve a entrar si persiste).
+                    </p>
+                    <button
+                      onClick={() => setRetryDistribucion(n => n + 1)}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm text-red-700 border border-red-300 rounded-lg hover:bg-red-100 transition-colors"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Reintentar
+                    </button>
+                  </div>
                 ) : distribuciones.length > 0 ? (
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="overflow-x-auto">
@@ -814,7 +835,9 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                             return (
                               <tr key={index} className="border-b border-gray-200 hover:bg-gray-100">
                                 <td className="py-2 px-3 text-gray-900">
-                                  {cc ? `${cc.codigo} - ${cc.nombre}` : 'N/A'}
+                                  {cc ? `${cc.codigo} - ${cc.nombre}` : !dist.centro_costo_id ? (
+                                    <span className="text-amber-600 font-medium">Por asignar</span>
+                                  ) : 'N/A'}
                                 </td>
                                 <td className="py-2 px-3 text-gray-900">
                                   {co ? `${co.codigo} - ${co.nombre}` : 'N/A'}

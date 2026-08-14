@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, Send, Trash2, Edit2, X, Check } from 'lucide-react';
+import { MessageSquare, Send, Trash2, Edit2, X, Check, AlertCircle, RefreshCw } from 'lucide-react';
 import type { ComentarioFactura } from '../lib/api';
 import {
   getComentariosByFactura,
@@ -18,6 +18,7 @@ interface ComentariosFacturaProps {
 export function ComentariosFactura({ facturaId, currentUserId }: ComentariosFacturaProps) {
   const [comentarios, setComentarios] = useState<ComentarioFactura[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorCarga, setErrorCarga] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [nuevoComentario, setNuevoComentario] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -31,10 +32,12 @@ export function ComentariosFactura({ facturaId, currentUserId }: ComentariosFact
   const loadComentarios = async () => {
     try {
       setLoading(true);
+      setErrorCarga(false);
       const response = await getComentariosByFactura(facturaId);
       setComentarios(response.comentarios);
     } catch (error) {
       console.error('Error cargando comentarios:', error);
+      setErrorCarga(true);
     } finally {
       setLoading(false);
     }
@@ -185,6 +188,23 @@ export function ComentariosFactura({ facturaId, currentUserId }: ComentariosFact
         {loading ? (
           <div className="text-center py-8 text-gray-500">
             Cargando comentarios...
+          </div>
+        ) : errorCarga ? (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+            <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+            <p className="text-red-700 font-medium mb-1">
+              No se pudieron cargar los comentarios
+            </p>
+            <p className="text-sm text-red-600 mb-3">
+              Los comentarios existen pero hubo un error al consultarlos. Verifica tu sesión (cierra sesión y vuelve a entrar si persiste).
+            </p>
+            <button
+              onClick={loadComentarios}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm text-red-700 border border-red-300 rounded-lg hover:bg-red-100 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Reintentar
+            </button>
           </div>
         ) : comentarios.length === 0 ? (
           <div className="text-center py-8 text-gray-500">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Upload, CheckCircle, AlertCircle, Trash2, Download, FileText, Eye } from 'lucide-react';
+import { X, Upload, CheckCircle, AlertCircle, Trash2, Download, FileText, Eye, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import type { FacturaListItem, FileMiniOut, CentroCosto, CentroOperacion, DistribucionCCCO, UnidadNegocio, CuentaAuxiliar } from '../lib/api';
 import { getFacturaFilesByDocType, getCentrosCosto, getCentrosOperacion, uploadFacturaFile, updateFacturaEstado, API_BASE_URL, getDistribucionCCCO, getUnidadesNegocio, getCuentasAuxiliares, downloadFileById } from '../lib/api';
@@ -50,6 +50,8 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
   // Estados para distribución CC/CO
   const [distribuciones, setDistribuciones] = useState<DistribucionCCCO[]>([]);
   const [loadingDistribucion, setLoadingDistribucion] = useState(true);
+  const [errorDistribucion, setErrorDistribucion] = useState(false);
+  const [retryDistribucion, setRetryDistribucion] = useState(0);
   const [unidadesNegocio, setUnidadesNegocio] = useState<UnidadNegocio[]>([]);
   const [cuentasAuxiliares, setCuentasAuxiliares] = useState<CuentaAuxiliar[]>([]);
   const [centrosCostoCompletos, setCentrosCostoCompletos] = useState<CentroCosto[]>([]);
@@ -213,30 +215,32 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
     const cargarDistribucionYCatalogos = async () => {
       try {
         setLoadingDistribucion(true);
-        
+        setErrorDistribucion(false);
+
         const [dist, cc, un, ca] = await Promise.all([
           getDistribucionCCCO(factura.id),
           getCentrosCosto(true),
           getUnidadesNegocio(true),
           getCuentasAuxiliares(true)
         ]);
-        
+
         setDistribuciones(dist);
         setCentrosCostoCompletos(cc);
         setUnidadesNegocio(un);
         setCuentasAuxiliares(ca);
-        
+
         const allCOs = await getCentrosOperacion(true);
         setCentrosOperacionCompletos(allCOs);
       } catch (error) {
         console.error('Error cargando distribución:', error);
+        setErrorDistribucion(true);
       } finally {
         setLoadingDistribucion(false);
       }
     };
 
     cargarDistribucionYCatalogos();
-  }, [factura.id]);
+  }, [factura.id, retryDistribucion]);
 
   // Cargar archivos de Tesorería existentes
   useEffect(() => {
@@ -784,6 +788,23 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                 <h4 style={{fontFamily: 'Neutra Text Demi, Montserrat, sans-serif'}} className="text-gray-900 font-semibold mb-3">Distribución de Centros de Costo / Operación</h4>
                 {loadingDistribucion ? (
                   <div className="text-sm text-gray-500">Cargando distribución...</div>
+                ) : errorDistribucion ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                    <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                    <p className="text-red-700 font-medium mb-1">
+                      No se pudo cargar la distribución CC/CO
+                    </p>
+                    <p className="text-sm text-red-600 mb-3">
+                      Los datos existen pero hubo un error al consultarlos. Verifica tu sesión (cierra sesión y vuelve a entrar si persiste).
+                    </p>
+                    <button
+                      onClick={() => setRetryDistribucion(n => n + 1)}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm text-red-700 border border-red-300 rounded-lg hover:bg-red-100 transition-colors"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                      Reintentar
+                    </button>
+                  </div>
                 ) : distribuciones.length > 0 ? (
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="overflow-x-auto">

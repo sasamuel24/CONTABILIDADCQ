@@ -188,6 +188,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   // Estados para Distribución CC/CO
   const [distribuciones, setDistribuciones] = useState<DistribucionCCCO[]>([]);
   const [loadingDistribucion, setLoadingDistribucion] = useState(true);
+  const [errorDistribucion, setErrorDistribucion] = useState(false);
+  const [retryDistribucion, setRetryDistribucion] = useState(0);
   const [savingDistribucion, setSavingDistribucion] = useState(false);
   const [distribRequerida, setDistribRequerida] = useState(true);
   const distribucionTableRef = useRef<DistribucionCCCOTableHandle>(null);
@@ -390,17 +392,19 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
     const cargarDistribuciones = async () => {
       try {
         setLoadingDistribucion(true);
+        setErrorDistribucion(false);
         const dist = await getDistribucionCCCO(factura.id);
         setDistribuciones(dist);
       } catch (error) {
         console.error('Error cargando distribuciones:', error);
+        setErrorDistribucion(true);
       } finally {
         setLoadingDistribucion(false);
       }
     };
 
     cargarDistribuciones();
-  }, [factura.id]);
+  }, [factura.id, retryDistribucion]);
 
   // Guardar todos los campos de clasificación (CC, CO, UN, CA)
   const handleGuardarClasificacion = async () => {
@@ -2020,6 +2024,23 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                   <span className="ml-2 text-gray-600">Cargando datos...</span>
+                </div>
+              ) : errorDistribucion ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                  <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                  <p className="text-red-700 font-medium mb-1">
+                    No se pudo cargar la distribución CC/CO
+                  </p>
+                  <p className="text-sm text-red-600 mb-3">
+                    No edites ni guardes la distribución hasta recuperarla: los datos existen pero hubo un error al consultarlos. Verifica tu sesión (cierra sesión y vuelve a entrar si persiste).
+                  </p>
+                  <button
+                    onClick={() => setRetryDistribucion(n => n + 1)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm text-red-700 border border-red-300 rounded-lg hover:bg-red-100 transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    Reintentar
+                  </button>
                 </div>
               ) : (
                 <DistribucionCCCOTable

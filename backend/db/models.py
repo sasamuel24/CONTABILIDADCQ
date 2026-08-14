@@ -607,6 +607,14 @@ class Factura(Base, TimestampMixin):
         nullable=False,
         server_default="false"
     )
+    # Marcado por el Responsable (con motivo obligatorio → comentario en el
+    # historial) cuando la factura legítimamente no tiene OC ni OS: exime el
+    # archivo OC/OS del checklist, pero la Aprobación de Gerencia se mantiene.
+    sin_oc_os: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false"
+    )
     motivo_devolucion: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True

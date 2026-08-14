@@ -147,6 +147,10 @@ class FacturaUpdate(BaseModel):
     centro_operacion_id: Optional[UUID] = None
     es_gasto_adm: Optional[bool] = None
     es_activo_fijo: Optional[bool] = None
+    # "No requiere OC/OS": al marcarlo (true) el motivo es obligatorio y queda
+    # como comentario en el historial. El motivo no es columna de la factura.
+    sin_oc_os: Optional[bool] = None
+    sin_oc_os_motivo: Optional[str] = None
     unidad_negocio_id: Optional[UUID] = None
     cuenta_auxiliar_id: Optional[UUID] = None
     fecha_envio_contabilidad: Optional[datetime] = None
@@ -280,6 +284,7 @@ class FacturaListItem(BaseModel):
     intervalo_entrega_contabilidad: Optional[str] = None
     es_gasto_adm: bool = False
     es_activo_fijo: bool = False
+    sin_oc_os: bool = False
     motivo_devolucion: Optional[str] = None
     devuelta_por_nombre: Optional[str] = None
     # Rechazo vigente desde el correo de aprobación (distinto de la devolución
@@ -553,6 +558,7 @@ class SubmitResponsableOut(BaseModel):
     # Gasto Administrativo
     es_gasto_adm: bool = False
     es_activo_fijo: bool = False
+    sin_oc_os: bool = False
     
     # Archivos (opcional)
     files: Optional[list[dict]] = []

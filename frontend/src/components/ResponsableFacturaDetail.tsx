@@ -183,6 +183,12 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   // Estado para Gasto Administrativo
   const [esGastoAdm, setEsGastoAdm] = useState(factura.es_gasto_adm || false);
   const [esActivoFijo, setEsActivoFijo] = useState(factura.es_activo_fijo || false);
+  // "No requiere OC/OS": exime el archivo OC/OS del checklist (la Aprobación
+  // de Gerencia se mantiene). Marcarlo exige motivo → comentario en historial.
+  const [sinOcOs, setSinOcOs] = useState(factura.sin_oc_os || false);
+  const [showModalSinOcOs, setShowModalSinOcOs] = useState(false);
+  const [motivoSinOcOs, setMotivoSinOcOs] = useState('');
+  const [savingSinOcOs, setSavingSinOcOs] = useState(false);
   const [savingActivoFijo, setSavingActivoFijo] = useState(false);
 
   // Estados para Distribución CC/CO
@@ -440,6 +446,38 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       setSavingUnidad(false);
       setSavingCuenta(false);
     }
+  };
+
+  // Guardar "No requiere OC/OS" (marcar pide motivo en modal; desmarcar es directo)
+  const guardarSinOcOs = async (valor: boolean, motivo?: string) => {
+    setSavingSinOcOs(true);
+    try {
+      await updateFactura(
+        factura.id,
+        valor ? { sin_oc_os: true, sin_oc_os_motivo: motivo } : { sin_oc_os: false }
+      );
+      setSinOcOs(valor);
+      setShowModalSinOcOs(false);
+      setMotivoSinOcOs('');
+      toast.success(
+        valor
+          ? 'Marcada como "No requiere OC/OS". El motivo quedó registrado en los comentarios.'
+          : 'Desmarcada: la factura vuelve a exigir el archivo OC u OS.'
+      );
+    } catch (error: any) {
+      toast.error(`Error al guardar: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setSavingSinOcOs(false);
+    }
+  };
+
+  const handleToggleSinOcOs = (nuevoValor: boolean) => {
+    if (nuevoValor) {
+      setMotivoSinOcOs('');
+      setShowModalSinOcOs(true);
+      return;
+    }
+    void guardarSinOcOs(false);
   };
 
   // Guardar estado de Gasto Administrativo
@@ -939,7 +977,7 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const tieneCCCO = (!!centroCosto && !!centroOperacion) || distribuciones.length > 0;
   const faltantesAprobacion: string[] = [
     ...(!tieneCCCO ? ['Centro de Costo y Centro de Operación (o guardar la Distribución CC/CO)'] : []),
-    ...(!esGastoAdm && archivosOCExistentes.length === 0 && !archivoOC ? ['Archivo OC u OS'] : []),
+    ...(!esGastoAdm && !sinOcOs && archivosOCExistentes.length === 0 && !archivoOC ? ['Archivo OC u OS'] : []),
     ...(tieneAnticipo && !porcentajeAnticipo ? ['Porcentaje de anticipo'] : []),
   ];
   const aprobacionBloqueada = !loadingDistribucion && !loadingArchivos && faltantesAprobacion.length > 0;
@@ -1756,7 +1794,37 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               <h4 className="text-gray-900 font-semibold mb-3">
                 OC / OS
               </h4>
-              
+
+              {/* Toggle: ¿No requiere OC/OS? (marcar exige motivo → comentario en historial) */}
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={sinOcOs}
+                      disabled={savingSinOcOs}
+                      onChange={(e) => handleToggleSinOcOs(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 rounded-full transition-colors" style={{backgroundColor: sinOcOs ? '#00829a' : '#d1d5db'}}></div>
+                    <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-gray-900">¿No requiere OC / OS?</span>
+                    <p className="text-xs text-gray-600 mt-1">
+                      Para facturas sin orden de compra ni de servicio. El archivo deja de ser
+                      obligatorio, pero la Aprobación de Gerencia se mantiene. Se pedirá un motivo
+                      que quedará registrado en los comentarios.
+                    </p>
+                  </div>
+                </label>
+                {sinOcOs && (
+                  <span className="flex-shrink-0 px-2 py-1 text-xs font-medium rounded-full" style={{backgroundColor: 'rgba(20, 170, 184, 0.1)', color: '#00829a'}}>
+                    Sin OC/OS
+                  </span>
+                )}
+              </div>
+
               {loadingArchivos ? (
                 <div className="w-full px-4 py-3 bg-gray-200 rounded-lg animate-pulse">
                   <div className="h-5 bg-gray-300 rounded w-32 mx-auto"></div>
@@ -1860,7 +1928,11 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   </button>
                   
                   {archivosOCExistentes.length === 0 && !archivoOC && (
-                    <p className="text-xs text-gray-500 mt-2">No hay archivos cargados</p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {sinOcOs
+                        ? 'No requerido: la factura está marcada como "No requiere OC/OS".'
+                        : 'No hay archivos cargados'}
+                    </p>
                   )}
                 </div>
               )}
@@ -2933,6 +3005,93 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1a3c6e'; }}
                 >
                   Enviar correo
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de motivo: marcar "No requiere OC/OS" */}
+      {showModalSinOcOs && (
+        <>
+          <div
+            className="fixed inset-0 z-50 backdrop-blur-lg"
+            style={{backgroundColor: 'rgba(55, 65, 81, 0.75)'}}
+            onClick={() => { if (!savingSinOcOs) { setShowModalSinOcOs(false); setMotivoSinOcOs(''); } }}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div className="px-6 py-4 rounded-t-lg flex items-center gap-3" style={{background: '#00829a'}}>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{backgroundColor: 'rgba(255,255,255,0.2)'}}>
+                  <FileText className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white text-base" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                    Marcar "No requiere OC / OS"
+                  </h3>
+                  <p className="text-xs mt-0.5" style={{color: 'rgba(255,255,255,0.85)', fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                    El archivo OC/OS dejará de exigirse; la Aprobación de Gerencia se mantiene
+                  </p>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 pt-5 pb-4">
+                <label className="block text-sm font-semibold text-gray-800 mb-1" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                  Motivo <span className="text-red-500">*</span>
+                </label>
+                <p className="text-xs text-gray-400 mb-2.5" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                  Mínimo 10 caracteres · máximo 200 · quedará como comentario en el historial
+                </p>
+                <textarea
+                  value={motivoSinOcOs}
+                  onChange={(e) => { if (e.target.value.length <= 200) setMotivoSinOcOs(e.target.value); }}
+                  placeholder="Ej: Servicio público / arriendo sin orden de compra ni de servicio…"
+                  rows={3}
+                  maxLength={200}
+                  disabled={savingSinOcOs}
+                  className="w-full px-3 py-2.5 border rounded-lg resize-none text-sm text-gray-800 focus:outline-none focus:ring-2"
+                  style={{
+                    fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                    borderColor: motivoSinOcOs.trim().length > 0 && motivoSinOcOs.trim().length < 10 ? '#fca5a5' : '#e5e7eb',
+                  }}
+                />
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-red-400" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif", minHeight: 16}}>
+                    {motivoSinOcOs.trim().length > 0 && motivoSinOcOs.trim().length < 10
+                      ? `Faltan ${10 - motivoSinOcOs.trim().length} caracteres más`
+                      : ''}
+                  </p>
+                  <span className="text-xs" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif", color: motivoSinOcOs.length >= 180 ? '#dc2626' : '#9ca3af'}}>
+                    {motivoSinOcOs.length}/200
+                  </span>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 pb-5 flex gap-2 justify-end">
+                <button
+                  onClick={() => { setShowModalSinOcOs(false); setMotivoSinOcOs(''); }}
+                  disabled={savingSinOcOs}
+                  className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                  style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => guardarSinOcOs(true, motivoSinOcOs.trim())}
+                  disabled={savingSinOcOs || motivoSinOcOs.trim().length < 10}
+                  className="px-5 py-2 rounded-lg text-sm font-semibold transition-all"
+                  style={{
+                    fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                    backgroundColor: (savingSinOcOs || motivoSinOcOs.trim().length < 10) ? '#e5e7eb' : '#00829a',
+                    color: (savingSinOcOs || motivoSinOcOs.trim().length < 10) ? '#9ca3af' : 'white',
+                    cursor: (savingSinOcOs || motivoSinOcOs.trim().length < 10) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {savingSinOcOs ? 'Guardando…' : 'Confirmar'}
                 </button>
               </div>
             </div>

@@ -201,6 +201,7 @@ class FacturaService:
                 intervalo_entrega_contabilidad=f.intervalo_entrega_contabilidad,
                 es_gasto_adm=f.es_gasto_adm,
                 es_activo_fijo=f.es_activo_fijo,
+                sin_oc_os=f.sin_oc_os,
                 motivo_devolucion=f.motivo_devolucion,
                 devuelta_por_nombre=f.devuelta_por_nombre,
                 fecha_rechazo_email=f.fecha_rechazo_email,
@@ -963,6 +964,34 @@ Responde ÚNICAMENTE con JSON válido:
         # contabilidad" (3); dejarla en 2 la volvía invisible para el flujo (aparecía en
         # la bandeja de Contabilidad pero el botón Devolver rechazaba con 400).
         update_data = factura_data.model_dump(exclude_unset=True)
+
+        # "No requiere OC/OS": el motivo NO es columna de la factura — se exige
+        # al marcar el flag y queda como comentario en el historial (auditoría
+        # de quién decidió que la factura no lleva orden y por qué).
+        sin_oc_os_motivo = (update_data.pop('sin_oc_os_motivo', None) or '').strip()
+        if factura_data.sin_oc_os is not None and factura_data.sin_oc_os != factura.sin_oc_os:
+            from db.models import ComentarioFactura
+            autor_id = self._to_uuid(user_id)
+            if autor_id is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Marcar 'No requiere OC/OS' exige un usuario con sesión.",
+                )
+            if factura_data.sin_oc_os:
+                if len(sin_oc_os_motivo) < 10:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Para marcar 'No requiere OC/OS' el motivo es obligatorio (mínimo 10 caracteres).",
+                    )
+                contenido = f"Marcada como 'No requiere OC/OS'. Motivo: {sin_oc_os_motivo}"
+            else:
+                contenido = "Desmarcada 'No requiere OC/OS': vuelve a exigirse el archivo OC u OS."
+            self.db.add(ComentarioFactura(
+                factura_id=factura.id,
+                user_id=autor_id,
+                contenido=contenido,
+            ))
+
         if factura_data.area_id is not None and factura_data.area_id != factura.area_id:
             va_a_contabilidad = factura_data.area_id == CONTABILIDAD_AREA_ID_RUTEO
             update_data['estado_id'] = ESTADO_PENDIENTE_CONTABILIDAD if va_a_contabilidad else 2
@@ -1824,6 +1853,7 @@ Responde ÚNICAMENTE con JSON válido:
             destino_inventarios=factura.destino_inventarios,
             presenta_novedad=factura.presenta_novedad,
             es_activo_fijo=factura.es_activo_fijo,
+            sin_oc_os=factura.sin_oc_os,
             inventario_codigos=[
                 InventarioCodigoOut(
                     codigo=c.codigo,
@@ -1864,7 +1894,8 @@ Responde ÚNICAMENTE con JSON válido:
         B) CAMINO NORMAL (sin inventarios):
            - Centro de Costo y Centro de Operación.
            - Intervalo de entrega a Contabilidad.
-           - Si NO es gasto administrativo: archivo OC u OS + Aprobación de Gerencia.
+           - Si NO es gasto administrativo: archivo OC u OS (salvo factura
+             marcada `sin_oc_os`) + Aprobación de Gerencia (siempre).
 
         `codigos` y `files` deben venir ya cargados (eager) para evitar lazy-loads.
         """
@@ -1914,9 +1945,12 @@ Responde ÚNICAMENTE con JSON válido:
         if not factura.intervalo_entrega_contabilidad:
             faltan.append("intervalo_entrega_contabilidad")
         if not factura.es_gasto_adm:
-            doc_types = {f.doc_type for f in files}
-            if "OC" not in doc_types and "OS" not in doc_types:
-                faltan.append("archivo_OC_OS")
+            # `sin_oc_os` exime SOLO el archivo: la Aprobación de Gerencia se
+            # mantiene (pasa a ser el respaldo del gasto al no haber orden).
+            if not factura.sin_oc_os:
+                doc_types = {f.doc_type for f in files}
+                if "OC" not in doc_types and "OS" not in doc_types:
+                    faltan.append("archivo_OC_OS")
             if not factura.fecha_aprobacion_email:
                 faltan.append("aprobacion_gerencia")
 
@@ -2167,6 +2201,7 @@ Responde ÚNICAMENTE con JSON válido:
             destino_inventarios=factura.destino_inventarios,
             presenta_novedad=factura.presenta_novedad,
             es_activo_fijo=factura.es_activo_fijo,
+            sin_oc_os=factura.sin_oc_os,
             inventario_codigos=[
                 InventarioCodigoOut(
                     codigo=c.codigo,
@@ -2279,6 +2314,7 @@ Responde ÚNICAMENTE con JSON válido:
             intervalo_entrega_contabilidad=factura.intervalo_entrega_contabilidad or '1_SEMANA',
             es_gasto_adm=factura.es_gasto_adm,
             es_activo_fijo=factura.es_activo_fijo,
+            sin_oc_os=factura.sin_oc_os,
             files=[],
         )
 
@@ -2424,6 +2460,7 @@ Responde ÚNICAMENTE con JSON válido:
             destino_inventarios=factura.destino_inventarios,
             presenta_novedad=factura.presenta_novedad,
             es_activo_fijo=factura.es_activo_fijo,
+            sin_oc_os=factura.sin_oc_os,
             inventario_codigos=[
                 InventarioCodigoOut(
                     codigo=c.codigo,

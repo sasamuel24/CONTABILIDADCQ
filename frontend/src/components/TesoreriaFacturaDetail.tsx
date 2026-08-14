@@ -558,6 +558,14 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                       {factura.es_activo_fijo ? 'Sí' : 'No'}
                     </span>
                   </div>
+                  {factura.sin_oc_os && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">OC / OS</span>
+                      <span className="px-3 py-1 rounded-lg font-medium text-sm bg-amber-100 text-amber-700">
+                        No requerida
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

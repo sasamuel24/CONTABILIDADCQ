@@ -52,10 +52,13 @@ function getMissingItems(f: FacturaListItem): string[] {
   if (!f.centro_operacion_id)   out.push('Centro de Operación (CO)');
   if (!f.intervalo_entrega_contabilidad) out.push('Intervalo de entrega a Contabilidad');
 
-  // Archivo OC u OS + Aprobación de Gerencia (salvo gastos administrativos)
+  // Archivo OC u OS + Aprobación de Gerencia (salvo gastos administrativos).
+  // `sin_oc_os` exime SOLO el archivo; la aprobación se mantiene.
   if (!f.es_gasto_adm) {
-    const docTypes = new Set((f.files ?? []).map(file => file.doc_type));
-    if (!docTypes.has('OC') && !docTypes.has('OS')) out.push('Archivo OC u OS');
+    if (!f.sin_oc_os) {
+      const docTypes = new Set((f.files ?? []).map(file => file.doc_type));
+      if (!docTypes.has('OC') && !docTypes.has('OS')) out.push('Archivo OC u OS');
+    }
     if (!f.fecha_aprobacion_email) out.push('Aprobación de Gerencia');
   }
 

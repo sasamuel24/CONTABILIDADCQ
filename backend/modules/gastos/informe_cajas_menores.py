@@ -2,7 +2,8 @@
 """Informe Docuflow de legalizaciones de cajas menores.
 
 Espejo de informe_zonas.py pero agrupado por caja menor. Cubre los flujos de
-reembolso ('mantenimiento' y 'general'): los técnicos de mantenimiento llevan
+reembolso ('mantenimiento', 'general' y 'tarjeta_cq'; 'tarjeta_comercial' se
+excluye por ser categoría comercial): los técnicos de mantenimiento llevan
 su caja en el nombre de usuario ("Nombre - TESORERIA N") y de ahí se extrae;
 si el nombre no la trae, se usa el área del paquete. El corte incluye los
 paquetes cuya semana INICIA en o antes de fecha_hasta, con la semana completa;
@@ -58,7 +59,7 @@ def _fmt_ts(ts) -> Optional[str]:
 
 
 def _paquete_filters(q, fecha_desde: Optional[date], fecha_hasta: date):
-    q = (q.where(PaqueteGasto.tipo_flujo.in_(("mantenimiento", "general")))
+    q = (q.where(PaqueteGasto.tipo_flujo.in_(("mantenimiento", "general", "tarjeta_cq")))
           .where(User.email != EMAIL_PRUEBA)
           .where(PaqueteGasto.fecha_inicio <= fecha_hasta))
     if fecha_desde is not None:
@@ -120,7 +121,8 @@ def construir_excel(
     fecha_desde: Optional[date], fecha_hasta: date,
 ) -> bytes:
     """Arma el workbook de 4 hojas. Síncrono: llamar con asyncio.to_thread."""
-    FLUJOS = {"mantenimiento": "Mantenimiento", "general": "General"}
+    FLUJOS = {"mantenimiento": "Mantenimiento", "general": "General",
+              "tarjeta_cq": "Tarjeta CQ"}
     for p in paq:
         p["area"] = _caja_de(p["usuario"], p["area"])
         p["tipo_flujo"] = FLUJOS.get(p["tipo_flujo"], p["tipo_flujo"])

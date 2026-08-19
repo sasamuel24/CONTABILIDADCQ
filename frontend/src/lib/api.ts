@@ -2015,7 +2015,7 @@ export interface ComentarioPaqueteOut {
   paquete_id: string;
   user: { id: string; nombre: string; email: string } | null;
   texto: string;
-  tipo: 'observacion' | 'devolucion' | 'aprobacion' | 'pago' | 'cruce';
+  tipo: 'observacion' | 'devolucion' | 'aprobacion' | 'pago' | 'envio_tesoreria' | 'devolucion_gasto' | 'cruce';
   created_at: string;
 }
 
@@ -2101,6 +2101,11 @@ export interface PaqueteListItem {
   fecha_cruce?: string | null;
   comentario_devolucion: string | null;
   tiene_gastos_devueltos: boolean;
+  // Pydantic serializa Decimal como string: convertir con Number() antes de restar
+  // Incluye devueltos y corregidos (el corregido nunca se reintegra al paquete)
+  monto_devuelto?: number | string;
+  // Hubo devoluciones (de paquete o gastos) aunque ya estén corregidas
+  tuvo_devoluciones?: boolean;
   folio?: string | null;
   tecnico: { id: string; nombre: string; email: string; cedula?: string | null } | null;
   area?: { id: string; nombre: string } | null;

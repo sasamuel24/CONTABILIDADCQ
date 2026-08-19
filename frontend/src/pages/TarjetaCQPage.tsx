@@ -367,9 +367,15 @@ function CardGasto({
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {esGastoDevuelto && (
-            <span className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full border"
-              style={{ backgroundColor: '#fee2e2', color: '#dc2626', borderColor: '#fecaca' }}>
+            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full text-white"
+              style={{ background: 'linear-gradient(135deg, #dc2626, #ef4444)', boxShadow: '0 2px 8px rgba(220,38,38,0.35)' }}>
               <RotateCcw className="w-3 h-3" /> Devuelto
+            </span>
+          )}
+          {fila.estado_gasto === 'corregido' && (
+            <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full text-white"
+              style={{ background: 'linear-gradient(135deg, #d97706, #f59e0b)', boxShadow: '0 2px 8px rgba(217,119,6,0.30)' }}>
+              <CheckCircle2 className="w-3 h-3" /> Corregido
             </span>
           )}
           {monto > 0 && (
@@ -542,18 +548,41 @@ function CardGasto({
         </div>
 
         {esGastoDevuelto && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-xl">
-            <p className="text-xs font-bold text-red-700 mb-1" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
-              Devuelto por Radicación:
-            </p>
-            {fila.motivo_devolucion_gasto && (
-              <p className="text-xs text-red-600 mb-2">{fila.motivo_devolucion_gasto}</p>
-            )}
-            <button type="button" onClick={() => onReenviarGasto(fila.localId)} disabled={saving}
-              className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 font-semibold transition-colors"
-              style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
-              Marcar como corregido
-            </button>
+          <div className="p-3.5 rounded-xl flex items-start gap-3"
+            style={{ background: 'linear-gradient(135deg, #dc2626, #ef4444)', boxShadow: '0 6px 16px rgba(220,38,38,0.35)' }}>
+            <span className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.22)' }}>
+              <AlertCircle className="text-white" style={{ width: 18, height: 18 }} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-white mb-0.5" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                Devuelto por Radicación
+              </p>
+              {fila.motivo_devolucion_gasto && (
+                <p className="text-xs mb-2" style={{ color: 'rgba(255,255,255,0.88)' }}>{fila.motivo_devolucion_gasto}</p>
+              )}
+              <button type="button" onClick={() => onReenviarGasto(fila.localId)} disabled={saving}
+                className="text-xs bg-white px-3 py-1.5 rounded-lg hover:bg-red-50 disabled:opacity-50 font-bold transition-colors"
+                style={{ color: '#dc2626', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                Marcar como corregido
+              </button>
+            </div>
+          </div>
+        )}
+
+        {fila.estado_gasto === 'corregido' && (
+          <div className="p-3.5 rounded-xl flex items-start gap-3"
+            style={{ background: 'linear-gradient(135deg, #d97706, #f59e0b)', boxShadow: '0 6px 16px rgba(217,119,6,0.30)' }}>
+            <span className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.22)' }}>
+              <CheckCircle2 className="text-white" style={{ width: 18, height: 18 }} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-white mb-0.5" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                Corregido — va en un paquete nuevo
+              </p>
+              {fila.motivo_devolucion_gasto && (
+                <p className="text-xs" style={{ color: 'rgba(255,255,255,0.88)' }}>Motivo de la devolución: {fila.motivo_devolucion_gasto}</p>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -586,6 +615,12 @@ interface TablaGastosProps {
 
 function TablaGastos({ filas, bloqueado, saving, centrosCosto, centrosOperacion, cuentasAuxiliares, onCampo, onAgregarFila, onEliminarFila, onAdjuntar, onQuitarArchivoGuardado, onQuitarArchivoPendiente, onVerArchivo, onReenviarGasto, onEscanear, escaneandoId }: TablaGastosProps) {
   const totalCalculado = filas.reduce((acc, f) => acc + (parseFloat(f.valorPagado.replace(/[^0-9.]/g, '')) || 0), 0);
+  const totalDevueltos = filas.filter(f => f.estado_gasto === 'devuelto')
+    .reduce((acc, f) => acc + (parseFloat(f.valorPagado.replace(/[^0-9.]/g, '')) || 0), 0);
+  // Corregidos: se legalizan en un paquete nuevo, siguen descontados de este total
+  const totalCorregidos = filas.filter(f => f.estado_gasto === 'corregido')
+    .reduce((acc, f) => acc + (parseFloat(f.valorPagado.replace(/[^0-9.]/g, '')) || 0), 0);
+  const totalExcluido = totalDevueltos + totalCorregidos;
 
   return (
     <div className="space-y-4">
@@ -630,13 +665,48 @@ function TablaGastos({ filas, bloqueado, saving, centrosCosto, centrosOperacion,
       </div>
 
       {filas.length > 0 && (
-        <div className="flex items-center justify-between px-5 py-4 rounded-2xl"
+        <div className="px-5 py-4 rounded-2xl space-y-2"
           style={{ background: 'linear-gradient(to right, rgba(0,130,154,0.08), rgba(20,170,184,0.05))' }}>
-          <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide"
-            style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Total de gastos</span>
-          <span className="text-2xl font-bold" style={{ color: '#00829a', fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
-            {fmtMonto(totalCalculado)}
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide"
+              style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Total de gastos</span>
+            <span className={totalExcluido > 0 ? 'text-base font-semibold text-gray-400 line-through' : 'text-2xl font-bold'}
+              style={{ color: totalExcluido > 0 ? undefined : '#00829a', fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
+              {fmtMonto(totalCalculado)}
+            </span>
+          </div>
+          {totalDevueltos > 0 && (
+            <div className="flex items-center justify-between rounded-xl px-3 py-2"
+              style={{ background: 'linear-gradient(135deg, #dc2626, #ef4444)', boxShadow: '0 4px 12px rgba(220,38,38,0.30)' }}>
+              <span className="text-sm font-bold uppercase tracking-wide text-white"
+                style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Gastos devueltos</span>
+              <span className="text-base font-bold text-white" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
+                − {fmtMonto(totalDevueltos)}
+              </span>
+            </div>
+          )}
+          {totalCorregidos > 0 && (
+            <div className="flex items-center justify-between rounded-xl px-3 py-2"
+              style={{ background: 'linear-gradient(135deg, #d97706, #f59e0b)', boxShadow: '0 4px 12px rgba(217,119,6,0.25)' }}>
+              <span className="text-sm font-bold uppercase tracking-wide text-white"
+                style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                Devueltos corregidos (van en paquete nuevo)
+              </span>
+              <span className="text-base font-bold text-white" style={{ fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
+                − {fmtMonto(totalCorregidos)}
+              </span>
+            </div>
+          )}
+          {totalExcluido > 0 && (
+            <div className="flex items-center justify-between rounded-xl px-3 py-2.5 bg-white"
+              style={{ border: '2px solid #00829a' }}>
+              <span className="text-sm font-bold uppercase tracking-wide"
+                style={{ color: '#00829a', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>Total a legalizar</span>
+              <span className="text-2xl font-bold" style={{ color: '#00829a', fontFamily: 'Neutra Text Bold, Montserrat, sans-serif' }}>
+                {fmtMonto(totalCalculado - totalExcluido)}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -821,6 +891,15 @@ function DetallePaqueteCQ({
   const comentarioDevolucion = paquete.comentarios
     .filter((c) => c.tipo === 'devolucion')
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+  const comentariosOrdenados = [...paquete.comentarios]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const montoDevueltoDetalle = gastos.filter(f => f.estado_gasto === 'devuelto')
+    .reduce((acc, f) => acc + (parseFloat(f.valorPagado.replace(/[^0-9.]/g, '')) || 0), 0);
+  const montoCorregidoDetalle = gastos.filter(f => f.estado_gasto === 'corregido')
+    .reduce((acc, f) => acc + (parseFloat(f.valorPagado.replace(/[^0-9.]/g, '')) || 0), 0);
+  const montoExcluidoDetalle = montoDevueltoDetalle + montoCorregidoDetalle;
 
   const handleCampo = (localId: string, campo: keyof GastoLocal, valor: string) => {
     if (bloqueado) return;
@@ -1098,9 +1177,29 @@ function DetallePaqueteCQ({
                 <CalendarDays className="w-4 h-4 text-gray-400" />
                 {formatRango(paquete.fecha_inicio, paquete.fecha_fin)}
               </span>
-              <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#00829a' }}>
-                <Banknote className="w-4 h-4" /> {fmtMonto(paquete.monto_total)}
-              </span>
+              {montoExcluidoDetalle > 0 ? (
+                <span className="flex items-center gap-1.5 text-sm font-semibold flex-wrap" style={{ color: '#00829a' }}>
+                  <Banknote className="w-4 h-4" />
+                  <span className="text-gray-400 line-through font-normal">{fmtMonto(paquete.monto_total)}</span>
+                  {montoDevueltoDetalle > 0 && (
+                    <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full"
+                      style={{ background: 'linear-gradient(135deg, #dc2626, #ef4444)' }}>
+                      − {fmtMonto(montoDevueltoDetalle)} devuelto
+                    </span>
+                  )}
+                  {montoCorregidoDetalle > 0 && (
+                    <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full"
+                      style={{ background: 'linear-gradient(135deg, #d97706, #f59e0b)' }}>
+                      − {fmtMonto(montoCorregidoDetalle)} corregido (paquete nuevo)
+                    </span>
+                  )}
+                  {fmtMonto(Number(paquete.monto_total) - montoExcluidoDetalle)} a legalizar
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#00829a' }}>
+                  <Banknote className="w-4 h-4" /> {fmtMonto(paquete.monto_total)}
+                </span>
+              )}
               {paquete.aprobador && (
                 <span className="flex items-center gap-1.5 text-xs text-gray-400">
                   <BadgeCheck className="w-3.5 h-3.5 text-amber-500" />
@@ -1121,15 +1220,16 @@ function DetallePaqueteCQ({
       </div>
 
       {esDevuelto && comentarioDevolucion && (
-        <div className="flex items-start gap-4 bg-red-50 border border-red-200 rounded-2xl p-5">
-          <div className="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
-            <AlertCircle className="w-5 h-5 text-red-500" />
+        <div className="flex items-start gap-4 rounded-2xl p-5"
+          style={{ background: 'linear-gradient(135deg, #dc2626, #ef4444)', boxShadow: '0 6px 16px rgba(220,38,38,0.35)' }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.22)' }}>
+            <AlertCircle className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-sm font-bold text-red-700 mb-1" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+            <p className="text-sm font-bold text-white mb-1" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
               Motivo de devolución
             </p>
-            <p className="text-sm text-red-600">{comentarioDevolucion.texto}</p>
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.88)' }}>{comentarioDevolucion.texto}</p>
           </div>
         </div>
       )}
@@ -1173,6 +1273,42 @@ function DetallePaqueteCQ({
           onQuitarArchivoPendiente={handleQuitarArchivoPendiente} onVerArchivo={handleVerArchivo}
           onReenviarGasto={handleReenviarGasto} onEscanear={handleEscanear} escaneandoId={escaneandoId} />
       </div>
+
+      {comentariosOrdenados.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+          <p className="text-xs text-gray-400 uppercase tracking-wider mb-3"
+            style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+            Historial de observaciones
+          </p>
+          <div className="flex flex-col gap-3">
+            {comentariosOrdenados.map((c) => {
+              const esRechazo = c.tipo === 'devolucion' || c.tipo === 'devolucion_gasto';
+              const esAprobacion = c.tipo === 'aprobacion';
+              return (
+                <div key={c.id} className="flex items-start gap-3 p-3 rounded-xl"
+                  style={{
+                    backgroundColor: esRechazo ? '#fef2f2' : esAprobacion ? '#f0fdf4' : '#f9fafb',
+                    border: `1px solid ${esRechazo ? '#fecaca' : esAprobacion ? '#bbf7d0' : '#e5e7eb'}`,
+                  }}>
+                  {esRechazo
+                    ? <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
+                    : esAprobacion
+                      ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#22c55e' }} />
+                      : <Info className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#6b7280' }} />}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-700" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                      {c.texto}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}>
+                      {c.user?.nombre ?? 'Sistema'} · {fmtFecha(c.created_at.slice(0, 10))}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {(esBorrador || esDevuelto) && (
         <div className="pb-4">
@@ -1451,10 +1587,15 @@ function NuevoPaqueteCQForm({
 function PaqueteCardCQ({ p, onClick }: { p: PaqueteListItem; onClick: () => void }) {
   const estadoUI = apiToUI(p.estado);
   const conf = estadoConfig[estadoUI];
+  const montoDevuelto = Number(p.monto_devuelto ?? 0) || 0;
+  const alertaActiva = p.tiene_gastos_devueltos || p.estado === 'devuelto';
   return (
     <button onClick={onClick}
       className="w-full text-left bg-white rounded-2xl border border-gray-100 transition-all hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.99] overflow-hidden"
-      style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)', borderLeft: `4px solid ${conf.border}` }}>
+      style={{
+        boxShadow: alertaActiva ? '0 4px 14px rgba(220,38,38,0.12)' : '0 2px 8px rgba(0,0,0,0.05)',
+        borderLeft: alertaActiva ? '4px solid #dc2626' : `4px solid ${conf.border}`,
+      }}>
       <div className="p-5">
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0 flex-1">
@@ -1476,9 +1617,21 @@ function PaqueteCardCQ({ p, onClick }: { p: PaqueteListItem; onClick: () => void
           <EstadoBadge estado={estadoUI} />
         </div>
         <div className="flex items-center gap-4 flex-wrap">
-          <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#00829a' }}>
-            <Banknote className="w-4 h-4" /> {fmtMonto(p.monto_total)}
-          </span>
+          {montoDevuelto > 0 ? (
+            <span className="flex items-center gap-1.5 text-sm font-bold flex-wrap" style={{ color: '#00829a' }}>
+              <Banknote className="w-4 h-4" />
+              <span className="text-gray-400 line-through font-normal">{fmtMonto(p.monto_total)}</span>
+              {fmtMonto(Number(p.monto_total) - montoDevuelto)}
+              <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full"
+                style={{ background: 'linear-gradient(135deg, #dc2626, #ef4444)' }}>
+                − {fmtMonto(montoDevuelto)}
+              </span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#00829a' }}>
+              <Banknote className="w-4 h-4" /> {fmtMonto(p.monto_total)}
+            </span>
+          )}
           <span className="flex items-center gap-1.5 text-xs text-gray-400">
             <FileText className="w-3.5 h-3.5" /> {p.total_documentos} doc{p.total_documentos !== 1 ? 's' : ''}
           </span>
@@ -1489,16 +1642,45 @@ function PaqueteCardCQ({ p, onClick }: { p: PaqueteListItem; onClick: () => void
           )}
         </div>
         {p.estado === 'devuelto' && p.comentario_devolucion && (
-          <div className="mt-3 flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-            <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
-            <p className="text-xs text-red-600 line-clamp-2">{p.comentario_devolucion}</p>
+          <div className="mt-3 flex items-start gap-3 rounded-xl px-3.5 py-3"
+            style={{ background: 'linear-gradient(135deg, #dc2626, #ef4444)', boxShadow: '0 6px 16px rgba(220,38,38,0.35)' }}>
+            <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.22)' }}>
+              <AlertCircle className="w-4 h-4 text-white" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                Paquete devuelto
+              </p>
+              <p className="text-xs line-clamp-2" style={{ color: 'rgba(255,255,255,0.88)' }}>{p.comentario_devolucion}</p>
+            </div>
           </div>
         )}
         {p.tiene_gastos_devueltos && p.estado !== 'devuelto' && (
-          <div className="mt-3 flex items-center gap-2 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
-            <AlertCircle className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-            <p className="text-xs text-orange-700 font-semibold" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
-              Radicación devolvió uno o más gastos — revisa y corrige
+          <div className="mt-3 flex items-center gap-3 rounded-xl px-3.5 py-3"
+            style={{ background: 'linear-gradient(135deg, #dc2626, #ef4444)', boxShadow: '0 6px 16px rgba(220,38,38,0.35)' }}>
+            <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.22)' }}>
+              <AlertCircle className="w-4 h-4 text-white" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-white" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+                {montoDevuelto > 0
+                  ? `Radicación devolvió gastos por ${fmtMonto(montoDevuelto)}`
+                  : 'Radicación devolvió uno o más gastos'}
+              </p>
+              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.85)' }}>Revisa el motivo y créalo en un paquete nuevo</p>
+            </div>
+          </div>
+        )}
+        {p.tuvo_devoluciones && !p.tiene_gastos_devueltos && p.estado !== 'devuelto' && (
+          <div className="mt-3 flex items-center gap-3 rounded-xl px-3.5 py-3"
+            style={{ background: 'linear-gradient(135deg, #d97706, #f59e0b)', boxShadow: '0 6px 16px rgba(217,119,6,0.30)' }}>
+            <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.22)' }}>
+              <CheckCircle2 className="w-4 h-4 text-white" />
+            </span>
+            <p className="text-xs font-bold text-white" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}>
+              {montoDevuelto > 0
+                ? `Radicación devolvió gastos por ${fmtMonto(montoDevuelto)} — corregidos en un paquete nuevo`
+                : 'Tuvo devoluciones — ya corregidas (ver detalle)'}
             </p>
           </div>
         )}

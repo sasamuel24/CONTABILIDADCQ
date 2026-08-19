@@ -1994,6 +1994,8 @@ export interface GastoOut {
   valor_pagado: number;
   valor_sin_impuestos: number | null;
   vsi_fuente: 'ia' | 'manual' | 'sin_desglose' | null;
+  valor_iva: number | null;
+  valor_impoconsumo: number | null;
   cruce: boolean;
   orden: number;
   observaciones?: string | null;
@@ -2615,13 +2617,14 @@ export async function analizarImpuestosPaquete(paqueteId: string): Promise<Anali
 export async function actualizarValorSinImpuestos(
   paqueteId: string,
   gastoId: string,
-  valor: number
+  valor: number,
+  iva?: number
 ): Promise<GastoOut> {
   return fetchAPI<GastoOut>(
     `/gastos/paquetes/${paqueteId}/gastos/${gastoId}/valor-sin-impuestos`,
     {
       method: 'PATCH',
-      body: JSON.stringify({ valor }),
+      body: JSON.stringify({ valor, iva: iva ?? 0 }),
     }
   );
 }

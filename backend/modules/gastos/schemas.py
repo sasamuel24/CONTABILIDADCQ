@@ -126,6 +126,8 @@ class GastoOut(BaseModel):
     valor_pagado: Decimal
     valor_sin_impuestos: Optional[Decimal] = None
     vsi_fuente: Optional[str] = None
+    valor_iva: Optional[Decimal] = None
+    valor_impoconsumo: Optional[Decimal] = None
     cruce: bool = False
     orden: int
     observaciones: Optional[str] = None
@@ -149,8 +151,14 @@ class GastoDevolverRequest(BaseModel):
 
 
 class ValorSinImpuestosUpdate(BaseModel):
-    """Facturación digita/corrige manualmente el valor antes de impuestos."""
+    """Facturación digita/corrige manualmente el valor antes de impuestos.
+
+    iva: IVA discriminado del soporte (va a la cuenta 2408 en el plano).
+    La diferencia valor_pagado - valor - iva se toma como impoconsumo/ICUI,
+    que se contabiliza en la misma cuenta del gasto.
+    """
     valor: Decimal = Field(..., gt=0)
+    iva: Optional[Decimal] = Field(None, ge=0)
 
 
 class CruceUpdate(BaseModel):

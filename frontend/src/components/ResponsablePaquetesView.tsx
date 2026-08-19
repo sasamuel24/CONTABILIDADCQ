@@ -292,6 +292,7 @@ function DetallePaqueteResponsable({
   // Valor sin impuestos (base antes de IVA): análisis IA + edición manual
   const [loadingAnalizarIVA, setLoadingAnalizarIVA] = useState(false);
   const [vsiEdits, setVsiEdits] = useState<Record<string, string>>({});
+  const [ivaEdits, setIvaEdits] = useState<Record<string, string>>({});
   const [savingVsi, setSavingVsi] = useState<Record<string, boolean>>({});
   const [savingCruce, setSavingCruce] = useState<Record<string, boolean>>({});
 
@@ -750,10 +751,18 @@ function DetallePaqueteResponsable({
   const handleGuardarVsi = async (g: GastoOut) => {
     if (!paquete) return;
     const raw = vsiEdits[g.id];
-    if (raw === undefined) return;
-    const limpiar = () => setVsiEdits((p) => { const n = { ...p }; delete n[g.id]; return n; });
-    const num = parseNumeroCO(raw);
-    if (raw.trim() === '' || isNaN(num) || num <= 0 || num === toNum(g.valor_sin_impuestos)) {
+    const rawIva = ivaEdits[g.id];
+    if (raw === undefined && rawIva === undefined) return;
+    const limpiar = () => {
+      setVsiEdits((p) => { const n = { ...p }; delete n[g.id]; return n; });
+      setIvaEdits((p) => { const n = { ...p }; delete n[g.id]; return n; });
+    };
+    const num = raw !== undefined ? parseNumeroCO(raw) : toNum(g.valor_sin_impuestos ?? NaN);
+    const iva = rawIva !== undefined
+      ? (rawIva.trim() === '' ? 0 : parseNumeroCO(rawIva))
+      : toNum(g.valor_iva ?? 0);
+    if (isNaN(num) || num <= 0 || isNaN(iva) || iva < 0
+      || (num === toNum(g.valor_sin_impuestos) && iva === toNum(g.valor_iva ?? 0))) {
       limpiar();
       return;
     }
@@ -761,9 +770,13 @@ function DetallePaqueteResponsable({
       toast.error('El valor sin impuestos no puede ser mayor al valor pagado');
       return;
     }
+    if (num + iva > toNum(g.valor_pagado)) {
+      toast.error('Base + IVA no puede superar el valor pagado');
+      return;
+    }
     setSavingVsi((p) => ({ ...p, [g.id]: true }));
     try {
-      const updated = await actualizarValorSinImpuestos(paquete.id, g.id, num);
+      const updated = await actualizarValorSinImpuestos(paquete.id, g.id, num, iva);
       setPaquete((prev) => prev
         ? { ...prev, gastos: prev.gastos.map((x) => (x.id === updated.id ? { ...x, ...updated } : x)) }
         : prev);
@@ -1648,6 +1661,22 @@ function DetallePaqueteResponsable({
                                 style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
                                 title="Valor antes de IVA/impoconsumo (Enter para guardar)"
                               />
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={ivaEdits[g.id] ?? (g.valor_iva != null && toNum(g.valor_iva) > 0 ? fmtNumero(g.valor_iva) : '')}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  if (/^[\d.,]*$/.test(v)) setIvaEdits((p) => ({ ...p, [g.id]: v }));
+                                }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                onBlur={() => handleGuardarVsi(g)}
+                                disabled={!!savingVsi[g.id]}
+                                placeholder="IVA"
+                                className="w-16 rounded px-1.5 py-1 text-xs text-gray-800 border border-gray-200 focus:border-gray-300 focus:outline-none disabled:opacity-50"
+                                style={{ fontFamily: 'Neutra Text Book, Montserrat, sans-serif' }}
+                                title="IVA del soporte — va a la cuenta 2408 en el plano; la diferencia restante (impoconsumo/ICUI) queda en la cuenta del gasto"
+                              />
                               {savingVsi[g.id]
                                 ? <Loader2 className="w-3 h-3 animate-spin text-gray-400 shrink-0" />
                                 : <VsiBadge fuente={g.vsi_fuente} />}
@@ -1655,6 +1684,9 @@ function DetallePaqueteResponsable({
                           ) : (
                             <span className="flex items-center gap-1 font-semibold" style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', color: g.valor_sin_impuestos != null ? '#374151' : '#d1d5db' }}>
                               {g.valor_sin_impuestos != null ? fmtMonto(g.valor_sin_impuestos) : '—'}
+                              {g.valor_iva != null && toNum(g.valor_iva) > 0 && (
+                                <span className="text-[10px] font-normal text-gray-400 whitespace-nowrap">IVA {fmtMonto(g.valor_iva)}</span>
+                              )}
                               <VsiBadge fuente={g.vsi_fuente} />
                             </span>
                           )}

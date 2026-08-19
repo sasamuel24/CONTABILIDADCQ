@@ -7,6 +7,7 @@ from sqlalchemy.orm import selectinload
 from uuid import UUID
 from typing import Optional
 from datetime import date as date_type
+from decimal import Decimal
 
 from db.session import get_db
 from core.auth import get_current_user
@@ -932,17 +933,38 @@ Campos:
 - subtotal: valor antes de impuestos si el documento lo muestra (etiquetado "Subtotal", "Base", "Valor antes de IVA" o similar). Entero o null.
 - iva: suma total del IVA discriminado en el documento (cualquier tarifa: 19%, 5%, etc.). Entero. Usa 0 SOLO si el documento muestra explícitamente IVA en $0 o "Excluido/Exento". null si no aparece ninguna línea de IVA.
 - impoconsumo: valor del impuesto al consumo (INC, "Impoconsumo", "Ipoconsumo", típico en restaurantes, tarifa 8%). Entero o null si no aparece.
+- icui: valor del impuesto a bebidas azucaradas/alimentos ultraprocesados (ICUI, "IBUA", típico en tiendas y supermercados) si aparece discriminado. Entero o null.
 - propina: propina o servicio voluntario si aparece discriminado. Entero o null.
 - desglose_visible: true si el documento discrimina impuestos (tiene líneas de Subtotal/IVA/INC), false si solo muestra un valor total sin desglose (típico en tiquetes de transporte, peajes, recibos simples).
 
+IMPORTANTE — formato de números colombiano: el punto es separador de miles y la coma es decimal. "20.600,00" son veinte mil seiscientos pesos → devuelve 20600 (NO 2060000). "$1.250.000" → 1250000. Ignora los decimales ",00".
+
 Ejemplo restaurante:
-{"total":58900,"subtotal":50000,"iva":0,"impoconsumo":4000,"propina":4900,"desglose_visible":true}
+{"total":58900,"subtotal":50000,"iva":0,"impoconsumo":4000,"icui":null,"propina":4900,"desglose_visible":true}
 Ejemplo ferretería con IVA:
-{"total":11900,"subtotal":10000,"iva":1900,"impoconsumo":null,"propina":null,"desglose_visible":true}
+{"total":11900,"subtotal":10000,"iva":1900,"impoconsumo":null,"icui":null,"propina":null,"desglose_visible":true}
 Ejemplo tiquete de transporte sin desglose:
-{"total":45000,"subtotal":null,"iva":null,"impoconsumo":null,"propina":null,"desglose_visible":false}"""
+{"total":45000,"subtotal":null,"iva":null,"impoconsumo":null,"icui":null,"propina":null,"desglose_visible":false}"""
 
 _MEDIA_TYPES_IMAGEN = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+
+# Cuentas de IVA descontable para el archivo plano, según tarifa.
+# El impoconsumo/ICUI NO va a cuenta de impuestos: se contabiliza en la misma
+# cuenta del gasto que lo origina (instrucción de Contabilidad, Ago-2026).
+_CTA_IVA_5 = "24080401"   # IVA TRANSITORIO 5%
+_CTA_IVA_19 = "24080403"  # IVA TRANSITORIO 19%
+_TARIFAS_IVA = ((Decimal("0.05"), _CTA_IVA_5), (Decimal("0.19"), _CTA_IVA_19))
+
+
+def _cuenta_iva(iva, base) -> Optional[str]:
+    """Cuenta 2408 según la tarifa implícita iva/base; None si no es 5% ni 19%."""
+    if not base or base <= 0 or not iva or iva <= 0:
+        return None
+    ratio = Decimal(iva) / Decimal(base)
+    for tarifa, cuenta in _TARIFAS_IVA:
+        if abs(ratio - tarifa) <= Decimal("0.02"):
+            return cuenta
+    return None
 
 
 def _check_rol_vsi(user: User) -> None:
@@ -1029,7 +1051,13 @@ async def analizar_impuestos_paquete(
     candidatos = [
         g for g in paquete.gastos
         if g.estado_gasto != "devuelto"
-        and (g.valor_sin_impuestos is None or (force and g.vsi_fuente != "manual"))
+        and (
+            g.valor_sin_impuestos is None
+            or (force and g.vsi_fuente != "manual")
+            # Legacy: validados por IA antes del desglose IVA/INC — sin valor_iva
+            # no se puede exportar el plano, así que se reanalizan solos
+            or (g.valor_iva is None and g.vsi_fuente == "ia")
+        )
     ]
 
     client = AsyncAnthropic(api_key=settings.anthropic_api_key)
@@ -1068,7 +1096,9 @@ async def analizar_impuestos_paquete(
                 return None
 
         iva = _num("iva")
-        inc = _num("impoconsumo")
+        # ICUI/IBUA se trata igual que el impoconsumo: va a la cuenta del gasto
+        inc = (_num("impoconsumo") or Decimal(0)) + (_num("icui") or Decimal(0))
+        inc = inc if inc > 0 else None
         total_doc = _num("total")
         desglose = bool(datos.get("desglose_visible"))
         impuestos = (iva or Decimal(0)) + (inc or Decimal(0))
@@ -1089,6 +1119,13 @@ async def analizar_impuestos_paquete(
             return {"gasto": gasto, "resultado": "revision", "iva": iva, "inc": inc,
                     "detalle": "Los impuestos leídos superan el valor del gasto."}
 
+        # El IVA debe corresponder a una tarifa conocida (5% o 19%) para poder
+        # asignarle cuenta 2408 en el plano; si no, requiere revisión manual.
+        if iva and iva > 0 and _cuenta_iva(iva, base) is None:
+            tasa = (iva / base * 100).quantize(Decimal("0.1"))
+            return {"gasto": gasto, "resultado": "revision", "iva": iva, "inc": inc,
+                    "detalle": f"El IVA leído ({iva}) no corresponde a tarifa 5% ni 19% sobre la base {base} (da {tasa}%)."}
+
         return {"gasto": gasto, "resultado": "ok", "valor": base, "iva": iva, "inc": inc,
                 "detalle": None}
 
@@ -1101,10 +1138,14 @@ async def analizar_impuestos_paquete(
         gasto = r["gasto"]
         if r["resultado"] == "ok":
             gasto.valor_sin_impuestos = r["valor"]
+            gasto.valor_iva = r.get("iva") or 0
+            gasto.valor_impoconsumo = r.get("inc") or 0
             gasto.vsi_fuente = "ia"
             calculados += 1
         elif r["resultado"] == "sin_desglose":
             gasto.valor_sin_impuestos = r["valor"]
+            gasto.valor_iva = 0
+            gasto.valor_impoconsumo = 0
             gasto.vsi_fuente = "sin_desglose"
             sin_desglose += 1
         else:
@@ -1156,14 +1197,32 @@ async def actualizar_valor_sin_impuestos(
     if not gasto:
         raise HTTPException(status_code=404, detail="Gasto no encontrado en este paquete.")
 
-    from decimal import Decimal
-    if data.valor > Decimal(gasto.valor_pagado):
+    valor_pagado = Decimal(gasto.valor_pagado)
+    iva = data.iva if data.iva is not None else Decimal(0)
+    if data.valor > valor_pagado:
         raise HTTPException(
             status_code=422,
             detail="El valor sin impuestos no puede ser mayor al valor pagado.",
         )
+    if data.valor + iva > valor_pagado:
+        raise HTTPException(
+            status_code=422,
+            detail="Base + IVA no puede superar el valor pagado del gasto.",
+        )
+    if iva > 0 and _cuenta_iva(iva, data.valor) is None:
+        tasa = (iva / data.valor * 100).quantize(Decimal("0.1"))
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"El IVA digitado no corresponde a tarifa 5% ni 19% sobre la base "
+                f"(da {tasa}%). Revisa los valores."
+            ),
+        )
 
     gasto.valor_sin_impuestos = data.valor
+    gasto.valor_iva = iva
+    # La diferencia restante es impoconsumo/ICUI: va a la cuenta del gasto
+    gasto.valor_impoconsumo = valor_pagado - data.valor - iva
     gasto.vsi_fuente = "manual"
     await db.commit()
 
@@ -1308,6 +1367,26 @@ async def exportar_plano_paquete(
             ),
         )
 
+    # Gastos validados antes del desglose IVA/INC (valor_iva NULL con base < pagado):
+    # no se sabe cuánto de la diferencia es IVA (cuenta 2408) y cuánto INC (cuenta
+    # del gasto), así que no se puede armar el plano. Recalcular o digitar de nuevo.
+    sin_desglose_iva = [
+        g for g in gastos_activos
+        if g.valor_iva is None and Decimal(g.valor_sin_impuestos) < Decimal(g.valor_pagado)
+    ]
+    if sin_desglose_iva:
+        nombres = ", ".join(g.pagado_a for g in sin_desglose_iva[:5])
+        extra = f" y {len(sin_desglose_iva) - 5} más" if len(sin_desglose_iva) > 5 else ""
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{len(sin_desglose_iva)} gasto(s) validados sin desglose de IVA "
+                f"(versión anterior): {nombres}{extra}. Vuelve a calcular con IA o "
+                "digita el valor manual indicando el IVA para poder exportar el plano."
+            ),
+        )
+
+    filas_iva: list[list] = []
     for gasto in gastos_activos:
         auxiliar_codigo = gasto.cuenta_auxiliar.codigo.strip() if gasto.cuenta_auxiliar else ""
         nit_raw = (gasto.no_identificacion or "").strip().replace(".", "").replace("-", "")
@@ -1320,10 +1399,13 @@ async def exportar_plano_paquete(
         co_codigo       = gasto.centro_operacion.codigo.strip() if gasto.centro_operacion else ""
         cc_codigo       = gasto.centro_costo.codigo.strip()     if gasto.centro_costo     else ""
         notas           = f"{gasto.no_recibo or ''} {gasto.pagado_a} {gasto.concepto}".upper().strip()[:80]
-        # Base antes de IVA/impoconsumo validada por Facturación (IA o manual).
-        # Los gastos sin validar bloquean el export arriba (409), así que aquí
-        # valor_sin_impuestos nunca es None.
-        valor_db = gasto.valor_sin_impuestos
+        # Desglose validado por Facturación (IA o manual); los gastos sin validar
+        # o sin desglose de IVA bloquean el export arriba (409).
+        base = Decimal(gasto.valor_sin_impuestos)
+        iva = Decimal(gasto.valor_iva or 0)
+        # El impoconsumo/ICUI va a la MISMA cuenta del gasto que lo origina
+        # (instrucción de Contabilidad): la fila del gasto sale por pagado - IVA.
+        valor_db = Decimal(gasto.valor_pagado) - iva
 
         ws.append([
             ID_CO,
@@ -1334,13 +1416,45 @@ async def exportar_plano_paquete(
             paquete_un,                     # F351_ID_UN
             cc_codigo,                      # F351_ID_CCOSTO
             None,                           # F351_ID_FE (vacío)
-            round(float(valor_db)),        # F351_VALOR_DB (sin impuestos)
+            round(float(valor_db)),        # F351_VALOR_DB (base + INC/ICUI)
             0,                              # F351_VALOR_CR
             0,                              # F351_BASE_GRAVABLE
             None,                           # F351_DOCTO_BANCO
             0,                              # F351_NRO_DOCTO_BANCO
             notas,                          # F351_NOTAS
         ])
+
+        if iva > 0:
+            cuenta_iva = _cuenta_iva(iva, base)
+            if cuenta_iva is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"El IVA de '{gasto.pagado_a}' (${iva:,.0f} sobre base ${base:,.0f}) "
+                        "no corresponde a tarifa 5% ni 19%. Corrige el desglose antes de exportar."
+                    ),
+                )
+            # Fila de IVA al final del plano (patrón del ejemplo de Contabilidad):
+            # CO_MOV 001, UN 99, sin centro de costo; base gravable por tercero.
+            filas_iva.append([
+                ID_CO,
+                1,
+                cuenta_iva,                 # 24080401 (5%) / 24080403 (19%)
+                nit,
+                "001",                      # F351_ID_CO_MOV
+                "99",                       # F351_ID_UN
+                None,                       # F351_ID_CCOSTO (las 2408 no llevan ccosto)
+                None,                       # F351_ID_FE
+                round(float(iva)),          # F351_VALOR_DB
+                0,                          # F351_VALOR_CR
+                round(float(base)),         # F351_BASE_GRAVABLE
+                None,                       # F351_DOCTO_BANCO
+                0,                          # F351_NRO_DOCTO_BANCO
+                notas,
+            ])
+
+    for fila in filas_iva:
+        ws.append(fila)
 
     buf = io.BytesIO()
     wb.save(buf)

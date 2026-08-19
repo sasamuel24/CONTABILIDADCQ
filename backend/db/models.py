@@ -1379,6 +1379,10 @@ class GastoLegalizacion(Base, TimestampMixin):
     # NULL = pendiente de validar. vsi_fuente: 'ia' | 'manual' | 'sin_desglose'
     valor_sin_impuestos: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     vsi_fuente: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    # Desglose para el plano: IVA va a la cuenta 2408 según tarifa; el
+    # impoconsumo/ICUI se suma a la misma cuenta del gasto que lo origina.
+    valor_iva: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
+    valor_impoconsumo: Mapped[Optional[float]] = mapped_column(Numeric(14, 2), nullable=True)
     # Marcado por Facturación para indicar que el gasto se cruza (visible en Tesorería)
     cruce: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     orden: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)

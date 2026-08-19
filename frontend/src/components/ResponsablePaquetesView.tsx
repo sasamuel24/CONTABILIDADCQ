@@ -840,7 +840,9 @@ function DetallePaqueteResponsable({
   // Valor sin impuestos: Facturación lo gestiona desde que el paquete llega aprobado
   const puedeGestionarVSI = esFact && ['aprobado', 'en_tesoreria', 'pagado', 'cruzado'].includes(paquete.estado);
 
-  const gastosDevueltos = paquete.gastos.filter((g) => g.estado_gasto === 'devuelto');
+  // Incluye 'corregido': el gasto se legaliza en un paquete nuevo y sigue
+  // descontado del monto a pagar de este paquete.
+  const gastosDevueltos = paquete.gastos.filter((g) => g.estado_gasto === 'devuelto' || g.estado_gasto === 'corregido');
   const gastosVisibles = filtroGastos === 'devueltos' ? gastosDevueltos : paquete.gastos;
   const hayDevueltos = gastosDevueltos.length > 0;
 
@@ -849,7 +851,7 @@ function DetallePaqueteResponsable({
   const gastoEnGrupo: Record<string, number> = {};
   gruposSolicitud.forEach((g, i) => g.gastoIds.forEach((id) => { gastoEnGrupo[id] = i; }));
   const gastosSinAsignar = paquete.gastos.filter(
-    (g) => g.estado_gasto !== 'devuelto' && gastoEnGrupo[g.id] === undefined,
+    (g) => g.estado_gasto !== 'devuelto' && g.estado_gasto !== 'corregido' && gastoEnGrupo[g.id] === undefined,
   );
   const solicitudesVisibles = (paquete.solicitudes ?? []).filter((s) => s.estado !== 'anulada');
   // Cualquier rol puede subir documentos mientras está en revisión
@@ -1538,7 +1540,7 @@ function DetallePaqueteResponsable({
                       >
                         {modoSeleccion && (
                           <td className="px-2 py-2 text-center">
-                            {g.estado_gasto === 'devuelto' ? (
+                            {g.estado_gasto === 'devuelto' || g.estado_gasto === 'corregido' ? (
                               <span className="text-xs text-gray-300">—</span>
                             ) : gastoEnGrupo[g.id] !== undefined ? (
                               <span className="text-xs font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
@@ -1694,7 +1696,7 @@ function DetallePaqueteResponsable({
 
                         {/* CRUCE */}
                         <td className="px-2 py-2 text-center">
-                          {g.estado_gasto === 'devuelto' ? (
+                          {g.estado_gasto === 'devuelto' || g.estado_gasto === 'corregido' ? (
                             <span className="text-xs text-gray-300">—</span>
                           ) : savingCruce[g.id] ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400 inline-block" />
@@ -1822,6 +1824,15 @@ function DetallePaqueteResponsable({
                               >
                                 <AlertCircle className="w-3 h-3" />
                                 Devuelto
+                              </span>
+                            ) : g.estado_gasto === 'corregido' ? (
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold"
+                                style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a' }}
+                                title="Corregido por el usuario: se legaliza en un paquete nuevo y no suma en este"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                Corregido
                               </span>
                             ) : (
                               <button

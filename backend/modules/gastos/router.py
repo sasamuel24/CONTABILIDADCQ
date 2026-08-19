@@ -1050,7 +1050,7 @@ async def analizar_impuestos_paquete(
 
     candidatos = [
         g for g in paquete.gastos
-        if g.estado_gasto != "devuelto"
+        if g.estado_gasto not in ("devuelto", "corregido")
         and (
             g.valor_sin_impuestos is None
             or (force and g.vsi_fuente != "manual")
@@ -1353,7 +1353,7 @@ async def exportar_plano_paquete(
     ])
 
     ID_CO = "001"
-    gastos_activos = [g for g in paquete.gastos if g.estado_gasto != "devuelto"]
+    gastos_activos = [g for g in paquete.gastos if g.estado_gasto not in ("devuelto", "corregido")]
 
     sin_validar = [g for g in gastos_activos if g.valor_sin_impuestos is None]
     if sin_validar:

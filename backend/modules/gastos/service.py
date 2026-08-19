@@ -6,6 +6,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Optional, Tuple, List
 from db.models import (
     PaqueteGasto, GastoLegalizacion, ArchivoGasto,
@@ -426,7 +427,7 @@ class GastosService:
             raise HTTPException(status_code=400, detail="El gerente comercial asignado no es válido o está inactivo.")
 
         # Gastos que requieren aprobación (los devueltos están con el comercial para corrección)
-        gastos_requeridos = {g.id: g for g in paquete.gastos if g.estado_gasto != "devuelto"}
+        gastos_requeridos = {g.id: g for g in paquete.gastos if g.estado_gasto not in ("devuelto", "corregido")}
         if not gastos_requeridos:
             raise HTTPException(status_code=400, detail="El paquete no tiene gastos pendientes por aprobar.")
 
@@ -767,12 +768,13 @@ class GastosService:
         if paquete.estado != "aprobado":
             raise HTTPException(status_code=400, detail="Solo paquetes aprobados pueden enviarse a tesorería.")
 
-        # Calcular monto a pagar excluyendo gastos devueltos
+        # Calcular monto a pagar excluyendo gastos devueltos y corregidos
+        # (un gasto corregido se legaliza en un paquete nuevo, nunca se reintegra)
         monto_a_pagar = sum(
             float(g.valor_pagado) for g in paquete.gastos
-            if getattr(g, "estado_gasto", None) != "devuelto"
+            if getattr(g, "estado_gasto", None) not in ("devuelto", "corregido")
         )
-        devueltos = [g for g in paquete.gastos if getattr(g, "estado_gasto", None) == "devuelto"]
+        devueltos = [g for g in paquete.gastos if getattr(g, "estado_gasto", None) in ("devuelto", "corregido")]
         monto_devuelto = float(paquete.monto_total) - monto_a_pagar
 
         paquete.estado = "en_tesoreria"
@@ -828,12 +830,12 @@ class GastosService:
             )
         estado_anterior = paquete.estado
 
-        # Igual que en el envío a Tesorería: el monto efectivo excluye gastos devueltos
+        # Igual que en el envío a Tesorería: el monto efectivo excluye devueltos y corregidos
         monto_a_pagar = sum(
             float(g.valor_pagado) for g in paquete.gastos
-            if getattr(g, "estado_gasto", None) != "devuelto"
+            if getattr(g, "estado_gasto", None) not in ("devuelto", "corregido")
         )
-        devueltos = [g for g in paquete.gastos if getattr(g, "estado_gasto", None) == "devuelto"]
+        devueltos = [g for g in paquete.gastos if getattr(g, "estado_gasto", None) in ("devuelto", "corregido")]
 
         paquete.estado = "cruzado"
         paquete.monto_a_pagar = monto_a_pagar
@@ -1743,11 +1745,23 @@ class GastosService:
                     detail=f"El gasto no está devuelto (estado actual: '{gasto.estado_gasto}')."
                 )
 
-            gasto.estado_gasto = "pendiente"
-            gasto.motivo_devolucion_gasto = None
-            gasto.devuelto_por_user_id = None
-            gasto.fecha_devolucion_gasto = None
+            # El gasto devuelto NUNCA se reintegra a este paquete: se legaliza en
+            # un paquete nuevo. 'corregido' cierra la alerta pero sigue excluido
+            # del monto a pagar. Motivo/fecha/devuelto_por se conservan como rastro.
+            motivo_original = gasto.motivo_devolucion_gasto
+            gasto.estado_gasto = "corregido"
             await self.gasto_repo.save(gasto)
+
+            await self.comentario_repo.create(ComentarioPaquete(
+                paquete_id=paquete.id,
+                user_id=user_id,
+                texto=(
+                    f"Gasto marcado como corregido ({gasto.pagado_a} - ${float(gasto.valor_pagado):,.2f}). "
+                    "Se legaliza en un paquete nuevo; no se reintegra al total de este paquete."
+                    + (f" Motivo de la devolución: {motivo_original}" if motivo_original else "")
+                ),
+                tipo="observacion",
+            ))
 
             # Verificar si quedan otros gastos devueltos en el paquete
             gastos_aun_devueltos = [
@@ -1760,8 +1774,9 @@ class GastosService:
                     paquete_id=paquete.id,
                     user_id=user_id,
                     texto=(
-                        "Todos los gastos devueltos han sido corregidos por el técnico. "
-                        "El paquete está listo para ser enviado a Tesorería."
+                        "Todos los gastos devueltos fueron marcados como corregidos. "
+                        "Se legalizan en un paquete nuevo y quedan descontados del "
+                        "monto a pagar de este paquete."
                     ),
                     tipo="aprobacion",
                 ))
@@ -1830,7 +1845,21 @@ class GastosService:
         tiene_gastos_devueltos = any(
             getattr(g, "estado_gasto", None) == "devuelto" for g in paquete.gastos
         )
+        # Incluye 'corregido': el gasto devuelto se legaliza en un paquete nuevo
+        # y queda descontado de este paquete de forma permanente.
+        monto_devuelto = sum(
+            (g.valor_pagado for g in paquete.gastos
+             if getattr(g, "estado_gasto", None) in ("devuelto", "corregido")),
+            Decimal("0"),
+        )
+        # Rastro histórico: hubo devoluciones (de paquete o de gastos) aunque ya
+        # estén corregidas — los comentarios de devolución nunca se borran.
+        tuvo_devoluciones = any(
+            c.tipo in ("devolucion", "devolucion_gasto") for c in paquete.comentarios
+        )
         item = PaqueteListItem.model_validate(paquete)
         item.comentario_devolucion = comentario_devolucion
         item.tiene_gastos_devueltos = tiene_gastos_devueltos
+        item.monto_devuelto = monto_devuelto
+        item.tuvo_devoluciones = tuvo_devoluciones
         return item

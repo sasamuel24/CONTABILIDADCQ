@@ -445,7 +445,7 @@ class EmailService:
 
             filas_gastos = ""
             for g in paquete.gastos:
-                estado_color = "#e8f5e9" if getattr(g, "estado_gasto", "pendiente") != "devuelto" else "#fdecea"
+                estado_color = "#e8f5e9" if getattr(g, "estado_gasto", "pendiente") not in ("devuelto", "corregido") else "#fdecea"
                 ca = g.cuenta_auxiliar
                 cuenta_str = f"{ca.codigo} — {ca.descripcion}" if ca else "—"
                 filas_gastos += (
@@ -733,7 +733,7 @@ class EmailService:
             filas_gastos = ""
             for g in getattr(paquete, "gastos", []):
                 estado_gasto = getattr(g, "estado_gasto", "pendiente")
-                if estado_gasto == "devuelto":
+                if estado_gasto in ("devuelto", "corregido"):
                     continue
                 fecha_g = g.fecha.strftime("%d/%m/%Y") if hasattr(g.fecha, "strftime") else str(g.fecha)
                 cuenta = f"{g.cuenta_auxiliar.codigo} — {g.cuenta_auxiliar.descripcion}" if g.cuenta_auxiliar else "—"

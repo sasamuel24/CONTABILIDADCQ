@@ -1431,7 +1431,7 @@ class GastoLegalizacion(Base, TimestampMixin):
     __table_args__ = (
         CheckConstraint("valor_pagado > 0", name="check_valor_gasto_positivo"),
         CheckConstraint(
-            "estado_gasto IN ('pendiente','devuelto','aceptado')",
+            "estado_gasto IN ('pendiente','devuelto','aceptado','corregido')",
             name="check_estado_gasto_valid"
         ),
     )

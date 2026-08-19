@@ -338,6 +338,8 @@ class PaqueteListItem(BaseModel):
     fecha_cruce: Optional[datetime] = None
     comentario_devolucion: Optional[str] = None
     tiene_gastos_devueltos: bool = False
+    monto_devuelto: Decimal = Decimal("0")
+    tuvo_devoluciones: bool = False
     tecnico: Optional[UserBrief] = None
     area: Optional[AreaBrief] = None
     aprobador: Optional[AprobadorBrief] = None

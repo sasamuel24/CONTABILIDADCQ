@@ -151,6 +151,10 @@ class FacturaUpdate(BaseModel):
     # como comentario en el historial. El motivo no es columna de la factura.
     sin_oc_os: Optional[bool] = None
     sin_oc_os_motivo: Optional[str] = None
+    # "Sin CC/CO" (Distribución no requerida): al marcarlo (true) el motivo es
+    # obligatorio y queda como comentario. El motivo no es columna de la factura.
+    sin_ccco: Optional[bool] = None
+    sin_ccco_motivo: Optional[str] = None
     unidad_negocio_id: Optional[UUID] = None
     cuenta_auxiliar_id: Optional[UUID] = None
     fecha_envio_contabilidad: Optional[datetime] = None
@@ -285,6 +289,7 @@ class FacturaListItem(BaseModel):
     es_gasto_adm: bool = False
     es_activo_fijo: bool = False
     sin_oc_os: bool = False
+    sin_ccco: bool = False
     motivo_devolucion: Optional[str] = None
     devuelta_por_nombre: Optional[str] = None
     # Rechazo vigente desde el correo de aprobación (distinto de la devolución
@@ -559,7 +564,8 @@ class SubmitResponsableOut(BaseModel):
     es_gasto_adm: bool = False
     es_activo_fijo: bool = False
     sin_oc_os: bool = False
-    
+    sin_ccco: bool = False
+
     # Archivos (opcional)
     files: Optional[list[dict]] = []
     

@@ -137,6 +137,7 @@ export interface FacturaListItem {
   es_gasto_adm: boolean;
   es_activo_fijo: boolean;
   sin_oc_os: boolean;
+  sin_ccco: boolean;
   motivo_devolucion: string | null;
   devuelta_por_nombre: string | null;
   // Rechazo vigente desde el correo de aprobaciÃ³n (distinto de la devoluciÃ³n
@@ -240,6 +241,9 @@ export interface FacturaUpdate {
   sin_oc_os?: boolean;
   // Obligatorio al marcar sin_oc_os=true; el backend lo registra como comentario.
   sin_oc_os_motivo?: string;
+  sin_ccco?: boolean;
+  // Obligatorio al marcar sin_ccco=true; el backend lo registra como comentario.
+  sin_ccco_motivo?: string;
   fecha_envio_contabilidad?: string | null;
 }
 
@@ -785,6 +789,7 @@ function bandejaToListItem(b: FacturaBandeja): FacturaListItem {
     es_gasto_adm: false,
     es_activo_fijo: false,
     sin_oc_os: false,
+    sin_ccco: false,
     motivo_devolucion: null,
     devuelta_por_nombre: null,
     area_origen_id: null,

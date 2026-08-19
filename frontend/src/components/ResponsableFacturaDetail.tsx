@@ -189,6 +189,9 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [showModalSinOcOs, setShowModalSinOcOs] = useState(false);
   const [motivoSinOcOs, setMotivoSinOcOs] = useState('');
   const [savingSinOcOs, setSavingSinOcOs] = useState(false);
+  const [showModalSinCcco, setShowModalSinCcco] = useState(false);
+  const [motivoSinCcco, setMotivoSinCcco] = useState('');
+  const [savingSinCcco, setSavingSinCcco] = useState(false);
   const [savingActivoFijo, setSavingActivoFijo] = useState(false);
 
   // Estados para Distribución CC/CO
@@ -197,7 +200,9 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   const [errorDistribucion, setErrorDistribucion] = useState(false);
   const [retryDistribucion, setRetryDistribucion] = useState(0);
   const [savingDistribucion, setSavingDistribucion] = useState(false);
-  const [distribRequerida, setDistribRequerida] = useState(true);
+  // Persistido en la factura como `sin_ccco` (invertido): "No requerida" exime
+  // la imputación CC/CO del checklist y desbloquea la Aprobación de Gerencia.
+  const [distribRequerida, setDistribRequerida] = useState(!factura.sin_ccco);
   const distribucionTableRef = useRef<DistribucionCCCOTableHandle>(null);
 
   // Estados para vista previa
@@ -478,6 +483,40 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
       return;
     }
     void guardarSinOcOs(false);
+  };
+
+  // Guardar "No requiere CC/CO" (Distribución no requerida). Marcar pide motivo
+  // en modal; desmarcar es directo. Persiste en la factura (sin_ccco).
+  const guardarSinCcco = async (noRequerida: boolean, motivo?: string) => {
+    setSavingSinCcco(true);
+    try {
+      await updateFactura(
+        factura.id,
+        noRequerida ? { sin_ccco: true, sin_ccco_motivo: motivo } : { sin_ccco: false }
+      );
+      setDistribRequerida(!noRequerida);
+      setShowModalSinCcco(false);
+      setMotivoSinCcco('');
+      toast.success(
+        noRequerida
+          ? 'Distribución CC/CO marcada como no requerida. Ya puedes solicitar la Aprobación de Gerencia sin CC/CO.'
+          : 'Distribución CC/CO requerida de nuevo: vuelven a exigirse Centro de Costo y Centro de Operación.'
+      );
+    } catch (error: any) {
+      toast.error(`Error al guardar: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setSavingSinCcco(false);
+    }
+  };
+
+  const handleToggleDistribRequerida = () => {
+    if (distribRequerida) {
+      // Va a marcarla como NO requerida: pedir motivo (queda como comentario).
+      setMotivoSinCcco('');
+      setShowModalSinCcco(true);
+      return;
+    }
+    void guardarSinCcco(false);
   };
 
   // Guardar estado de Gasto Administrativo
@@ -974,7 +1013,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
   // El CC/CO se cumple con los selects simples O con una Distribución CC/CO
   // guardada (al guardarla, el backend sincroniza el CC/CO de la factura con
   // la primera línea).
-  const tieneCCCO = (!!centroCosto && !!centroOperacion) || distribuciones.length > 0;
+  // "No requerida" (sin_ccco) exime la imputación CC/CO del checklist.
+  const tieneCCCO = !distribRequerida || (!!centroCosto && !!centroOperacion) || distribuciones.length > 0;
   const faltantesAprobacion: string[] = [
     ...(!tieneCCCO ? ['Centro de Costo y Centro de Operación (o guardar la Distribución CC/CO)'] : []),
     ...(!esGastoAdm && !sinOcOs && archivosOCExistentes.length === 0 && !archivoOC ? ['Archivo OC u OS'] : []),
@@ -2069,7 +2109,8 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
               {/* Toggle requerida */}
               <div className="flex items-center justify-end mb-4">
                 <button
-                  onClick={() => setDistribRequerida(prev => !prev)}
+                  onClick={handleToggleDistribRequerida}
+                  disabled={savingSinCcco}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all"
                   style={{
                     backgroundColor: distribRequerida ? 'rgba(20,170,184,0.1)' : '#f3f4f6',
@@ -3092,6 +3133,93 @@ export function ResponsableFacturaDetail({ factura, onClose }: ResponsableFactur
                   }}
                 >
                   {savingSinOcOs ? 'Guardando…' : 'Confirmar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de motivo: marcar Distribución CC/CO como "No requerida" (sin_ccco) */}
+      {showModalSinCcco && (
+        <>
+          <div
+            className="fixed inset-0 z-50 backdrop-blur-lg"
+            style={{backgroundColor: 'rgba(55, 65, 81, 0.75)'}}
+            onClick={() => { if (!savingSinCcco) { setShowModalSinCcco(false); setMotivoSinCcco(''); } }}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+              {/* Header */}
+              <div className="px-6 py-4 rounded-t-lg flex items-center gap-3" style={{background: '#00829a'}}>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{backgroundColor: 'rgba(255,255,255,0.2)'}}>
+                  <FileText className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white text-base" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                    Marcar "No requiere CC / CO"
+                  </h3>
+                  <p className="text-xs mt-0.5" style={{color: 'rgba(255,255,255,0.85)', fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                    El CC/CO dejará de exigirse y podrás solicitar la Aprobación de Gerencia
+                  </p>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="px-6 pt-5 pb-4">
+                <label className="block text-sm font-semibold text-gray-800 mb-1" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                  Motivo <span className="text-red-500">*</span>
+                </label>
+                <p className="text-xs text-gray-400 mb-2.5" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}>
+                  Mínimo 10 caracteres · máximo 200 · quedará como comentario en el historial
+                </p>
+                <textarea
+                  value={motivoSinCcco}
+                  onChange={(e) => { if (e.target.value.length <= 200) setMotivoSinCcco(e.target.value); }}
+                  placeholder="Ej: Gasto a mayor valor del activo, no lleva imputación CC/CO…"
+                  rows={3}
+                  maxLength={200}
+                  disabled={savingSinCcco}
+                  className="w-full px-3 py-2.5 border rounded-lg resize-none text-sm text-gray-800 focus:outline-none focus:ring-2"
+                  style={{
+                    fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                    borderColor: motivoSinCcco.trim().length > 0 && motivoSinCcco.trim().length < 10 ? '#fca5a5' : '#e5e7eb',
+                  }}
+                />
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-red-400" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif", minHeight: 16}}>
+                    {motivoSinCcco.trim().length > 0 && motivoSinCcco.trim().length < 10
+                      ? `Faltan ${10 - motivoSinCcco.trim().length} caracteres más`
+                      : ''}
+                  </p>
+                  <span className="text-xs" style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif", color: motivoSinCcco.length >= 180 ? '#dc2626' : '#9ca3af'}}>
+                    {motivoSinCcco.length}/200
+                  </span>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 pb-5 flex gap-2 justify-end">
+                <button
+                  onClick={() => { setShowModalSinCcco(false); setMotivoSinCcco(''); }}
+                  disabled={savingSinCcco}
+                  className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                  style={{fontFamily: "'Neutra Text', 'Montserrat', sans-serif"}}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => guardarSinCcco(true, motivoSinCcco.trim())}
+                  disabled={savingSinCcco || motivoSinCcco.trim().length < 10}
+                  className="px-5 py-2 rounded-lg text-sm font-semibold transition-all"
+                  style={{
+                    fontFamily: "'Neutra Text', 'Montserrat', sans-serif",
+                    backgroundColor: (savingSinCcco || motivoSinCcco.trim().length < 10) ? '#e5e7eb' : '#00829a',
+                    color: (savingSinCcco || motivoSinCcco.trim().length < 10) ? '#9ca3af' : 'white',
+                    cursor: (savingSinCcco || motivoSinCcco.trim().length < 10) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {savingSinCcco ? 'Guardando…' : 'Confirmar'}
                 </button>
               </div>
             </div>

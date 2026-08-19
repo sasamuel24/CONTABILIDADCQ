@@ -615,6 +615,15 @@ class Factura(Base, TimestampMixin):
         nullable=False,
         server_default="false"
     )
+    # Marcado por el Responsable (con motivo obligatorio → comentario) cuando la
+    # factura no lleva imputación CC/CO (p. ej. va a mayor valor de un activo):
+    # exime Centro de Costo y Centro de Operación del checklist de Contabilidad
+    # y desbloquea la Aprobación de Gerencia sin esos datos.
+    sin_ccco: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        server_default="false"
+    )
     motivo_devolucion: Mapped[Optional[str]] = mapped_column(
         Text,
         nullable=True

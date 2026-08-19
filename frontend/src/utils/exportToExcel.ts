@@ -25,6 +25,7 @@ function facturaToRow(factura: FacturaListItem): Record<string, string | number>
     'Es Gasto ADM':         factura.es_gasto_adm ? 'Sí' : 'No',
     'Es Activo Fijo':       factura.es_activo_fijo ? 'Sí' : 'No',
     'Sin OC/OS':            factura.sin_oc_os ? 'Sí' : 'No',
+    'Sin CC/CO':            factura.sin_ccco ? 'Sí' : 'No',
     'Presenta Novedad':     factura.presenta_novedad ? 'Sí' : 'No',
     'Carpeta Contabilidad': factura.carpeta?.nombre ?? 'Sin asignar',
     'Carpeta Tesorería':    factura.carpeta_tesoreria?.nombre ?? 'Sin asignar',

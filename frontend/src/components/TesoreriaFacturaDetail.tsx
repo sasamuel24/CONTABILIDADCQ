@@ -566,6 +566,14 @@ export function TesoreriaFacturaDetail({ factura, onClose }: TesoreriaFacturaDet
                       </span>
                     </div>
                   )}
+                  {factura.sin_ccco && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">CC / CO</span>
+                      <span className="px-3 py-1 rounded-lg font-medium text-sm bg-amber-100 text-amber-700">
+                        No requerida
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

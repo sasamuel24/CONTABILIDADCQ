@@ -1093,6 +1093,14 @@ export function ContabilidadFacturaDetail({ factura, onClose }: ContabilidadFact
                       </span>
                     </div>
                   )}
+                  {factura.sin_ccco && (
+                    <div className="flex items-center gap-3 mt-3">
+                      <span className="text-sm font-medium text-gray-700">CC / CO</span>
+                      <span className="px-4 py-1 rounded-lg font-medium text-sm bg-amber-100 text-amber-700">
+                        No requerida (marcada por el Responsable — ver motivo en comentarios)
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

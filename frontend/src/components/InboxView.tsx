@@ -48,8 +48,11 @@ function getMissingItems(f: FacturaListItem): string[] {
   }
 
   // ── CAMINO B: NORMAL (sin inventarios) ──────────────────────────────────────
-  if (!f.centro_costo_id)       out.push('Centro de Costo (CC)');
-  if (!f.centro_operacion_id)   out.push('Centro de Operación (CO)');
+  // `sin_ccco` (Distribución no requerida) exime la imputación CC/CO.
+  if (!f.sin_ccco) {
+    if (!f.centro_costo_id)     out.push('Centro de Costo (CC)');
+    if (!f.centro_operacion_id) out.push('Centro de Operación (CO)');
+  }
   if (!f.intervalo_entrega_contabilidad) out.push('Intervalo de entrega a Contabilidad');
 
   // Archivo OC u OS + Aprobación de Gerencia (salvo gastos administrativos).

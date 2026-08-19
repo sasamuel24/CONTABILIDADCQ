@@ -202,6 +202,7 @@ class FacturaService:
                 es_gasto_adm=f.es_gasto_adm,
                 es_activo_fijo=f.es_activo_fijo,
                 sin_oc_os=f.sin_oc_os,
+                sin_ccco=f.sin_ccco,
                 motivo_devolucion=f.motivo_devolucion,
                 devuelta_por_nombre=f.devuelta_por_nombre,
                 fecha_rechazo_email=f.fecha_rechazo_email,
@@ -992,6 +993,32 @@ Responde ÚNICAMENTE con JSON válido:
                 contenido=contenido,
             ))
 
+        # "Sin CC/CO" (Distribución no requerida): mismo patrón que sin_oc_os —
+        # el motivo queda como comentario, no como columna de la factura.
+        sin_ccco_motivo = (update_data.pop('sin_ccco_motivo', None) or '').strip()
+        if factura_data.sin_ccco is not None and factura_data.sin_ccco != factura.sin_ccco:
+            from db.models import ComentarioFactura
+            autor_id = self._to_uuid(user_id)
+            if autor_id is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Marcar 'No requiere CC/CO' exige un usuario con sesión.",
+                )
+            if factura_data.sin_ccco:
+                if len(sin_ccco_motivo) < 10:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Para marcar 'No requiere CC/CO' el motivo es obligatorio (mínimo 10 caracteres).",
+                    )
+                contenido = f"Marcada como 'No requiere CC/CO'. Motivo: {sin_ccco_motivo}"
+            else:
+                contenido = "Desmarcada 'No requiere CC/CO': vuelven a exigirse Centro de Costo y Centro de Operación."
+            self.db.add(ComentarioFactura(
+                factura_id=factura.id,
+                user_id=autor_id,
+                contenido=contenido,
+            ))
+
         if factura_data.area_id is not None and factura_data.area_id != factura.area_id:
             va_a_contabilidad = factura_data.area_id == CONTABILIDAD_AREA_ID_RUTEO
             update_data['estado_id'] = ESTADO_PENDIENTE_CONTABILIDAD if va_a_contabilidad else 2
@@ -1595,10 +1622,13 @@ Responde ÚNICAMENTE con JSON válido:
         # los reemplaza la entrada a inventarios. Esto alinea submit_responsable con
         # _faltantes_para_contabilidad y el badge "Listo".
         if not factura.requiere_entrada_inventarios:
-            if factura.centro_costo_id is None:
-                missing_fields.append("centro_costo_id")
-            if factura.centro_operacion_id is None:
-                missing_fields.append("centro_operacion_id")
+            # `sin_ccco` (Distribución no requerida) exime la imputación CC/CO,
+            # igual que en _faltantes_para_contabilidad.
+            if not factura.sin_ccco:
+                if factura.centro_costo_id is None:
+                    missing_fields.append("centro_costo_id")
+                if factura.centro_operacion_id is None:
+                    missing_fields.append("centro_operacion_id")
             if factura.intervalo_entrega_contabilidad is None:
                 missing_fields.append("intervalo_entrega_contabilidad")
 
@@ -1854,6 +1884,7 @@ Responde ÚNICAMENTE con JSON válido:
             presenta_novedad=factura.presenta_novedad,
             es_activo_fijo=factura.es_activo_fijo,
             sin_oc_os=factura.sin_oc_os,
+            sin_ccco=factura.sin_ccco,
             inventario_codigos=[
                 InventarioCodigoOut(
                     codigo=c.codigo,
@@ -1892,7 +1923,7 @@ Responde ÚNICAMENTE con JSON válido:
            - NO se exige CC/CO, intervalo, OC/OS ni aprobación de gerencia simple.
 
         B) CAMINO NORMAL (sin inventarios):
-           - Centro de Costo y Centro de Operación.
+           - Centro de Costo y Centro de Operación (salvo factura marcada `sin_ccco`).
            - Intervalo de entrega a Contabilidad.
            - Si NO es gasto administrativo: archivo OC u OS (salvo factura
              marcada `sin_oc_os`) + Aprobación de Gerencia (siempre).
@@ -1938,10 +1969,13 @@ Responde ÚNICAMENTE con JSON válido:
             return faltan
 
         # ── CAMINO B: NORMAL (sin inventarios) ─────────────────────────────────
-        if factura.centro_costo_id is None:
-            faltan.append("centro_costo_id")
-        if factura.centro_operacion_id is None:
-            faltan.append("centro_operacion_id")
+        # `sin_ccco` (Distribución no requerida, p. ej. mayor valor de un
+        # activo) exime la imputación CC/CO del checklist.
+        if not factura.sin_ccco:
+            if factura.centro_costo_id is None:
+                faltan.append("centro_costo_id")
+            if factura.centro_operacion_id is None:
+                faltan.append("centro_operacion_id")
         if not factura.intervalo_entrega_contabilidad:
             faltan.append("intervalo_entrega_contabilidad")
         if not factura.es_gasto_adm:
@@ -2202,6 +2236,7 @@ Responde ÚNICAMENTE con JSON válido:
             presenta_novedad=factura.presenta_novedad,
             es_activo_fijo=factura.es_activo_fijo,
             sin_oc_os=factura.sin_oc_os,
+            sin_ccco=factura.sin_ccco,
             inventario_codigos=[
                 InventarioCodigoOut(
                     codigo=c.codigo,
@@ -2315,6 +2350,7 @@ Responde ÚNICAMENTE con JSON válido:
             es_gasto_adm=factura.es_gasto_adm,
             es_activo_fijo=factura.es_activo_fijo,
             sin_oc_os=factura.sin_oc_os,
+            sin_ccco=factura.sin_ccco,
             files=[],
         )
 
@@ -2461,6 +2497,7 @@ Responde ÚNICAMENTE con JSON válido:
             presenta_novedad=factura.presenta_novedad,
             es_activo_fijo=factura.es_activo_fijo,
             sin_oc_os=factura.sin_oc_os,
+            sin_ccco=factura.sin_ccco,
             inventario_codigos=[
                 InventarioCodigoOut(
                     codigo=c.codigo,

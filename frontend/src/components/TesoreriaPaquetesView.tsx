@@ -1175,6 +1175,21 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
     }
   };
 
+  // Ordenamiento trazabilidad — mismo comportamiento que pendientes
+  type SortColTraz = 'folio' | 'semana' | 'tecnico' | 'monto_total' | 'monto_a_pagar' | 'estado' | 'updated_at';
+  const [sortColTraz, setSortColTraz] = useState<SortColTraz>('updated_at');
+  const [sortDirTraz, setSortDirTraz] = useState<'asc' | 'desc'>('desc');
+
+  const handleSortTraz = (col: SortColTraz) => {
+    if (sortColTraz === col) {
+      setSortDirTraz(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColTraz(col);
+      setSortDirTraz('asc');
+    }
+    setPaginaTraz(1);
+  };
+
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
@@ -1326,16 +1341,6 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
     return sortDir === 'asc' ? cmp : -cmp;
   });
 
-  // Trazabilidad con doble filtro
-  const listaTraz = trazabilidad
-    .filter(p => !soloAnticipos || p.anticipo !== null)
-    .filter(p => !filtroEstado || p.estado === filtroEstado)
-    .filter(p => !filtroNombre.trim() || (p.tecnico?.nombre ?? '').toLowerCase().includes(filtroNombre.trim().toLowerCase()));
-
-  const totalPaginasTraz = Math.max(1, Math.ceil(listaTraz.length / FILAS_POR_PAGINA));
-  const paginaTrazClamped = Math.min(paginaTraz, totalPaginasTraz);
-  const listaTrazPagina = listaTraz.slice((paginaTrazClamped - 1) * FILAS_POR_PAGINA, paginaTrazClamped * FILAS_POR_PAGINA);
-
   const ESTADOS_CONFIG: Record<string, { label: string; bg: string; color: string; border: string }> = {
     borrador:     { label: 'Borrador',       bg: '#f3f4f6', color: '#6b7280', border: '#d1d5db' },
     en_revision:  { label: 'En revisión',    bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
@@ -1345,6 +1350,57 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
     pagado:       { label: 'Pagado',         bg: '#f0fdf4', color: '#065f46', border: '#6ee7b7' },
     cruzado:      { label: 'Cruzado',        bg: '#f5f3ff', color: '#6d28d9', border: '#ddd6fe' },
   };
+
+  // Trazabilidad con doble filtro + ordenamiento por columna (igual que pendientes)
+  const listaTraz = trazabilidad
+    .filter(p => !soloAnticipos || p.anticipo !== null)
+    .filter(p => !filtroEstado || p.estado === filtroEstado)
+    .filter(p => !filtroNombre.trim() || (p.tecnico?.nombre ?? '').toLowerCase().includes(filtroNombre.trim().toLowerCase()))
+    .sort((a, b) => {
+      let aVal: string | number | null;
+      let bVal: string | number | null;
+      switch (sortColTraz) {
+        case 'folio':
+          aVal = a.folio ?? '';
+          bVal = b.folio ?? '';
+          break;
+        case 'semana':
+          aVal = a.fecha_inicio ?? '';
+          bVal = b.fecha_inicio ?? '';
+          break;
+        case 'tecnico':
+          aVal = a.tecnico?.nombre ?? '';
+          bVal = b.tecnico?.nombre ?? '';
+          break;
+        case 'monto_total':
+          aVal = Number(a.monto_total);
+          bVal = Number(b.monto_total);
+          break;
+        case 'monto_a_pagar':
+          aVal = Number(a.monto_a_pagar ?? a.monto_total);
+          bVal = Number(b.monto_a_pagar ?? b.monto_total);
+          break;
+        case 'estado':
+          aVal = ESTADOS_CONFIG[a.estado]?.label ?? a.estado;
+          bVal = ESTADOS_CONFIG[b.estado]?.label ?? b.estado;
+          break;
+        case 'updated_at':
+          aVal = a.updated_at ?? '';
+          bVal = b.updated_at ?? '';
+          break;
+      }
+      if (aVal === bVal) return 0;
+      if (aVal === '' || aVal === null) return 1;
+      if (bVal === '' || bVal === null) return -1;
+      const cmp = typeof aVal === 'number'
+        ? aVal - (bVal as number)
+        : String(aVal).localeCompare(String(bVal));
+      return sortDirTraz === 'asc' ? cmp : -cmp;
+    });
+
+  const totalPaginasTraz = Math.max(1, Math.ceil(listaTraz.length / FILAS_POR_PAGINA));
+  const paginaTrazClamped = Math.min(paginaTraz, totalPaginasTraz);
+  const listaTrazPagina = listaTraz.slice((paginaTrazClamped - 1) * FILAS_POR_PAGINA, paginaTrazClamped * FILAS_POR_PAGINA);
 
   const conteoEstados = trazabilidad.reduce<Record<string, number>>((acc, p) => {
     acc[p.estado] = (acc[p.estado] ?? 0) + 1;
@@ -1492,10 +1548,35 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
                   <table className="w-full text-sm">
                     <thead>
                       <tr style={{ backgroundColor: '#00829a' }}>
-                        {['Folio', 'Semana', 'Técnico / Responsable', 'Monto total', 'Valor a pagar', 'Estado', 'Última actualización'].map(h => (
-                          <th key={h} className="px-5 py-3 text-left font-semibold text-white whitespace-nowrap"
-                            style={{ fontFamily: 'Neutra Text Demi, Montserrat, sans-serif', fontSize: 12 }}>
-                            {h}
+                        {([
+                          { label: 'Folio',                 col: 'folio' as SortColTraz,         icon: <FileText className="w-3.5 h-3.5" /> },
+                          { label: 'Semana',                col: 'semana' as SortColTraz,        icon: <CalendarDays className="w-3.5 h-3.5" /> },
+                          { label: 'Técnico / Responsable', col: 'tecnico' as SortColTraz,       icon: <User className="w-3.5 h-3.5" /> },
+                          { label: 'Monto total',           col: 'monto_total' as SortColTraz,   icon: <Banknote className="w-3.5 h-3.5" /> },
+                          { label: 'Valor a pagar',         col: 'monto_a_pagar' as SortColTraz, icon: <Banknote className="w-3.5 h-3.5" /> },
+                          { label: 'Estado',                col: 'estado' as SortColTraz,        icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+                          { label: 'Última actualización',  col: 'updated_at' as SortColTraz,    icon: <CalendarDays className="w-3.5 h-3.5" /> },
+                        ] as { label: string; col: SortColTraz; icon: React.ReactNode }[]).map(({ label, col, icon }) => (
+                          <th
+                            key={col}
+                            onClick={() => handleSortTraz(col)}
+                            className="px-5 py-3 text-left font-semibold text-white whitespace-nowrap"
+                            style={{
+                              fontFamily: 'Neutra Text Demi, Montserrat, sans-serif',
+                              fontSize: 12,
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                            }}
+                          >
+                            <div className="flex items-center gap-1.5">
+                              {icon}
+                              {label}
+                              {sortColTraz === col && (
+                                <span style={{ fontSize: 11, opacity: 0.9 }}>
+                                  {sortDirTraz === 'asc' ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </div>
                           </th>
                         ))}
                       </tr>

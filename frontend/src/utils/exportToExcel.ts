@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { FacturaListItem } from '../lib/api';
+import type { FacturaListItem, PaqueteListItem } from '../lib/api';
 
 function facturaToRow(factura: FacturaListItem): Record<string, string | number> {
   return {
@@ -81,6 +81,88 @@ export function exportFacturasToExcel(
 
     const resumenAreaSheet = XLSX.utils.json_to_sheet(buildResumenPorArea(facturas));
     XLSX.utils.book_append_sheet(workbook, resumenAreaSheet, 'Resumen por Área');
+  }
+
+  const fecha = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(workbook, `${filename}_${fecha}.xlsx`);
+}
+
+// ---------------------------------------------------------------------------
+// Paquetes de gastos (Tesorería)
+// ---------------------------------------------------------------------------
+
+const ESTADO_PAQUETE_LABEL: Record<string, string> = {
+  borrador: 'Borrador',
+  en_validacion: 'En validación',
+  en_revision: 'En revisión',
+  devuelto: 'Devuelto',
+  aprobado: 'Aprobado',
+  en_tesoreria: 'En Tesorería',
+  pagado: 'Pagado',
+  cruzado: 'Cruzado',
+};
+
+function fmtFechaExcel(iso: string | null | undefined): string {
+  if (!iso) return '';
+  return new Date(iso.length === 10 ? `${iso}T12:00:00` : iso).toLocaleDateString('es-ES');
+}
+
+function paqueteToRow(p: PaqueteListItem): Record<string, string | number> {
+  const montoAPagar = Number(p.monto_a_pagar ?? p.monto_total);
+  return {
+    'Folio':                  p.folio ?? '',
+    'Semana':                 p.semana ?? '',
+    'Fecha Inicio':           fmtFechaExcel(p.fecha_inicio),
+    'Fecha Fin':              fmtFechaExcel(p.fecha_fin),
+    'Técnico / Responsable':  p.tecnico?.nombre ?? '',
+    'Cédula':                 p.tecnico?.cedula ?? '',
+    'Email':                  p.tecnico?.email ?? '',
+    'Estado':                 ESTADO_PAQUETE_LABEL[p.estado] ?? p.estado,
+    'Monto Total (COP)':      Number(p.monto_total),
+    'Valor a Pagar (COP)':    montoAPagar,
+    'Monto Devuelto (COP)':   Number(p.monto_devuelto ?? 0),
+    'Documentos':             p.total_documentos,
+    'Enviado a Tesorería':    fmtFechaExcel(p.fecha_envio_tesoreria),
+    'Fecha Cruce':            fmtFechaExcel(p.fecha_cruce),
+    'Última Actualización':   fmtFechaExcel(p.updated_at),
+  };
+}
+
+function buildResumenPaquetesPorEstado(paquetes: PaqueteListItem[]) {
+  const mapa = new Map<string, { cantidad: number; total: number; aPagar: number }>();
+  paquetes.forEach(p => {
+    const label = ESTADO_PAQUETE_LABEL[p.estado] ?? p.estado;
+    const prev = mapa.get(label) ?? { cantidad: 0, total: 0, aPagar: 0 };
+    mapa.set(label, {
+      cantidad: prev.cantidad + 1,
+      total: prev.total + Number(p.monto_total),
+      aPagar: prev.aPagar + Number(p.monto_a_pagar ?? p.monto_total),
+    });
+  });
+  return Array.from(mapa.entries()).map(([estado, data]) => ({
+    'Estado':               estado,
+    'Cantidad':             data.cantidad,
+    'Monto Total (COP)':    data.total,
+    'Valor a Pagar (COP)':  data.aPagar,
+  }));
+}
+
+export function exportPaquetesTesoreriaToExcel(
+  paquetes: PaqueteListItem[],
+  filename = 'informe_paquetes_gastos'
+): void {
+  const rows = paquetes.map(paqueteToRow);
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  const colWidths = Object.keys(rows[0] ?? {}).map(key => ({ wch: Math.max(key.length + 4, 16) }));
+  worksheet['!cols'] = colWidths;
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Paquetes');
+
+  if (paquetes.length > 0) {
+    const resumenSheet = XLSX.utils.json_to_sheet(buildResumenPaquetesPorEstado(paquetes));
+    XLSX.utils.book_append_sheet(workbook, resumenSheet, 'Resumen por Estado');
   }
 
   const fecha = new Date().toISOString().slice(0, 10);

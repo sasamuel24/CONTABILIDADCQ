@@ -25,8 +25,10 @@ import {
   GastoOut,
 } from '../lib/api';
 import { toast } from 'sonner';
+import { exportPaquetesTesoreriaToExcel } from '../utils/exportToExcel';
 import {
   Loader2,
+  FileSpreadsheet,
   CalendarDays,
   Wallet,
   CheckCircle2,
@@ -1407,6 +1409,21 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
     return acc;
   }, {});
 
+  // Exporta la lista visible de la pestaña activa (respeta filtros aplicados)
+  const handleExportExcel = () => {
+    const datos = tab === 'trazabilidad' ? listaTraz : lista;
+    if (datos.length === 0) {
+      toast.info('No hay paquetes para exportar');
+      return;
+    }
+    const nombre =
+      tab === 'pendientes' ? 'paquetes_pendientes_pago'
+      : tab === 'historial' ? 'paquetes_cerrados'
+      : 'paquetes_trazabilidad';
+    exportPaquetesTesoreriaToExcel(datos, nombre);
+    toast.success(`Excel generado con ${datos.length} paquete${datos.length !== 1 ? 's' : ''}`);
+  };
+
   return (
     <div className="p-8">
       {/* Header */}
@@ -1419,15 +1436,27 @@ export function TesoreriaPaquetesView({ soloAnticipos = false }: { soloAnticipos
             Pagos pendientes remitidos por Radicación
           </p>
         </div>
-        <button
-          onClick={tab === 'trazabilidad' ? cargarTrazabilidad : cargar}
-          disabled={tab === 'trazabilidad' ? loadingTraz : loading}
-          className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg border transition-colors"
-          style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${(tab === 'trazabilidad' ? loadingTraz : loading) ? 'animate-spin' : ''}`} />
-          Actualizar
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportExcel}
+            disabled={tab === 'trazabilidad' ? loadingTraz : loading}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg border transition-colors disabled:opacity-50"
+            style={{ color: '#15803d', borderColor: '#bbf7d0', backgroundColor: '#f0fdf4', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+            title="Descargar la lista visible en Excel"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            Exportar Excel
+          </button>
+          <button
+            onClick={tab === 'trazabilidad' ? cargarTrazabilidad : cargar}
+            disabled={tab === 'trazabilidad' ? loadingTraz : loading}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg border transition-colors"
+            style={{ color: '#00829a', borderColor: '#b2e0e8', backgroundColor: '#e0f5f7', fontFamily: 'Neutra Text Demi, Montserrat, sans-serif' }}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${(tab === 'trazabilidad' ? loadingTraz : loading) ? 'animate-spin' : ''}`} />
+            Actualizar
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
